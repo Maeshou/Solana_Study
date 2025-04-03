@@ -2,7 +2,7 @@ use std::env;
 use std::fs::File;
 use std::io::Write;
 use serde_json::json;
-use syn::{visit::Visit, File as SynFile, ItemFn, Stmt};
+use syn::{visit::Visit, File as SynFile, ItemFn};
 use proc_macro2::{TokenStream, TokenTree};
 use quote::ToTokens;
 
@@ -77,7 +77,7 @@ fn get_token_attribute(token: &str) -> &str {
         "fn" => "function",
         "let" => "define",
         "=" => "operator",
-        "&" => "punctuation", // 単体では属性は付けず、場合に応じて &mut として処理する
+        "&" => "punctuation",
         "mut" => "mut",
         "Context" => "structure",
         "InitializeVault" => "structure",
@@ -105,12 +105,11 @@ fn add_tokens(graph: &mut ASTGraph, token_stream: TokenStream, parent: usize, ed
         };
         let attr = get_token_attribute(&token_str);
         let current_id = graph.add_node(&token_str, attr);
-        if prev_id.is_none() {
+        if let Some(prev) = prev_id {
+            graph.add_edge(prev, current_id, "next");
+        } else {
             // 最初のトークンは親ノードと edge_label で接続
             graph.add_edge(parent, current_id, edge_label);
-        } else {
-            // 連続するトークンは "next" エッジで接続
-            graph.add_edge(prev_id.unwrap(), current_id, "next");
         }
         prev_id = Some(current_id);
     }
@@ -156,21 +155,21 @@ impl<'ast> Visit<'ast> for ASTVisitor {
             add_tokens(&mut self.graph, ts, inputs_id, "parameter");
         }
 
-        // 関数本体の式を処理
+        // 関数本体の式を処理するための expression ノードを生成
         let expr_id = self.graph.add_node("expression", "expression");
         self.graph.add_edge(func_id, expr_id, "has");
 
         // 関数本体内の各ステートメントを処理
         for stmt in &node.block.stmts {
             let ts = stmt.to_token_stream();
-            // ステートメント内に "=" が含まれているかチェック（簡易処理）
+            // ステートメント内に "=" が含まれているか（簡易チェック）
             if ts.to_string().contains("=") {
                 // トークンを分割して "=" を境に左右を分離する
                 let tokens: Vec<TokenTree> = ts.into_iter().collect();
                 let mut lhs_tokens = vec![];
                 let mut rhs_tokens = vec![];
                 let mut found_eq = false;
-                // ここではシンプルにトークン列を前半と後半に分ける
+                // シンプルにトークン列を前半と後半に分ける
                 for token in tokens {
                     let token_text = match &token {
                         TokenTree::Group(g) => g.to_token_stream().to_string(),
@@ -180,12 +179,12 @@ impl<'ast> Visit<'ast> for ASTVisitor {
                     };
                     if token_text == "=" {
                         found_eq = true;
-                        // "=" トークンのノードを生成して expression ノードと接続
+                        // "=" ノードを生成して expression ノードと接続
                         let eq_id = self.graph.add_node("=", "operator");
                         self.graph.add_edge(expr_id, eq_id, "contains");
-                        // lhs 側のトークンを追加
+                        // lhs 側のトークンを追加（clone() を利用して所有権移動を回避）
                         if !lhs_tokens.is_empty() {
-                            let lhs_stream: TokenStream = lhs_tokens.into_iter().collect();
+                            let lhs_stream: TokenStream = lhs_tokens.clone().into_iter().collect();
                             add_tokens(&mut self.graph, lhs_stream, eq_id, "lhs");
                         }
                         continue;
@@ -197,9 +196,11 @@ impl<'ast> Visit<'ast> for ASTVisitor {
                     }
                 }
                 if found_eq && !rhs_tokens.is_empty() {
-                    // 直前に追加した "=" のノード（最後の追加ノード）を rhs の親として利用
+                    // 直前に追加した "=" ノードの親として、rhs 側のトークンを追加
                     let rhs_stream: TokenStream = rhs_tokens.into_iter().collect();
-                    add_tokens(&mut self.graph, rhs_stream, self.graph.next_id - 1, "rhs");
+                    // self.graph.next_id を直接使わず、一旦ローカル変数に退避
+                    let parent_id = self.graph.next_id.saturating_sub(1);
+                    add_tokens(&mut self.graph, rhs_stream, parent_id, "rhs");
                 }
             } else {
                 // "=" を含まないステートメントはそのまま expression ノードの下に追加

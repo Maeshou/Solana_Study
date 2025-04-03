@@ -6,7 +6,6 @@ def tokenize_statement(stmt):
     """ ステートメントをトークン化 """
     token_pattern = re.compile(r'[A-Za-z_][A-Za-z0-9_]*|[<>{}()\[\].,;=&\+\-\*/]+|\S')
     tokens = token_pattern.findall(stmt)
-
     # "&" と "mut" を "&mut" として統合
     merged_tokens = []
     i = 0
@@ -44,17 +43,13 @@ def get_token_attribute(token):
 
 def main():
     if len(sys.argv) < 3:
-        print("Usage: python tokenize_ast.py <input_json> <output_json>")
+        print("Usage: python3 tokenize_ast.py <input_json> <output_json>")
         sys.exit(1)
-
     input_file = sys.argv[1]
     output_file = sys.argv[2]
-
     with open(input_file, 'r', encoding='utf-8') as f:
         ast_data = json.load(f)
-
     print("Loaded AST Data:", json.dumps(ast_data, indent=2, ensure_ascii=False))
-
     token_graph = {
         "nodes": [],
         "edges": []
@@ -89,29 +84,28 @@ def main():
         if node.get("node_type") == "function":
             function_id = add_node(node["name"], "function")
             add_edge(mod_id, function_id, "contains")
-
             # `inputs` ノード
             inputs_id = add_node("inputs", "inputs")
             add_edge(function_id, inputs_id, "has")
-
             # 引数を `inputs` に追加
             for param in node.get("inputs", []):
                 match = re.search(r"<\s*([A-Za-z0-9_]+)\s*>", param)
-                struct_name = match.group(1) if match else param
-                struct_id = add_node(struct_name, "structure")
+                if match:
+                    struct_name = match.group(1) 
+                    struct_id = add_node(struct_name, "structure")
+                else:
+                    struct_name = param
+                    struct_id = add_node(struct_name, "value")
                 add_edge(inputs_id, struct_id, "parameter")
-
             # `expression` ノード
             expr_id = add_node("expression", "expression")
             add_edge(function_id, expr_id, "has")
-
             # `body` の処理
             for stmt in node.get("body", []):
                 tokens = tokenize_statement(stmt)
                 if "=" in tokens:
                     eq_index = tokens.index("=")
                     eq_id = add_node("=", "operator")
-
                     # 左辺 (lhs)
                     lhs_tokens = tokens[:eq_index]
                     prev_lhs = None
@@ -122,7 +116,6 @@ def main():
                         else:
                             add_edge(prev_lhs, token_id, "next")
                         prev_lhs = token_id
-
                     # 右辺 (rhs)
                     rhs_tokens = tokens[eq_index+1:]
                     prev_rhs = None
@@ -133,7 +126,6 @@ def main():
                         else:
                             add_edge(prev_rhs, token_id, "next")
                         prev_rhs = token_id
-
                     add_edge(expr_id, eq_id, "contains")
                 else:
                     prev_id = None
@@ -148,11 +140,27 @@ def main():
         if node.get("node_type") == "struct":
             struct_id = add_node(node["name"], "structure")
             add_edge(mod_id, struct_id, "contains")
-
             # `fields` の処理
             for field in node.get("fields", []):
-                field_id = add_node(field["name"], "field")
+                # field_type が存在する場合、'<'より前の部分を属性として抽出
+                if field.get("field_type"):
+                    field_type = field["field_type"]
+                    main_type = re.split(r'<', field_type, maxsplit=1)[0].strip()
+                else:
+                    main_type = "field"
+                # フィールド名のノードを作成（属性に main_type を使用）
+                field_id = add_node(field["name"], main_type)
                 add_edge(struct_id, field_id, "has")
+                
+                # <> 内にフィールド名等が記載されている場合は、別ノードとして追加する
+                if field.get("field_type") and '<' in field["field_type"]:
+                    # field_type の内側を取得（例："Account < 'info , Vault >" の場合、"'info , Vault" 部分）
+                    inner_part = field["field_type"].split('<', 1)[1].rsplit('>', 1)[0].strip()
+                    # カンマで分割（例："'info , Vault" → ["'info", "Vault"]）
+                    inner_fields = [token.strip() for token in inner_part.split(',')]
+                    for inner_field in inner_fields:
+                        inner_field_id = add_node(inner_field, "field_inner")
+                        add_edge(field_id, inner_field_id, "inner_type")
 
     # JSON ファイルにトークングラフを保存
     with open(output_file, 'w', encoding='utf-8') as f:

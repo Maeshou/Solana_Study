@@ -15,6 +15,7 @@ struct CFGNode {
 struct CFGEdge {
     from: usize,
     to: usize,
+    label: String,
 }
 
 #[derive(Serialize)]
@@ -51,10 +52,104 @@ impl CFGBuilder {
         node_id
     }
 
-    fn add_edge(&mut self, from_id: usize, to_id: usize) {
+    // エッジ作成時、ラベルも渡して CFGEdge を生成
+    fn add_edge(&mut self, from_id: usize, to_id: usize, label: &str, func_cfg: &mut FunctionCFG) {
         let from_index = self.node_indices[&from_id];
         let to_index = self.node_indices[&to_id];
         self.graph.add_edge(from_index, to_index, ());
+        func_cfg.edges.push(CFGEdge {
+            from: from_id,
+            to: to_id,
+            label: label.to_string(),
+        });
+    }
+
+    // 各文(stmt)を処理してCFGノードとエッジを生成するヘルパー関数
+    fn process_stmt(&mut self, stmt: &Stmt, func_cfg: &mut FunctionCFG, prev_node_id: usize) -> usize {
+        // まず、if文と関数呼び出しを優先的にパターンマッチ
+        if let Stmt::Expr(Expr::If(expr_if), _) = stmt {
+            // if の条件部分のノードを作成
+            let cond_str = expr_if.cond.to_token_stream().to_string();
+            let if_node_id = self.new_node(format!("if ({})", cond_str));
+            func_cfg.nodes.push(CFGNode { id: if_node_id, label: format!("if ({})", cond_str) });
+            self.add_edge(prev_node_id, if_node_id, "next", func_cfg);
+
+            // true ブランチのエントリとして一旦 "then" ノードを作成
+            let then_entry = self.new_node("then".to_string());
+            func_cfg.nodes.push(CFGNode { id: then_entry, label: "then".to_string() });
+            self.add_edge(if_node_id, then_entry, "true", func_cfg);
+            let mut then_prev = then_entry;
+            for then_stmt in &expr_if.then_branch.stmts {
+                then_prev = self.process_stmt(then_stmt, func_cfg, then_prev);
+            }
+
+            // false ブランチのエントリとして一旦 "else" ノードを作成
+            let else_entry = self.new_node("else".to_string());
+            func_cfg.nodes.push(CFGNode { id: else_entry, label: "else".to_string() });
+            self.add_edge(if_node_id, else_entry, "false", func_cfg);
+            let mut else_prev = else_entry;
+            if let Some((_, else_expr)) = &expr_if.else_branch {
+                match &**else_expr {
+                    // else ブロックがブロック式の場合
+                    Expr::Block(else_block) => {
+                        for else_stmt in &else_block.block.stmts {
+                            else_prev = self.process_stmt(else_stmt, func_cfg, else_prev);
+                        }
+                    },
+                    // else if の場合も再帰的に処理
+                    Expr::If(_) => {
+                        let else_stmt = Stmt::Expr((**else_expr).clone(), None);
+                        else_prev = self.process_stmt(&else_stmt, func_cfg, else_prev);
+                    },
+                    // その他は式として扱う
+                    _ => {
+                        let else_expr_str = else_expr.to_token_stream().to_string();
+                        let node_id = self.new_node(else_expr_str.clone());
+                        func_cfg.nodes.push(CFGNode { id: node_id, label: else_expr_str });
+                        self.add_edge(else_prev, node_id, "next", func_cfg);
+                        else_prev = node_id;
+                    }
+                }
+            } else {
+                // else ブロックがない場合は No-op ノードを追加
+                let no_op_id = self.new_node("No-op".to_string());
+                func_cfg.nodes.push(CFGNode { id: no_op_id, label: "No-op".to_string() });
+                self.add_edge(else_prev, no_op_id, "next", func_cfg);
+                else_prev = no_op_id;
+            }
+
+            // merge ノードを作成し、各分岐から merge へ "next" で接続
+            let merge_node_id = self.new_node("merge".to_string());
+            func_cfg.nodes.push(CFGNode { id: merge_node_id, label: "merge".to_string() });
+            self.add_edge(then_prev, merge_node_id, "next", func_cfg);
+            self.add_edge(else_prev, merge_node_id, "next", func_cfg);
+            merge_node_id
+
+        } else if let Stmt::Expr(expr, _) = stmt {
+            // 関数呼び出しのチェック
+            if let Expr::Call(expr_call) = expr {
+                let call_str = expr_call.to_token_stream().to_string();
+                let node_id = self.new_node(call_str.clone());
+                func_cfg.nodes.push(CFGNode { id: node_id, label: call_str.clone() });
+                // 「call」エッジを追加
+                self.add_edge(prev_node_id, node_id, "call", func_cfg);
+                // ※ここで、もし関数呼び出し先の CFG エントリが判明していれば、別途「call」エッジを追加可能
+                return node_id;
+            }
+            // 通常の式の場合
+            let stmt_str = stmt.to_token_stream().to_string();
+            let node_id = self.new_node(stmt_str.clone());
+            func_cfg.nodes.push(CFGNode { id: node_id, label: stmt_str });
+            self.add_edge(prev_node_id, node_id, "next", func_cfg);
+            node_id
+        } else {
+            // その他の文（Stmt::Semi など）はそのまま処理
+            let stmt_str = stmt.to_token_stream().to_string();
+            let node_id = self.new_node(stmt_str.clone());
+            func_cfg.nodes.push(CFGNode { id: node_id, label: stmt_str });
+            self.add_edge(prev_node_id, node_id, "next", func_cfg);
+            node_id
+        }
     }
 }
 
@@ -69,33 +164,17 @@ impl<'ast> Visit<'ast> for CFGBuilder {
             edges: Vec::new(),
         };
 
-        // エントリノードを作成
+        // エントリノードの作成
         let entry_id = self.new_node("Entry".to_string());
         func_cfg.nodes.push(CFGNode { id: entry_id, label: "Entry".to_string() });
-
         let mut prev_node_id = entry_id;
 
-        // 関数のボディを順番に処理
+        // 関数本体の各文を process_stmt で順次処理
         for stmt in &i.block.stmts {
-            let stmt_str = stmt.to_token_stream().to_string();
-            let node_id = self.new_node(stmt_str.clone());
-            func_cfg.nodes.push(CFGNode { id: node_id, label: stmt_str });
-
-            // 前のノードから現在のノードへエッジを追加
-            self.add_edge(prev_node_id, node_id);
-            func_cfg.edges.push(CFGEdge { from: prev_node_id, to: node_id });
-
-            prev_node_id = node_id;
+            prev_node_id = self.process_stmt(stmt, &mut func_cfg, prev_node_id);
         }
 
-        // ここでは簡略化のため、関数の終了ノードを追加しませんが、必要に応じて追加できます。
-
         self.functions.push(func_cfg);
-
-        // ノードとエッジの情報は `self.graph` にも格納されていますが、
-        // JSON出力のために `functions` ベクタにも格納しています。
-
-        // 関数の解析が終了したら、状態をリセット
         self.current_func = None;
     }
 }
@@ -116,10 +195,9 @@ fn main() {
     let mut cfg_builder = CFGBuilder::new();
     cfg_builder.visit_file(&syntax_tree);
 
-    // CFGデータをJSON形式で出力
+    // CFG データを JSON 形式で出力
     let json = serde_json::to_string_pretty(&cfg_builder.functions).expect("Failed to serialize CFG");
     std::fs::write(output_path, json).expect("Failed to write CFG to file");
 
     println!("CFG has been generated and saved to {}", output_path);
 }
-
