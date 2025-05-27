@@ -1,69 +1,144 @@
-import json
-import numpy as np
-from gensim.models import Word2Vec
+#!/usr/bin/env python3
+"""
+make_ft_vec.py
+------------------------------------
+• graphs 配下の各 case_* ディレクトリ内の third_joint_graph.json を一括処理
+  - コーパス（トークン列）作成
+  - gensim.FastText 学習
+  - ノードベクトルを .npy で保存（dataset/graphs/<graph_name>/vectors.npy）
 
-# JSONファイルを読み込む関数
-def load_json(file_path):
-    with open(file_path, 'r', encoding='utf-8') as f:
+使い方:
+    python make_ft_vec.py \
+        --graphdir ./graphs \
+        --model fasttext_solana.bin \
+        --dim 128 --epoch 20
+"""
+import argparse
+import json
+import os
+import random
+import glob
+
+import numpy as np
+from gensim.models import FastText
+from tqdm import tqdm
+
+
+def load_graph(path):
+    with open(path, 'r', encoding='utf-8') as f:
         return json.load(f)
 
-# トークン化
-def tokenize(text):
-    return text.split()  # 空白でトークン化（簡易版）
 
-# 単語ごとにベクトルを取得
-def vectorize_label(label, model):
-    tokens = tokenize(label)
-    word_vectors = [
-        model.wv[token].tolist() if token in model.wv else [0.0] * model.vector_size
-        for token in tokens
-    ]
-    return word_vectors
+def graph_to_sentences(g, n_walks=10, walk_len=6):
+    id2node = {n['id']: n for n in g['nodes']}
+    sents = [[n['label'], n.get('attributes', '')] for n in g['nodes']]
+    adj = {}
+    for e in g['edges']:
+        adj.setdefault(e['source'], []).append(e['target'])
+    for v in id2node:
+        for _ in range(n_walks):
+            cur, walk = v, []
+            for _ in range(walk_len):
+                walk.append(id2node[cur]['label'])
+                if cur not in adj: break
+                cur = random.choice(adj[cur])
+            sents.append(walk)
+    return sents
 
-# JSONデータをベクトル化
-def vectorize_json(data, model):
-    def traverse_and_vectorize(obj):
-        if isinstance(obj, dict):
-            for key, value in obj.items():
-                if key == "label" and isinstance(value, str):
-                    obj[key] = vectorize_label(value, model)  # 単語ごとにベクトル化
-                elif isinstance(value, (dict, list)):
-                    traverse_and_vectorize(value)
-        elif isinstance(obj, list):
-            for item in obj:
-                traverse_and_vectorize(item)
 
-    traverse_and_vectorize(data)
-    return data
+def train_fasttext(sentences, dim, epoch):
+    return FastText(
+        vector_size=dim,
+        window=5,
+        min_count=1,
+        sg=1,
+        epochs=epoch,
+        sentences=sentences
+    )
 
-# JSONデータを保存
-def save_json(file_path, data):
-    with open(file_path, 'w', encoding='utf-8') as f:
-        json.dump(data, f, indent=4, ensure_ascii=False)
 
-# メイン処理
+def save_node_vectors(g, model, output_dir):
+    os.makedirs(output_dir, exist_ok=True)
+    vecs = []
+    for n in g['nodes']:
+        toks = [n['label'], n.get('attributes', '')]
+        token_vecs = [model.wv[t] for t in toks if t in model.wv]
+        if token_vecs:
+            vec = np.mean(token_vecs, axis=0)
+        else:
+            # モデルに 'unk' がない場合はゼロベクトル
+            vec = model.wv['unk'] if 'unk' in model.wv else np.zeros(model.vector_size)
+        vecs.append(vec)
+    out_path = os.path.join(output_dir, 'vectors.npy')
+    np.save(out_path, np.vstack(vecs))
+    print(f"Saved node vectors to {out_path}")
+
+
+def save_labels(output_dir,label):
+    os.makedirs(output_dir,exist_ok=True)
+    out_path = os.path.join(output_dir, 'label.json')
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(label, f)
+    print(f"Save graph label to {out_path}")
+
+
 def main():
-    input_path = "/home/maeshou/insecure_update_project2/programs/insecure_update_project2/Project2/pdg1.json"
-    output_path = "/home/maeshou/insecure_update_project2/programs/insecure_update_project2/Project2/pdg1_vectorized.json"
-    # JSONデータのロード
-    data = load_json(input_path)
+    ap = argparse.ArgumentParser()
+    ap.add_argument(
+        "--graphdir",
+        default="./graphs",
+        help="case_* ディレクトリを含む graphs ルートパス"
+    )
+    ap.add_argument(
+        "--model",
+        default="fasttext_solana.bin",
+        help="学習済 FastText モデルの保存パス"
+    )
+    ap.add_argument(
+        "--vecdir",
+        default="./dataset/graphs",
+        help="出力ベクトルのルートディレクトリ"
+    )
+    ap.add_argument("--dim",   type=int, default=64, help="FastText の次元")
+    ap.add_argument("--epoch", type=int, default=20,  help="FastText の epoch")
+    ap.add_argument("--label", type=list, default=[0,0,0,0,1,0,0,0,0,0],  help="sample data の ラベル")
+    args = ap.parse_args()
 
-    # サンプルデータからWord2Vecモデルを学習
-    texts = [
-        "let account_data = ctx . accounts . admin_config . try_borrow_data () ? ;",
-        "let mut account_data_slice : & [u8] = & account_data ;",
-        "let account_state = AdminConfig :: try_deserialize (& mut account_data_slice) ? ;",
-        "if account_state . admin != ctx . accounts . admin . key () { return Err (ProgramError :: InvalidArgument . into ()) ; }"
-    ]
-    tokenized_texts = [tokenize(text) for text in texts]
-    model = Word2Vec(sentences=tokenized_texts, vector_size=3, window=5, min_count=1, workers=4)
+    # 1) third_joint_graph.json をまとめて集める
+    pattern = os.path.join(args.graphdir, 'case_*', 'third_joint_graph.json')
+    
+    files = sorted(glob.glob(pattern))
+    if not files:
+        print(f"⚠️  ファイルが見つかりません: {pattern}")
+        return
 
-    # JSONデータをベクトル化
-    vectorized_data = vectorize_json(data, model)
+    # 2) コーパス生成
+    print("📚 Generating corpus …")
+    sentences = []
+    for p in tqdm(files):
+        g = load_graph(p)
+        sentences += graph_to_sentences(g)
+    # unk トークン
+    sentences.append(["unk"])
 
-    # ベクトル化されたJSONを保存
-    save_json(output_path, vectorized_data)
-    print(f"ベクトル化されたJSONを保存しました: {output_path}")
+    # 3) FastText 学習
+    print("🚀 Training FastText …")
+    ft = train_fasttext(sentences, args.dim, args.epoch)
+    ft.save(args.model)
+    print(f"✅ model saved to {args.model}")
+
+    # 4) 各グラフごとにベクトル保存
+    print("💾 Saving node vectors …")
+    for p in tqdm(files):
+        g      = load_graph(p)
+        case_name = os.path.basename(os.path.dirname(p))
+        outdir = os.path.join(args.vecdir, case_name)
+        save_node_vectors(g, ft, outdir)
+        save_labels(outdir,args.label)
+
+
+    print("✅ All done.")
+
 
 if __name__ == "__main__":
     main()

@@ -1,5 +1,5 @@
-import json
 import re
+import json
 import sys
 
 def parse_attribute(attribute):
@@ -10,7 +10,7 @@ def parse_attribute(attribute):
     if not attribute:
         return []
     results = []
-    # 属性内から key = value の形式を抽出する正規表現
+    # key = value の形式を抽出する正規表現
     pattern = re.compile(r'(\w+)\s*=\s*(\w+)')
     matches = pattern.findall(attribute)
     for key, value in matches:
@@ -27,16 +27,28 @@ def add_edges_from_ast(ast_data, token_graph):
             fields = item.get("fields", [])
             for field in fields:
                 attribute = field.get("attribute")
+                # key=value ペアからエッジを作成
                 key_values = parse_attribute(attribute)
                 for key, target_label in key_values:
-                    # トークングラフ内の各ノードの label と比較
                     for node in token_graph.get("nodes", []):
                         if node.get("label") == target_label:
-                            # 該当ノードに対して self-loop のエッジを作成
                             new_edge = {
                                 "source": node.get("id"),
                                 "target": node.get("id"),
                                 "label": key
+                            }
+                            new_edges.append(new_edge)
+                # "init" フラグのチェック
+                # フィールドがアカウントの場合、attribute 内に "init" が含まれていれば
+                # フィールド名 (name) と一致するノードに対して "init" エッジを追加する
+                if "Account" in field.get("field_type", "") and re.search(r'\binit\b', attribute):
+                    target_label = field.get("name")
+                    for node in token_graph.get("nodes", []):
+                        if node.get("label") == target_label:
+                            new_edge = {
+                                "source": node.get("id"),
+                                "target": node.get("id"),
+                                "label": "init"
                             }
                             new_edges.append(new_edge)
     return new_edges

@@ -32,7 +32,6 @@ def extract_structure_nodes_from_index(nodes, start_index):
     ノードリスト nodes の start_index から連続する "structure" ノード群を抽出し、
     そのグループと、グループ終了後のインデックスを返す。
     """
-    
     strucure_nodes = {}
     i = start_index
     while i < len(nodes):
@@ -46,11 +45,7 @@ def extract_structure_nodes_from_index(nodes, start_index):
             current_node.append(nodes[i])
             strucure_nodes[key].extend(current_node)
         i += 1    
-    # while i < len(nodes) and nodes[i]["attributes"] == "structure":
-    #     group.append(nodes[i])
-    #     i += 1
-    #return group, i
-    return strucure_nodes,i
+    return strucure_nodes, i
 
 def extract_function_and_structure_nodes(token_graph):
     """
@@ -70,9 +65,6 @@ def extract_function_and_structure_nodes(token_graph):
     i = 0
     while i < len(nodes):
         node = nodes[i]
-        # print(node)
-        # print(f"動作確認1i={i}")
-        # 新たな関数グループの開始
         if node["attributes"] == "function":
             print("true1")
             if current_function is not None:
@@ -83,43 +75,22 @@ def extract_function_and_structure_nodes(token_graph):
             continue
 
         if current_function is not None:
-            # structure ノードの場合
             if node["attributes"] == "structure":
                 print("true2")
                 print(f"nodes[i-1]['attributes'] = {nodes[i-1]['attributes']}")
-                # 直前のノードが inputs でなければ、関数グループ終了と判断
-                if i == 0 or nodes[i-1]["attributes"] != "inputs":
+                if i == 0 or nodes[i-1]["attributes"] != "inputs" or nodes[i-1]["attributes"] != "structure":#nodes[i-1]["attributes"] != "structure"を追加
                     print(f"動作確認i={i}")
                     print(f"nodes[i-1]['attributes'] = {nodes[i-1]['attributes']}")
                     function_nodes[current_function] = current_function_group
                     current_function = None
                     current_function_group = []
-                    # ここから連続する structure ノード群を抽出
-                    #group, new_index = extract_structure_nodes_from_index(nodes, i)
                     structure_nodes, new_index = extract_structure_nodes_from_index(nodes, i)    
-
-                    # if group:
-                    #     key = group[0]["label"]
-                    #     if key in structure_nodes:
-                    #         structure_nodes[key].extend(group)
-                    #     else:
-                    #         structure_nodes[key] = group
                     i = new_index
                     continue
-
-            # その他の場合は、現在の関数グループに追加
             current_function_group.append(node)
         else:
-            # 関数グループが開始していない場合で、structure ノードが現れた場合
             if node["attributes"] == "structure":
-                #group, new_index = extract_structure_nodes_from_index(nodes, i)
                 structure_nodes, new_index = extract_structure_nodes_from_index(nodes, i)
-                # if group:
-                #     key = group[0]["label"]
-                #     if key in structure_nodes:
-                #         structure_nodes[key].extend(group)
-                #     else:
-                #         structure_nodes[key] = group
                 i = new_index
                 continue
         i += 1
@@ -139,10 +110,12 @@ def group_token_nodes_by_assignment(token_nodes):
     groups = []
     current_group = None
     for token in token_nodes:
-        if token["attributes"] == "operator" and token["label"] == "=":
+        if token["attributes"] == "expression" and token["label"] == "expression":
+            current_group = []  
+        elif token["attributes"] == "delimiter" and token["label"] == ";":
             if current_group is not None:
                 groups.append(current_group)
-            current_group = []  # "="そのものは含めず、以降のトークン群をグループ化
+            current_group = []    
         else:
             if current_group is not None:
                 current_group.append(token)
@@ -156,6 +129,262 @@ def find_all_identifiers_in_group(group, variable):
     """
     return [token for token in group if token.get("label") == variable]
 
+###############################################################################
+# 新たに追加する関数： add_inner_fields_edge
+###############################################################################
+def add_inner_fields_edge(token_graph, struct):
+    """
+    (1) ctx_link エッジの処理:
+        - ターゲットノードから、next エッジで連なる member ノード（attributes=="member", label=="."）と、
+          その直後の identifier ノードを取得する。
+        - 元の ctx_link エッジのソースがフィールド値（attributes=="value"）の場合、ソースから field_inner エッジで
+          内部フィールドの名前を取得し、struct 辞書で対応する構造体ノード群を調べる。
+        - 各構造体ノードの "has" エッジでつながる子ノードのラベルが、取得した identifier ノードのラベルと一致すれば、
+          その子ノード（構造体のフィールド値ノード）をソース、identifier ノードをターゲットとする新たなエッジ（"ctx_link"）を追加する.
+    
+    (2) "=" ノードと入力値の連結処理:
+        - 属性が "operator" でラベルが "=" のノードから、"rhs" または next チェーンで identifier ノードを取得する。
+        - その identifier ノードのラベル（変数名）と、グラフ内の各 value ノードのラベル（":" の前の部分）を比較し、
+          一致する場合、source を value ノード、target を identifier ノードとするエッジ（"input_link"）を追加する.
+    
+    (3) ".<field>" チェーンの処理（assign_link エッジ検知版）:
+        - assign_link エッジのターゲットから、next エッジで dot ノード（attributes=="member", label=="."）を取得し、
+          その後ろの identifier ノードを取得してフィールド名とする.
+        - エッジのソースが構造体名の場合、ソースの "has" エッジからフィールド名と一致するフィールド値ノードを取得し、
+          新たなエッジを追加する.
+        - エッジのソースがフィールド値の場合は、ソースのラベルから抽出した変数名とフィールド名が一致すれば、
+          そのフィールド値ノードと identifier ノードを結ぶエッジを追加する.
+    """
+    def get_next_node(source_id, condition=None):
+        for edge in token_graph["edges"]:
+            if edge.get("label") == "next" and edge.get("source") == source_id:
+                candidate = get_node_by_id(token_graph, edge.get("target"))
+                if candidate and (condition is None or condition(candidate)):
+                    return candidate
+        return None
+
+    def get_child_node(source_id, edge_label, condition=None):
+        for edge in token_graph["edges"]:
+            if edge.get("label") == edge_label and edge.get("source") == source_id:
+                candidate = get_node_by_id(token_graph, edge.get("target"))
+                if candidate and (condition is None or condition(candidate)):
+                    return candidate
+        return None
+
+    # (1) ctx_link エッジの処理
+    for edge in list(token_graph["edges"]):
+        if "ctx_link" in edge.get("label", ""):
+            target = get_node_by_id(token_graph, edge["target"])
+            if not target:
+                continue
+            
+            member_node = get_next_node(target["id"], condition=lambda n: n.get("attributes") == "member" and n.get("label") == ".")
+            if not member_node:
+                continue
+            identifier_node = get_next_node(member_node["id"], condition=lambda n: n.get("attributes") == "identifier")
+            if not identifier_node:
+                continue
+            identifier_label = identifier_node.get("label", "").strip()
+            source = get_node_by_id(token_graph, edge["source"])
+            if not source:
+                continue
+            if source.get("attributes") == "Account":
+                field_inner = get_child_node(source["id"], "inner_type")
+                if field_inner:
+                    inner_field_name = field_inner.get("label", "").strip()
+                    if inner_field_name in struct:
+                        for s_node in struct[inner_field_name]:
+                            has_child = get_child_node(s_node["id"], "has", condition=lambda n: n.get("label") == identifier_label)
+                            if has_child:
+                                add_edge(token_graph, has_child["id"], identifier_node["id"], "field_link")
+    # (2) "=" ノードと入力値の連結処理
+    for eq_node in token_graph["nodes"]:
+        if eq_node.get("label") == "=" and eq_node.get("attributes") == "operator":
+            rhs_node = get_child_node(eq_node["id"], "rhs")
+            if not rhs_node or rhs_node.get("attributes") != "identifier":
+                rhs_node = get_next_node(eq_node["id"], condition=lambda n: n.get("attributes") == "identifier")
+            if not rhs_node or rhs_node.get("attributes") != "identifier":
+                continue
+            identifier_name = rhs_node.get("label", "").strip()
+            for value_node in token_graph["nodes"]:
+                if value_node.get("attributes") == "value":
+                    label = value_node.get("label", "")
+                    if ":" in label:
+                        var_name = label.split(":")[0].strip()
+                    else:
+                        var_name = label.strip()
+                    if var_name == identifier_name:
+                        add_edge(token_graph, value_node["id"], rhs_node["id"], "input_link")
+    # (3) ".<field>" チェーンの処理（assign_link エッジ検知版）
+    for edge in list(token_graph["edges"]):
+        label = edge.get("label", "")
+        if "assign_link" in label:
+            target = get_node_by_id(token_graph, edge["target"])
+            if not target:
+                continue
+            dot_node = get_next_node(target["id"], condition=lambda n: n.get("attributes") == "member" and n.get("label") == ".")
+            if not dot_node:
+                continue
+            field_identifier = get_next_node(dot_node["id"], condition=lambda n: n.get("attributes") == "identifier")
+            if not field_identifier:
+                continue
+            field_name = field_identifier.get("label", "").strip()
+            source = get_node_by_id(token_graph, edge["source"])
+            if not source:
+                continue
+            if source.get("attributes") == "structure":
+                field_child = get_child_node(source["id"], "has", condition=lambda n: n.get("label") == field_name)
+                if field_child:
+                    add_edge(token_graph, field_child["id"], field_identifier["id"], "Account_link")
+            elif source.get("attributes") == "Account":
+                var_name = source.get("label", "").split(":")[0].strip()
+                if var_name == field_name:
+                    add_edge(token_graph, source["id"], field_identifier["id"], "field_link")
+    
+    return token_graph
+
+###############################################################################
+# 新たに追加する関数： process_account_link_inner
+###############################################################################
+def process_account_link_inner(token_graph, struct):
+    """
+    Account_linkを持つエッジに対して、以下の処理を行う：
+      1. Account_linkエッジのターゲットノードから、nextエッジをたどって、
+         attributesが"member"でラベルが"."のノード、その後に属性が"identifier"のノード（変数ノード）が連なるか確認する。
+      2. もし連なっていれば、その変数ノードのラベル（変数名）を取得する。
+      3. 次に、Account_linkを持つノード（ソースノード）のラベルと同じ名前の構造体フィールドノードが、
+         "inner_type"ラベルのエッジで、"field_inner"属性を持つノードと接続されているはずなのでそれを調べる。
+      4. その"field_inner"属性を持つノードと同じ名前のstructure属性のノードが存在する場合、
+         その構造体ノード群のうち、attributesが"value"のノード（フィールド値ノード）を抽出し、
+         そのフィールド値ノードのラベル（":" の前の部分）と先ほど取得した変数ノードのラベルが一致すれば、
+         inner_link というラベルのエッジを追加する。
+    """
+    def get_next_node(source_id, condition=None):
+        for edge in token_graph["edges"]:
+            if edge.get("label") == "next" and edge.get("source") == source_id:
+                candidate = get_node_by_id(token_graph, edge.get("target"))
+                if candidate and (condition is None or condition(candidate)):
+                    return candidate
+        return None
+
+    def get_child_node(source_id, edge_label, condition=None):
+        for edge in token_graph["edges"]:
+            if edge.get("label") == edge_label and edge.get("source") == source_id:
+                candidate = get_node_by_id(token_graph, edge.get("target"))
+                if candidate and (condition is None or condition(candidate)):
+                    return candidate
+        return None
+
+    for edge in list(token_graph["edges"]):
+        if edge.get("label") == "Account_link":
+            account_node = get_node_by_id(token_graph, edge["target"])
+            if not account_node:
+                continue
+            member_node = get_next_node(account_node["id"], condition=lambda n: n.get("attributes")=="member" and n.get("label") == ".")
+            if not member_node:
+                continue
+            variable_node = get_next_node(member_node["id"], condition=lambda n: n.get("attributes")=="identifier")
+            if not variable_node:
+                continue
+            var_name = variable_node.get("label", "").strip()
+            field_node = get_node_by_id(token_graph, edge["source"])
+            inner_node = get_child_node(field_node["id"], "inner_type",
+                                          condition=lambda n: n.get("attributes")=="field_inner" and n.get("label") in struct.keys())
+            if inner_node is None:
+                continue
+            for s_name, s_nodes in struct.items():
+                if s_name == inner_node["label"]:
+                    for s_node in s_nodes:
+                        if s_node["label"] == var_name:
+                            add_edge(token_graph, s_node["id"], variable_node["id"], "inner_link")
+    return token_graph
+
+###############################################################################
+# 新たに追加する関数： process_ctx_link_inner
+###############################################################################
+def process_ctx_link_inner(token_graph, struct):
+    """
+    ctx_linkエッジに対して、以下の処理を行う：
+      1. ctx_linkエッジのソースノードから、nextエッジをたどって、
+         attributesが"member"でラベルが"."のノード、その後に属性が"identifier"のノード（変数ノード）が連なるか確認する。
+      2. もし連なっていれば、その変数ノードのラベル（変数名）を取得する。
+      3. 次に、ctx_linkを持つエッジのソースノードのラベルと同じ名前の構造体フィールドノードが、
+         "inner_type"ラベルのエッジで、"field_inner"属性を持つノードと接続されているはずなのでそれを調べる。
+      4. その"field_inner"属性を持つノードと同じ名前のstructure属性のノードが存在する場合、
+         その構造体ノード群のうち、attributesが"value"のノード（フィールド値ノード）を抽出し、
+         そのフィールド値ノードのラベル（":" の前の部分）と先ほど取得した変数ノードのラベルが一致すれば、
+         inner_link というラベルのエッジを追加する。
+    """
+    def get_next_node(source_id, condition=None):
+        for edge in token_graph["edges"]:
+            if edge.get("label") == "next" and edge.get("source") == source_id:
+                candidate = get_node_by_id(token_graph, edge.get("target"))
+                if candidate and (condition is None or condition(candidate)):
+                    return candidate
+        return None
+
+    def get_child_node(source_id, edge_label, condition=None):
+        for edge in token_graph["edges"]:
+            if edge.get("label") == edge_label and edge.get("source") == source_id:
+                candidate = get_node_by_id(token_graph, edge.get("target"))
+                if candidate and (condition is None or condition(candidate)):
+                    return candidate
+        return None
+
+    for edge in list(token_graph["edges"]):
+        if edge.get("label") == "ctx_link":
+            # 1. ctx_linkエッジのターゲットノードからnextエッジをたどる
+            ctx_target = get_node_by_id(token_graph, edge["target"])
+            if not ctx_target:
+                continue
+            member_node = get_next_node(ctx_target["id"],
+                                        condition=lambda n: n.get("attributes") == "member" and n.get("label") == ".")
+            if not member_node:
+                continue
+            identifier_node = get_next_node(member_node["id"],
+                                            condition=lambda n: n.get("attributes") == "identifier")
+            if not identifier_node:
+                continue
+            var_name = identifier_node.get("label", "").strip()
+            # 3. ctx_linkエッジのターゲットノード（ctx_target）のラベルと一致する構造体フィールドノードを探す
+            field_node = get_node_by_id(token_graph, edge["source"])
+            inner_node = get_child_node(field_node["id"], "inner_type",
+                                         condition=lambda n: n.get("attributes") == "field_inner" and n.get("label") in struct.keys())
+            if inner_node is None:
+                continue
+            for s_name, s_nodes in struct.items():
+                if s_name == inner_node["label"]:
+                    for s_node in s_nodes:
+                        if s_node["label"] == var_name:
+                            add_edge(token_graph, s_node["id"], identifier_node["id"], "inner_link")
+    return token_graph
+
+###############################################################################
+# 新たに追加する関数： remove_edges
+###############################################################################
+def remove_edges(token_graph):
+    """
+    ctx_link の target ノードとなっているノードをターゲットとする
+    def エッジまたは data_dep エッジを削除する。
+    """
+    # まず、すべての ctx_link エッジのターゲットノードのIDを収集する
+    ctx_targets = set()
+    for edge in token_graph["edges"]:
+        if "ctx_link" in edge.get("label", ""):
+            ctx_targets.add(edge["target"])
+    # 新しいエッジリストを作成（該当するエッジは除去する）
+    new_edges = []
+    for edge in token_graph["edges"]:
+        label = edge.get("label", "")
+        # ラベルが "def:" または "data_dep:" であり、かつそのターゲットが ctx_link のターゲットノードの場合は削除
+        if (label.startswith("def:") or label.startswith("data_dep:")) and edge["target"] in ctx_targets:
+            continue
+        new_edges.append(edge)
+    token_graph["edges"] = new_edges
+
+###############################################################################
+# PDG 依存関係に基づくエッジ追加処理
+###############################################################################
 def integrate_dependency_edges(token_graph, pdg):
     """
     PDG の依存関係情報をもとに、Token Graph へエッジを追加する。
@@ -167,12 +396,9 @@ def integrate_dependency_edges(token_graph, pdg):
     その出現順に従い、各エッジで異なるトークンをターゲット（またはソース）として使用する。
     """
     function_nodes, structure_nodes = extract_function_and_structure_nodes(token_graph)
-    print(f"function_nodes: {function_nodes}")
-    print(f"structure_nodes: {structure_nodes}")
     edges = token_graph["edges"]
 
-    # 各グループ・変数組ごとの利用回数を記録する辞書
-    src_counter = {}
+    #src_counter = {}
     tgt_counter = {}
 
     for func in pdg:
@@ -181,11 +407,12 @@ def integrate_dependency_edges(token_graph, pdg):
         pdg_edges = func["edges"]
 
         if function_name not in function_nodes:
-            continue  # Token Graph にこの関数がない場合はスキップ
+            continue
 
         token_nodes = function_nodes[function_name]
         token_groups = group_token_nodes_by_assignment(token_nodes)
-        pdg_assignment_nodes = [node for node in pdg_nodes if "=" in node["label"]]
+        print(f"token_groups = {token_groups}")
+        pdg_assignment_nodes = [node for node in pdg_nodes if ";" in node["label"]]
         pdg_group_mapping = {}
         for idx, node in enumerate(pdg_assignment_nodes):
             pdg_group_mapping[node["id"]] = idx
@@ -212,36 +439,34 @@ def integrate_dependency_edges(token_graph, pdg):
             source_group = token_groups[source_group_index]
             target_group = token_groups[target_group_index]
 
-            # グループ内の該当識別子を全件取得
             src_tokens = find_all_identifiers_in_group(source_group, variable)
             tgt_tokens = find_all_identifiers_in_group(target_group, variable)
 
             if not src_tokens or not tgt_tokens:
                 continue
 
-            # それぞれのグループ・変数組に対してこれまでに利用した回数を取得
-            src_index = src_counter.get((source_group_index, variable), 0)
-            tgt_index = tgt_counter.get((target_group_index, variable), 0)
+            #src_index = src_counter.get((source_group_index, variable), 0)
+            src_index = 0
+            #tgt_index = tgt_counter.get((target_group_index, variable), 0)
 
-            # 利用可能な件数内であれば該当するインデックスのトークンを、超えていれば最初のものを利用
-            src_token = src_tokens[src_index] if src_index < len(src_tokens) else src_tokens[0]
-            tgt_token = tgt_tokens[tgt_index] if tgt_index < len(tgt_tokens) else tgt_tokens[0]
+            src_token = src_tokens[src_index] #if src_index < len(src_tokens) else src_tokens[0]
+            #tgt_token = tgt_tokens[tgt_index] if tgt_index < len(tgt_tokens) else tgt_tokens[0]
 
-            # カウンタをインクリメント
-            src_counter[(source_group_index, variable)] = src_index + 1
-            tgt_counter[(target_group_index, variable)] = tgt_index + 1
-
-            edges.append({
-                "source": src_token["id"],
-                "target": tgt_token["id"],
-                "label": f"{dep_type}: {variable}"
-            })
+            #src_counter[(source_group_index, variable)] = src_index + 1
+            #tgt_counter[(target_group_index, variable)] = tgt_index + 1
+            for tgt_token in tgt_tokens:
+                edges.append({
+                    "source": src_token["id"],
+                    "target": tgt_token["id"],
+                    "label": f"{dep_type}: {variable}"
+                })
 
     return token_graph
 
-
-def assign_link_generater(field_nodes,lhs_candidate_nodes,token_graph):
-    # (2) data_dep エッジから、既に候補に含まれるソースノードに接続するターゲットノードを追加
+###############################################################################
+# ctx.accounts パターンに基づくエッジ追加処理
+###############################################################################
+def assign_link_generater(field_nodes, lhs_candidate_nodes, token_graph):
     for edge in token_graph["edges"]:
         if edge.get("label", "").startswith("data_dep:"):
             print(f"dep_edgeあり")
@@ -253,15 +478,12 @@ def assign_link_generater(field_nodes,lhs_candidate_nodes,token_graph):
                         print(f"tar_node={tar_node}")
                         lhs_candidate_nodes.append(tar_node)
     print(f"lhs_candidate_nodes={lhs_candidate_nodes}")
-    # ユニークな候補ノードにする
     unique_candidates = {node["id"]: node for node in lhs_candidate_nodes}.values()
     print(f"unique_candidates = {unique_candidates}")
-    # 候補ノードの中から対象トークンのラベルに一致するものにエッジ追加
     for field_node in field_nodes:
         for candidate in unique_candidates:
             print(f"assign_linkのtarget={candidate}")
             add_edge(token_graph, field_node["id"], candidate["id"], "assign_link")
-
 
 def process_ctx_accounts(token_graph):
     """
@@ -269,7 +491,7 @@ def process_ctx_accounts(token_graph):
       ・その後ろにあるトークン（例："vault"）のラベルと一致する
         構造体フィールドノード（例：attributes が "Account", "Signer", "UncheckedAccount" 等）を探す。
         → 見つかった場合、構造体フィールドノードから該当トークンノードへエッジ ("ctx_link") を追加する。
-      ・さらに、代入式の左辺の候補ノード群を収集し、その中から対象トークンとラベルが一致するものに対して、
+      ・さらに、代入式の左辺の候補ノード群を収集し、その中から対象トークンとラベルが一致するものに対して，
         構造体フィールドノードから "assign_link" エッジを追加する。
       ・候補ノード群は、(1) 定義トークンから "next" エッジで連なる identifier ノード、及び
         (2) data_dep エッジから、すでに候補にあるソースノードに対応するターゲットノードを抽出する。
@@ -277,27 +499,26 @@ def process_ctx_accounts(token_graph):
         代入式の左辺ノードへ接続する。
     """
     functions, structs = extract_function_and_structure_nodes(token_graph)
+    print(f"(functions)={functions}")
+    print(f"(structs)={structs}")
     for func_name, tokens in functions.items():
-        print(func_name)
+        print(f"func_name={func_name}")
         groups = group_token_nodes_by_assignment(tokens)
         for group in groups:    
             for i in range(len(group) - 3):
                 if group[i]["label"] == "ctx" and group[i+1]["label"] == "." and \
-                group[i+2]["label"] == "accounts" and group[i+3]["label"] == ".":
+                   group[i+2]["label"] == "accounts" and group[i+3]["label"] == ".":
                     if i+4 < len(group):
-                        target_token = group[i+4]  # 例："vault"
+                        target_token = group[i+4]
                         field_nodes = []
-                        # 対象トークンのラベルと属性 ("Account", "Signer", "UncheckedAccount") に一致する構造体フィールドノードを探索
-                        for candidate in token_graph["nodes"]:
-                            if candidate["label"] == target_token["label"] and candidate["attributes"] in ["Account", "Signer", "UncheckedAccount"]:
-                                field_nodes.append(candidate)
+                        for struct_items in structs.values():
+                            for candidate in struct_items:
+                                if candidate["label"] == target_token["label"]:
+                                    field_nodes.append(candidate)
                         if len(field_nodes) > 0:
                             for field_node in field_nodes:
                                 add_edge(token_graph, field_node["id"], target_token["id"], "ctx_link")
-
-                            # 候補ノード収集処理
                             lhs_candidate_nodes = []
-                            # (1) 定義トークンから next エッジで連なる identifier ノードを追加
                             for node in group:
                                 if node.get("attributes") == "define":
                                     next_edges = [e for e in token_graph["edges"] if e["source"] == node["id"] and e["label"] == "next"]
@@ -305,14 +526,10 @@ def process_ctx_accounts(token_graph):
                                         next_node = get_node_by_id(token_graph, edge["target"])
                                         if next_node and next_node.get("attributes") == "identifier":
                                             lhs_candidate_nodes.append(next_node)
-
-                            assign_link_generater(field_nodes,lhs_candidate_nodes,token_graph)
-                            
-
+                            assign_link_generater(field_nodes, lhs_candidate_nodes, token_graph)
                 elif group[i]["label"] == "ctx" and group[i+1]["label"] == "." and \
-                    group[i+2]["label"] == "accounts" and group[i+3]["label"] == ";":
+                     group[i+2]["label"] == "accounts" and group[i+3]["label"] == ";":
                     print("yes5")
-                    # "ctx.accounts." の後ろにトークンが存在しない場合
                     input_node = None
                     j = 0
                     for token in tokens:
@@ -328,12 +545,10 @@ def process_ctx_accounts(token_graph):
                                         if struct_node["label"] == input_node["label"]:
                                             print("yes2")
                                             add_edge(token_graph, struct_node["id"], group[i+2]["id"], "ctx_link")
-                                
-                                #break
                         j += 1
                     if input_node:
                         lhs_candidate_nodes = []
-                        src_nodes=[]
+                        src_nodes = []
                         for token in group:
                             if token["attributes"] == "define":
                                 defined_node_ids = [edge["target"] for edge in token_graph["edges"] if edge["source"] == token["id"] and edge["label"] == "next"]
@@ -346,12 +561,10 @@ def process_ctx_accounts(token_graph):
                                         for struct_name, struct in structs.items():
                                             if struct_name == input_node["label"]:
                                                 for struct_node in struct:
-                                                    if struct_node["label"] == input_node["label"]:
-                                                        src_nodes.append(struct_node)
-                                                        print("yes3")
-                                                        print(f"struct_node['id']={struct_node['id']}")
-                                                        assign_link_generater(src_nodes,lhs_candidate_nodes,token_graph)
-                                                        #add_edge(token_graph, struct_node["id"],  defined_node["id"], "assign_link")
+                                                    src_nodes.append(struct_node)
+                                                    print("yes3")
+                                                    print(f"struct_node['id']={struct_node['id']}")
+                                                    assign_link_generater(src_nodes, lhs_candidate_nodes, token_graph)
 
 def main():
     if len(sys.argv) < 4:
@@ -369,6 +582,16 @@ def main():
     integrate_dependency_edges(token_graph, pdg)
     # ctx.accounts パターンに基づくエッジの追加
     process_ctx_accounts(token_graph)
+    # inner_fields エッジの処理（process_ctx_accounts の後）
+    _, structure_nodes = extract_function_and_structure_nodes(token_graph)
+    add_inner_fields_edge(token_graph, structure_nodes)
+    # Account_link を持つノードに対する inner_link エッジの追加
+    process_account_link_inner(token_graph, structure_nodes)
+    # 追加：ctx_link を持つエッジに対する inner_link エッジの追加
+    process_ctx_link_inner(token_graph, structure_nodes)
+    # 追加：ctx_linkのtargetノードとなっているノードがtargetノードとなるdefエッジまたはdata_depエッジを削除する
+    remove_edges(token_graph)
+    
     save_json(token_graph, output_path)
 
     print(f"Updated token graph saved to {output_path}")

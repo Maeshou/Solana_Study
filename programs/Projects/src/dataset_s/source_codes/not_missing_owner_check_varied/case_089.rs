@@ -1,0 +1,77 @@
+// Case 89: 資産担保解除
+use anchor_lang::prelude::*;
+use anchor_spl::token::{Token, TokenAccount, MintTo, Burn, Mint, token};
+
+declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkgSafe089eKfp");
+
+#[program]
+pub mod case_089 {
+    use super::*;
+
+// Case 89: 資産担保解除
+pub fn execute_safe_089(ctx: Context<SafeCtx089>) -> Result<()> {
+    require!(ctx.accounts.authority_089.is_signer, CustomError::MissingSigner);
+    let reward = ctx.accounts.claim_acc_089.calculate()?;
+    ctx.accounts.claim_acc_089.balance = ctx.accounts.claim_acc_089.balance.checked_add(reward).ok_or(CustomError::Overflow)?;
+    msg!("Claimed reward: {}", reward);
+    Ok(())
+}
+
+}
+
+#[derive(Accounts)]
+pub struct SafeCtx089<'info> {
+    #[account(mut)]
+    pub vault_089: Account<'info, Vault089>,
+    #[account(signer)]
+    pub authority_089: Signer<'info>,
+    #[account(mut)]
+    pub recipient_089: AccountInfo<'info>,
+    #[account(mut)]
+    pub mint_acc_089: Account<'info, Mint>,
+    #[account(mut)]
+    pub src_acc_089: Account<'info, TokenAccount>,
+    #[account(mut)]
+    pub stake_acc_089: Account<'info, StakeAccount>,
+    #[account(mut)]
+    pub claim_acc_089: Account<'info, RewardAccount>,
+    #[account(mut)]
+    pub dao_acc_089: Account<'info, DaoAccount>,
+    pub token_program: Program<'info, Token>,
+    pub system_program: Program<'info, System>,
+}
+
+#[account]
+pub struct Vault089 {
+    pub owner: Pubkey,
+    pub lamports: u64,
+}
+
+#[account]
+pub struct StakeAccount {
+    pub staker: Pubkey,
+    pub locked: u64,
+}
+
+#[account]
+pub struct RewardAccount {
+    pub balance: u64,
+}
+
+#[account]
+pub struct DaoAccount {
+    pub manager: Pubkey,
+    pub total: u64,
+}
+
+#[error_code]
+pub enum CustomError {
+    #[msg("Signer check failed")]
+    MissingSigner,
+    #[msg("Owner check failed")]
+    InvalidOwner,
+    #[msg("Arithmetic underflow")]
+    Underflow,
+    #[msg("Arithmetic overflow")]
+    Overflow,
+}

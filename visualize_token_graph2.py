@@ -1,103 +1,79 @@
+#!/usr/bin/env python3
 import json
 import networkx as nx
 import matplotlib.pyplot as plt
 import sys
 
-def load_json(filepath):
-    with open(filepath, 'r', encoding='utf-8') as f:
-        return json.load(f)
-
-def compute_custom_layout(G):
+def quote_if_needed(text):
     """
-    サイクルを含むグラフでも利用できるよう、まず
-    強連結成分を Condensation（DAG）として求め、各成分のレベルを計算します。
-    その後、各元ノードのレベルは所属する成分のレベルとなり、
-    同一レベル内ではID昇順に並べ、左右に配置します。
+    渡された text を文字列に変換し、コロン (:) が含まれている場合、
+    両端が引用符で囲まれていなければ引用符を追加する。
     """
-    # Condensation を作成（各ノードは強連結成分のIDに写像される）
-    C = nx.condensation(G)
-    comp_mapping = C.graph['mapping']  # 元ノード -> 成分IDの辞書
-
-    # DAG C で各成分のレベルを計算
-    comp_levels = {}
-    for comp in nx.topological_sort(C):
-        if C.in_degree(comp) == 0:
-            comp_levels[comp] = 0
-        else:
-            comp_levels[comp] = max(comp_levels[p] for p in C.predecessors(comp)) + 1
-
-    # 各元ノードにレベルを割り当てる（所属する成分のレベル）
-    node_levels = {}
-    for node in G.nodes():
-        comp_id = comp_mapping[node]
-        node_levels[node] = comp_levels[comp_id]
-
-    # 同一レベルごとにノードをグループ化し、ID昇順にソート
-    level_nodes = {}
-    for node, lvl in node_levels.items():
-        level_nodes.setdefault(lvl, []).append(node)
-    for lvl in level_nodes:
-        level_nodes[lvl].sort()
-
-    # 座標を計算（同一レベルは同じ y、左右は均等に配置）
-    pos = {}
-    horizontal_spacing = 200
-    vertical_spacing = 150
-    for lvl, nodes in level_nodes.items():
-        k = len(nodes)
-        for i, node in enumerate(nodes):
-            # 中央寄せのための x 座標計算
-            x = (i - (k - 1) / 2) * horizontal_spacing
-            y = -lvl * vertical_spacing
-            pos[node] = (x, y)
-    return pos
+    text_str = str(text)
+    if ':' in text_str and not (text_str.startswith('"') and text_str.endswith('"')):
+        return f'"{text_str}"'
+    return text_str
 
 def visualize_token_graph(json_file, output_file="token_graph2.png"):
-    # JSON ファイルの読み込み
-    data = load_json(json_file)
+    # JSON ファイルを読み込む
+    with open(json_file, 'r', encoding='utf-8') as f:
+        data = json.load(f)
     
     # 有向グラフを生成
     G = nx.DiGraph()
     
-    # ノードを追加（ラベルと属性を結合して表示）
+    # ノードを追加
     for node in data.get("nodes", []):
         node_id = node["id"]
         label = node["label"]
         attr = node["attributes"]
         combined_label = f"{label}\n({attr})"
-        G.add_node(node_id, label=combined_label)
+        # ノード名とラベルそれぞれに引用符処理を適用
+        node_id_quoted = quote_if_needed(node_id)
+        combined_label_quoted = quote_if_needed(combined_label)
+        G.add_node(node_id_quoted, label=combined_label_quoted)
     
     # エッジを追加
     for edge in data.get("edges", []):
         source = edge["source"]
         target = edge["target"]
         edge_label = edge["label"]
-        G.add_edge(source, target, label=edge_label)
+        # ソース・ターゲット・ラベルに引用符処理を適用
+        source_quoted = quote_if_needed(source)
+        target_quoted = quote_if_needed(target)
+        edge_label_quoted = quote_if_needed(edge_label)
+        G.add_edge(source_quoted, target_quoted, label=edge_label_quoted)
     
-    # カスタムレイアウトの計算（ノードは固定、同一レベルは横並び）
-    pos = compute_custom_layout(G)
+    # Graphviz の dot レイアウトを使用
+    try:
+        pos = nx.nx_pydot.graphviz_layout(G, prog="dot")
+    except ImportError:
+        print("Graphviz layout requires pydot. Please install it: pip install pydot")
+        sys.exit(1)
     
-    # 描画領域の設定
+    # 図のサイズを調整
     plt.figure(figsize=(16, 12))
-    
+
+    # ノード描画
     node_labels = nx.get_node_attributes(G, 'label')
     nx.draw_networkx_nodes(G, pos, node_color='lightblue', node_size=500)
     nx.draw_networkx_labels(G, pos, labels=node_labels, font_size=8)
-    
+
+    # エッジ描画
     nx.draw_networkx_edges(G, pos, arrows=True)
     edge_labels = nx.get_edge_attributes(G, 'label')
     nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels, font_color='red', font_size=8)
-    
-    plt.title("Token Graph Visualization (Custom Layout)")
+
+    # タイトルと出力
+    plt.title("Token Graph Visualization (Hierarchical Layout)")
     plt.axis('off')
-    
-    # 画像を保存
     plt.savefig(output_file, format="png", dpi=300)
     print(f"Graph saved as {output_file}")
+    # plt.show()  # 必要に応じて有効化してください
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python visualize_graph.py <token_graph.json> [output.png]")
+        print("Usage: python visualize_graph2.py <token_graph.json> [output.png]")
         sys.exit(1)
     
     json_file = sys.argv[1]

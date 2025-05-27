@@ -90,8 +90,23 @@ def main():
             # 引数を `inputs` に追加
             for param in node.get("inputs", []):
                 match = re.search(r"<\s*([A-Za-z0-9_]+)\s*>", param)
-                struct_name = match.group(1) if match else param
-                struct_id = add_node(struct_name, "structure")
+                if match:
+                    struct_name = match.group(1)
+                    struct_id = add_node(struct_name, "structure")
+                else:
+                    # コロン (:) を用いたパターンマッチング: 例 "a: u64" のようなパラメータの場合
+                    param_match = re.search(r"([A-Za-z0-9_]+)\s*:\s*([A-Za-z0-9_]+)", param)
+                    if param_match:
+                        variable_name = param_match.group(1)
+                        variable_type = param_match.group(2)
+                        # 変数名をノード名として、変数型（ここでは大文字に変換）をノードの種類として登録
+                        struct_name = variable_name
+                        struct_id = add_node(variable_name, variable_type.upper())
+                    else:
+                        # コロンが含まれていない場合は既存の処理
+                        struct_name = param
+                        struct_id = add_node(struct_name, "value")
+
                 add_edge(inputs_id, struct_id, "parameter")
             # `expression` ノード
             expr_id = add_node("expression", "expression")
