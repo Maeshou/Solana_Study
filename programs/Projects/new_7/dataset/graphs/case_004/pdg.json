@@ -1,0 +1,700 @@
+[
+  {
+    "name": "init",
+    "inputs": [
+      "ctx: Context < Init >",
+      "fee_bps: u16"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let s = & mut ctx . accounts . state ;"
+      },
+      {
+        "id": 2,
+        "label": "s . admin = ctx . accounts . admin . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "s . fee_bps = if fee_bps > 1500 { 1500 } else { fee_bps } ;"
+      },
+      {
+        "id": 4,
+        "label": "1500"
+      },
+      {
+        "id": 5,
+        "label": "fee_bps"
+      },
+      {
+        "id": 6,
+        "label": "s . round = 0 ;"
+      },
+      {
+        "id": 7,
+        "label": "s . last_note = 0 ;"
+      },
+      {
+        "id": 8,
+        "label": "s . total_emissions = 0 ;"
+      },
+      {
+        "id": 9,
+        "label": "let mut i = 0 ;"
+      },
+      {
+        "id": 10,
+        "label": "while i < 2 { s . round = s . round . saturating_add (1) ; i += 1 ; }"
+      },
+      {
+        "id": 11,
+        "label": "s . round = s . round . saturating_add (1) ;"
+      },
+      {
+        "id": 12,
+        "label": "i += 1 ;"
+      },
+      {
+        "id": 13,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: s"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 1,
+        "to": 6,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 1,
+        "to": 7,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 1,
+        "to": 8,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 9,
+        "to": 9,
+        "label": "def: i"
+      },
+      {
+        "from": 9,
+        "to": 10,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 1,
+        "to": 10,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 1,
+        "to": 10,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 9,
+        "to": 10,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 1,
+        "to": 11,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 1,
+        "to": 11,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 9,
+        "to": 12,
+        "label": "data_dep: i"
+      }
+    ]
+  },
+  {
+    "name": "settle",
+    "inputs": [
+      "ctx: Context < Settle >",
+      "base: u64",
+      "depth: u8",
+      "note: String"
+    ],
+    "nodes": [
+      {
+        "id": 14,
+        "label": "Entry"
+      },
+      {
+        "id": 15,
+        "label": "let s = & mut ctx . accounts . state ;"
+      },
+      {
+        "id": 16,
+        "label": "require ! (s . admin == ctx . accounts . admin . key () , Errs :: BadAdmin) ;"
+      },
+      {
+        "id": 17,
+        "label": "let mut weight : u64 = 7 ;"
+      },
+      {
+        "id": 18,
+        "label": "let mut j = 0 ;"
+      },
+      {
+        "id": 19,
+        "label": "while j < depth { if j % 2 == 0 { weight = weight . saturating_add (2) ; } else { weight = weight . saturating_add (1) ; } j += 1 ; }"
+      },
+      {
+        "id": 20,
+        "label": "if j % 2 == 0 { weight = weight . saturating_add (2) ; } else { weight = weight . saturating_add (1) ; }"
+      },
+      {
+        "id": 21,
+        "label": "weight = weight . saturating_add (2) ;"
+      },
+      {
+        "id": 22,
+        "label": "weight = weight . saturating_add (1) ;"
+      },
+      {
+        "id": 23,
+        "label": "j += 1 ;"
+      },
+      {
+        "id": 24,
+        "label": "if note . len () > 0 { s . last_note = note . len () as u32 ; }"
+      },
+      {
+        "id": 25,
+        "label": "s . last_note = note . len () as u32 ;"
+      },
+      {
+        "id": 26,
+        "label": "let gross = base . saturating_mul (weight) ;"
+      },
+      {
+        "id": 27,
+        "label": "let fee = gross . saturating_mul (s . fee_bps as u64) / 10_000 ;"
+      },
+      {
+        "id": 28,
+        "label": "let mut net = 0u64 ;"
+      },
+      {
+        "id": 29,
+        "label": "if gross > fee { net = gross - fee ; let mut local_sum = 0u64 ; let mut t = 0 ; while t < 3 { local_sum = local_sum . saturating_add ((net / 3) . saturating_add (t as u64)) ; t += 1 ; } s . total_emissions = s . total_emissions . saturating_add (local_sum) ; let mut extra = 0u64 ; if s . last_note > 8 { extra = (s . last_note as u64) / 2 ; } net = net . saturating_add (extra) ; } else { s . round = s . round . saturating_add (1) ; let mut backoff = 0u8 ; while backoff < depth { if s . fee_bps > 0 { s . fee_bps = s . fee_bps . saturating_sub (1) ; } backoff = backoff . saturating_add (1) ; } net = 0 ; }"
+      },
+      {
+        "id": 30,
+        "label": "net = gross - fee ;"
+      },
+      {
+        "id": 31,
+        "label": "let mut local_sum = 0u64 ;"
+      },
+      {
+        "id": 32,
+        "label": "let mut t = 0 ;"
+      },
+      {
+        "id": 33,
+        "label": "while t < 3 { local_sum = local_sum . saturating_add ((net / 3) . saturating_add (t as u64)) ; t += 1 ; }"
+      },
+      {
+        "id": 34,
+        "label": "local_sum = local_sum . saturating_add ((net / 3) . saturating_add (t as u64)) ;"
+      },
+      {
+        "id": 35,
+        "label": "t += 1 ;"
+      },
+      {
+        "id": 36,
+        "label": "s . total_emissions = s . total_emissions . saturating_add (local_sum) ;"
+      },
+      {
+        "id": 37,
+        "label": "let mut extra = 0u64 ;"
+      },
+      {
+        "id": 38,
+        "label": "if s . last_note > 8 { extra = (s . last_note as u64) / 2 ; }"
+      },
+      {
+        "id": 39,
+        "label": "extra = (s . last_note as u64) / 2 ;"
+      },
+      {
+        "id": 40,
+        "label": "net = net . saturating_add (extra) ;"
+      },
+      {
+        "id": 41,
+        "label": "s . round = s . round . saturating_add (1) ;"
+      },
+      {
+        "id": 42,
+        "label": "let mut backoff = 0u8 ;"
+      },
+      {
+        "id": 43,
+        "label": "while backoff < depth { if s . fee_bps > 0 { s . fee_bps = s . fee_bps . saturating_sub (1) ; } backoff = backoff . saturating_add (1) ; }"
+      },
+      {
+        "id": 44,
+        "label": "if s . fee_bps > 0 { s . fee_bps = s . fee_bps . saturating_sub (1) ; }"
+      },
+      {
+        "id": 45,
+        "label": "s . fee_bps = s . fee_bps . saturating_sub (1) ;"
+      },
+      {
+        "id": 46,
+        "label": "backoff = backoff . saturating_add (1) ;"
+      },
+      {
+        "id": 47,
+        "label": "net = 0 ;"
+      },
+      {
+        "id": 48,
+        "label": "let ix = spl_token :: instruction :: transfer (ctx . accounts . token_program . key () , ctx . accounts . treasury . key () , ctx . accounts . member_ata . key () , ctx . accounts . admin . key () , & [] , net ,) ? ;"
+      },
+      {
+        "id": 49,
+        "label": "invoke (& ix , & [ctx . accounts . treasury . to_account_info () , ctx . accounts . member_ata . to_account_info () , ctx . accounts . admin . to_account_info () ,] ,) ? ;"
+      },
+      {
+        "id": 50,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 15,
+        "to": 15,
+        "label": "def: s"
+      },
+      {
+        "from": 18,
+        "to": 18,
+        "label": "def: j"
+      },
+      {
+        "from": 18,
+        "to": 19,
+        "label": "data_dep: j"
+      },
+      {
+        "from": 18,
+        "to": 19,
+        "label": "data_dep: j"
+      },
+      {
+        "from": 18,
+        "to": 19,
+        "label": "data_dep: j"
+      },
+      {
+        "from": 18,
+        "to": 20,
+        "label": "data_dep: j"
+      },
+      {
+        "from": 18,
+        "to": 23,
+        "label": "data_dep: j"
+      },
+      {
+        "from": 15,
+        "to": 24,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 15,
+        "to": 25,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 26,
+        "to": 26,
+        "label": "def: gross"
+      },
+      {
+        "from": 27,
+        "to": 27,
+        "label": "def: fee"
+      },
+      {
+        "from": 26,
+        "to": 27,
+        "label": "data_dep: gross"
+      },
+      {
+        "from": 15,
+        "to": 27,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 28,
+        "to": 28,
+        "label": "def: net"
+      },
+      {
+        "from": 26,
+        "to": 29,
+        "label": "data_dep: gross"
+      },
+      {
+        "from": 27,
+        "to": 29,
+        "label": "data_dep: fee"
+      },
+      {
+        "from": 28,
+        "to": 29,
+        "label": "data_dep: net"
+      },
+      {
+        "from": 26,
+        "to": 29,
+        "label": "data_dep: gross"
+      },
+      {
+        "from": 27,
+        "to": 29,
+        "label": "data_dep: fee"
+      },
+      {
+        "from": 28,
+        "to": 29,
+        "label": "data_dep: net"
+      },
+      {
+        "from": 15,
+        "to": 29,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 15,
+        "to": 29,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 15,
+        "to": 29,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 15,
+        "to": 29,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 28,
+        "to": 29,
+        "label": "data_dep: net"
+      },
+      {
+        "from": 28,
+        "to": 29,
+        "label": "data_dep: net"
+      },
+      {
+        "from": 15,
+        "to": 29,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 15,
+        "to": 29,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 15,
+        "to": 29,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 15,
+        "to": 29,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 15,
+        "to": 29,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 28,
+        "to": 29,
+        "label": "data_dep: net"
+      },
+      {
+        "from": 28,
+        "to": 30,
+        "label": "data_dep: net"
+      },
+      {
+        "from": 26,
+        "to": 30,
+        "label": "data_dep: gross"
+      },
+      {
+        "from": 27,
+        "to": 30,
+        "label": "data_dep: fee"
+      },
+      {
+        "from": 31,
+        "to": 31,
+        "label": "def: local_sum"
+      },
+      {
+        "from": 32,
+        "to": 32,
+        "label": "def: t"
+      },
+      {
+        "from": 32,
+        "to": 33,
+        "label": "data_dep: t"
+      },
+      {
+        "from": 31,
+        "to": 33,
+        "label": "data_dep: local_sum"
+      },
+      {
+        "from": 31,
+        "to": 33,
+        "label": "data_dep: local_sum"
+      },
+      {
+        "from": 28,
+        "to": 33,
+        "label": "data_dep: net"
+      },
+      {
+        "from": 32,
+        "to": 33,
+        "label": "data_dep: t"
+      },
+      {
+        "from": 32,
+        "to": 33,
+        "label": "data_dep: t"
+      },
+      {
+        "from": 31,
+        "to": 34,
+        "label": "data_dep: local_sum"
+      },
+      {
+        "from": 31,
+        "to": 34,
+        "label": "data_dep: local_sum"
+      },
+      {
+        "from": 28,
+        "to": 34,
+        "label": "data_dep: net"
+      },
+      {
+        "from": 32,
+        "to": 34,
+        "label": "data_dep: t"
+      },
+      {
+        "from": 32,
+        "to": 35,
+        "label": "data_dep: t"
+      },
+      {
+        "from": 15,
+        "to": 36,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 15,
+        "to": 36,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 31,
+        "to": 36,
+        "label": "data_dep: local_sum"
+      },
+      {
+        "from": 37,
+        "to": 37,
+        "label": "def: extra"
+      },
+      {
+        "from": 15,
+        "to": 38,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 37,
+        "to": 38,
+        "label": "data_dep: extra"
+      },
+      {
+        "from": 15,
+        "to": 38,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 37,
+        "to": 39,
+        "label": "data_dep: extra"
+      },
+      {
+        "from": 15,
+        "to": 39,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 28,
+        "to": 40,
+        "label": "data_dep: net"
+      },
+      {
+        "from": 28,
+        "to": 40,
+        "label": "data_dep: net"
+      },
+      {
+        "from": 37,
+        "to": 40,
+        "label": "data_dep: extra"
+      },
+      {
+        "from": 15,
+        "to": 41,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 15,
+        "to": 41,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 42,
+        "to": 42,
+        "label": "def: backoff"
+      },
+      {
+        "from": 42,
+        "to": 43,
+        "label": "data_dep: backoff"
+      },
+      {
+        "from": 15,
+        "to": 43,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 15,
+        "to": 43,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 15,
+        "to": 43,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 42,
+        "to": 43,
+        "label": "data_dep: backoff"
+      },
+      {
+        "from": 42,
+        "to": 43,
+        "label": "data_dep: backoff"
+      },
+      {
+        "from": 15,
+        "to": 44,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 15,
+        "to": 44,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 15,
+        "to": 44,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 15,
+        "to": 45,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 15,
+        "to": 45,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 42,
+        "to": 46,
+        "label": "data_dep: backoff"
+      },
+      {
+        "from": 42,
+        "to": 46,
+        "label": "data_dep: backoff"
+      },
+      {
+        "from": 28,
+        "to": 47,
+        "label": "data_dep: net"
+      },
+      {
+        "from": 48,
+        "to": 48,
+        "label": "def: ix"
+      },
+      {
+        "from": 28,
+        "to": 48,
+        "label": "data_dep: net"
+      },
+      {
+        "from": 48,
+        "to": 49,
+        "label": "data_dep: ix"
+      }
+    ]
+  }
+]

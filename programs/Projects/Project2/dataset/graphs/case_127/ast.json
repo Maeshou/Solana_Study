@@ -1,0 +1,123 @@
+[
+  {
+    "name": "create_subscription",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateSubscription >",
+      "period_days: u32"
+    ],
+    "attributes": [
+      "# [doc = \" 新規サブスクリプション作成\"]"
+    ],
+    "body": [
+      "if period_days == 0",
+      "{",
+      "return Err (ErrorCode :: InvalidPeriod . into ()) ;",
+      "}",
+      "let sub = & mut ctx . accounts . subscription ;",
+      "sub . owner = ctx . accounts . user . key () ;",
+      "let now = ctx . accounts . clock . unix_timestamp ;",
+      "sub . expiry = now + (period_days as i64) * 86_400 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "renew_subscription",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifySubscription >",
+      "period_days: u32"
+    ],
+    "attributes": [
+      "# [doc = \" サブスクリプション延長\"]"
+    ],
+    "body": [
+      "if period_days == 0",
+      "{",
+      "return Err (ErrorCode :: InvalidPeriod . into ()) ;",
+      "}",
+      "let sub = & mut ctx . accounts . subscription ;",
+      "if sub . owner != ctx . accounts . user . key ()",
+      "{",
+      "return Err (ErrorCode :: Unauthorized . into ()) ;",
+      "}",
+      "let now = ctx . accounts . clock . unix_timestamp ;",
+      "sub . expiry = now + (period_days as i64) * 86_400 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CreateSubscription",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "subscription",
+        "attribute": "# [doc = \" init 制約で同一アカウント再初期化を防止（Reinit Attack）\"] # [account (init , payer = user , space = 8 + 32 + 8)]",
+        "field_type": "Account < 'info , Subscription >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" サブスクライバー（署名必須）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": "# [doc = \" 現在時刻取得用\"]",
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ModifySubscription",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "subscription",
+        "attribute": "# [doc = \" Account<> による Owner Check & Type Cosplay\"] # [account (mut)]",
+        "field_type": "Account < 'info , Subscription >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" サブスクライバー（署名必須）\"]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": "# [doc = \" 現在時刻取得用\"]",
+        "field_type": "Sysvar < 'info , Clock >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Subscription",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" このサブスクリプションを操作できるユーザー\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "expiry",
+        "attribute": "# [doc = \" 有効期限の UNIX タイムスタンプ\"]",
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

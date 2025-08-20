@@ -1,0 +1,236 @@
+[
+  {
+    "name": "create_event_ledger",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateEventLedger >",
+      "event_id: u32",
+      "event_type: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let ledger = & mut ctx . accounts . event_ledger ;",
+      "ledger . host = ctx . accounts . host . key () ;",
+      "ledger . event_id = event_id ;",
+      "ledger . event_type = event_type ;",
+      "ledger . participant_count = 0 ;",
+      "ledger . last_entry_time = Clock :: get () ? . unix_timestamp ;",
+      "ledger . event_status = EventStatus :: Active ;",
+      "msg ! (\"Event ledger for event {} created. Status is Active.\" , ledger . event_id) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "log_participation_record",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < LogParticipationRecord >",
+      "participant_id: u64",
+      "is_vip: bool"
+    ],
+    "attributes": [],
+    "body": [
+      "let record = & mut ctx . accounts . participation_record ;",
+      "let ledger = & mut ctx . accounts . event_ledger ;",
+      "if ledger . event_status != EventStatus :: Active",
+      "{",
+      "return Err (error ! (EventError :: LedgerInactive)) ;",
+      "}",
+      "record . event_ledger = ledger . key () ;",
+      "record . participant_id = participant_id ;",
+      "record . participant = ctx . accounts . participant . key () ;",
+      "record . is_vip = is_vip ;",
+      "record . attendance_status = AttendanceStatus :: Registered ;",
+      "ledger . participant_count = ledger . participant_count . saturating_add (1) ;",
+      "msg ! (\"Participation record for participant {} logged. Attendance status: Registered.\" , record . participant_id) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "update_attendance_status",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < UpdateAttendanceStatus >",
+      "attendance_scores: Vec < u8 >"
+    ],
+    "attributes": [],
+    "body": [
+      "let entry_one = & mut ctx . accounts . entry_one ;",
+      "let entry_two = & mut ctx . accounts . entry_two ;",
+      "if entry_one . attendance_status != AttendanceStatus :: Registered || entry_two . attendance_status != AttendanceStatus :: Registered",
+      "{",
+      "return Err (error ! (EventError :: EntryNotRegistered)) ;",
+      "}",
+      "let mut average_score = 0 ;",
+      "if ! attendance_scores . is_empty ()",
+      "{",
+      "average_score = attendance_scores . iter () . sum :: < u8 > () / attendance_scores . len () as u8 ;",
+      "}",
+      "if average_score > 50",
+      "{",
+      "entry_one . attendance_status = AttendanceStatus :: Attended ;",
+      "entry_two . attendance_status = AttendanceStatus :: Attended ;",
+      "msg ! (\"Both entries marked as attended due to high average score.\") ;",
+      "} else",
+      "{",
+      "entry_one . attendance_status = AttendanceStatus :: DidNotAttend ;",
+      "entry_two . attendance_status = AttendanceStatus :: DidNotAttend ;",
+      "msg ! (\"Both entries marked as did not attend due to low average score.\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CreateEventLedger",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "event_ledger",
+        "attribute": "# [account (init , payer = host , space = 8 + 32 + 4 + 32 + 4 + 8 + 1)]",
+        "field_type": "Account < 'info , EventLedger >"
+      },
+      {
+        "name": "host",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "LogParticipationRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "event_ledger",
+        "attribute": "# [account (mut , has_one = event_ledger)]",
+        "field_type": "Account < 'info , EventLedger >"
+      },
+      {
+        "name": "participation_record",
+        "attribute": "# [account (init , payer = participant , space = 8 + 32 + 8 + 32 + 1 + 1)]",
+        "field_type": "Account < 'info , ParticipationRecord >"
+      },
+      {
+        "name": "participant",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "UpdateAttendanceStatus",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "event_ledger",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , EventLedger >"
+      },
+      {
+        "name": "entry_one",
+        "attribute": "# [account (mut , has_one = event_ledger)]",
+        "field_type": "Account < 'info , ParticipationRecord >"
+      },
+      {
+        "name": "entry_two",
+        "attribute": "# [account (mut , has_one = event_ledger)]",
+        "field_type": "Account < 'info , ParticipationRecord >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EventLedger",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "host",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "event_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "event_type",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "participant_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "last_entry_time",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "event_status",
+        "attribute": null,
+        "field_type": "EventStatus"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ParticipationRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "event_ledger",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "participant_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "participant",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "is_vip",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "attendance_status",
+        "attribute": null,
+        "field_type": "AttendanceStatus"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

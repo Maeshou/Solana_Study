@@ -1,0 +1,176 @@
+[
+  {
+    "name": "init_pool",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitPool >",
+      "base_rate_bps: u16",
+      "minimum_units: u64",
+      "warmup_rounds: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let pool_info = & mut ctx . accounts . pool_info ;",
+      "pool_info . admin_key = ctx . accounts . admin . key () ;",
+      "pool_info . base_rate_bps = base_rate_bps . min (3000) . max (25) ;",
+      "pool_info . minimum_units = minimum_units . max (1) ;",
+      "pool_info . current_round = (warmup_rounds as u64) . max (1) ;",
+      "pool_info . cumulative_distributed = minimum_units . saturating_add (3) ;",
+      "pool_info . mode_flag = RewardMode :: Balanced ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_settle",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActSettle >",
+      "contributed_units: u64",
+      "epoch_count: u16",
+      "ramp_bps_per_epoch: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let pool_info = & mut ctx . accounts . pool_info ;",
+      "require ! (contributed_units >= pool_info . minimum_units , ErrStk :: TooSmall) ;",
+      "let mut fee_bps = 400u64 ;",
+      "let mut round_cursor = 1u64 ;",
+      "while round_cursor < pool_info . current_round",
+      "{",
+      "if fee_bps > 100",
+      "{",
+      "fee_bps = fee_bps . saturating_sub (50) ;",
+      "} round_cursor = round_cursor . saturating_add (1) ;",
+      "}",
+      "let mut accumulated_bonus_bps = 0u64 ;",
+      "let mut epoch_cursor = 0u16 ;",
+      "while epoch_cursor < epoch_count",
+      "{",
+      "accumulated_bonus_bps = accumulated_bonus_bps . saturating_add (ramp_bps_per_epoch as u64) ;",
+      "epoch_cursor = epoch_cursor . saturating_add (1) ;",
+      "}",
+      "let mut effective_bps = pool_info . base_rate_bps as u64 ;",
+      "if pool_info . mode_flag == RewardMode :: Cautious",
+      "{",
+      "effective_bps = effective_bps . saturating_sub (30) ;",
+      "}",
+      "if pool_info . mode_flag == RewardMode :: Focused",
+      "{",
+      "effective_bps = effective_bps . saturating_add (90) ;",
+      "}",
+      "let capped_bps = { let candidate = effective_bps . saturating_add (accumulated_bonus_bps) ; let ceiling = effective_bps . saturating_mul (3) ; if candidate > ceiling { ceiling } else { candidate } } ;",
+      "let gross_reward = contributed_units . saturating_mul (capped_bps) / 10_000 ;",
+      "let fee_amount = gross_reward . saturating_mul (fee_bps) / 10_000 ;",
+      "let distributable = gross_reward . saturating_sub (fee_amount) ;",
+      "if distributable < pool_info . minimum_units . saturating_div (8)",
+      "{",
+      "pool_info . mode_flag = RewardMode :: Cautious ;",
+      "pool_info . current_round = pool_info . current_round . saturating_add (1) ;",
+      "return Err (ErrStk :: InsufficientYield . into ()) ;",
+      "}",
+      "token :: transfer (ctx . accounts . pool_to_staker () , distributable) ? ;",
+      "pool_info . cumulative_distributed = pool_info . cumulative_distributed . saturating_add (distributable) ;",
+      "pool_info . current_round = pool_info . current_round . saturating_add (1) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitPool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool_info",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 2 + 8 + 8 + 8 + 1)]",
+        "field_type": "Account < 'info , PoolInfo >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActSettle",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool_info",
+        "attribute": "# [account (mut , has_one = admin_key)]",
+        "field_type": "Account < 'info , PoolInfo >"
+      },
+      {
+        "name": "admin_key",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "pool_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "staker_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PoolInfo",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin_key",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "base_rate_bps",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "minimum_units",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "current_round",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "cumulative_distributed",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "mode_flag",
+        "attribute": null,
+        "field_type": "RewardMode"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,259 @@
+[
+  {
+    "name": "energy_channel",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < EnergyChannel >",
+      "fuel: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "for _ in 0 .. (fuel % 3 + 1)",
+      "{",
+      "ctx . accounts . energy_store . charge += 2 ;",
+      "}",
+      "if ctx . accounts . energy_store . charge > 50",
+      "{",
+      "ctx . accounts . energy_store . overflows += 1 ;",
+      "}",
+      "let mut target_program = ctx . accounts . route_hint . to_account_info () ;",
+      "if ctx . remaining_accounts . len () > 0",
+      "{",
+      "target_program = ctx . remaining_accounts [0] . clone () ;",
+      "}",
+      "let metas = vec ! [AccountMeta :: new (ctx . accounts . device . key () , false) , AccountMeta :: new_readonly (ctx . accounts . user . key () , true) ,] ;",
+      "let infos = vec ! [target_program . clone () , ctx . accounts . device . to_account_info () , ctx . accounts . user . to_account_info () ,] ;",
+      "let ix = Instruction { program_id : * target_program . key , accounts : metas , data : fuel . to_le_bytes () . to_vec () , } ;",
+      "invoke (& ix , & infos) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "artifact_table",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ArtifactTable >",
+      "seed: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "ctx . accounts . registry . count = ctx . accounts . registry . count . saturating_add (seed) ;",
+      "let mut idx = 0 ;",
+      "while idx < (seed % 4)",
+      "{",
+      "ctx . accounts . registry . hash ^= Clock :: get () ? . unix_timestamp as u64 ;",
+      "idx += 1 ;",
+      "}",
+      "if seed > 10",
+      "{",
+      "ctx . accounts . registry . flags += 1 ;",
+      "}",
+      "let mut target_program = ctx . accounts . route_prog . to_account_info () ;",
+      "if ctx . remaining_accounts . len () > 0",
+      "{",
+      "target_program = ctx . remaining_accounts [0] . clone () ;",
+      "}",
+      "let metas = vec ! [AccountMeta :: new (ctx . accounts . slot . key () , false) , AccountMeta :: new_readonly (ctx . accounts . holder . key () , false) ,] ;",
+      "let infos = vec ! [target_program . clone () , ctx . accounts . slot . to_account_info () , ctx . accounts . holder . to_account_info () ,] ;",
+      "let ix = Instruction { program_id : * target_program . key , accounts : metas , data : (seed ^ 0xABCD) . to_le_bytes () . to_vec () , } ;",
+      "invoke (& ix , & infos) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "quest_board",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < QuestBoard >",
+      "stage: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "if stage >= 5",
+      "{",
+      "ctx . accounts . journal . progress += 2 ;",
+      "}",
+      "if stage < 2",
+      "{",
+      "ctx . accounts . journal . fallbacks += 1 ;",
+      "}",
+      "let mut chosen_program = ctx . accounts . dispatch . to_account_info () ;",
+      "if ctx . remaining_accounts . len () > 0",
+      "{",
+      "chosen_program = ctx . remaining_accounts [0] . clone () ;",
+      "ctx . accounts . journal . routes += 1 ;",
+      "}",
+      "for _ in 0 .. (stage % 2 + 1)",
+      "{",
+      "ctx . accounts . journal . events = ctx . accounts . journal . events . wrapping_add (7) ;",
+      "}",
+      "let metas = vec ! [AccountMeta :: new (ctx . accounts . task . key () , false) , AccountMeta :: new (ctx . accounts . hero . key () , true) ,] ;",
+      "let infos = vec ! [chosen_program . clone () , ctx . accounts . task . to_account_info () , ctx . accounts . hero . to_account_info () ,] ;",
+      "let ix = Instruction { program_id : * chosen_program . key , accounts : metas , data : stage . to_le_bytes () . to_vec () , } ;",
+      "invoke (& ix , & infos) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "EnergyChannel",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "energy_store",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , EnergyStore >"
+      },
+      {
+        "name": "device",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "route_hint",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ArtifactTable",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "registry",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , ArtifactRegistry >"
+      },
+      {
+        "name": "slot",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "holder",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "route_prog",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "QuestBoard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "journal",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , QuestJournal >"
+      },
+      {
+        "name": "task",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "hero",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "dispatch",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EnergyStore",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "charge",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "overflows",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ArtifactRegistry",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "count",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "hash",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "flags",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "QuestJournal",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "progress",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "fallbacks",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "routes",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "events",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

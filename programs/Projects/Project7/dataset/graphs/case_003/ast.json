@@ -1,0 +1,153 @@
+[
+  {
+    "name": "init_guild",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitGuild >",
+      "due_amount: u64",
+      "refund_bps: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let g = & mut ctx . accounts . guild ;",
+      "g . master = ctx . accounts . master . key () ;",
+      "g . due_amount = due_amount ;",
+      "g . refund_bps = refund_bps . min (5000) ;",
+      "g . collected = 0 ;",
+      "g . refunded = 0 ;",
+      "g . strict = true ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_collect_or_refund",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActCollectOrRefund >",
+      "months: u8",
+      "refund: bool"
+    ],
+    "attributes": [],
+    "body": [
+      "let g = & mut ctx . accounts . guild ;",
+      "let mut total : u64 = 0 ;",
+      "for _ in 0 .. months",
+      "{",
+      "total = total . saturating_add (g . due_amount) ;",
+      "}",
+      "if refund",
+      "{",
+      "let amt = total . saturating_mul (g . refund_bps as u64) / 10_000 ;",
+      "let cpi_ctx = ctx . accounts . treasury_to_member () ;",
+      "token :: transfer (cpi_ctx , amt) ? ;",
+      "g . refunded = g . refunded . saturating_add (amt) ;",
+      "} else",
+      "{",
+      "require ! (g . strict || total > 0 , ErrorCode :: InvalidAmount) ;",
+      "let cpi_ctx = ctx . accounts . member_to_treasury () ;",
+      "token :: transfer (cpi_ctx , total) ? ;",
+      "g . collected = g . collected . saturating_add (total) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitGuild",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": "# [account (init , payer = master , space = 8 + 32 + 8 + 2 + 8 + 8 + 1)]",
+        "field_type": "Account < 'info , Guild >"
+      },
+      {
+        "name": "master",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActCollectOrRefund",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": "# [account (mut , has_one = master)]",
+        "field_type": "Account < 'info , Guild >"
+      },
+      {
+        "name": "master",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "member_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "treasury_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Guild",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "master",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "due_amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "refund_bps",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "collected",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "refunded",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "strict",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

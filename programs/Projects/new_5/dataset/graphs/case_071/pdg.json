@@ -1,0 +1,960 @@
+[
+  {
+    "name": "init_dungeon",
+    "inputs": [
+      "ctx: Context < InitDungeon >",
+      "level_count: u32",
+      "base_difficulty: u8"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let dungeon = & mut ctx . accounts . dungeon_data ;"
+      },
+      {
+        "id": 2,
+        "label": "dungeon . level_count = level_count . checked_add (10) . unwrap_or (u32 :: MAX) ;"
+      },
+      {
+        "id": 3,
+        "label": "dungeon . base_difficulty = base_difficulty . checked_div (2) . unwrap_or (1) ;"
+      },
+      {
+        "id": 4,
+        "label": "dungeon . total_treasure = 0 ;"
+      },
+      {
+        "id": 5,
+        "label": "dungeon . dungeon_status = DungeonStatus :: Unexplored ;"
+      },
+      {
+        "id": 6,
+        "label": "msg ! (\"Dungeon created with {} levels and base difficulty {}.\" , dungeon . level_count , dungeon . base_difficulty) ;"
+      },
+      {
+        "id": 7,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: dungeon"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: dungeon"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: dungeon"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: dungeon"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: dungeon"
+      }
+    ]
+  },
+  {
+    "name": "init_adventurer",
+    "inputs": [
+      "ctx: Context < InitAdventurer >",
+      "player_id: u64",
+      "courage_level: u8"
+    ],
+    "nodes": [
+      {
+        "id": 8,
+        "label": "Entry"
+      },
+      {
+        "id": 9,
+        "label": "let adventurer = & mut ctx . accounts . adventurer_sheet ;"
+      },
+      {
+        "id": 10,
+        "label": "adventurer . parent_dungeon = ctx . accounts . dungeon_data . key () ;"
+      },
+      {
+        "id": 11,
+        "label": "adventurer . player_id = player_id . checked_add (500) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 12,
+        "label": "adventurer . courage_level = courage_level . checked_add (10) . unwrap_or (u8 :: MAX) ;"
+      },
+      {
+        "id": 13,
+        "label": "adventurer . is_alive = true ;"
+      },
+      {
+        "id": 14,
+        "label": "adventurer . current_level = 0 ;"
+      },
+      {
+        "id": 15,
+        "label": "adventurer . treasure_found = 0 ;"
+      },
+      {
+        "id": 16,
+        "label": "msg ! (\"Adventurer {} enters the dungeon with courage level {}.\" , adventurer . player_id , adventurer . courage_level) ;"
+      },
+      {
+        "id": 17,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 9,
+        "to": 9,
+        "label": "def: adventurer"
+      },
+      {
+        "from": 9,
+        "to": 10,
+        "label": "data_dep: adventurer"
+      },
+      {
+        "from": 9,
+        "to": 11,
+        "label": "data_dep: adventurer"
+      },
+      {
+        "from": 9,
+        "to": 12,
+        "label": "data_dep: adventurer"
+      },
+      {
+        "from": 9,
+        "to": 13,
+        "label": "data_dep: adventurer"
+      },
+      {
+        "from": 9,
+        "to": 14,
+        "label": "data_dep: adventurer"
+      },
+      {
+        "from": 9,
+        "to": 15,
+        "label": "data_dep: adventurer"
+      }
+    ]
+  },
+  {
+    "name": "raid_dungeon",
+    "inputs": [
+      "ctx: Context < RaidDungeon >",
+      "raid_power: u32"
+    ],
+    "nodes": [
+      {
+        "id": 18,
+        "label": "Entry"
+      },
+      {
+        "id": 19,
+        "label": "let dungeon = & mut ctx . accounts . dungeon_data ;"
+      },
+      {
+        "id": 20,
+        "label": "let explorer = & mut ctx . accounts . explorer_sheet ;"
+      },
+      {
+        "id": 21,
+        "label": "let scout = & mut ctx . accounts . scout_sheet ;"
+      },
+      {
+        "id": 22,
+        "label": "let mut treasure_gained_total = 0u64 ;"
+      },
+      {
+        "id": 23,
+        "label": "while dungeon . level_count > scout . current_level { if explorer . is_alive { let treasure_amount = (raid_power as u64) . checked_add (scout . current_level as u64) . unwrap_or (u64 :: MAX) ; explorer . treasure_found = explorer . treasure_found . checked_add (treasure_amount) . unwrap_or (u64 :: MAX) ; explorer . courage_level = explorer . courage_level . checked_add (dungeon . base_difficulty) . unwrap_or (u8 :: MAX) ; dungeon . total_treasure = dungeon . total_treasure . checked_add (treasure_amount) . unwrap_or (u64 :: MAX) ; treasure_gained_total = treasure_gained_total . checked_add (treasure_amount) . unwrap_or (u64 :: MAX) ; msg ! (\"Explorer found {} treasure on level {}.\" , treasure_amount , scout . current_level) ; } else { let revival_cost = (raid_power as u64) . checked_add (dungeon . base_difficulty as u64) . unwrap_or (u64 :: MAX) ; dungeon . total_treasure = dungeon . total_treasure . checked_sub (revival_cost) . unwrap_or (0) ; explorer . is_alive = true ; explorer . treasure_found = explorer . treasure_found . checked_div (2) . unwrap_or (0) ; explorer . courage_level = explorer . courage_level . checked_add (10) . unwrap_or (u8 :: MAX) ; msg ! (\"Explorer revived, losing {} treasure.\" , revival_cost) ; } if scout . is_alive { let treasure_amount = (raid_power as u64) . checked_mul (dungeon . base_difficulty as u64) . unwrap_or (u64 :: MAX) ; scout . treasure_found = scout . treasure_found . checked_add (treasure_amount) . unwrap_or (u64 :: MAX) ; scout . current_level = scout . current_level . checked_add (1) . unwrap_or (u32 :: MAX) ; dungeon . total_treasure = dungeon . total_treasure . checked_add (treasure_amount) . unwrap_or (u64 :: MAX) ; treasure_gained_total = treasure_gained_total . checked_add (treasure_amount) . unwrap_or (u64 :: MAX) ; msg ! (\"Scout advanced to level {} and found {} treasure.\" , scout . current_level , treasure_amount) ; } else { let revival_cost = (raid_power as u64) . checked_mul (dungeon . base_difficulty as u64) . unwrap_or (u64 :: MAX) ; dungeon . total_treasure = dungeon . total_treasure . checked_sub (revival_cost) . unwrap_or (0) ; scout . is_alive = true ; scout . treasure_found = scout . treasure_found . checked_div (3) . unwrap_or (0) ; scout . courage_level = scout . courage_level . checked_add (20) . unwrap_or (u8 :: MAX) ; msg ! (\"Scout revived, losing {} treasure.\" , revival_cost) ; } }"
+      },
+      {
+        "id": 24,
+        "label": "if explorer . is_alive { let treasure_amount = (raid_power as u64) . checked_add (scout . current_level as u64) . unwrap_or (u64 :: MAX) ; explorer . treasure_found = explorer . treasure_found . checked_add (treasure_amount) . unwrap_or (u64 :: MAX) ; explorer . courage_level = explorer . courage_level . checked_add (dungeon . base_difficulty) . unwrap_or (u8 :: MAX) ; dungeon . total_treasure = dungeon . total_treasure . checked_add (treasure_amount) . unwrap_or (u64 :: MAX) ; treasure_gained_total = treasure_gained_total . checked_add (treasure_amount) . unwrap_or (u64 :: MAX) ; msg ! (\"Explorer found {} treasure on level {}.\" , treasure_amount , scout . current_level) ; } else { let revival_cost = (raid_power as u64) . checked_add (dungeon . base_difficulty as u64) . unwrap_or (u64 :: MAX) ; dungeon . total_treasure = dungeon . total_treasure . checked_sub (revival_cost) . unwrap_or (0) ; explorer . is_alive = true ; explorer . treasure_found = explorer . treasure_found . checked_div (2) . unwrap_or (0) ; explorer . courage_level = explorer . courage_level . checked_add (10) . unwrap_or (u8 :: MAX) ; msg ! (\"Explorer revived, losing {} treasure.\" , revival_cost) ; }"
+      },
+      {
+        "id": 25,
+        "label": "let treasure_amount = (raid_power as u64) . checked_add (scout . current_level as u64) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 26,
+        "label": "explorer . treasure_found = explorer . treasure_found . checked_add (treasure_amount) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 27,
+        "label": "explorer . courage_level = explorer . courage_level . checked_add (dungeon . base_difficulty) . unwrap_or (u8 :: MAX) ;"
+      },
+      {
+        "id": 28,
+        "label": "dungeon . total_treasure = dungeon . total_treasure . checked_add (treasure_amount) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 29,
+        "label": "treasure_gained_total = treasure_gained_total . checked_add (treasure_amount) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 30,
+        "label": "msg ! (\"Explorer found {} treasure on level {}.\" , treasure_amount , scout . current_level) ;"
+      },
+      {
+        "id": 31,
+        "label": "let revival_cost = (raid_power as u64) . checked_add (dungeon . base_difficulty as u64) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 32,
+        "label": "dungeon . total_treasure = dungeon . total_treasure . checked_sub (revival_cost) . unwrap_or (0) ;"
+      },
+      {
+        "id": 33,
+        "label": "explorer . is_alive = true ;"
+      },
+      {
+        "id": 34,
+        "label": "explorer . treasure_found = explorer . treasure_found . checked_div (2) . unwrap_or (0) ;"
+      },
+      {
+        "id": 35,
+        "label": "explorer . courage_level = explorer . courage_level . checked_add (10) . unwrap_or (u8 :: MAX) ;"
+      },
+      {
+        "id": 36,
+        "label": "msg ! (\"Explorer revived, losing {} treasure.\" , revival_cost) ;"
+      },
+      {
+        "id": 37,
+        "label": "if scout . is_alive { let treasure_amount = (raid_power as u64) . checked_mul (dungeon . base_difficulty as u64) . unwrap_or (u64 :: MAX) ; scout . treasure_found = scout . treasure_found . checked_add (treasure_amount) . unwrap_or (u64 :: MAX) ; scout . current_level = scout . current_level . checked_add (1) . unwrap_or (u32 :: MAX) ; dungeon . total_treasure = dungeon . total_treasure . checked_add (treasure_amount) . unwrap_or (u64 :: MAX) ; treasure_gained_total = treasure_gained_total . checked_add (treasure_amount) . unwrap_or (u64 :: MAX) ; msg ! (\"Scout advanced to level {} and found {} treasure.\" , scout . current_level , treasure_amount) ; } else { let revival_cost = (raid_power as u64) . checked_mul (dungeon . base_difficulty as u64) . unwrap_or (u64 :: MAX) ; dungeon . total_treasure = dungeon . total_treasure . checked_sub (revival_cost) . unwrap_or (0) ; scout . is_alive = true ; scout . treasure_found = scout . treasure_found . checked_div (3) . unwrap_or (0) ; scout . courage_level = scout . courage_level . checked_add (20) . unwrap_or (u8 :: MAX) ; msg ! (\"Scout revived, losing {} treasure.\" , revival_cost) ; }"
+      },
+      {
+        "id": 38,
+        "label": "let treasure_amount = (raid_power as u64) . checked_mul (dungeon . base_difficulty as u64) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 39,
+        "label": "scout . treasure_found = scout . treasure_found . checked_add (treasure_amount) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 40,
+        "label": "scout . current_level = scout . current_level . checked_add (1) . unwrap_or (u32 :: MAX) ;"
+      },
+      {
+        "id": 41,
+        "label": "dungeon . total_treasure = dungeon . total_treasure . checked_add (treasure_amount) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 42,
+        "label": "treasure_gained_total = treasure_gained_total . checked_add (treasure_amount) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 43,
+        "label": "msg ! (\"Scout advanced to level {} and found {} treasure.\" , scout . current_level , treasure_amount) ;"
+      },
+      {
+        "id": 44,
+        "label": "let revival_cost = (raid_power as u64) . checked_mul (dungeon . base_difficulty as u64) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 45,
+        "label": "dungeon . total_treasure = dungeon . total_treasure . checked_sub (revival_cost) . unwrap_or (0) ;"
+      },
+      {
+        "id": 46,
+        "label": "scout . is_alive = true ;"
+      },
+      {
+        "id": 47,
+        "label": "scout . treasure_found = scout . treasure_found . checked_div (3) . unwrap_or (0) ;"
+      },
+      {
+        "id": 48,
+        "label": "scout . courage_level = scout . courage_level . checked_add (20) . unwrap_or (u8 :: MAX) ;"
+      },
+      {
+        "id": 49,
+        "label": "msg ! (\"Scout revived, losing {} treasure.\" , revival_cost) ;"
+      },
+      {
+        "id": 50,
+        "label": "msg ! (\"Total treasure gained in this raid: {}\" , treasure_gained_total) ;"
+      },
+      {
+        "id": 51,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 19,
+        "to": 19,
+        "label": "def: dungeon"
+      },
+      {
+        "from": 20,
+        "to": 20,
+        "label": "def: explorer"
+      },
+      {
+        "from": 21,
+        "to": 21,
+        "label": "def: scout"
+      },
+      {
+        "from": 22,
+        "to": 22,
+        "label": "def: treasure_gained_total"
+      },
+      {
+        "from": 19,
+        "to": 23,
+        "label": "data_dep: dungeon"
+      },
+      {
+        "from": 21,
+        "to": 23,
+        "label": "data_dep: scout"
+      },
+      {
+        "from": 20,
+        "to": 23,
+        "label": "data_dep: explorer"
+      },
+      {
+        "from": 21,
+        "to": 23,
+        "label": "data_dep: scout"
+      },
+      {
+        "from": 20,
+        "to": 23,
+        "label": "data_dep: explorer"
+      },
+      {
+        "from": 20,
+        "to": 23,
+        "label": "data_dep: explorer"
+      },
+      {
+        "from": 20,
+        "to": 23,
+        "label": "data_dep: explorer"
+      },
+      {
+        "from": 20,
+        "to": 23,
+        "label": "data_dep: explorer"
+      },
+      {
+        "from": 19,
+        "to": 23,
+        "label": "data_dep: dungeon"
+      },
+      {
+        "from": 19,
+        "to": 23,
+        "label": "data_dep: dungeon"
+      },
+      {
+        "from": 19,
+        "to": 23,
+        "label": "data_dep: dungeon"
+      },
+      {
+        "from": 22,
+        "to": 23,
+        "label": "data_dep: treasure_gained_total"
+      },
+      {
+        "from": 22,
+        "to": 23,
+        "label": "data_dep: treasure_gained_total"
+      },
+      {
+        "from": 19,
+        "to": 23,
+        "label": "data_dep: dungeon"
+      },
+      {
+        "from": 19,
+        "to": 23,
+        "label": "data_dep: dungeon"
+      },
+      {
+        "from": 19,
+        "to": 23,
+        "label": "data_dep: dungeon"
+      },
+      {
+        "from": 20,
+        "to": 23,
+        "label": "data_dep: explorer"
+      },
+      {
+        "from": 20,
+        "to": 23,
+        "label": "data_dep: explorer"
+      },
+      {
+        "from": 20,
+        "to": 23,
+        "label": "data_dep: explorer"
+      },
+      {
+        "from": 20,
+        "to": 23,
+        "label": "data_dep: explorer"
+      },
+      {
+        "from": 20,
+        "to": 23,
+        "label": "data_dep: explorer"
+      },
+      {
+        "from": 21,
+        "to": 23,
+        "label": "data_dep: scout"
+      },
+      {
+        "from": 19,
+        "to": 23,
+        "label": "data_dep: dungeon"
+      },
+      {
+        "from": 21,
+        "to": 23,
+        "label": "data_dep: scout"
+      },
+      {
+        "from": 21,
+        "to": 23,
+        "label": "data_dep: scout"
+      },
+      {
+        "from": 21,
+        "to": 23,
+        "label": "data_dep: scout"
+      },
+      {
+        "from": 21,
+        "to": 23,
+        "label": "data_dep: scout"
+      },
+      {
+        "from": 19,
+        "to": 23,
+        "label": "data_dep: dungeon"
+      },
+      {
+        "from": 19,
+        "to": 23,
+        "label": "data_dep: dungeon"
+      },
+      {
+        "from": 22,
+        "to": 23,
+        "label": "data_dep: treasure_gained_total"
+      },
+      {
+        "from": 22,
+        "to": 23,
+        "label": "data_dep: treasure_gained_total"
+      },
+      {
+        "from": 19,
+        "to": 23,
+        "label": "data_dep: dungeon"
+      },
+      {
+        "from": 19,
+        "to": 23,
+        "label": "data_dep: dungeon"
+      },
+      {
+        "from": 19,
+        "to": 23,
+        "label": "data_dep: dungeon"
+      },
+      {
+        "from": 21,
+        "to": 23,
+        "label": "data_dep: scout"
+      },
+      {
+        "from": 21,
+        "to": 23,
+        "label": "data_dep: scout"
+      },
+      {
+        "from": 21,
+        "to": 23,
+        "label": "data_dep: scout"
+      },
+      {
+        "from": 21,
+        "to": 23,
+        "label": "data_dep: scout"
+      },
+      {
+        "from": 21,
+        "to": 23,
+        "label": "data_dep: scout"
+      },
+      {
+        "from": 20,
+        "to": 24,
+        "label": "data_dep: explorer"
+      },
+      {
+        "from": 21,
+        "to": 24,
+        "label": "data_dep: scout"
+      },
+      {
+        "from": 20,
+        "to": 24,
+        "label": "data_dep: explorer"
+      },
+      {
+        "from": 20,
+        "to": 24,
+        "label": "data_dep: explorer"
+      },
+      {
+        "from": 20,
+        "to": 24,
+        "label": "data_dep: explorer"
+      },
+      {
+        "from": 20,
+        "to": 24,
+        "label": "data_dep: explorer"
+      },
+      {
+        "from": 19,
+        "to": 24,
+        "label": "data_dep: dungeon"
+      },
+      {
+        "from": 19,
+        "to": 24,
+        "label": "data_dep: dungeon"
+      },
+      {
+        "from": 19,
+        "to": 24,
+        "label": "data_dep: dungeon"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: treasure_gained_total"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: treasure_gained_total"
+      },
+      {
+        "from": 19,
+        "to": 24,
+        "label": "data_dep: dungeon"
+      },
+      {
+        "from": 19,
+        "to": 24,
+        "label": "data_dep: dungeon"
+      },
+      {
+        "from": 19,
+        "to": 24,
+        "label": "data_dep: dungeon"
+      },
+      {
+        "from": 20,
+        "to": 24,
+        "label": "data_dep: explorer"
+      },
+      {
+        "from": 20,
+        "to": 24,
+        "label": "data_dep: explorer"
+      },
+      {
+        "from": 20,
+        "to": 24,
+        "label": "data_dep: explorer"
+      },
+      {
+        "from": 20,
+        "to": 24,
+        "label": "data_dep: explorer"
+      },
+      {
+        "from": 20,
+        "to": 24,
+        "label": "data_dep: explorer"
+      },
+      {
+        "from": 25,
+        "to": 25,
+        "label": "def: treasure_amount"
+      },
+      {
+        "from": 21,
+        "to": 25,
+        "label": "data_dep: scout"
+      },
+      {
+        "from": 20,
+        "to": 26,
+        "label": "data_dep: explorer"
+      },
+      {
+        "from": 20,
+        "to": 26,
+        "label": "data_dep: explorer"
+      },
+      {
+        "from": 25,
+        "to": 26,
+        "label": "data_dep: treasure_amount"
+      },
+      {
+        "from": 20,
+        "to": 27,
+        "label": "data_dep: explorer"
+      },
+      {
+        "from": 20,
+        "to": 27,
+        "label": "data_dep: explorer"
+      },
+      {
+        "from": 19,
+        "to": 27,
+        "label": "data_dep: dungeon"
+      },
+      {
+        "from": 19,
+        "to": 28,
+        "label": "data_dep: dungeon"
+      },
+      {
+        "from": 19,
+        "to": 28,
+        "label": "data_dep: dungeon"
+      },
+      {
+        "from": 25,
+        "to": 28,
+        "label": "data_dep: treasure_amount"
+      },
+      {
+        "from": 22,
+        "to": 29,
+        "label": "data_dep: treasure_gained_total"
+      },
+      {
+        "from": 22,
+        "to": 29,
+        "label": "data_dep: treasure_gained_total"
+      },
+      {
+        "from": 25,
+        "to": 29,
+        "label": "data_dep: treasure_amount"
+      },
+      {
+        "from": 31,
+        "to": 31,
+        "label": "def: revival_cost"
+      },
+      {
+        "from": 19,
+        "to": 31,
+        "label": "data_dep: dungeon"
+      },
+      {
+        "from": 19,
+        "to": 32,
+        "label": "data_dep: dungeon"
+      },
+      {
+        "from": 19,
+        "to": 32,
+        "label": "data_dep: dungeon"
+      },
+      {
+        "from": 31,
+        "to": 32,
+        "label": "data_dep: revival_cost"
+      },
+      {
+        "from": 20,
+        "to": 33,
+        "label": "data_dep: explorer"
+      },
+      {
+        "from": 20,
+        "to": 34,
+        "label": "data_dep: explorer"
+      },
+      {
+        "from": 20,
+        "to": 34,
+        "label": "data_dep: explorer"
+      },
+      {
+        "from": 20,
+        "to": 35,
+        "label": "data_dep: explorer"
+      },
+      {
+        "from": 20,
+        "to": 35,
+        "label": "data_dep: explorer"
+      },
+      {
+        "from": 21,
+        "to": 37,
+        "label": "data_dep: scout"
+      },
+      {
+        "from": 19,
+        "to": 37,
+        "label": "data_dep: dungeon"
+      },
+      {
+        "from": 21,
+        "to": 37,
+        "label": "data_dep: scout"
+      },
+      {
+        "from": 21,
+        "to": 37,
+        "label": "data_dep: scout"
+      },
+      {
+        "from": 25,
+        "to": 37,
+        "label": "data_dep: treasure_amount"
+      },
+      {
+        "from": 21,
+        "to": 37,
+        "label": "data_dep: scout"
+      },
+      {
+        "from": 21,
+        "to": 37,
+        "label": "data_dep: scout"
+      },
+      {
+        "from": 19,
+        "to": 37,
+        "label": "data_dep: dungeon"
+      },
+      {
+        "from": 19,
+        "to": 37,
+        "label": "data_dep: dungeon"
+      },
+      {
+        "from": 25,
+        "to": 37,
+        "label": "data_dep: treasure_amount"
+      },
+      {
+        "from": 22,
+        "to": 37,
+        "label": "data_dep: treasure_gained_total"
+      },
+      {
+        "from": 22,
+        "to": 37,
+        "label": "data_dep: treasure_gained_total"
+      },
+      {
+        "from": 25,
+        "to": 37,
+        "label": "data_dep: treasure_amount"
+      },
+      {
+        "from": 19,
+        "to": 37,
+        "label": "data_dep: dungeon"
+      },
+      {
+        "from": 19,
+        "to": 37,
+        "label": "data_dep: dungeon"
+      },
+      {
+        "from": 19,
+        "to": 37,
+        "label": "data_dep: dungeon"
+      },
+      {
+        "from": 31,
+        "to": 37,
+        "label": "data_dep: revival_cost"
+      },
+      {
+        "from": 21,
+        "to": 37,
+        "label": "data_dep: scout"
+      },
+      {
+        "from": 21,
+        "to": 37,
+        "label": "data_dep: scout"
+      },
+      {
+        "from": 21,
+        "to": 37,
+        "label": "data_dep: scout"
+      },
+      {
+        "from": 21,
+        "to": 37,
+        "label": "data_dep: scout"
+      },
+      {
+        "from": 21,
+        "to": 37,
+        "label": "data_dep: scout"
+      },
+      {
+        "from": 38,
+        "to": 38,
+        "label": "def: treasure_amount"
+      },
+      {
+        "from": 19,
+        "to": 38,
+        "label": "data_dep: dungeon"
+      },
+      {
+        "from": 21,
+        "to": 39,
+        "label": "data_dep: scout"
+      },
+      {
+        "from": 21,
+        "to": 39,
+        "label": "data_dep: scout"
+      },
+      {
+        "from": 38,
+        "to": 39,
+        "label": "data_dep: treasure_amount"
+      },
+      {
+        "from": 21,
+        "to": 40,
+        "label": "data_dep: scout"
+      },
+      {
+        "from": 21,
+        "to": 40,
+        "label": "data_dep: scout"
+      },
+      {
+        "from": 19,
+        "to": 41,
+        "label": "data_dep: dungeon"
+      },
+      {
+        "from": 19,
+        "to": 41,
+        "label": "data_dep: dungeon"
+      },
+      {
+        "from": 38,
+        "to": 41,
+        "label": "data_dep: treasure_amount"
+      },
+      {
+        "from": 22,
+        "to": 42,
+        "label": "data_dep: treasure_gained_total"
+      },
+      {
+        "from": 22,
+        "to": 42,
+        "label": "data_dep: treasure_gained_total"
+      },
+      {
+        "from": 38,
+        "to": 42,
+        "label": "data_dep: treasure_amount"
+      },
+      {
+        "from": 44,
+        "to": 44,
+        "label": "def: revival_cost"
+      },
+      {
+        "from": 19,
+        "to": 44,
+        "label": "data_dep: dungeon"
+      },
+      {
+        "from": 19,
+        "to": 45,
+        "label": "data_dep: dungeon"
+      },
+      {
+        "from": 19,
+        "to": 45,
+        "label": "data_dep: dungeon"
+      },
+      {
+        "from": 44,
+        "to": 45,
+        "label": "data_dep: revival_cost"
+      },
+      {
+        "from": 21,
+        "to": 46,
+        "label": "data_dep: scout"
+      },
+      {
+        "from": 21,
+        "to": 47,
+        "label": "data_dep: scout"
+      },
+      {
+        "from": 21,
+        "to": 47,
+        "label": "data_dep: scout"
+      },
+      {
+        "from": 21,
+        "to": 48,
+        "label": "data_dep: scout"
+      },
+      {
+        "from": 21,
+        "to": 48,
+        "label": "data_dep: scout"
+      }
+    ]
+  }
+]

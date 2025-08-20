@@ -1,0 +1,126 @@
+[
+  {
+    "name": "synthesize",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Synthesize >",
+      "_nonce: u64"
+    ],
+    "attributes": [
+      "# [doc = \" ５つのソケット NFT を消費し、新しいランク付き NFT をミントします\"]"
+    ],
+    "body": [
+      "let cpi_accounts = Burn { mint : ctx . accounts . base_mint . to_account_info () , from : ctx . accounts . user_base_token . to_account_info () , authority : ctx . accounts . user . to_account_info () , } ;",
+      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts ,) ;",
+      "anchor_spl :: token :: burn (cpi_ctx . with_signer (& []) , 5) ? ;",
+      "let cpi_accounts = MintTo { mint : ctx . accounts . result_mint . to_account_info () , to : ctx . accounts . user_result_token . to_account_info () , authority : ctx . accounts . mint_authority . to_account_info () , } ;",
+      "let seeds = & [b\"synth\" , & [ctx . accounts . vault . bump]] ;",
+      "let signer = & [& seeds [..]] ;",
+      "let cpi_ctx = CpiContext :: new_with_signer (ctx . accounts . token_program . to_account_info () , cpi_accounts , signer ,) ;",
+      "anchor_spl :: token :: mint_to (cpi_ctx , 1) ? ;",
+      "let rand = (_nonce . wrapping_mul (ctx . accounts . clock . unix_timestamp as u64)) % 100 ;",
+      "let rank = if rand < 70 { 1 } else if rand < 90 { 2 } else { 3 } ;",
+      "ctx . accounts . metadata . rank = rank ;",
+      "msg ! (\"Synthesized new NFT with rank {} for {}\" , rank , ctx . accounts . user . key ()) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Synthesize",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "base_mint",
+        "attribute": null,
+        "field_type": "Box < Account < 'info , Mint > >"
+      },
+      {
+        "name": "user_base_token",
+        "attribute": "# [account (mut , constraint = user_base_token . owner == user . key () @ ErrorCode :: Unauthorized , constraint = user_base_token . mint == base_mint . key ())]",
+        "field_type": "Box < Account < 'info , TokenAccount > >"
+      },
+      {
+        "name": "result_mint",
+        "attribute": "# [account (mut)]",
+        "field_type": "Box < Account < 'info , Mint > >"
+      },
+      {
+        "name": "user_result_token",
+        "attribute": "# [account (mut , constraint = user_result_token . owner == user . key () @ ErrorCode :: Unauthorized , constraint = user_result_token . mint == result_mint . key ())]",
+        "field_type": "Box < Account < 'info , TokenAccount > >"
+      },
+      {
+        "name": "metadata",
+        "attribute": "# [account (mut , has_one = result_mint)]",
+        "field_type": "Box < Account < 'info , NftMetadata > >"
+      },
+      {
+        "name": "vault",
+        "attribute": "# [account (seeds = [b\"synth\"] , bump)]",
+        "field_type": "Box < Account < 'info , SynthVault > >"
+      },
+      {
+        "name": "mint_authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" ← 署名チェックを敢えて外しています！\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "clock",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SynthVault",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "NftMetadata",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "result_mint",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "rank",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

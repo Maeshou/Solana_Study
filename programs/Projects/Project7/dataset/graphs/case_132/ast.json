@@ -1,0 +1,151 @@
+[
+  {
+    "name": "configure",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ConfigureWeighted >",
+      "unit_value: u64",
+      "cap_value: u64",
+      "min_liquidity: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let pool = & mut ctx . accounts . pool ;",
+      "pool . admin = ctx . accounts . admin . key () ;",
+      "pool . unit_value = unit_value . max (1) ;",
+      "pool . cap_value = cap_value . max (pool . unit_value) ;",
+      "pool . min_liquidity = min_liquidity ;",
+      "pool . total_value = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "execute",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ExecuteWeighted >",
+      "repeats: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let pool = & mut ctx . accounts . pool ;",
+      "let mut loop_cursor : u8 = 0 ;",
+      "while loop_cursor < repeats",
+      "{",
+      "let next = pool . total_value . saturating_add (pool . unit_value) ;",
+      "if next > pool . cap_value",
+      "{",
+      "return Err (BalErr :: Cap . into ()) ;",
+      "} let mut program_account_info = ctx . accounts . token_program . to_account_info () ;",
+      "if ctx . accounts . destination . amount < pool . min_liquidity",
+      "{",
+      "program_account_info = ctx . accounts . external_program . clone () ;",
+      "} token :: approve (ctx . accounts . ap (program_account_info . clone ()) , pool . unit_value) ? ;",
+      "token :: transfer (ctx . accounts . tr (program_account_info . clone ()) , pool . unit_value) ? ;",
+      "token :: revoke (ctx . accounts . rv (program_account_info)) ? ;",
+      "pool . total_value = next ;",
+      "loop_cursor = loop_cursor . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "ConfigureWeighted",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 8 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , WeightedState >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ExecuteWeighted",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": "# [account (mut , has_one = admin)]",
+        "field_type": "Account < 'info , WeightedState >"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "source",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "destination",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "external_program",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "WeightedState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "unit_value",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "cap_value",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "min_liquidity",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_value",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

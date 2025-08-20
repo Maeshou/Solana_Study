@@ -1,0 +1,188 @@
+[
+  {
+    "name": "full_add",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < FullAddCtx >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" Case A: Anchor の has_one + signer で完全保護\"]"
+    ],
+    "body": [
+      "let vault_info = ctx . accounts . safeguard . to_account_info () ;",
+      "let original = * * vault_info . try_borrow_lamports () ? ;",
+      "let result = original + amount ;",
+      "* * vault_info . try_borrow_mut_lamports () ? = result ;",
+      "msg ! (\"full_add: {} → {}\" , original , result) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "only_sign",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < OnlySignCtx >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" Case B: 署名のみチェック、タプル展開で AccountInfo を操作（所有者未検証）\"]"
+    ],
+    "body": [
+      "let OnlySignCtx { raw_account , signer : _ , .. } = & ctx . accounts ;",
+      "let before = * * raw_account . try_borrow_lamports () ? ;",
+      "* * raw_account . try_borrow_mut_lamports () ? = before + amount ;",
+      "msg ! (\"only_sign: {}\" , before + amount) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "manual_test",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ManualTestCtx >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" Case C: 手動で owner フィールドを照合、Signer は利用せず\"]"
+    ],
+    "body": [
+      "let vault = & ctx . accounts . vault_account ;",
+      "let caller = & ctx . accounts . user_key ;",
+      "if vault . owner == caller . key ()",
+      "{",
+      "let info = vault . to_account_info () ;",
+      "let prev = * * info . try_borrow_lamports () ? ;",
+      "* * info . try_borrow_mut_lamports () ? = prev + amount ;",
+      "msg ! (\"manual_test applied:",
+      "{",
+      "}\" , prev + amount) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "bulk",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < BulkCtx >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" Case D: remaining_accounts に含まれる全アカウントを一括更新\"]"
+    ],
+    "body": [
+      "for acc in ctx . remaining_accounts . iter ()",
+      "{",
+      "let before = acc . lamports () ;",
+      "* * acc . try_borrow_mut_lamports () ? = before + amount ;",
+      "}",
+      "msg ! (\"bulk complete\") ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "FullAddCtx",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "safeguard",
+        "attribute": "# [account (mut , has_one = authority)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "OnlySignCtx",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "raw_account",
+        "attribute": "# [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "signer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ManualTestCtx",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault_account",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "user_key",
+        "attribute": "# [doc = \" CHECK: 比較のための署名者\"]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BulkCtx",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Vault",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,213 @@
+[
+  {
+    "name": "PointsProgram",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "total_points",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PointsAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "program",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "balance",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RedeemRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "account",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "program",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "item_code",
+        "attribute": null,
+        "field_type": "String"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitializeProgram",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "program",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8)]",
+        "field_type": "Account < 'info , PointsProgram >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreateAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "program",
+        "attribute": "# [doc = \" PointsProgram.owner == owner.key() は検証される\"] # [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , PointsProgram >"
+      },
+      {
+        "name": "account",
+        "attribute": "# [account (init , payer = user , space = 8 + 32 + 32 + 8)]",
+        "field_type": "Account < 'info , PointsAccount >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RedeemItem",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "account",
+        "attribute": "# [doc = \" PointsAccount.user == user.key() は検証される\"] # [account (mut , has_one = user)]",
+        "field_type": "Account < 'info , PointsAccount >"
+      },
+      {
+        "name": "program",
+        "attribute": "# [doc = \" PointsProgram.owner == owner.key() は検証される\"] # [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , PointsProgram >"
+      },
+      {
+        "name": "record",
+        "attribute": "# [doc = \" RedeemRecord.program ⇔ program.key() の検証がない\"] # [account (init , payer = user , space = 8 + 32 + 32 + (4 + 32))]",
+        "field_type": "Account < 'info , RedeemRecord >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "initialize_program",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeProgram >",
+      "pool_points: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let p = & mut ctx . accounts . program ;",
+      "p . owner = ctx . accounts . owner . key () ;",
+      "p . total_points = pool_points ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "create_account",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateAccount >",
+      "initial_balance: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let p = & mut ctx . accounts . program ;",
+      "let a = & mut ctx . accounts . account ;",
+      "a . user = ctx . accounts . user . key () ;",
+      "a . program = p . key () ;",
+      "a . balance = initial_balance ;",
+      "p . total_points = p . total_points . checked_sub (initial_balance) . unwrap_or (p . total_points) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "redeem_item",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RedeemItem >",
+      "item_id: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let p = & mut ctx . accounts . program ;",
+      "let a = & mut ctx . accounts . account ;",
+      "let r = & mut ctx . accounts . record ;",
+      "r . account = a . key () ;",
+      "r . program = p . key () ;",
+      "r . item_code = format ! (\"ITEM-{}\" , a . user) ;",
+      "let cost = 10u64 ;",
+      "a . balance = a . balance . checked_sub (cost) . unwrap_or (a . balance) ;",
+      "p . total_points = p . total_points . checked_add (cost) . unwrap_or (p . total_points) ;",
+      "Ok (())"
+    ]
+  }
+]

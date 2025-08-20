@@ -1,12 +1,65 @@
 [
   {
-    "name": "DrawWinnerCtxixia",
+    "name": "initialize_pool",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializePool >",
+      "reward_rate: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let pool = & mut ctx . accounts . pool ;",
+      "pool . authority = ctx . accounts . authority . key () ;",
+      "pool . stake_mint = ctx . accounts . stake_mint . key () ;",
+      "pool . reward_mint = ctx . accounts . reward_mint . key () ;",
+      "pool . reward_rate = reward_rate ;",
+      "pool . total_staked = 0 ;",
+      "pool . last_update = Clock :: get () ? . unix_timestamp ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "stake_tokens",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < StakeTokens >",
+      "amount: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let pool = & mut ctx . accounts . pool ;",
+      "let user_stake = & mut ctx . accounts . user_stake ;",
+      "pool . last_update = Clock :: get () ? . unix_timestamp ;",
+      "let cpi_accounts = anchor_spl :: token :: Transfer { from : ctx . accounts . user_token_account . to_account_info () , to : ctx . accounts . pool_token_account . to_account_info () , authority : ctx . accounts . user . to_account_info () , } ;",
+      "let cpi_program = ctx . accounts . token_program . to_account_info () ;",
+      "let cpi_ctx = CpiContext :: new (cpi_program , cpi_accounts) ;",
+      "anchor_spl :: token :: transfer (cpi_ctx , amount) ? ;",
+      "user_stake . amount += amount ;",
+      "user_stake . last_stake_time = Clock :: get () ? . unix_timestamp ;",
+      "pool . total_staked += amount ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializePool",
     "node_type": "struct",
     "fields": [
       {
-        "name": "lottery",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
+        "name": "pool",
+        "attribute": "# [account (init , payer = authority , space = 8 + 200)]",
+        "field_type": "Account < 'info , StakePool >"
+      },
+      {
+        "name": "stake_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "reward_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
       },
       {
         "name": "authority",
@@ -24,13 +77,43 @@
     "body": null
   },
   {
-    "name": "DataAccount",
+    "name": "StakeTokens",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data",
+        "name": "pool",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , StakePool >"
+      },
+      {
+        "name": "user_stake",
+        "attribute": "# [account (init_if_needed , payer = user , space = 8 + 100 , seeds = [b\"user_stake\" , user . key () . as_ref () , pool . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , UserStake >"
+      },
+      {
+        "name": "user_token_account",
+        "attribute": "# [account (mut , constraint = user_token_account . mint == pool . stake_mint)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "pool_token_account",
+        "attribute": "# [account (mut , constraint = pool_token_account . mint == pool . stake_mint)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "token_program",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -38,20 +121,61 @@
     "body": null
   },
   {
-    "name": "draw_winner",
-    "node_type": "function",
-    "fields": null,
-    "inputs": [
-      "ctx: Context < DrawWinnerCtxixia >",
-      "amount: u64"
+    "name": "StakePool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "stake_mint",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "reward_mint",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "reward_rate",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_staked",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "last_update",
+        "attribute": null,
+        "field_type": "i64"
+      }
     ],
-    "attributes": [],
-    "body": [
-      "let acct = & mut ctx . accounts . lottery ;",
-      "assert ! (ctx . accounts . lottery . data > 0) ;",
-      "acct . data -= amount ;",
-      "msg ! (\"Executed draw_winner logic\") ;",
-      "Ok (())"
-    ]
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "UserStake",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "last_stake_time",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
   }
 ]

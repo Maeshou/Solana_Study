@@ -1,0 +1,160 @@
+[
+  {
+    "name": "spawn",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Spawn >",
+      "base: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let b = & mut ctx . accounts . board ;",
+      "b . master = ctx . accounts . master . key () ;",
+      "b . base = base ;",
+      "b . entries = 0 ;",
+      "b . denied = 0 ;",
+      "b . total = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "claim",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Claim >",
+      "weight: u8",
+      "proof: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let b = & mut ctx . accounts . board ;",
+      "require ! (b . master == ctx . accounts . master . key () , Errs :: Master) ;",
+      "if proof . len () > 8",
+      "{",
+      "let mut sum = 0u64 ;",
+      "let mut i = 0 ;",
+      "while i < proof . as_bytes () . len ()",
+      "{",
+      "sum = sum . saturating_add (proof . as_bytes () [i] as u64) ;",
+      "i += 1 ;",
+      "} b . total = b . total . saturating_add (sum % 100) ;",
+      "b . entries = b . entries . saturating_add (1) ;",
+      "} else",
+      "{",
+      "let mut p = 0 ;",
+      "while p < 5",
+      "{",
+      "if b . denied < 100 { b . denied = b . denied . saturating_add (1) ;",
+      "} p = p . saturating_add (1) ;",
+      "}",
+      "}",
+      "let mut amt = b . base . saturating_mul (weight as u64) ;",
+      "if amt > 0",
+      "{",
+      "let mut lift = 0 ;",
+      "while lift < weight",
+      "{",
+      "amt = amt . saturating_add (1) ;",
+      "lift = lift . saturating_add (1) ;",
+      "}",
+      "}",
+      "let ix = spl_token :: instruction :: transfer (ctx . accounts . token_program . key () , ctx . accounts . treasury . key () , ctx . accounts . hunter_ata . key () , ctx . accounts . master . key () , & [] , amt ,) ? ;",
+      "invoke (& ix , & [ctx . accounts . treasury . to_account_info () , ctx . accounts . hunter_ata . to_account_info () , ctx . accounts . master . to_account_info () ,]) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Board",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "master",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "base",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "entries",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "denied",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "total",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Spawn",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "board",
+        "attribute": "# [account (init , payer = master , space = 8 + 32 + 8 + 4 + 4 + 8)]",
+        "field_type": "Account < 'info , Board >"
+      },
+      {
+        "name": "master",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Claim",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "board",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Board >"
+      },
+      {
+        "name": "master",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "treasury",
+        "attribute": "# [doc = \" CHECK:\"] # [account (mut)]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "hunter_ata",
+        "attribute": "# [doc = \" CHECK:\"] # [account (mut)]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

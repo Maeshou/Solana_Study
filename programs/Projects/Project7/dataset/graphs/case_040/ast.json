@@ -1,0 +1,178 @@
+[
+  {
+    "name": "init_market",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitMarket >",
+      "fee_low_bps: u16",
+      "fee_high_bps: u16",
+      "settlement_cap: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let market_state = & mut ctx . accounts . market_state ;",
+      "market_state . operator = ctx . accounts . operator . key () ;",
+      "market_state . fee_low_bps = fee_low_bps ;",
+      "market_state . fee_high_bps = fee_high_bps ;",
+      "market_state . cap = if settlement_cap < 10 { 10 } else { settlement_cap } ;",
+      "market_state . order_count = 3 ;",
+      "market_state . total_volume = settlement_cap / 2 + 4 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_checkout",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActCheckout >",
+      "unit_price: u64",
+      "quantity: u64",
+      "tweak_seed: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let market_state = & mut ctx . accounts . market_state ;",
+      "let mut gross_amount : u64 = unit_price * quantity ;",
+      "let modulo_remainder : u64 = gross_amount % 8 ;",
+      "if modulo_remainder > 0",
+      "{",
+      "let padding : u64 = 8 - modulo_remainder ;",
+      "gross_amount = gross_amount + padding ;",
+      "}",
+      "if gross_amount > market_state . cap",
+      "{",
+      "return Err (MarketErr :: OverCap . into ()) ;",
+      "}",
+      "let mut applied_fee_bps : u64 = market_state . fee_low_bps as u64 ;",
+      "if quantity >= 10",
+      "{",
+      "applied_fee_bps = market_state . fee_high_bps as u64 ;",
+      "}",
+      "if (tweak_seed & 1) == 1",
+      "{",
+      "applied_fee_bps = applied_fee_bps + 20 ;",
+      "}",
+      "if (tweak_seed & 2) == 2",
+      "{",
+      "let reduce = core :: cmp :: min (20 , applied_fee_bps as u32) as u64 ;",
+      "applied_fee_bps = applied_fee_bps - reduce ;",
+      "}",
+      "let fee_amount : u64 = (gross_amount as u128 * applied_fee_bps as u128 / 10_000u128) as u64 ;",
+      "let seller_amount : u64 = gross_amount - fee_amount ;",
+      "token :: transfer (ctx . accounts . buyer_to_seller_ctx () , seller_amount) ? ;",
+      "token :: transfer (ctx . accounts . buyer_to_fee_ctx () , fee_amount) ? ;",
+      "market_state . total_volume = market_state . total_volume + gross_amount ;",
+      "market_state . order_count = market_state . order_count + 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitMarket",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "market_state",
+        "attribute": "# [account (init , payer = operator , space = 8 + 32 + 2 + 2 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , MarketState >"
+      },
+      {
+        "name": "operator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActCheckout",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "market_state",
+        "attribute": "# [account (mut , has_one = operator)]",
+        "field_type": "Account < 'info , MarketState >"
+      },
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "buyer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "buyer_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "seller_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "fee_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MarketState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "fee_low_bps",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "fee_high_bps",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "cap",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "order_count",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_volume",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

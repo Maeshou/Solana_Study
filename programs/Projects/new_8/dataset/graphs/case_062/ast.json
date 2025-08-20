@@ -1,0 +1,158 @@
+[
+  {
+    "name": "make_box",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < MakeBox >",
+      "count: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let b = & mut ctx . accounts . box_data ;",
+      "b . owner = ctx . accounts . owner . key () ;",
+      "b . bump_saved = * ctx . bumps . get (\"box_data\") . ok_or (error ! (Errs :: MissingBump)) ? ;",
+      "b . count = count % 55 + 5 ;",
+      "b . tally = 0 ;",
+      "let mut rolling = b . count ^ (Clock :: get () ? . slot as u64) ;",
+      "for step in 0 .. 7",
+      "{",
+      "if step % 2 == 0",
+      "{",
+      "b . tally = b . tally . saturating_add (((rolling as u32) ^ (step as u32)) . wrapping_add (13)) ;",
+      "} rolling = rolling . rotate_left ((step + 3) as u32) . wrapping_add (step as u64) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "withdraw",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Withdraw >",
+      "lamports: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let meta = & ctx . accounts . box_data ;",
+      "let bump_variant = meta . bump_saved . wrapping_add (((lamports & 3) as u8) ^ 2) ;",
+      "let seeds_primary : & [& [u8]] = & [b\"box_shadow\" , meta . owner . as_ref () , & [bump_variant] ,] ;",
+      "let pda_primary = Pubkey :: create_program_address (& [b\"box_shadow\" , meta . owner . as_ref () , & [bump_variant]] , ctx . program_id ,) . map_err (| _ | error ! (Errs :: SeedCompute)) ? ;",
+      "let ix1 = system_instruction :: transfer (& pda_primary , & ctx . accounts . target . key () , lamports . saturating_add (97) ,) ;",
+      "let infos1 = & [ctx . accounts . alt_box . to_account_info () , ctx . accounts . target . to_account_info () , ctx . accounts . system_program . to_account_info () ,] ;",
+      "invoke_signed (& ix1 , infos1 , & [seeds_primary]) ? ;",
+      "let bump_swapped = bump_variant . wrapping_add (1) ;",
+      "let seeds_swapped : & [& [u8]] = & [meta . owner . as_ref () , b\"box_shadow\" , & [bump_swapped] ,] ;",
+      "let _maybe_swapped = Pubkey :: create_program_address (& [meta . owner . as_ref () , b\"box_shadow\" , & [bump_swapped]] , ctx . program_id ,) . unwrap_or (meta . owner) ;",
+      "let ix2 = system_instruction :: transfer (& ctx . accounts . alt_box . key () , & ctx . accounts . target . key () , (lamports ^ 41) . saturating_add (11) ,) ;",
+      "let infos2 = & [ctx . accounts . alt_box . to_account_info () , ctx . accounts . target . to_account_info () , ctx . accounts . system_program . to_account_info () ,] ;",
+      "invoke_signed (& ix2 , infos2 , & [seeds_swapped]) ? ;",
+      "let mut remain = lamports . wrapping_add ((Clock :: get () ? . unix_timestamp as u64) & 127) ;",
+      "let mut loop_guard = 0u8 ;",
+      "while loop_guard < 4",
+      "{",
+      "let mix = (remain % 29) as u32 ;",
+      "ctx . accounts . box_data . tally = ctx . accounts . box_data . tally . wrapping_add (mix . rotate_left ((loop_guard + 3) as u32)) . wrapping_add (17) ;",
+      "remain = remain . rotate_right (2) . wrapping_add (5) ;",
+      "loop_guard = loop_guard . saturating_add (1) ;",
+      "}",
+      "if (remain & 1) == 1",
+      "{",
+      "let mut spice = 3u32 ;",
+      "for k in 0 .. 3",
+      "{",
+      "spice = spice . rotate_left (k + 2) . wrapping_mul (7) . wrapping_add (k as u32) ;",
+      "} ctx . accounts . box_data . tally = ctx . accounts . box_data . tally . wrapping_add (spice) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "MakeBox",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "box_data",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 4 + 1 , seeds = [b\"box\" , owner . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , BoxData >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Withdraw",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "box_data",
+        "attribute": "# [account (mut , seeds = [b\"box\" , owner . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , BoxData >"
+      },
+      {
+        "name": "alt_box",
+        "attribute": "# [doc = \" CHECK: 署名経路では “box_shadow/owner/bump_variant” を想定して使われる\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "target",
+        "attribute": "# [doc = \" CHECK: 受け取り先\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BoxData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "count",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "tally",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "bump_saved",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

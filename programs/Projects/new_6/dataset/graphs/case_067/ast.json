@@ -1,0 +1,171 @@
+[
+  {
+    "name": "init_station",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitStation >",
+      "category: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . station ;",
+      "s . manager = ctx . accounts . manager . key () ;",
+      "s . category = category ;",
+      "s . design_pool = vec ! [] ;",
+      "s . material_pool = vec ! [] ;",
+      "s . output_hash = 0 ;",
+      "s . usage = 0 ;",
+      "s . flags = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_craft",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Craft >",
+      "design: Vec < u8 >",
+      "mats: Vec < u16 >",
+      "bias: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . station ;",
+      "let auditor = & ctx . accounts . auditor ;",
+      "s . design_pool . extend_from_slice (& design) ;",
+      "s . material_pool . extend_from_slice (& mats) ;",
+      "if s . design_pool . len () > 64",
+      "{",
+      "s . design_pool . drain (0 .. (s . design_pool . len () - 64)) ;",
+      "}",
+      "if s . material_pool . len () > 128",
+      "{",
+      "s . material_pool . reverse () ;",
+      "s . material_pool . truncate (128) ;",
+      "}",
+      "let mut h : u64 = 0xDEADBEEF ;",
+      "for (i , d) in s . design_pool . iter () . enumerate ()",
+      "{",
+      "let val = (* d as u64) << ((i % 8) as u64) ;",
+      "h ^= val . rotate_left (((i as u32) & 7) + 1) ;",
+      "if d % 3 == 0",
+      "{",
+      "s . flags ^= 0b0010 ;",
+      "}",
+      "}",
+      "for (i , m) in s . material_pool . iter () . enumerate ()",
+      "{",
+      "let mix = (* m as u64) ^ ((bias as u64) << (i % 13)) ;",
+      "h = h . wrapping_add (mix . reverse_bits ()) ;",
+      "if m % 5 == 0",
+      "{",
+      "s . flags ^= 0b0001 ;",
+      "}",
+      "}",
+      "s . output_hash = h . rotate_left ((bias % 31) as u32) ;",
+      "s . usage = s . usage . saturating_add (1) ;",
+      "if s . flags & 0b0011 == 0b0011",
+      "{",
+      "s . usage = s . usage . saturating_add (2) ;",
+      "s . design_pool . rotate_left (1) ;",
+      "s . material_pool . rotate_right (1) ;",
+      "}",
+      "if s . usage % 7 == 0",
+      "{",
+      "s . output_hash ^= 0xBADC0FFEE0DDF00D ;",
+      "s . flags ^= 0b0100 ;",
+      "}",
+      "s . manager = auditor . key () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitStation",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "station",
+        "attribute": "# [account (init , payer = manager , space = 8 + 32 + 1 + 128 + 256)]",
+        "field_type": "Account < 'info , Station >"
+      },
+      {
+        "name": "manager",
+        "attribute": "# [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Craft",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "station",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Station >"
+      },
+      {
+        "name": "auditor",
+        "attribute": "# [doc = \" CHECK: 監査人ロールだが検証なし\"]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Station",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "category",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "design_pool",
+        "attribute": null,
+        "field_type": "Vec < u8 >"
+      },
+      {
+        "name": "material_pool",
+        "attribute": null,
+        "field_type": "Vec < u16 >"
+      },
+      {
+        "name": "output_hash",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "usage",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "flags",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

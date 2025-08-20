@@ -1,0 +1,470 @@
+[
+  {
+    "name": "init_resource_nodes",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitResourceNodes >",
+      "tier: TerritoryTier",
+      "baseline: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let nodes = & mut ctx . accounts . resource_hub ;",
+      "let now = Clock :: get () ? . unix_timestamp ;",
+      "nodes . owner = ctx . accounts . owner . key () ;",
+      "nodes . created_at = now ;",
+      "nodes . tier = tier . clone () ;",
+      "let mut list : Vec < ResourceNode > = Vec :: new () ;",
+      "let start = (now as u64) . rotate_left (5) as usize % 5 ;",
+      "let mut i = 0usize ;",
+      "while i < 5",
+      "{",
+      "let index = (start + i) % 5 ;",
+      "let rtype = to_resource_type (index) ;",
+      "let mut gen = baseline . max (10) ;",
+      "if matches_city (& tier)",
+      "{",
+      "gen = gen . saturating_add (20 + (index as u32 * 5)) ;",
+      "} if matches_capital (& tier)",
+      "{",
+      "gen = gen . saturating_add (50 + (index as u32 * 10)) ;",
+      "} if matches_outpost (& tier)",
+      "{",
+      "gen = gen . saturating_add (10 + (index as u32 * 3)) ;",
+      "} let cap = gen . saturating_mul (24) ;",
+      "list . push (ResourceNode",
+      "{",
+      "resource_type : rtype , current_amount : 0 , generation_rate : gen , capacity : cap , last_harvest : now , enhancement_level : 0 , }) ;",
+      "i = i . saturating_add (1) ;",
+      "}",
+      "nodes . nodes = list ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "harvest_and_raid",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < HarvestAndRaid >",
+      "party_size: u8",
+      "difficulty: RaidDifficulty",
+      "hours_elapsed: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let hub = & mut ctx . accounts . resource_hub ;",
+      "let now = Clock :: get () ? . unix_timestamp ;",
+      "require ! (party_size >= 1 , ErrorCode :: PartyTooSmall) ;",
+      "require ! (party_size <= 6 , ErrorCode :: PartyTooLarge) ;",
+      "require ! (hours_elapsed > 0 , ErrorCode :: InvalidHours) ;",
+      "let start = ((now as u64) ^ (party_size as u64)) . rotate_left (3) as usize % hub . nodes . len () . max (1) ;",
+      "let mut j = 0usize ;",
+      "while j < hub . nodes . len ()",
+      "{",
+      "let k = (start + j) % hub . nodes . len () ;",
+      "let rate = hub . nodes [k] . generation_rate ;",
+      "let add = rate . saturating_mul (hours_elapsed) ;",
+      "let new_amt = hub . nodes [k] . current_amount . saturating_add (add) ;",
+      "let capped = new_amt . min (hub . nodes [k] . capacity) ;",
+      "hub . nodes [k] . current_amount = capped ;",
+      "hub . nodes [k] . last_harvest = now ;",
+      "j = j . saturating_add (1) ;",
+      "}",
+      "let mut threat = 50u32 ;",
+      "if is_normal (& difficulty)",
+      "{",
+      "threat = threat . saturating_add (30) ;",
+      "}",
+      "if is_hard (& difficulty)",
+      "{",
+      "threat = threat . saturating_add (60) ;",
+      "}",
+      "if is_mythic (& difficulty)",
+      "{",
+      "threat = threat . saturating_add (120) ;",
+      "}",
+      "if party_size >= 4",
+      "{",
+      "threat = threat . saturating_add (25) ;",
+      "}",
+      "if now % 2 == 0",
+      "{",
+      "threat = threat . saturating_add (7) ;",
+      "}",
+      "let mut drops : Vec < Loot > = Vec :: new () ;",
+      "let seed = ((now as u64) . rotate_left (9)) ^ (threat as u64) ;",
+      "let mut turn = 0u8 ;",
+      "while (turn as usize) < hub . nodes . len ()",
+      "{",
+      "let bias = ((seed >> (turn % 13)) as u32) % 100 ;",
+      "let rarity = decide_rarity (threat , bias) ;",
+      "let item = make_item (threat , rarity , turn) ;",
+      "drops . push (item) ;",
+      "turn = turn . saturating_add (1) ;",
+      "}",
+      "push_drops (& mut ctx . accounts . raid_log , & drops) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "to_resource_type",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "i: usize"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut t = ResourceType :: Gold ;",
+      "if i == 1",
+      "{",
+      "t = ResourceType :: Crystal ;",
+      "}",
+      "if i == 2",
+      "{",
+      "t = ResourceType :: Wood ;",
+      "}",
+      "if i == 3",
+      "{",
+      "t = ResourceType :: Stone ;",
+      "}",
+      "if i >= 4",
+      "{",
+      "t = ResourceType :: MagicEssence ;",
+      "}",
+      "t"
+    ]
+  },
+  {
+    "name": "matches_city",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "t: & TerritoryTier"
+    ],
+    "attributes": [],
+    "body": [
+      "matches ! (t , TerritoryTier :: City)"
+    ]
+  },
+  {
+    "name": "matches_capital",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "t: & TerritoryTier"
+    ],
+    "attributes": [],
+    "body": [
+      "matches ! (t , TerritoryTier :: Capital)"
+    ]
+  },
+  {
+    "name": "matches_outpost",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "t: & TerritoryTier"
+    ],
+    "attributes": [],
+    "body": [
+      "matches ! (t , TerritoryTier :: Outpost)"
+    ]
+  },
+  {
+    "name": "is_normal",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "d: & RaidDifficulty"
+    ],
+    "attributes": [],
+    "body": [
+      "matches ! (d , RaidDifficulty :: Normal)"
+    ]
+  },
+  {
+    "name": "is_hard",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "d: & RaidDifficulty"
+    ],
+    "attributes": [],
+    "body": [
+      "matches ! (d , RaidDifficulty :: Hard)"
+    ]
+  },
+  {
+    "name": "is_mythic",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "d: & RaidDifficulty"
+    ],
+    "attributes": [],
+    "body": [
+      "matches ! (d , RaidDifficulty :: Mythic)"
+    ]
+  },
+  {
+    "name": "decide_rarity",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "threat: u32",
+      "bias: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut score = threat . saturating_add (bias) ;",
+      "if score >= 180",
+      "{",
+      "return Rarity :: Mythic ;",
+      "}",
+      "if score >= 120",
+      "{",
+      "return Rarity :: Legendary ;",
+      "}",
+      "if score >= 80",
+      "{",
+      "return Rarity :: Epic ;",
+      "}",
+      "if score >= 40",
+      "{",
+      "return Rarity :: Rare ;",
+      "}",
+      "Rarity :: Common"
+    ]
+  },
+  {
+    "name": "make_item",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "threat: u32",
+      "rarity: Rarity",
+      "turn: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut p = 10u32 ;",
+      "let mut d = 10u32 ;",
+      "let mut u = 1u32 ;",
+      "if matches ! (rarity , Rarity :: Rare)",
+      "{",
+      "p = p . saturating_add (20) ;",
+      "d = d . saturating_add (15) ;",
+      "u = u . saturating_add (1) ;",
+      "}",
+      "if matches ! (rarity , Rarity :: Epic)",
+      "{",
+      "p = p . saturating_add (40) ;",
+      "d = d . saturating_add (35) ;",
+      "u = u . saturating_add (2) ;",
+      "}",
+      "if matches ! (rarity , Rarity :: Legendary)",
+      "{",
+      "p = p . saturating_add (70) ;",
+      "d = d . saturating_add (60) ;",
+      "u = u . saturating_add (3) ;",
+      "}",
+      "if matches ! (rarity , Rarity :: Mythic)",
+      "{",
+      "p = p . saturating_add (120) ;",
+      "d = d . saturating_add (110) ;",
+      "u = u . saturating_add (4) ;",
+      "}",
+      "let spice = ((threat . rotate_left ((turn % 11) as u32)) % 23) as u32 ;",
+      "Loot { rarity , power : p . saturating_add (spice) , defense : d . saturating_add (spice / 2) , utility : u . saturating_add (spice % 3) , }"
+    ]
+  },
+  {
+    "name": "push_drops",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "log: & mut Account < RaidLog >",
+      "new_items: & Vec < Loot >"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut i = 0usize ;",
+      "while i < new_items . len ()",
+      "{",
+      "log . recent . push (new_items [i] . clone ()) ;",
+      "i = i . saturating_add (1) ;",
+      "}",
+      "while log . recent . len () > 16",
+      "{",
+      "log . recent . remove (0) ;",
+      "}"
+    ]
+  },
+  {
+    "name": "InitResourceNodes",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "resource_hub",
+        "attribute": "# [account (init , payer = owner , space = 8 + ResourceHub :: MAX_SPACE , seeds = [b\"resource-hub\" , owner . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , ResourceHub >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "HarvestAndRaid",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "resource_hub",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , ResourceHub >"
+      },
+      {
+        "name": "raid_log",
+        "attribute": "# [account (init_if_needed , payer = executor , space = 8 + RaidLog :: MAX_SPACE , seeds = [b\"raid-log\" , executor . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , RaidLog >"
+      },
+      {
+        "name": "executor",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ResourceHub",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "created_at",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "tier",
+        "attribute": null,
+        "field_type": "TerritoryTier"
+      },
+      {
+        "name": "nodes",
+        "attribute": null,
+        "field_type": "Vec < ResourceNode >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RaidLog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "recent",
+        "attribute": null,
+        "field_type": "Vec < Loot >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ResourceNode",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "resource_type",
+        "attribute": null,
+        "field_type": "ResourceType"
+      },
+      {
+        "name": "current_amount",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "generation_rate",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "capacity",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "last_harvest",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "enhancement_level",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Loot",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "rarity",
+        "attribute": null,
+        "field_type": "Rarity"
+      },
+      {
+        "name": "power",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "defense",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "utility",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,149 @@
+[
+  {
+    "name": "init_mixer",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitMixer >",
+      "slots: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let mixer = & mut ctx . accounts . mixer ;",
+      "mixer . admin = ctx . accounts . operator . key () ;",
+      "mixer . slots = slots % 40 + 8 ;",
+      "mixer . intensity = 11 ;",
+      "mixer . batches = 2 ;",
+      "let bump_val = * ctx . bumps . get (\"mixer\") . ok_or (error ! (MixErr :: MissingBump)) ? ;",
+      "mixer . saved_bump = bump_val ;",
+      "let mut warmup = (mixer . slots as u32 % 9) + 2 ;",
+      "while warmup != 0",
+      "{",
+      "mixer . intensity = mixer . intensity . saturating_add (warmup) ;",
+      "warmup = warmup . saturating_sub (1) ;",
+      "}",
+      "if mixer . intensity % 4 != 1",
+      "{",
+      "mixer . batches = mixer . batches . saturating_add (3) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "blend",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Blend >",
+      "level: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let mixer = & mut ctx . accounts . mixer ;",
+      "let seeds = & [b\"coolant_pool\" , mixer . admin . as_ref () , & [mixer . saved_bump]] ;",
+      "let target = Pubkey :: create_program_address (seeds , ctx . program_id) . map_err (| _ | error ! (MixErr :: SeedCompute)) ? ;",
+      "if target != ctx . accounts . coolant_pool . key ()",
+      "{",
+      "return Err (error ! (MixErr :: PoolMismatch)) ;",
+      "}",
+      "let mut cursor = 1u32 ;",
+      "while cursor < ((level as u32 % 21) + 6)",
+      "{",
+      "mixer . intensity = mixer . intensity . saturating_add (cursor) ;",
+      "let gain = (mixer . intensity % 7) + 2 ;",
+      "mixer . batches = mixer . batches . saturating_add (gain) ;",
+      "cursor = cursor . saturating_add (3) ;",
+      "}",
+      "if level > 100",
+      "{",
+      "let pad = level as u32 % 11 + 2 ;",
+      "mixer . intensity = mixer . intensity . saturating_add (pad) ;",
+      "let sig = mixer . admin . to_bytes () [0] ;",
+      "mixer . batches = mixer . batches . saturating_add ((sig % 5) as u32 + 1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitMixer",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "mixer",
+        "attribute": "# [account (init , payer = operator , space = 8 + 32 + 2 + 4 + 4 + 1 , seeds = [b\"mixer\" , operator . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Mixer >"
+      },
+      {
+        "name": "operator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Blend",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "mixer",
+        "attribute": "# [account (mut , seeds = [b\"mixer\" , operator . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Mixer >"
+      },
+      {
+        "name": "coolant_pool",
+        "attribute": "# [doc = \" CHECK: 手動導出に依存\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Mixer",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "slots",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "intensity",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "batches",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "saved_bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

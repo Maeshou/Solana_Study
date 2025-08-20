@@ -1,0 +1,244 @@
+[
+  {
+    "name": "init_board",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitBoardQB >",
+      "seed: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let b = & mut ctx . accounts . board ;",
+      "b . owner = ctx . accounts . owner . key () ;",
+      "b . seed = seed ;",
+      "b . roll = 1 ;",
+      "b . posts = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_quest",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitQuest >",
+      "qid: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let q = & mut ctx . accounts . quest ;",
+      "q . parent = ctx . accounts . board . key () ;",
+      "q . qid = qid ;",
+      "q . phase = Open ;",
+      "q . reward = 100 ;",
+      "q . fail = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "advance_pair",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AdvancePair >",
+      "step: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let b = & mut ctx . accounts . board ;",
+      "let qa = & mut ctx . accounts . qa ;",
+      "let qb = & mut ctx . accounts . qb ;",
+      "for r in 0 .. 6",
+      "{",
+      "let add = ((b . seed as u32 + step + r) % 23) as u32 ;",
+      "b . roll = b . roll . saturating_add (add) ;",
+      "b . posts = b . posts . saturating_add (1) ;",
+      "}",
+      "if (qa . qid ^ b . roll) & 1 == 0",
+      "{",
+      "qa . phase = Running ;",
+      "qa . reward = qa . reward . saturating_add (step / 2 + 7) ;",
+      "b . roll = b . roll . saturating_add ((qa . reward & 63) as u32) ;",
+      "qa . fail = qa . fail . saturating_sub (qa . fail . min (1)) ;",
+      "msg ! (\"QA running;",
+      "reward=",
+      "{",
+      "}, roll={}\" , qa . reward , b . roll) ;",
+      "} else",
+      "{",
+      "qa . phase = Failed ;",
+      "qa . reward = qa . reward / 2 + 11 ;",
+      "qa . fail = qa . fail . saturating_add (2) ;",
+      "b . roll = b . roll / 2 + 5 ;",
+      "msg ! (\"QA failed;",
+      "reward=",
+      "{",
+      "}, fail={}\" , qa . reward , qa . fail) ;",
+      "}",
+      "for _ in 0 .. 3",
+      "{",
+      "if (qb . reward + b . roll) & 3 == 0",
+      "{",
+      "qb . phase = Running ;",
+      "qb . reward = qb . reward . saturating_add ((b . seed as u32 % 17) + 3) ;",
+      "b . posts = b . posts . saturating_add (2) ;",
+      "msg ! (\"QB bonus;",
+      "reward=",
+      "{",
+      "}, posts={}\" , qb . reward , b . posts) ;",
+      "} else",
+      "{",
+      "qb . phase = Open ;",
+      "qb . reward = qb . reward . saturating_sub (qb . reward . min (9)) ;",
+      "b . roll = b . roll ^ (qb . qid . rotate_left (5)) ;",
+      "msg ! (\"QB rest;",
+      "reward=",
+      "{",
+      "}, roll={}\" , qb . reward , b . roll) ;",
+      "}",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitBoardQB",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "board",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 2 + 4 + 8)]",
+        "field_type": "Account < 'info , BoardQB >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitQuest",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "board",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , BoardQB >"
+      },
+      {
+        "name": "quest",
+        "attribute": "# [account (init , payer = poster , space = 8 + 32 + 4 + 1 + 4 + 4)]",
+        "field_type": "Account < 'info , Quest >"
+      },
+      {
+        "name": "poster",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AdvancePair",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "board",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , BoardQB >"
+      },
+      {
+        "name": "qa",
+        "attribute": "# [account (mut , has_one = parent)]",
+        "field_type": "Account < 'info , Quest >"
+      },
+      {
+        "name": "qb",
+        "attribute": "# [account (mut , has_one = parent)]",
+        "field_type": "Account < 'info , Quest >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BoardQB",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "seed",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "roll",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "posts",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Quest",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "qid",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "phase",
+        "attribute": null,
+        "field_type": "QuestPhase"
+      },
+      {
+        "name": "reward",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "fail",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,179 @@
+[
+  {
+    "name": "setup",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Setup >",
+      "base_tick: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let a = & mut ctx . accounts . ag ;",
+      "a . owner = ctx . accounts . owner . key () ;",
+      "a . tick = base_tick ;",
+      "a . total = 0 ;",
+      "a . last = 0 ;",
+      "a . burst = 0 ;",
+      "let mut i = 0u8 ;",
+      "while i < 10",
+      "{",
+      "if i % 2 == 0",
+      "{",
+      "a . tick = a . tick . saturating_add (3) ;",
+      "} else if a . tick > 0",
+      "{",
+      "a . tick = a . tick . saturating_sub (1) ;",
+      "} i = i . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "pay",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Pay >",
+      "program_id_arg: Pubkey",
+      "text: String",
+      "base: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let a = & mut ctx . accounts . ag ;",
+      "require ! (a . owner == ctx . accounts . owner . key () , Errs :: Owner) ;",
+      "let b = text . as_bytes () ;",
+      "let mut i = 0usize ;",
+      "let mut run_val = 0u8 ;",
+      "let mut run_len = 0u64 ;",
+      "let mut acc = 0u64 ;",
+      "while i < b . len ()",
+      "{",
+      "if run_len == 0",
+      "{",
+      "run_val = b [i] ;",
+      "run_len = 1 ;",
+      "} else",
+      "{",
+      "if b [i] == run_val { run_len = run_len . saturating_add (1) ;",
+      "} else",
+      "{",
+      "acc = acc . saturating_add ((run_len * ((run_val as u64) % 17 + 1))) ;",
+      "run_val = b [i] ;",
+      "run_len = 1 ;",
+      "} } if i % 5 == 0",
+      "{",
+      "a . burst = a . burst . saturating_add (1) ;",
+      "} i += 1 ;",
+      "}",
+      "if run_len > 0",
+      "{",
+      "acc = acc . saturating_add (run_len * ((run_val as u64) % 17 + 1)) ;",
+      "}",
+      "let mut k = 0u8 ;",
+      "while k < 6",
+      "{",
+      "a . last = a . last . saturating_add (((a . tick % 9) as u64) + (k as u64)) ;",
+      "a . total = a . total . saturating_add (a . last % 101) ;",
+      "k = k . saturating_add (1) ;",
+      "}",
+      "let amt = base . saturating_add (acc) . saturating_add (a . last % 1000) ;",
+      "let ix = spl_token :: instruction :: transfer (program_id_arg , ctx . accounts . bank . key () , ctx . accounts . client_ata . key () , ctx . accounts . owner . key () , & [] , amt ,) ? ;",
+      "invoke (& ix , & [ctx . accounts . bank . to_account_info () , ctx . accounts . client_ata . to_account_info () , ctx . accounts . owner . to_account_info () ,]) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Ag",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "tick",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "total",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "last",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "burst",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Setup",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ag",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 4 + 8 + 8 + 4)]",
+        "field_type": "Account < 'info , Ag >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Pay",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ag",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Ag >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "bank",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "client_ata",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

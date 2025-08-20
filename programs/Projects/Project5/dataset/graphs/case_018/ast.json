@@ -1,40 +1,197 @@
 [
   {
-    "name": "remove_liquidity",
+    "name": "init_board",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx018 >",
-      "amount: u64"
+      "ctx: Context < InitBoard >",
+      "need: u32"
     ],
     "attributes": [],
     "body": [
-      "let src = & mut ctx . accounts . account_src ;",
-      "let dst = & mut ctx . accounts . account_dst ;",
-      "let before = * * src . to_account_info () . try_borrow_lamports () ? ;",
-      "* * src . to_account_info () . try_borrow_mut_lamports () ? = before . saturating_sub (amount) ;",
-      "* * dst . to_account_info () . try_borrow_mut_lamports () ? += amount ;",
+      "ctx . accounts . board . host = ctx . accounts . master . key () ;",
+      "ctx . accounts . board . need = need ;",
+      "ctx . accounts . board . flag = ExpeditionFlag :: Idle ;",
+      "ctx . accounts . party . leader = ctx . accounts . explorer . key () ;",
+      "ctx . accounts . party . level = 1 ;",
+      "ctx . accounts . party . ok = 1 ;",
+      "ctx . accounts . log . steps = 0 ;",
+      "ctx . accounts . log . loot = 0 ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx018",
+    "name": "explore",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Explore >",
+      "steps: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "assert_ne ! (ctx . accounts . board . key () , ctx . accounts . party . key () , \"dup board/party\") ;",
+      "assert_ne ! (ctx . accounts . board . key () , ctx . accounts . log . key () , \"dup board/log\") ;",
+      "let mut s = 0 ;",
+      "while s < steps",
+      "{",
+      "ctx . accounts . party . level = ctx . accounts . party . level . saturating_add (1) ;",
+      "ctx . accounts . log . steps = ctx . accounts . log . steps . saturating_add (1) ;",
+      "ctx . accounts . log . loot = ctx . accounts . log . loot . saturating_add (1) ;",
+      "s += 1 ;",
+      "}",
+      "if steps >= ctx . accounts . board . need",
+      "{",
+      "ctx . accounts . board . flag = ExpeditionFlag :: Running ;",
+      "ctx . accounts . party . ok = 0 ;",
+      "ctx . accounts . log . loot = ctx . accounts . log . loot . saturating_add (4) ;",
+      "msg ! (\"milestone reached;",
+      "bonus loot\") ;",
+      "} else",
+      "{",
+      "ctx . accounts . board . flag = ExpeditionFlag :: Idle ;",
+      "ctx . accounts . party . ok = 1 ;",
+      "ctx . accounts . log . steps = ctx . accounts . log . steps . saturating_add (1) ;",
+      "msg ! (\"keep exploring;",
+      "+1 step\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitBoard",
     "node_type": "struct",
     "fields": [
       {
-        "name": "account_src",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "board",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Board >"
       },
       {
-        "name": "account_dst",
+        "name": "party",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Party >"
+      },
+      {
+        "name": "log",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4 + 8 , seeds = [b\"log\" , payer . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , ExpLog >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "master",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "explorer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
       },
       {
         "name": "system_program",
         "attribute": null,
         "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Explore",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "board",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Board >"
+      },
+      {
+        "name": "party",
+        "attribute": "# [account (mut , constraint = party . key () != log . key () , error = ExpErr :: Same)]",
+        "field_type": "Account < 'info , Party >"
+      },
+      {
+        "name": "log",
+        "attribute": "# [account (mut , seeds = [b\"log\" , payer . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , ExpLog >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [doc = \" CHECK: seeds固定のためOK\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Board",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "host",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "need",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "flag",
+        "attribute": null,
+        "field_type": "ExpeditionFlag"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Party",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "leader",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "level",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "ok",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ExpLog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "steps",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "loot",
+        "attribute": null,
+        "field_type": "u64"
       }
     ],
     "inputs": null,

@@ -1,33 +1,73 @@
 [
   {
-    "name": "initialize_offer_account",
+    "name": "init_quiz",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Initialize054 >",
-      "param: u64"
+      "ctx: Context < InitQuiz >",
+      "total_questions: u8"
     ],
     "attributes": [],
     "body": [
-      "let mut data = OfferAccountData :: try_from_slice (& ctx . accounts . data_account . data . borrow ()) ? ;",
-      "data . value = param ;",
-      "data . serialize (& mut * ctx . accounts . data_account . data . borrow_mut ()) ? ;",
+      "let quiz = & mut ctx . accounts . quiz ;",
+      "quiz . total = total_questions ;",
+      "quiz . answered = 0 ;",
+      "let score = & mut ctx . accounts . score ;",
+      "score . points = 0 ;",
+      "let flag = & mut ctx . accounts . flag ;",
+      "flag . passed = false ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Initialize054",
+    "name": "answer_questions",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AnswerQuestions >",
+      "correct: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let quiz = & mut ctx . accounts . quiz ;",
+      "let answerable = (quiz . total - quiz . answered) . min (correct) ;",
+      "for _ in 0 .. answerable",
+      "{",
+      "ctx . accounts . score . points += 10 ;",
+      "quiz . answered += 1 ;",
+      "}",
+      "ctx . accounts . flag . passed = ctx . accounts . score . points >= (quiz . total as u32 * 5) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitQuiz",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "quiz",
+        "attribute": "# [account (init , payer = user , space = 8 + 1 + 1)]",
+        "field_type": "Account < 'info , QuizData >"
       },
       {
-        "name": "authority",
-        "attribute": null,
+        "name": "score",
+        "attribute": "# [account (init , payer = user , space = 8 + 4)]",
+        "field_type": "Account < 'info , ScoreData >"
+      },
+      {
+        "name": "flag",
+        "attribute": "# [account (init , payer = user , space = 8 + 1)]",
+        "field_type": "Account < 'info , FlagData >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -35,13 +75,70 @@
     "body": null
   },
   {
-    "name": "OfferAccountData",
+    "name": "AnswerQuestions",
     "node_type": "struct",
     "fields": [
       {
-        "name": "value",
+        "name": "quiz",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , QuizData >"
+      },
+      {
+        "name": "score",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , ScoreData >"
+      },
+      {
+        "name": "flag",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , FlagData >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "QuizData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "total",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "u8"
+      },
+      {
+        "name": "answered",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ScoreData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "points",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "FlagData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "passed",
+        "attribute": null,
+        "field_type": "bool"
       }
     ],
     "inputs": null,

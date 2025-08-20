@@ -1,33 +1,246 @@
 [
   {
-    "name": "cancel_stream",
+    "name": "init_archive",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx062 >"
+      "ctx: Context < InitArchive >",
+      "bound: u32"
     ],
     "attributes": [],
     "body": [
-      "let a = & ctx . accounts . first ;",
-      "let b = & ctx . accounts . second ;",
-      "msg ! (\"Account A: {}\" , a . key ()) ;",
-      "msg ! (\"Account B: {}\" , b . key ()) ;",
+      "let e = & mut ctx . accounts ;",
+      "e . room . owner = e . owner . key () ;",
+      "e . room . bound = bound ;",
+      "e . room . state = Warmup ;",
+      "e . mic . room = e . room . key () ;",
+      "e . mic . channel = 2 ;",
+      "e . amp . room = e . room . key () ;",
+      "e . amp . channel = 3 ;",
+      "e . log . room = e . room . key () ;",
+      "e . log . channel = 9 ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx062",
+    "name": "record",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Record >",
+      "frames: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let e = & mut ctx . accounts ;",
+      "for k in 0 .. frames",
+      "{",
+      "e . log . count = e . log . count . saturating_add (1) ;",
+      "let cnt = e . log . count . max (1) ;",
+      "let sample = (e . mic . level as u64) + (k as u64 * 5) ;",
+      "let delta = sample as i128 - e . log . mean as i128 ;",
+      "e . log . mean = (e . log . mean as i128 + delta / cnt as i128) . max (0) as u64 ;",
+      "let step = if e . amp . gain < 100",
+      "{",
+      "3 } else { 1 } ;",
+      "e . amp . gain = e . amp . gain . saturating_add (step) ;",
+      "}",
+      "if e . log . mean > e . room . bound as u64",
+      "{",
+      "e . room . state = Cooling ;",
+      "e . log . flags = e . log . flags . saturating_add (2) ;",
+      "e . amp . gain = e . amp . gain / 2 + 6 ;",
+      "e . mic . level = e . mic . level / 2 + 4 ;",
+      "msg ! (\"cooling: flags+2, damp mic/amp\") ;",
+      "} else",
+      "{",
+      "e . room . state = Recording ;",
+      "e . log . count = e . log . count . saturating_add (3) ;",
+      "e . mic . level = e . mic . level . saturating_add (7) ;",
+      "e . amp . gain = e . amp . gain . saturating_add (5) ;",
+      "msg ! (\"recording: count+3, mic+7, amp+5\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitArchive",
     "node_type": "struct",
     "fields": [
       {
-        "name": "first",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "room",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , EchoRoom >"
       },
       {
-        "name": "second",
+        "name": "mic",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , MicState >"
+      },
+      {
+        "name": "amp",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , AmpState >"
+      },
+      {
+        "name": "log",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 8 + 4)]",
+        "field_type": "Account < 'info , EchoLog >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Record",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "room",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , EchoRoom >"
+      },
+      {
+        "name": "mic",
+        "attribute": "# [account (mut , has_one = room , constraint = mic . channel != amp . channel @ EaErr :: Dup)]",
+        "field_type": "Account < 'info , MicState >"
+      },
+      {
+        "name": "amp",
+        "attribute": "# [account (mut , has_one = room , constraint = amp . channel != log . channel @ EaErr :: Dup)]",
+        "field_type": "Account < 'info , AmpState >"
+      },
+      {
+        "name": "log",
+        "attribute": "# [account (mut , has_one = room)]",
+        "field_type": "Account < 'info , EchoLog >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EchoRoom",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "bound",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "state",
+        "attribute": null,
+        "field_type": "EchoState"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MicState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "room",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "channel",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "level",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AmpState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "room",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "channel",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "gain",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EchoLog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "room",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "channel",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "count",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "mean",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "flags",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

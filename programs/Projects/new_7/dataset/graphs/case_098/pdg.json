@@ -1,0 +1,804 @@
+[
+  {
+    "name": "init",
+    "inputs": [
+      "ctx: Context < Init >"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let migrate_state = & mut ctx . accounts . migrate_state ;"
+      },
+      {
+        "id": 2,
+        "label": "migrate_state . admin = ctx . accounts . admin . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "migrate_state . routes = [Pubkey :: new_from_array ([1u8 ; 32]) , Pubkey :: new_from_array ([2u8 ; 32]) , Pubkey :: new_from_array ([3u8 ; 32]) , Pubkey :: new_from_array ([4u8 ; 32]) ,] ;"
+      },
+      {
+        "id": 4,
+        "label": "migrate_state . cursor = 1 ;"
+      },
+      {
+        "id": 5,
+        "label": "migrate_state . score = 100 ;"
+      },
+      {
+        "id": 6,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: migrate_state"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: migrate_state"
+      }
+    ]
+  },
+  {
+    "name": "rotate",
+    "inputs": [
+      "ctx: Context < Rotate >",
+      "a: Pubkey",
+      "b: Pubkey",
+      "c: Pubkey",
+      "d: Pubkey"
+    ],
+    "nodes": [
+      {
+        "id": 7,
+        "label": "Entry"
+      },
+      {
+        "id": 8,
+        "label": "let migrate_state = & mut ctx . accounts . migrate_state ;"
+      },
+      {
+        "id": 9,
+        "label": "require_keys_eq ! (migrate_state . admin , ctx . accounts . admin . key () , MigrateError :: AdminOnly) ;"
+      },
+      {
+        "id": 10,
+        "label": "migrate_state . routes = [a , b , c , d] ;"
+      },
+      {
+        "id": 11,
+        "label": "migrate_state . cursor = migrate_state . cursor . wrapping_add (1) ;"
+      },
+      {
+        "id": 12,
+        "label": "migrate_state . score = migrate_state . score . rotate_left (2) ;"
+      },
+      {
+        "id": 13,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 8,
+        "to": 8,
+        "label": "def: migrate_state"
+      },
+      {
+        "from": 8,
+        "to": 10,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 8,
+        "to": 11,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 8,
+        "to": 11,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 8,
+        "to": 12,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 8,
+        "to": 12,
+        "label": "data_dep: migrate_state"
+      }
+    ]
+  },
+  {
+    "name": "move_points",
+    "inputs": [
+      "ctx: Context < MovePoints >",
+      "value: u64",
+      "rounds: u8"
+    ],
+    "nodes": [
+      {
+        "id": 14,
+        "label": "Entry"
+      },
+      {
+        "id": 15,
+        "label": "let migrate_state = & mut ctx . accounts . migrate_state ;"
+      },
+      {
+        "id": 16,
+        "label": "if value == 1 { migrate_state . score = migrate_state . score . wrapping_add (7) ; migrate_state . cursor = migrate_state . cursor . wrapping_add (2) ; return Ok (()) ; }"
+      },
+      {
+        "id": 17,
+        "label": "migrate_state . score = migrate_state . score . wrapping_add (7) ;"
+      },
+      {
+        "id": 18,
+        "label": "migrate_state . cursor = migrate_state . cursor . wrapping_add (2) ;"
+      },
+      {
+        "id": 19,
+        "label": "return Ok (()) ;"
+      },
+      {
+        "id": 20,
+        "label": "let mut left = value ;"
+      },
+      {
+        "id": 21,
+        "label": "let mut i : u8 = 0 ;"
+      },
+      {
+        "id": 22,
+        "label": "while i < rounds { let part = (left / 3) . max (2) ; if part >= left { break ; } let index = (migrate_state . cursor as usize) % 4 ; let program_ai = ctx . remaining_accounts . get (index) . ok_or (MigrateError :: MissingRouteProgram) ? ; let ix = Instruction { program_id : migrate_state . routes [index] , accounts : vec ! [AccountMeta :: new (ctx . accounts . from_vault . key () , false) , AccountMeta :: new (ctx . accounts . to_vault . key () , false) , AccountMeta :: new_readonly (ctx . accounts . admin . key () , true) ,] , data : { let mut d = vec ! [0x41] ; d . extend_from_slice (& part . to_le_bytes ()) ; d } , } ; invoke (& ix , & [program_ai . clone () , ctx . accounts . from_vault . to_account_info () , ctx . accounts . to_vault . to_account_info () , ctx . accounts . admin . to_account_info () ,] ,) ? ; left = left . saturating_sub (part) ; migrate_state . cursor = migrate_state . cursor . wrapping_add (1) ; migrate_state . score = migrate_state . score . wrapping_add (part ^ 0x17) ; if migrate_state . score % 2 == 0 { migrate_state . score = migrate_state . score . rotate_left (1) . wrapping_add (11) ; let mut kk : u8 = 1 ; while kk < 3 { migrate_state . cursor = migrate_state . cursor . wrapping_add (1) ; kk = kk . saturating_add (1) ; } } else { migrate_state . score = migrate_state . score . rotate_right (2) . wrapping_add (5) ; } i = i . saturating_add (1) ; }"
+      },
+      {
+        "id": 23,
+        "label": "let part = (left / 3) . max (2) ;"
+      },
+      {
+        "id": 24,
+        "label": "if part >= left { break ; }"
+      },
+      {
+        "id": 25,
+        "label": "break ;"
+      },
+      {
+        "id": 26,
+        "label": "let index = (migrate_state . cursor as usize) % 4 ;"
+      },
+      {
+        "id": 27,
+        "label": "let program_ai = ctx . remaining_accounts . get (index) . ok_or (MigrateError :: MissingRouteProgram) ? ;"
+      },
+      {
+        "id": 28,
+        "label": "let ix = Instruction { program_id : migrate_state . routes [index] , accounts : vec ! [AccountMeta :: new (ctx . accounts . from_vault . key () , false) , AccountMeta :: new (ctx . accounts . to_vault . key () , false) , AccountMeta :: new_readonly (ctx . accounts . admin . key () , true) ,] , data : { let mut d = vec ! [0x41] ; d . extend_from_slice (& part . to_le_bytes ()) ; d } , } ;"
+      },
+      {
+        "id": 29,
+        "label": "let mut d = vec ! [0x41] ;"
+      },
+      {
+        "id": 30,
+        "label": "d . extend_from_slice (& part . to_le_bytes ()) ;"
+      },
+      {
+        "id": 31,
+        "label": "d"
+      },
+      {
+        "id": 32,
+        "label": "invoke (& ix , & [program_ai . clone () , ctx . accounts . from_vault . to_account_info () , ctx . accounts . to_vault . to_account_info () , ctx . accounts . admin . to_account_info () ,] ,) ? ;"
+      },
+      {
+        "id": 33,
+        "label": "left = left . saturating_sub (part) ;"
+      },
+      {
+        "id": 34,
+        "label": "migrate_state . cursor = migrate_state . cursor . wrapping_add (1) ;"
+      },
+      {
+        "id": 35,
+        "label": "migrate_state . score = migrate_state . score . wrapping_add (part ^ 0x17) ;"
+      },
+      {
+        "id": 36,
+        "label": "if migrate_state . score % 2 == 0 { migrate_state . score = migrate_state . score . rotate_left (1) . wrapping_add (11) ; let mut kk : u8 = 1 ; while kk < 3 { migrate_state . cursor = migrate_state . cursor . wrapping_add (1) ; kk = kk . saturating_add (1) ; } } else { migrate_state . score = migrate_state . score . rotate_right (2) . wrapping_add (5) ; }"
+      },
+      {
+        "id": 37,
+        "label": "migrate_state . score = migrate_state . score . rotate_left (1) . wrapping_add (11) ;"
+      },
+      {
+        "id": 38,
+        "label": "let mut kk : u8 = 1 ;"
+      },
+      {
+        "id": 39,
+        "label": "while kk < 3 { migrate_state . cursor = migrate_state . cursor . wrapping_add (1) ; kk = kk . saturating_add (1) ; }"
+      },
+      {
+        "id": 40,
+        "label": "migrate_state . cursor = migrate_state . cursor . wrapping_add (1) ;"
+      },
+      {
+        "id": 41,
+        "label": "kk = kk . saturating_add (1) ;"
+      },
+      {
+        "id": 42,
+        "label": "migrate_state . score = migrate_state . score . rotate_right (2) . wrapping_add (5) ;"
+      },
+      {
+        "id": 43,
+        "label": "i = i . saturating_add (1) ;"
+      },
+      {
+        "id": 44,
+        "label": "if left > 2 { let index = (migrate_state . cursor as usize) % 4 ; let program_ai = ctx . remaining_accounts . get (index) . ok_or (MigrateError :: MissingRouteProgram) ? ; let ix2 = Instruction { program_id : migrate_state . routes [index] , accounts : vec ! [AccountMeta :: new (ctx . accounts . from_vault . key () , false) , AccountMeta :: new (ctx . accounts . to_vault . key () , false) , AccountMeta :: new_readonly (ctx . accounts . admin . key () , true) ,] , data : { let mut d = vec ! [0x42] ; d . extend_from_slice (& (left - 2) . to_le_bytes ()) ; d } , } ; invoke (& ix2 , & [program_ai . clone () , ctx . accounts . from_vault . to_account_info () , ctx . accounts . to_vault . to_account_info () , ctx . accounts . admin . to_account_info () ,] ,) ? ; migrate_state . score = migrate_state . score . wrapping_add (left - 2) ; }"
+      },
+      {
+        "id": 45,
+        "label": "let index = (migrate_state . cursor as usize) % 4 ;"
+      },
+      {
+        "id": 46,
+        "label": "let program_ai = ctx . remaining_accounts . get (index) . ok_or (MigrateError :: MissingRouteProgram) ? ;"
+      },
+      {
+        "id": 47,
+        "label": "let ix2 = Instruction { program_id : migrate_state . routes [index] , accounts : vec ! [AccountMeta :: new (ctx . accounts . from_vault . key () , false) , AccountMeta :: new (ctx . accounts . to_vault . key () , false) , AccountMeta :: new_readonly (ctx . accounts . admin . key () , true) ,] , data : { let mut d = vec ! [0x42] ; d . extend_from_slice (& (left - 2) . to_le_bytes ()) ; d } , } ;"
+      },
+      {
+        "id": 48,
+        "label": "let mut d = vec ! [0x42] ;"
+      },
+      {
+        "id": 49,
+        "label": "d . extend_from_slice (& (left - 2) . to_le_bytes ()) ;"
+      },
+      {
+        "id": 50,
+        "label": "d"
+      },
+      {
+        "id": 51,
+        "label": "invoke (& ix2 , & [program_ai . clone () , ctx . accounts . from_vault . to_account_info () , ctx . accounts . to_vault . to_account_info () , ctx . accounts . admin . to_account_info () ,] ,) ? ;"
+      },
+      {
+        "id": 52,
+        "label": "migrate_state . score = migrate_state . score . wrapping_add (left - 2) ;"
+      },
+      {
+        "id": 53,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 15,
+        "to": 15,
+        "label": "def: migrate_state"
+      },
+      {
+        "from": 15,
+        "to": 16,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 15,
+        "to": 16,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 15,
+        "to": 16,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 15,
+        "to": 16,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 15,
+        "to": 17,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 15,
+        "to": 17,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 15,
+        "to": 18,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 15,
+        "to": 18,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 20,
+        "to": 20,
+        "label": "def: left"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: left"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: left"
+      },
+      {
+        "from": 15,
+        "to": 22,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 15,
+        "to": 22,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: left"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: left"
+      },
+      {
+        "from": 15,
+        "to": 22,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 15,
+        "to": 22,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 15,
+        "to": 22,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 15,
+        "to": 22,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 15,
+        "to": 22,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 15,
+        "to": 22,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 15,
+        "to": 22,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 15,
+        "to": 22,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 15,
+        "to": 22,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 15,
+        "to": 22,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 15,
+        "to": 22,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 23,
+        "to": 23,
+        "label": "def: part"
+      },
+      {
+        "from": 20,
+        "to": 23,
+        "label": "data_dep: left"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "data_dep: part"
+      },
+      {
+        "from": 20,
+        "to": 24,
+        "label": "data_dep: left"
+      },
+      {
+        "from": 26,
+        "to": 26,
+        "label": "def: index"
+      },
+      {
+        "from": 15,
+        "to": 26,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 27,
+        "to": 27,
+        "label": "def: program_ai"
+      },
+      {
+        "from": 26,
+        "to": 27,
+        "label": "data_dep: index"
+      },
+      {
+        "from": 28,
+        "to": 28,
+        "label": "def: ix"
+      },
+      {
+        "from": 15,
+        "to": 28,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 26,
+        "to": 28,
+        "label": "data_dep: index"
+      },
+      {
+        "from": 23,
+        "to": 28,
+        "label": "data_dep: part"
+      },
+      {
+        "from": 29,
+        "to": 29,
+        "label": "def: d"
+      },
+      {
+        "from": 29,
+        "to": 30,
+        "label": "data_dep: d"
+      },
+      {
+        "from": 23,
+        "to": 30,
+        "label": "data_dep: part"
+      },
+      {
+        "from": 29,
+        "to": 31,
+        "label": "data_dep: d"
+      },
+      {
+        "from": 28,
+        "to": 32,
+        "label": "data_dep: ix"
+      },
+      {
+        "from": 27,
+        "to": 32,
+        "label": "data_dep: program_ai"
+      },
+      {
+        "from": 20,
+        "to": 33,
+        "label": "data_dep: left"
+      },
+      {
+        "from": 20,
+        "to": 33,
+        "label": "data_dep: left"
+      },
+      {
+        "from": 23,
+        "to": 33,
+        "label": "data_dep: part"
+      },
+      {
+        "from": 15,
+        "to": 34,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 15,
+        "to": 34,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 15,
+        "to": 35,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 15,
+        "to": 35,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 23,
+        "to": 35,
+        "label": "data_dep: part"
+      },
+      {
+        "from": 15,
+        "to": 36,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 15,
+        "to": 36,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 15,
+        "to": 36,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 15,
+        "to": 36,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 15,
+        "to": 36,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 15,
+        "to": 36,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 15,
+        "to": 36,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 15,
+        "to": 37,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 15,
+        "to": 37,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 15,
+        "to": 39,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 15,
+        "to": 39,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 15,
+        "to": 40,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 15,
+        "to": 40,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 15,
+        "to": 42,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 15,
+        "to": 42,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 20,
+        "to": 44,
+        "label": "data_dep: left"
+      },
+      {
+        "from": 15,
+        "to": 44,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 26,
+        "to": 44,
+        "label": "data_dep: index"
+      },
+      {
+        "from": 15,
+        "to": 44,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 26,
+        "to": 44,
+        "label": "data_dep: index"
+      },
+      {
+        "from": 29,
+        "to": 44,
+        "label": "data_dep: d"
+      },
+      {
+        "from": 20,
+        "to": 44,
+        "label": "data_dep: left"
+      },
+      {
+        "from": 29,
+        "to": 44,
+        "label": "data_dep: d"
+      },
+      {
+        "from": 27,
+        "to": 44,
+        "label": "data_dep: program_ai"
+      },
+      {
+        "from": 15,
+        "to": 44,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 15,
+        "to": 44,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 20,
+        "to": 44,
+        "label": "data_dep: left"
+      },
+      {
+        "from": 45,
+        "to": 45,
+        "label": "def: index"
+      },
+      {
+        "from": 15,
+        "to": 45,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 46,
+        "to": 46,
+        "label": "def: program_ai"
+      },
+      {
+        "from": 45,
+        "to": 46,
+        "label": "data_dep: index"
+      },
+      {
+        "from": 47,
+        "to": 47,
+        "label": "def: ix2"
+      },
+      {
+        "from": 15,
+        "to": 47,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 45,
+        "to": 47,
+        "label": "data_dep: index"
+      },
+      {
+        "from": 29,
+        "to": 47,
+        "label": "data_dep: d"
+      },
+      {
+        "from": 20,
+        "to": 47,
+        "label": "data_dep: left"
+      },
+      {
+        "from": 29,
+        "to": 47,
+        "label": "data_dep: d"
+      },
+      {
+        "from": 48,
+        "to": 48,
+        "label": "def: d"
+      },
+      {
+        "from": 48,
+        "to": 49,
+        "label": "data_dep: d"
+      },
+      {
+        "from": 20,
+        "to": 49,
+        "label": "data_dep: left"
+      },
+      {
+        "from": 48,
+        "to": 50,
+        "label": "data_dep: d"
+      },
+      {
+        "from": 47,
+        "to": 51,
+        "label": "data_dep: ix2"
+      },
+      {
+        "from": 46,
+        "to": 51,
+        "label": "data_dep: program_ai"
+      },
+      {
+        "from": 15,
+        "to": 52,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 15,
+        "to": 52,
+        "label": "data_dep: migrate_state"
+      },
+      {
+        "from": 20,
+        "to": 52,
+        "label": "data_dep: left"
+      }
+    ]
+  }
+]

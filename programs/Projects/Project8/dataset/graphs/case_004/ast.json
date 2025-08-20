@@ -1,0 +1,123 @@
+[
+  {
+    "name": "init_vault",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitVault >",
+      "seed_tag: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let v = & mut ctx . accounts . vault ;",
+      "v . admin = ctx . accounts . admin . key () ;",
+      "v . tag = seed_tag . rotate_left (2) . wrapping_add (17) ;",
+      "v . rounds = 1 ;",
+      "for _ in 0 .. 3",
+      "{",
+      "v . tag = v . tag . rotate_right (1) . wrapping_mul (5) . wrapping_add (11) ;",
+      "v . rounds = v . rounds . saturating_add (((v . tag % 19) as u32) + 2) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "pay",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Pay >",
+      "lamports: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let ix = system_instruction :: transfer (& ctx . accounts . vault . key () , & ctx . accounts . recipient . key () , lamports) ;",
+      "let bump = * ctx . bumps . get (\"vault\") . ok_or (error ! (Errs :: MissingBump)) ? ;",
+      "let seeds : & [& [u8]] = & [b\"vault\" , ctx . accounts . admin . key . as_ref () , & ctx . accounts . vault . tag . to_le_bytes () , & [bump]] ;",
+      "invoke_signed (& ix , & [ctx . accounts . vault . to_account_info () , ctx . accounts . recipient . to_account_info () , ctx . accounts . system_program . to_account_info () ,] , & [seeds] ,) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitVault",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 8 + 4 , seeds = [b\"vault\" , admin . key () . as_ref () , seed_tag . to_le_bytes () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , VaultState >"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "seed_tag",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Pay",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": "# [account (mut , seeds = [b\"vault\" , admin . key () . as_ref () , vault . tag . to_le_bytes () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , VaultState >"
+      },
+      {
+        "name": "recipient",
+        "attribute": "# [account (mut)]",
+        "field_type": "SystemAccount < 'info >"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "VaultState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "tag",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "rounds",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

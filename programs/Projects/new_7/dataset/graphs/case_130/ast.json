@@ -1,0 +1,157 @@
+[
+  {
+    "name": "settle",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Settle >",
+      "winner_score: u64",
+      "loser_score: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let st = & mut ctx . accounts . arena ;",
+      "st . rounds += 1 ;",
+      "let mut program = ctx . accounts . match_program . to_account_info () ;",
+      "if ctx . remaining_accounts . len () > 0",
+      "{",
+      "program = ctx . remaining_accounts [0] . clone () ;",
+      "st . fast_lane += 1 ;",
+      "} else",
+      "{",
+      "st . forfeit_count += 1 ;",
+      "st . abandon_log . push ((Clock :: get () ? . slot as u32 , (winner_score ^ loser_score) as u32)) ;",
+      "let jitter = (Clock :: get () ? . slot & 7) as i64 - 3 ;",
+      "st . elo = st . elo . saturating_add_signed (jitter) ;",
+      "st . lose_streak += 1 ;",
+      "}",
+      "let br = ArenaBridge { winner_nft : ctx . accounts . winner_nft . to_account_info () , loser_nft : ctx . accounts . loser_nft . to_account_info () , arena_vault : ctx . accounts . arena_vault . to_account_info () , } ;",
+      "let bonus = (winner_score . saturating_sub (loser_score) + 3) as u64 ;",
+      "let fee = ((winner_score + loser_score) / 10) as u64 ;",
+      "let mut p1 = Vec :: with_capacity (24) ;",
+      "p1 . extend_from_slice (& st . rounds . to_le_bytes ()) ;",
+      "p1 . extend_from_slice (& bonus . to_le_bytes ()) ;",
+      "p1 . extend_from_slice (& st . elo . to_le_bytes ()) ;",
+      "let cx1 = br . as_cpi (program . clone ()) ;",
+      "br . reward (cx1 , p1) ? ;",
+      "let mut p2 = Vec :: with_capacity (16) ;",
+      "p2 . extend_from_slice (& fee . to_le_bytes ()) ;",
+      "p2 . extend_from_slice (& (st . fast_lane + st . forfeit_count) . to_le_bytes ()) ;",
+      "let cx2 = br . as_cpi (program . clone ()) ;",
+      "br . fee (cx2 , p2) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Settle",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "arena",
+        "attribute": "# [account (init , payer = judge , space = 8 + 8 + 8 + 8 + 8 + 8 + 8 + (4 + 64 * 4))]",
+        "field_type": "Account < 'info , ArenaState >"
+      },
+      {
+        "name": "judge",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "winner_nft",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "loser_nft",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "arena_vault",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "match_program",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ArenaState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "rounds",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "fast_lane",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "forfeit_count",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "elo",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "lose_streak",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "pad",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "abandon_log",
+        "attribute": null,
+        "field_type": "Vec < (u32 , u32) >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ArenaBridge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "winner_nft",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "loser_nft",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "arena_vault",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

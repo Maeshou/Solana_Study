@@ -1,0 +1,120 @@
+[
+  {
+    "name": "init_cell",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitCell >",
+      "tag: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let c = & mut ctx . accounts . cell ;",
+      "c . owner = ctx . accounts . admin . key () ;",
+      "c . tag = tag ;",
+      "c . bump_store = * ctx . bumps . get (\"cell\") . unwrap () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "drain_cell",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < DrainCell >",
+      "user_bump: u8",
+      "lamports: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let c = & ctx . accounts . cell ;",
+      "let (correct , _good_bump) = Pubkey :: find_program_address (& [b\"cell\" , c . owner . as_ref () , & c . tag . to_le_bytes ()] , ctx . program_id ,) ;",
+      "let seeds = & [b\"cell\" . as_ref () , c . owner . as_ref () , & c . tag . to_le_bytes () , core :: slice :: from_ref (& user_bump) ,] ;",
+      "let ix = system_instruction :: transfer (& correct , & ctx . accounts . sweeper . key () , lamports) ;",
+      "invoke_signed (& ix , & [ctx . accounts . cell_hint . to_account_info () , ctx . accounts . sweeper . to_account_info () , ctx . accounts . system_program . to_account_info () ,] , & [seeds] ,) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitCell",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "cell",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 8 + 1 , seeds = [b\"cell\" , admin . key () . as_ref () , tag . to_le_bytes () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , CellState >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DrainCell",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "cell",
+        "attribute": "# [account (mut , seeds = [b\"cell\" , admin . key () . as_ref () , cell . tag . to_le_bytes () . as_ref ()] , bump = cell . bump_store)]",
+        "field_type": "Account < 'info , CellState >"
+      },
+      {
+        "name": "cell_hint",
+        "attribute": "# [doc = \" CHECK\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "sweeper",
+        "attribute": "# [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CellState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "tag",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "bump_store",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

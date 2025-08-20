@@ -1,0 +1,25 @@
+use anchor_lang::prelude::*;
+
+declare_id!("9_BUMP_SEED052697ID");
+
+#[program]
+pub mod bump_can_052 {
+    use super::*;
+    pub fn set_value(ctx: Context<Set052>, val: u64) -> Result<()> {
+        ctx.accounts.data_acc.value = val;
+        Ok(())
+    }
+}
+
+#[derive(Accounts)]
+pub struct Set052<'info> {
+    #[account(mut, seeds = [b"seed052", user.key().as_ref()], bump)]
+    pub data_acc: Account<'info, DataAcc052>,
+    pub user: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[account]
+pub struct DataAcc052 {
+    pub value: u64,
+}

@@ -1,0 +1,234 @@
+[
+  {
+    "name": "init_store",
+    "inputs": [
+      "ctx: Context < InitStore >",
+      "base_fee: u16"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let st = & mut ctx . accounts . store ;"
+      },
+      {
+        "id": 2,
+        "label": "st . owner = ctx . accounts . merchant . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "st . fee_bps = (base_fee % 900) + 50 ;"
+      },
+      {
+        "id": 4,
+        "label": "st . sales = base_fee as u32 / 4 + 5 ;"
+      },
+      {
+        "id": 5,
+        "label": "st . reviews = 3 ;"
+      },
+      {
+        "id": 6,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: st"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: st"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: st"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: st"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: st"
+      }
+    ]
+  },
+  {
+    "name": "place_order",
+    "inputs": [
+      "ctx: Context < PlaceOrder >",
+      "price: u64",
+      "user_bump: u8"
+    ],
+    "nodes": [
+      {
+        "id": 7,
+        "label": "Entry"
+      },
+      {
+        "id": 8,
+        "label": "let st = & mut ctx . accounts . store ;"
+      },
+      {
+        "id": 9,
+        "label": "let seeds = & [b\"escrow_drawer\" , ctx . accounts . merchant . key . as_ref () , & [user_bump]] ;"
+      },
+      {
+        "id": 10,
+        "label": "let drawer = Pubkey :: create_program_address (seeds , ctx . program_id) . map_err (| _ | error ! (StoreErr :: SeedBad)) ? ;"
+      },
+      {
+        "id": 11,
+        "label": "if drawer != ctx . accounts . escrow_drawer . key () { return Err (error ! (StoreErr :: DrawerMismatch)) ; }"
+      },
+      {
+        "id": 12,
+        "label": "return Err (error ! (StoreErr :: DrawerMismatch)) ;"
+      },
+      {
+        "id": 13,
+        "label": "let ix = Instruction { program_id : * ctx . program_id , accounts : vec ! [AccountMeta :: new (ctx . accounts . store . key () , false) , AccountMeta :: new_readonly (ctx . accounts . merchant . key () , true) ,] , data : st . fee_bps . to_le_bytes () . to_vec () , } ;"
+      },
+      {
+        "id": 14,
+        "label": "let signer = & [b\"escrow_drawer\" , ctx . accounts . merchant . key . as_ref () , & [user_bump]] ;"
+      },
+      {
+        "id": 15,
+        "label": "invoke_signed (& ix , & [ctx . accounts . store . to_account_info () , ctx . accounts . merchant . to_account_info ()] , & [signer] ,) ? ;"
+      },
+      {
+        "id": 16,
+        "label": "let taxed = price . saturating_sub ((price * st . fee_bps as u64) / 10_000) ;"
+      },
+      {
+        "id": 17,
+        "label": "st . sales = st . sales . saturating_add ((taxed % 10_000) as u32) ;"
+      },
+      {
+        "id": 18,
+        "label": "if st . sales % 5 != 4 { st . reviews = st . reviews . saturating_add (1) ; }"
+      },
+      {
+        "id": 19,
+        "label": "st . reviews = st . reviews . saturating_add (1) ;"
+      },
+      {
+        "id": 20,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 8,
+        "to": 8,
+        "label": "def: st"
+      },
+      {
+        "from": 9,
+        "to": 9,
+        "label": "def: seeds"
+      },
+      {
+        "from": 10,
+        "to": 10,
+        "label": "def: drawer"
+      },
+      {
+        "from": 9,
+        "to": 10,
+        "label": "data_dep: seeds"
+      },
+      {
+        "from": 10,
+        "to": 11,
+        "label": "data_dep: drawer"
+      },
+      {
+        "from": 13,
+        "to": 13,
+        "label": "def: ix"
+      },
+      {
+        "from": 8,
+        "to": 13,
+        "label": "data_dep: st"
+      },
+      {
+        "from": 14,
+        "to": 14,
+        "label": "def: signer"
+      },
+      {
+        "from": 13,
+        "to": 15,
+        "label": "data_dep: ix"
+      },
+      {
+        "from": 14,
+        "to": 15,
+        "label": "data_dep: signer"
+      },
+      {
+        "from": 16,
+        "to": 16,
+        "label": "def: taxed"
+      },
+      {
+        "from": 8,
+        "to": 16,
+        "label": "data_dep: st"
+      },
+      {
+        "from": 8,
+        "to": 17,
+        "label": "data_dep: st"
+      },
+      {
+        "from": 8,
+        "to": 17,
+        "label": "data_dep: st"
+      },
+      {
+        "from": 16,
+        "to": 17,
+        "label": "data_dep: taxed"
+      },
+      {
+        "from": 8,
+        "to": 18,
+        "label": "data_dep: st"
+      },
+      {
+        "from": 8,
+        "to": 18,
+        "label": "data_dep: st"
+      },
+      {
+        "from": 8,
+        "to": 18,
+        "label": "data_dep: st"
+      },
+      {
+        "from": 8,
+        "to": 19,
+        "label": "data_dep: st"
+      },
+      {
+        "from": 8,
+        "to": 19,
+        "label": "data_dep: st"
+      }
+    ]
+  }
+]

@@ -1,43 +1,222 @@
 [
   {
-    "name": "swap_pool",
+    "name": "init_ladder",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx058 >",
-      "amount: u64"
+      "ctx: Context < InitLadder >",
+      "limit: u32"
     ],
     "attributes": [],
     "body": [
-      "let cpi_accounts = Transfer { from : ctx . accounts . from_token . to_account_info () , to : ctx . accounts . to_token . to_account_info () , authority : ctx . accounts . authority . to_account_info () , } ;",
-      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
-      "token :: transfer (cpi_ctx , amount) ? ;",
+      "let l = & mut ctx . accounts ;",
+      "l . board . judge = l . judge . key () ;",
+      "l . board . limit = limit ;",
+      "l . board . state = Queue ;",
+      "l . a . board = l . board . key () ;",
+      "l . a . seat = 3 ;",
+      "l . b . board = l . board . key () ;",
+      "l . b . seat = 7 ;",
+      "l . tally . board = l . board . key () ;",
+      "l . tally . seat = 99 ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx058",
+    "name": "report",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Report >",
+      "hits_a: u32",
+      "hits_b: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let l = & mut ctx . accounts ;",
+      "for _ in 0 .. hits_a",
+      "{",
+      "l . a . score = l . a . score . saturating_add (4) ;",
+      "l . tally . rounds = l . tally . rounds . saturating_add (1) ;",
+      "}",
+      "for _ in 0 .. hits_b",
+      "{",
+      "l . b . score = l . b . score . saturating_add (3) ;",
+      "l . tally . rounds = l . tally . rounds . saturating_add (1) ;",
+      "}",
+      "let sum = l . a . score as u64 + l . b . score as u64 ;",
+      "if sum > l . board . limit as u64",
+      "{",
+      "l . board . state = Freeze ;",
+      "l . tally . matches = l . tally . matches . saturating_add (1) ;",
+      "l . a . flags = l . a . flags . saturating_add (2) ;",
+      "l . b . flags = l . b . flags . saturating_add (1) ;",
+      "msg ! (\"freeze: matches+1, flags on both\") ;",
+      "} else",
+      "{",
+      "l . board . state = Match ;",
+      "l . tally . matches = l . tally . matches . saturating_add (1) ;",
+      "l . a . score = l . a . score . saturating_add (6) ;",
+      "l . b . score = l . b . score . saturating_add (6) ;",
+      "msg ! (\"match: +scores, matches+1\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitLadder",
     "node_type": "struct",
     "fields": [
       {
-        "name": "from_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "board",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Board >"
       },
       {
-        "name": "to_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "a",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4 + 4)]",
+        "field_type": "Account < 'info , Player >"
       },
       {
-        "name": "authority",
+        "name": "b",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4 + 4)]",
+        "field_type": "Account < 'info , Player >"
+      },
+      {
+        "name": "tally",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 8 + 4)]",
+        "field_type": "Account < 'info , Tally >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "judge",
         "attribute": null,
         "field_type": "Signer < 'info >"
       },
       {
-        "name": "token_program",
+        "name": "system_program",
         "attribute": null,
-        "field_type": "Program < 'info , Token >"
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Report",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "board",
+        "attribute": "# [account (mut , has_one = judge)]",
+        "field_type": "Account < 'info , Board >"
+      },
+      {
+        "name": "a",
+        "attribute": "# [account (mut , has_one = board , constraint = a . seat != b . seat @ SkErr :: Dup)]",
+        "field_type": "Account < 'info , Player >"
+      },
+      {
+        "name": "b",
+        "attribute": "# [account (mut , has_one = board , constraint = b . seat != tally . seat @ SkErr :: Dup)]",
+        "field_type": "Account < 'info , Player >"
+      },
+      {
+        "name": "tally",
+        "attribute": "# [account (mut , has_one = board)]",
+        "field_type": "Account < 'info , Tally >"
+      },
+      {
+        "name": "judge",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Board",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "judge",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "limit",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "state",
+        "attribute": null,
+        "field_type": "LadderState"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Player",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "board",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "seat",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "score",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "flags",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Tally",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "board",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "seat",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "rounds",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "matches",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

@@ -1,0 +1,174 @@
+[
+  {
+    "name": "LanguageProgress",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "",
+        "attribute": null,
+        "field_type": "Vec < (Vec < u8 > , u64) >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "initialize",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Initialize >"
+    ],
+    "attributes": [
+      "# [doc = \" 初期化：内部 Vec は空、bump のみ設定\"]"
+    ],
+    "body": [
+      "let b = * ctx . bumps . get (\"progress\") . unwrap () ;",
+      "ctx . accounts . progress . 0 = b ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "add_language",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Modify >",
+      "code: Vec < u8 >"
+    ],
+    "attributes": [
+      "# [doc = \" 言語追加：件数制限チェック＋初期 0 で追加\"]"
+    ],
+    "body": [
+      "let list = & mut ctx . accounts . progress . 1 ;",
+      "if list . len () >= MAX_LANGUAGES",
+      "{",
+      "return err ! (ErrorCode :: MaxLanguagesReached) ;",
+      "}",
+      "list . push ((code , 0)) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "log_time",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Modify >",
+      "code: Vec < u8 >",
+      "secs: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 学習時間記録：該当言語を検索し、時間を加算\"]"
+    ],
+    "body": [
+      "let list = & mut ctx . accounts . progress . 1 ;",
+      "let mut found = false ;",
+      "for entry in list . iter_mut ()",
+      "{",
+      "if entry . 0 == code",
+      "{",
+      "entry . 1 = entry . 1 . wrapping_add (secs) ;",
+      "found = true ;",
+      "}",
+      "}",
+      "if found == false",
+      "{",
+      "return err ! (ErrorCode :: LanguageNotFound) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "remove_language",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Modify >",
+      "code: Vec < u8 >"
+    ],
+    "attributes": [
+      "# [doc = \" 言語削除：該当コードを一括除去\"]"
+    ],
+    "body": [
+      "let list = & mut ctx . accounts . progress . 1 ;",
+      "list . retain (| (c , _) | { if * c == code { false } else { true } }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "total_time",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Modify >"
+    ],
+    "attributes": [
+      "# [doc = \" 合計学習時間をログ出力\"]"
+    ],
+    "body": [
+      "let list = & ctx . accounts . progress . 1 ;",
+      "let mut sum = 0u64 ;",
+      "for & (_ , secs) in list . iter ()",
+      "{",
+      "sum = sum . wrapping_add (secs) ;",
+      "}",
+      "msg ! (\"Total learning time: {} seconds\" , sum) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Initialize",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "progress",
+        "attribute": "# [account (init_zeroed , payer = user , seeds = [b\"progress\" , user . key () . as_ref ()] , bump , space = 8 + 1 + 4 + 6 * (4 + 5 + 8))]",
+        "field_type": "Account < 'info , LanguageProgress >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Modify",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "progress",
+        "attribute": "# [account (mut , seeds = [b\"progress\" , user . key () . as_ref ()] , bump = progress . 0 ,)]",
+        "field_type": "Account < 'info , LanguageProgress >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (signer)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

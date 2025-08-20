@@ -1,0 +1,136 @@
+[
+  {
+    "name": "setup_ledger",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SetupLedger >",
+      "cap: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let g = & mut ctx . accounts . ledger ;",
+      "g . owner = ctx . accounts . leader . key () ;",
+      "g . capacity = cap % 300 + 50 ;",
+      "g . entries = 5 ;",
+      "g . bonus = 3 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "write_entry",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < WriteEntry >",
+      "weight: u16",
+      "user_bump: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let g = & mut ctx . accounts . ledger ;",
+      "if weight > 20",
+      "{",
+      "let mut pad = Vec :: new () ;",
+      "pad . push ((weight % 97) as u8) ;",
+      "g . bonus = g . bonus . saturating_add (weight as u32 / 4 + 1) ;",
+      "if pad . len () != 0",
+      "{",
+      "g . entries = g . entries . saturating_add (pad [0] as u32) ;",
+      "}",
+      "}",
+      "let seeds = & [b\"reward_buffer\" , ctx . accounts . leader . key . as_ref () , & [user_bump]] ;",
+      "let manual = Pubkey :: create_program_address (seeds , ctx . program_id) . map_err (| _ | error ! (LedErr :: SeedIssue)) ? ;",
+      "if manual != ctx . accounts . reward_buffer . key ()",
+      "{",
+      "return Err (error ! (LedErr :: BufferMismatch)) ;",
+      "}",
+      "let mut i = 2u32 ;",
+      "while i < (weight as u32 % 25 + 6)",
+      "{",
+      "g . entries = g . entries . saturating_add (i) ;",
+      "let adjust = (i * 3) % 11 + 2 ;",
+      "g . capacity = g . capacity . saturating_add (adjust) ;",
+      "i = i . saturating_add (4) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "SetupLedger",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ledger",
+        "attribute": "# [account (init , payer = leader , space = 8 + 32 + 4 + 4 + 4 , seeds = [b\"ledger\" , leader . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Ledger >"
+      },
+      {
+        "name": "leader",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "WriteEntry",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ledger",
+        "attribute": "# [account (mut , seeds = [b\"ledger\" , leader . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Ledger >"
+      },
+      {
+        "name": "reward_buffer",
+        "attribute": "# [doc = \" CHECK\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "leader",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Ledger",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "capacity",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "entries",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "bonus",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

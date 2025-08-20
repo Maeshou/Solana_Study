@@ -1,9 +1,9 @@
 [
   {
-    "name": "update_profile",
+    "name": "init_farm",
     "inputs": [
-      "ctx: Context < Ctx040 >",
-      "amount: u64"
+      "ctx: Context < InitFarm >",
+      "cap: u64"
     ],
     "nodes": [
       {
@@ -12,18 +12,22 @@
       },
       {
         "id": 1,
-        "label": "let cpi_accounts = Transfer { from : ctx . accounts . from_token . to_account_info () , to : ctx . accounts . to_token . to_account_info () , authority : ctx . accounts . authority . to_account_info () , } ;"
+        "label": "let f = & mut ctx . accounts ;"
       },
       {
         "id": 2,
-        "label": "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;"
+        "label": "f . cfg . owner = f . owner . key () ;"
       },
       {
         "id": 3,
-        "label": "token :: transfer (cpi_ctx , amount) ? ;"
+        "label": "f . cfg . cap = cap ;"
       },
       {
         "id": 4,
+        "label": "f . cfg . state = FarmState :: Start ;"
+      },
+      {
+        "id": 5,
         "label": "Ok (())"
       }
     ],
@@ -31,22 +35,363 @@
       {
         "from": 1,
         "to": 1,
-        "label": "def: cpi_accounts"
-      },
-      {
-        "from": 2,
-        "to": 2,
-        "label": "def: cpi_ctx"
+        "label": "def: f"
       },
       {
         "from": 1,
         "to": 2,
-        "label": "data_dep: cpi_accounts"
+        "label": "data_dep: f"
       },
       {
-        "from": 2,
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 1,
         "to": 3,
-        "label": "data_dep: cpi_ctx"
+        "label": "data_dep: f"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: f"
+      }
+    ]
+  },
+  {
+    "name": "cultivate",
+    "inputs": [
+      "ctx: Context < Cultivate >",
+      "ticks: u32"
+    ],
+    "nodes": [
+      {
+        "id": 6,
+        "label": "Entry"
+      },
+      {
+        "id": 7,
+        "label": "let f = & mut ctx . accounts ;"
+      },
+      {
+        "id": 8,
+        "label": "assert_ne ! (f . cfg . key () , f . log . key () , \"cfg/log must differ\") ;"
+      },
+      {
+        "id": 9,
+        "label": "for _ in 0 .. ticks { let next = (u128 :: from (f . field . a) + u128 :: from (f . field . b)) & ((1u128 << 40) - 1) ; f . field . a = f . field . b ; f . field . b = next as u64 ; let x = f . field . b as u32 ; let v = x ^ (x >> 1) ^ (x >> 2) ; f . log . events = f . log . events . wrapping_add ((v & 0xFF) as u32) ; }"
+      },
+      {
+        "id": 10,
+        "label": "let next = (u128 :: from (f . field . a) + u128 :: from (f . field . b)) & ((1u128 << 40) - 1) ;"
+      },
+      {
+        "id": 11,
+        "label": "f . field . a = f . field . b ;"
+      },
+      {
+        "id": 12,
+        "label": "f . field . b = next as u64 ;"
+      },
+      {
+        "id": 13,
+        "label": "let x = f . field . b as u32 ;"
+      },
+      {
+        "id": 14,
+        "label": "let v = x ^ (x >> 1) ^ (x >> 2) ;"
+      },
+      {
+        "id": 15,
+        "label": "f . log . events = f . log . events . wrapping_add ((v & 0xFF) as u32) ;"
+      },
+      {
+        "id": 16,
+        "label": "if f . field . b > f . cfg . cap { f . cfg . state = FarmState :: Cap ; f . field . b = f . cfg . cap ; f . log . badges = f . log . badges . wrapping_add (2) ; msg ! (\"cap reached: clip b to cap, badges+2\") ; } else { f . cfg . state = FarmState :: Grow ; f . field . a = f . field . a + (f . field . b / 3) ; f . log . events = f . log . events . wrapping_add (1) ; msg ! (\"grow: a += b/3, events+1\") ; }"
+      },
+      {
+        "id": 17,
+        "label": "f . cfg . state = FarmState :: Cap ;"
+      },
+      {
+        "id": 18,
+        "label": "f . field . b = f . cfg . cap ;"
+      },
+      {
+        "id": 19,
+        "label": "f . log . badges = f . log . badges . wrapping_add (2) ;"
+      },
+      {
+        "id": 20,
+        "label": "msg ! (\"cap reached: clip b to cap, badges+2\") ;"
+      },
+      {
+        "id": 21,
+        "label": "f . cfg . state = FarmState :: Grow ;"
+      },
+      {
+        "id": 22,
+        "label": "f . field . a = f . field . a + (f . field . b / 3) ;"
+      },
+      {
+        "id": 23,
+        "label": "f . log . events = f . log . events . wrapping_add (1) ;"
+      },
+      {
+        "id": 24,
+        "label": "msg ! (\"grow: a += b/3, events+1\") ;"
+      },
+      {
+        "id": 25,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 7,
+        "to": 7,
+        "label": "def: f"
+      },
+      {
+        "from": 7,
+        "to": 9,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 7,
+        "to": 9,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 7,
+        "to": 9,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 7,
+        "to": 9,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 7,
+        "to": 9,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 7,
+        "to": 9,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 7,
+        "to": 9,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 7,
+        "to": 9,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 10,
+        "to": 10,
+        "label": "def: next"
+      },
+      {
+        "from": 7,
+        "to": 10,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 7,
+        "to": 10,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 7,
+        "to": 11,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 7,
+        "to": 11,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 7,
+        "to": 12,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 10,
+        "to": 12,
+        "label": "data_dep: next"
+      },
+      {
+        "from": 13,
+        "to": 13,
+        "label": "def: x"
+      },
+      {
+        "from": 7,
+        "to": 13,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 14,
+        "to": 14,
+        "label": "def: v"
+      },
+      {
+        "from": 13,
+        "to": 14,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 13,
+        "to": 14,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 13,
+        "to": 14,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 7,
+        "to": 15,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 7,
+        "to": 15,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 14,
+        "to": 15,
+        "label": "data_dep: v"
+      },
+      {
+        "from": 7,
+        "to": 16,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 7,
+        "to": 16,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 7,
+        "to": 16,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 7,
+        "to": 16,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 7,
+        "to": 16,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 7,
+        "to": 16,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 7,
+        "to": 16,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 7,
+        "to": 16,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 7,
+        "to": 16,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 7,
+        "to": 16,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 7,
+        "to": 16,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 7,
+        "to": 16,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 7,
+        "to": 16,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 7,
+        "to": 18,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 7,
+        "to": 18,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 7,
+        "to": 19,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 7,
+        "to": 19,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 7,
+        "to": 21,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 7,
+        "to": 22,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 7,
+        "to": 22,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 7,
+        "to": 22,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 7,
+        "to": 23,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 7,
+        "to": 23,
+        "label": "data_dep: f"
       }
     ]
   }

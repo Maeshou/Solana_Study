@@ -1,0 +1,251 @@
+[
+  {
+    "name": "init_runner",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitRunner >"
+    ],
+    "attributes": [],
+    "body": [
+      "let r = & mut ctx . accounts . runner ;",
+      "r . owner = ctx . accounts . owner . key () ;",
+      "r . energy = 50 ;",
+      "r . level = 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "issue_pass",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < IssuePass >",
+      "slot: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let p = & mut ctx . accounts . pass ;",
+      "p . parent = ctx . accounts . runner . key () ;",
+      "p . slot = slot ;",
+      "p . consumed = false ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "recharge",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Recharge >",
+      "add: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let r = & mut ctx . accounts . runner ;",
+      "let a = & mut ctx . accounts . pass_a ;",
+      "let b = & mut ctx . accounts . pass_b ;",
+      "let g = & mut ctx . accounts . gauge ;",
+      "require ! (ctx . accounts . fuel_ta . mint == ctx . accounts . fuel_mint . key () , RunErr :: MintMismatch) ;",
+      "require ! (ctx . accounts . fuel_ta . owner == ctx . accounts . owner . key () , RunErr :: OwnerMismatch) ;",
+      "let mut sum = 0u32 ;",
+      "for i in 0 .. g . cells . len ()",
+      "{",
+      "let inc = (add as u32) . saturating_add ((i as u32) * 5) ;",
+      "g . cells [i] = g . cells [i] . saturating_add (inc) ;",
+      "sum = sum . saturating_add (g . cells [i]) ;",
+      "}",
+      "if sum & 1 == 1",
+      "{",
+      "r . energy = r . energy . saturating_add ((sum / 20) as u64) ;",
+      "a . consumed = true ;",
+      "g . flag = true ;",
+      "} else",
+      "{",
+      "r . energy = r . energy . saturating_sub ((sum / 25) as u64) ;",
+      "b . consumed = true ;",
+      "g . flag = false ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitRunner",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "runner",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 2)]",
+        "field_type": "Account < 'info , Runner >"
+      },
+      {
+        "name": "gauge",
+        "attribute": "# [account (init , payer = owner , space = 8 + 1 + 4 * 4 + 1)]",
+        "field_type": "Account < 'info , Gauge >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "IssuePass",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "runner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Runner >"
+      },
+      {
+        "name": "pass",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 1 + 1)]",
+        "field_type": "Account < 'info , Pass >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Recharge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "runner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Runner >"
+      },
+      {
+        "name": "pass_a",
+        "attribute": "# [account (mut , has_one = parent , constraint = pass_a . slot != pass_b . slot @ RunErr :: CosplayBlocked)]",
+        "field_type": "Account < 'info , Pass >"
+      },
+      {
+        "name": "pass_b",
+        "attribute": "# [account (mut , has_one = parent)]",
+        "field_type": "Account < 'info , Pass >"
+      },
+      {
+        "name": "gauge",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Gauge >"
+      },
+      {
+        "name": "fuel_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "fuel_ta",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Runner",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "energy",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "level",
+        "attribute": null,
+        "field_type": "u16"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Pass",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "slot",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "consumed",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Gauge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "flag",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "cells",
+        "attribute": null,
+        "field_type": "[u32 ; 4]"
+      },
+      {
+        "name": "reserved",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

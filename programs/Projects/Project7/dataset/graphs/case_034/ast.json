@@ -1,0 +1,162 @@
+[
+  {
+    "name": "init_board",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitBoard >",
+      "daily_max: u64",
+      "weekly_basis: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let board = & mut ctx . accounts . board ;",
+      "board . owner_key = ctx . accounts . owner . key () ;",
+      "board . daily_max = daily_max . max (9) ;",
+      "board . issued_today = weekly_basis . saturating_div (6) . max (3) ;",
+      "board . weekly_basis = weekly_basis . max (12) ;",
+      "board . current_streak = 3 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_claim",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActClaim >",
+      "completed_tasks: u8",
+      "proof_units: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let board = & mut ctx . accounts . board ;",
+      "token :: burn (ctx . accounts . burn_ctx () , proof_units . max (1)) ? ;",
+      "let mut grant_units = board . weekly_basis . saturating_div (25) . max (1) ;",
+      "let mut task_cursor = 0u8 ;",
+      "while task_cursor < completed_tasks",
+      "{",
+      "grant_units = grant_units . saturating_add ((task_cursor as u64 % 4) . saturating_add (1)) ;",
+      "task_cursor = task_cursor . saturating_add (1) ;",
+      "}",
+      "if board . current_streak % 7 == 0",
+      "{",
+      "grant_units = grant_units . saturating_add (3) ;",
+      "}",
+      "let next_total = board . issued_today . saturating_add (grant_units) ;",
+      "if next_total > board . daily_max",
+      "{",
+      "let overflow = next_total . saturating_sub (board . daily_max) ;",
+      "board . weekly_basis = board . weekly_basis . saturating_add (overflow) ;",
+      "board . current_streak = 1 ;",
+      "return Err (QuestErr :: DailyCap . into ()) ;",
+      "}",
+      "token :: mint_to (ctx . accounts . mint_ctx () , grant_units) ? ;",
+      "board . issued_today = next_total ;",
+      "board . current_streak = board . current_streak . saturating_add (1) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitBoard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "board",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , QuestBoard >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActClaim",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "board",
+        "attribute": "# [account (mut , has_one = owner_key)]",
+        "field_type": "Account < 'info , QuestBoard >"
+      },
+      {
+        "name": "owner_key",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "proof_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "user_proof_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "reward_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "user_reward_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "QuestBoard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner_key",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "daily_max",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "issued_today",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "weekly_basis",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "current_streak",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

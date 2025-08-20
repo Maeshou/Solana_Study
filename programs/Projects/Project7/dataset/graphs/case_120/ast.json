@@ -1,0 +1,156 @@
+[
+  {
+    "name": "initialize",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Initialize >",
+      "cap_limit: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let daily_state = & mut ctx . accounts . daily_state ;",
+      "daily_state . admin = ctx . accounts . admin . key () ;",
+      "daily_state . cap_limit = cap_limit ;",
+      "daily_state . total_moved = 0 ;",
+      "daily_state . last_epoch_day = 0 ;",
+      "daily_state . external_uses = 0 ;",
+      "daily_state . internal_uses = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "run",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Run >",
+      "move_amount: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let daily_state = & mut ctx . accounts . daily_state ;",
+      "let current_day = (Clock :: get () ? . unix_timestamp as i64) / 86_400 ;",
+      "let mut program_handle = ctx . accounts . token_program . to_account_info () ;",
+      "if daily_state . last_epoch_day as i64 != current_day",
+      "{",
+      "daily_state . last_epoch_day = current_day as u64 ;",
+      "program_handle = ctx . accounts . external_program . clone () ;",
+      "daily_state . external_uses = daily_state . external_uses . saturating_add (1) ;",
+      "msg ! (\"switched to external for day",
+      "{",
+      "}\" , daily_state . last_epoch_day) ;",
+      "}",
+      "let planned = daily_state . total_moved . saturating_add (move_amount) ;",
+      "require ! (planned <= daily_state . cap_limit , DailyErr :: CapReached) ;",
+      "token :: approve (CpiContext :: new (program_handle . clone () , Approve { to : ctx . accounts . source_tokens . to_account_info () , delegate : ctx . accounts . destination_tokens . to_account_info () , authority : ctx . accounts . admin . to_account_info () , }) , move_amount) ? ;",
+      "token :: transfer (CpiContext :: new (program_handle . clone () , Transfer { from : ctx . accounts . source_tokens . to_account_info () , to : ctx . accounts . destination_tokens . to_account_info () , authority : ctx . accounts . admin . to_account_info () , }) , move_amount) ? ;",
+      "token :: revoke (CpiContext :: new (program_handle , Revoke { source : ctx . accounts . source_tokens . to_account_info () , authority : ctx . accounts . admin . to_account_info () , })) ? ;",
+      "daily_state . total_moved = planned ;",
+      "daily_state . internal_uses = daily_state . internal_uses . saturating_add (1) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Initialize",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "daily_state",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 8 + 8 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , DailyState >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Run",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "daily_state",
+        "attribute": "# [account (mut , has_one = admin)]",
+        "field_type": "Account < 'info , DailyState >"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "source_tokens",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "destination_tokens",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "external_program",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DailyState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "cap_limit",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_moved",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "last_epoch_day",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "external_uses",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "internal_uses",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

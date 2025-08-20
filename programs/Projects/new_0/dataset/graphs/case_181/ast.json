@@ -1,0 +1,179 @@
+[
+  {
+    "name": "ShoppingCart",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "",
+        "attribute": null,
+        "field_type": "Vec < (u64 , u64) >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "initialize",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Initialize >"
+    ],
+    "attributes": [
+      "# [doc = \" カート初期化：内部 Vec は空のまま、bump のみ設定\"]"
+    ],
+    "body": [
+      "let bump = * ctx . bumps . get (\"cart\") . unwrap () ;",
+      "ctx . accounts . cart . 0 = bump ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "add_item",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Modify >",
+      "item_id: u64",
+      "qty: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 商品追加：既存のエントリがあれば数量を加算、なければ新規追加\"]"
+    ],
+    "body": [
+      "let items = & mut ctx . accounts . cart . 1 ;",
+      "let mut found = false ;",
+      "for entry in items . iter_mut ()",
+      "{",
+      "if entry . 0 == item_id",
+      "{",
+      "entry . 1 = entry . 1 . wrapping_add (qty) ;",
+      "found = true ;",
+      "}",
+      "}",
+      "if ! found",
+      "{",
+      "items . push ((item_id , qty)) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "remove_item",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Modify >",
+      "item_id: u64",
+      "qty: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 商品削除：既存エントリがあれば数量を減算、最後に残数0のものを除去\"]"
+    ],
+    "body": [
+      "let items = & mut ctx . accounts . cart . 1 ;",
+      "for entry in items . iter_mut ()",
+      "{",
+      "if entry . 0 == item_id",
+      "{",
+      "if entry . 1 > qty { entry . 1 = entry . 1 . wrapping_sub (qty) ;",
+      "} else",
+      "{",
+      "entry . 1 = 0 ;",
+      "} }",
+      "}",
+      "items . retain (| & (_ , q) | q > 0) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "clear_cart",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Modify >"
+    ],
+    "attributes": [
+      "# [doc = \" カート全削除\"]"
+    ],
+    "body": [
+      "ctx . accounts . cart . 1 . clear () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "count_items",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Modify >"
+    ],
+    "attributes": [
+      "# [doc = \" 総アイテム数報告：すべての数量を合計してログ出力\"]"
+    ],
+    "body": [
+      "let items = & ctx . accounts . cart . 1 ;",
+      "let mut total = 0u64 ;",
+      "for & (_ , q) in items . iter ()",
+      "{",
+      "total = total . wrapping_add (q) ;",
+      "}",
+      "msg ! (\"Total items in cart: {}\" , total) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Initialize",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "cart",
+        "attribute": "# [account (init_zeroed , payer = user , seeds = [b\"cart\" , user . key () . as_ref ()] , bump , space = 8 + 1 + 4 + 10 * (8 + 8))]",
+        "field_type": "Account < 'info , ShoppingCart >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Modify",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "cart",
+        "attribute": "# [account (mut , seeds = [b\"cart\" , user . key () . as_ref ()] , bump = cart . 0 ,)]",
+        "field_type": "Account < 'info , ShoppingCart >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (signer)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,175 @@
+[
+  {
+    "name": "Ride",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "driver",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "total_served",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RideRequest",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "rider",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "ride",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "request_count",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreateRide",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ride",
+        "attribute": "# [account (init , payer = driver , space = 8 + 32 + 8)]",
+        "field_type": "Account < 'info , Ride >"
+      },
+      {
+        "name": "driver",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RequestRide",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ride",
+        "attribute": "# [doc = \" Ride.driver == driver.key() は不要\"] # [account (mut)]",
+        "field_type": "Account < 'info , Ride >"
+      },
+      {
+        "name": "request",
+        "attribute": "# [account (init , payer = rider , space = 8 + 32 + 32 + 8)]",
+        "field_type": "Account < 'info , RideRequest >"
+      },
+      {
+        "name": "rider",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CompleteRide",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ride",
+        "attribute": "# [doc = \" Ride.driver == driver.key() は検証される\"] # [account (mut , has_one = driver)]",
+        "field_type": "Account < 'info , Ride >"
+      },
+      {
+        "name": "request",
+        "attribute": "# [doc = \" RideRequest.ride ⇔ ride.key() の検証がない\"] # [account (mut)]",
+        "field_type": "Account < 'info , RideRequest >"
+      },
+      {
+        "name": "driver",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "create_ride",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateRide >"
+    ],
+    "attributes": [
+      "# [doc = \" ドライバー乗車枠を作成\"]"
+    ],
+    "body": [
+      "let r = & mut ctx . accounts . ride ;",
+      "r . driver = ctx . accounts . driver . key () ;",
+      "r . total_served = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "request_ride",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RequestRide >"
+    ],
+    "attributes": [
+      "# [doc = \" ライドリクエストを発行\"]"
+    ],
+    "body": [
+      "let rq = & mut ctx . accounts . request ;",
+      "rq . rider = ctx . accounts . rider . key () ;",
+      "rq . ride = ctx . accounts . ride . key () ;",
+      "rq . request_count = 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "complete_ride",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CompleteRide >"
+    ],
+    "attributes": [
+      "# [doc = \" ライドを完了\"]"
+    ],
+    "body": [
+      "let rd = & mut ctx . accounts . ride ;",
+      "let rq = & mut ctx . accounts . request ;",
+      "rd . total_served = rd . total_served . checked_add (1) . unwrap_or (rd . total_served) ;",
+      "rq . request_count = rq . request_count . checked_add (1) . unwrap_or (rq . request_count) ;",
+      "Ok (())"
+    ]
+  }
+]

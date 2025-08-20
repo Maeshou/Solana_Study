@@ -1,0 +1,243 @@
+[
+  {
+    "name": "init_depot",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitDepot >",
+      "zone: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let d = & mut ctx . accounts . depot ;",
+      "d . owner = ctx . accounts . owner . key () ;",
+      "d . zone = zone ;",
+      "d . flow = 0 ;",
+      "d . stock = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_bin",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitBin >",
+      "code: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let b = & mut ctx . accounts . bin ;",
+      "b . parent = ctx . accounts . depot . key () ;",
+      "b . code = code ;",
+      "b . state = Idle ;",
+      "b . units = 0 ;",
+      "b . alerts = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "shuffle_bins",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ShuffleBins >",
+      "qty: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let d = & mut ctx . accounts . depot ;",
+      "let a = & mut ctx . accounts . bin_a ;",
+      "let b = & mut ctx . accounts . bin_b ;",
+      "for _ in 0 .. 5",
+      "{",
+      "d . flow = d . flow . checked_add (qty / 5) . unwrap_or (u32 :: MAX) ;",
+      "d . stock = d . stock . saturating_add ((d . flow % 11) as u64) ;",
+      "}",
+      "if (a . code & 7) == 0",
+      "{",
+      "a . state = Active ;",
+      "a . units = a . units . saturating_add (qty / 2 + 3) ;",
+      "d . stock = d . stock . saturating_add (a . units as u64) ;",
+      "a . alerts = a . alerts . saturating_sub (a . alerts . min (1)) ;",
+      "msg ! (\"A load;",
+      "units=",
+      "{",
+      "}, stock={}\" , a . units , d . stock) ;",
+      "} else",
+      "{",
+      "a . state = Idle ;",
+      "a . units = a . units . saturating_sub (a . units . min (5)) ;",
+      "d . flow = d . flow / 2 + 9 ;",
+      "a . alerts = a . alerts . saturating_add (1) ;",
+      "msg ! (\"A idle;",
+      "units=",
+      "{",
+      "}, flow={}\" , a . units , d . flow) ;",
+      "}",
+      "for _ in 0 .. 4",
+      "{",
+      "if (b . units + qty) & 1 == 1",
+      "{",
+      "b . state = Active ;",
+      "b . units = b . units . saturating_add (qty % 7 + 1) ;",
+      "d . stock = d . stock . saturating_add (2) ;",
+      "msg ! (\"B inc;",
+      "units=",
+      "{",
+      "}, stock={}\" , b . units , d . stock) ;",
+      "} else",
+      "{",
+      "b . state = Idle ;",
+      "b . units = b . units / 2 + (d . flow % 3) ;",
+      "d . flow = d . flow . saturating_add (1) ;",
+      "msg ! (\"B half;",
+      "units=",
+      "{",
+      "}, flow={}\" , b . units , d . flow) ;",
+      "}",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitDepot",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "depot",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 1 + 4 + 8)]",
+        "field_type": "Account < 'info , Depot >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitBin",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "depot",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Depot >"
+      },
+      {
+        "name": "bin",
+        "attribute": "# [account (init , payer = worker , space = 8 + 32 + 4 + 1 + 4 + 4)]",
+        "field_type": "Account < 'info , Bin >"
+      },
+      {
+        "name": "worker",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ShuffleBins",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "depot",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Depot >"
+      },
+      {
+        "name": "bin_a",
+        "attribute": "# [account (mut , has_one = parent)]",
+        "field_type": "Account < 'info , Bin >"
+      },
+      {
+        "name": "bin_b",
+        "attribute": "# [account (mut , has_one = parent)]",
+        "field_type": "Account < 'info , Bin >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Depot",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "zone",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "flow",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "stock",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Bin",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "code",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "state",
+        "attribute": null,
+        "field_type": "BinState"
+      },
+      {
+        "name": "units",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "alerts",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

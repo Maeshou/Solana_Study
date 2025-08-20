@@ -1,0 +1,705 @@
+[
+  {
+    "name": "init_pool",
+    "inputs": [
+      "ctx: Context < InitPool >",
+      "base_bps: u16",
+      "min_units: u64"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let s = & mut ctx . accounts . pool ;"
+      },
+      {
+        "id": 2,
+        "label": "s . admin = ctx . accounts . admin . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "s . base_bps = clip_u16 (base_bps , 25 , 3500) ;"
+      },
+      {
+        "id": 4,
+        "label": "s . min_units = if min_units < 1 { 1 } else { min_units } ;"
+      },
+      {
+        "id": 5,
+        "label": "1"
+      },
+      {
+        "id": 6,
+        "label": "min_units"
+      },
+      {
+        "id": 7,
+        "label": "s . round = 2 ;"
+      },
+      {
+        "id": 8,
+        "label": "s . paid = 3 ;"
+      },
+      {
+        "id": 9,
+        "label": "s . mode = Mode :: Neutral ;"
+      },
+      {
+        "id": 10,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: s"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 1,
+        "to": 7,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 1,
+        "to": 8,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 1,
+        "to": 9,
+        "label": "data_dep: s"
+      }
+    ]
+  },
+  {
+    "name": "act_settle",
+    "inputs": [
+      "ctx: Context < ActSettle >",
+      "stake_units: u64",
+      "epochs: u32"
+    ],
+    "nodes": [
+      {
+        "id": 11,
+        "label": "Entry"
+      },
+      {
+        "id": 12,
+        "label": "let s = & mut ctx . accounts . pool ;"
+      },
+      {
+        "id": 13,
+        "label": "require ! (stake_units >= s . min_units , ErrStk :: TooSmall) ;"
+      },
+      {
+        "id": 14,
+        "label": "let mut bonus_bps : u64 = 0 ;"
+      },
+      {
+        "id": 15,
+        "label": "let mut i = 1u32 ;"
+      },
+      {
+        "id": 16,
+        "label": "while i <= epochs { bonus_bps = bonus_bps + (10_000 / ((i as u64) + 9)) ; i = i + 1 ; }"
+      },
+      {
+        "id": 17,
+        "label": "bonus_bps = bonus_bps + (10_000 / ((i as u64) + 9)) ;"
+      },
+      {
+        "id": 18,
+        "label": "i = i + 1 ;"
+      },
+      {
+        "id": 19,
+        "label": "let mut effective = s . base_bps as u64 ;"
+      },
+      {
+        "id": 20,
+        "label": "if s . mode == Mode :: Conservative { effective = effective - (effective / 20) ; }"
+      },
+      {
+        "id": 21,
+        "label": "effective = effective - (effective / 20) ;"
+      },
+      {
+        "id": 22,
+        "label": "if s . mode == Mode :: Aggressive { effective = effective + (effective / 12) ; }"
+      },
+      {
+        "id": 23,
+        "label": "effective = effective + (effective / 12) ;"
+      },
+      {
+        "id": 24,
+        "label": "let mut total_bps = effective + bonus_bps / 40 ;"
+      },
+      {
+        "id": 25,
+        "label": "let ceiling = effective * 3 ;"
+      },
+      {
+        "id": 26,
+        "label": "if total_bps > ceiling { total_bps = ceiling ; }"
+      },
+      {
+        "id": 27,
+        "label": "total_bps = ceiling ;"
+      },
+      {
+        "id": 28,
+        "label": "let mut fee_bps = 500u64 ;"
+      },
+      {
+        "id": 29,
+        "label": "let mut r = 0u64 ;"
+      },
+      {
+        "id": 30,
+        "label": "while r < s . round / 3 { if fee_bps > 100 { fee_bps = fee_bps - 100 ; } r = r + 1 ; }"
+      },
+      {
+        "id": 31,
+        "label": "if fee_bps > 100 { fee_bps = fee_bps - 100 ; }"
+      },
+      {
+        "id": 32,
+        "label": "fee_bps = fee_bps - 100 ;"
+      },
+      {
+        "id": 33,
+        "label": "r = r + 1 ;"
+      },
+      {
+        "id": 34,
+        "label": "let gross = mul_div (stake_units , total_bps , 10_000) ;"
+      },
+      {
+        "id": 35,
+        "label": "let fee = mul_div (gross , fee_bps , 10_000) ;"
+      },
+      {
+        "id": 36,
+        "label": "let net = gross - fee ;"
+      },
+      {
+        "id": 37,
+        "label": "if net < s . min_units / 12 { s . mode = Mode :: Conservative ; s . round = s . round + 1 ; return Err (ErrStk :: Small . into ()) ; }"
+      },
+      {
+        "id": 38,
+        "label": "s . mode = Mode :: Conservative ;"
+      },
+      {
+        "id": 39,
+        "label": "s . round = s . round + 1 ;"
+      },
+      {
+        "id": 40,
+        "label": "return Err (ErrStk :: Small . into ()) ;"
+      },
+      {
+        "id": 41,
+        "label": "token :: transfer (ctx . accounts . pool_to_user () , net) ? ;"
+      },
+      {
+        "id": 42,
+        "label": "s . paid = s . paid + net ;"
+      },
+      {
+        "id": 43,
+        "label": "s . round = s . round + 1 ;"
+      },
+      {
+        "id": 44,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 12,
+        "to": 12,
+        "label": "def: s"
+      },
+      {
+        "from": 15,
+        "to": 15,
+        "label": "def: i"
+      },
+      {
+        "from": 15,
+        "to": 16,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 15,
+        "to": 16,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 15,
+        "to": 16,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 15,
+        "to": 16,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 15,
+        "to": 17,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 15,
+        "to": 18,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 15,
+        "to": 18,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 19,
+        "to": 19,
+        "label": "def: effective"
+      },
+      {
+        "from": 12,
+        "to": 19,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 12,
+        "to": 20,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 19,
+        "to": 20,
+        "label": "data_dep: effective"
+      },
+      {
+        "from": 19,
+        "to": 20,
+        "label": "data_dep: effective"
+      },
+      {
+        "from": 19,
+        "to": 20,
+        "label": "data_dep: effective"
+      },
+      {
+        "from": 19,
+        "to": 21,
+        "label": "data_dep: effective"
+      },
+      {
+        "from": 19,
+        "to": 21,
+        "label": "data_dep: effective"
+      },
+      {
+        "from": 19,
+        "to": 21,
+        "label": "data_dep: effective"
+      },
+      {
+        "from": 12,
+        "to": 22,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 19,
+        "to": 22,
+        "label": "data_dep: effective"
+      },
+      {
+        "from": 19,
+        "to": 22,
+        "label": "data_dep: effective"
+      },
+      {
+        "from": 19,
+        "to": 22,
+        "label": "data_dep: effective"
+      },
+      {
+        "from": 19,
+        "to": 23,
+        "label": "data_dep: effective"
+      },
+      {
+        "from": 19,
+        "to": 23,
+        "label": "data_dep: effective"
+      },
+      {
+        "from": 19,
+        "to": 23,
+        "label": "data_dep: effective"
+      },
+      {
+        "from": 24,
+        "to": 24,
+        "label": "def: total_bps"
+      },
+      {
+        "from": 19,
+        "to": 24,
+        "label": "data_dep: effective"
+      },
+      {
+        "from": 25,
+        "to": 25,
+        "label": "def: ceiling"
+      },
+      {
+        "from": 19,
+        "to": 25,
+        "label": "data_dep: effective"
+      },
+      {
+        "from": 24,
+        "to": 26,
+        "label": "data_dep: total_bps"
+      },
+      {
+        "from": 25,
+        "to": 26,
+        "label": "data_dep: ceiling"
+      },
+      {
+        "from": 24,
+        "to": 26,
+        "label": "data_dep: total_bps"
+      },
+      {
+        "from": 25,
+        "to": 26,
+        "label": "data_dep: ceiling"
+      },
+      {
+        "from": 24,
+        "to": 27,
+        "label": "data_dep: total_bps"
+      },
+      {
+        "from": 25,
+        "to": 27,
+        "label": "data_dep: ceiling"
+      },
+      {
+        "from": 28,
+        "to": 28,
+        "label": "def: fee_bps"
+      },
+      {
+        "from": 29,
+        "to": 29,
+        "label": "def: r"
+      },
+      {
+        "from": 29,
+        "to": 30,
+        "label": "data_dep: r"
+      },
+      {
+        "from": 12,
+        "to": 30,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 28,
+        "to": 30,
+        "label": "data_dep: fee_bps"
+      },
+      {
+        "from": 28,
+        "to": 30,
+        "label": "data_dep: fee_bps"
+      },
+      {
+        "from": 28,
+        "to": 30,
+        "label": "data_dep: fee_bps"
+      },
+      {
+        "from": 29,
+        "to": 30,
+        "label": "data_dep: r"
+      },
+      {
+        "from": 29,
+        "to": 30,
+        "label": "data_dep: r"
+      },
+      {
+        "from": 28,
+        "to": 31,
+        "label": "data_dep: fee_bps"
+      },
+      {
+        "from": 28,
+        "to": 31,
+        "label": "data_dep: fee_bps"
+      },
+      {
+        "from": 28,
+        "to": 31,
+        "label": "data_dep: fee_bps"
+      },
+      {
+        "from": 28,
+        "to": 32,
+        "label": "data_dep: fee_bps"
+      },
+      {
+        "from": 28,
+        "to": 32,
+        "label": "data_dep: fee_bps"
+      },
+      {
+        "from": 29,
+        "to": 33,
+        "label": "data_dep: r"
+      },
+      {
+        "from": 29,
+        "to": 33,
+        "label": "data_dep: r"
+      },
+      {
+        "from": 34,
+        "to": 34,
+        "label": "def: gross"
+      },
+      {
+        "from": 24,
+        "to": 34,
+        "label": "data_dep: total_bps"
+      },
+      {
+        "from": 35,
+        "to": 35,
+        "label": "def: fee"
+      },
+      {
+        "from": 34,
+        "to": 35,
+        "label": "data_dep: gross"
+      },
+      {
+        "from": 28,
+        "to": 35,
+        "label": "data_dep: fee_bps"
+      },
+      {
+        "from": 36,
+        "to": 36,
+        "label": "def: net"
+      },
+      {
+        "from": 34,
+        "to": 36,
+        "label": "data_dep: gross"
+      },
+      {
+        "from": 35,
+        "to": 36,
+        "label": "data_dep: fee"
+      },
+      {
+        "from": 36,
+        "to": 37,
+        "label": "data_dep: net"
+      },
+      {
+        "from": 12,
+        "to": 37,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 12,
+        "to": 37,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 12,
+        "to": 37,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 12,
+        "to": 37,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 12,
+        "to": 38,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 12,
+        "to": 39,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 12,
+        "to": 39,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 36,
+        "to": 41,
+        "label": "data_dep: net"
+      },
+      {
+        "from": 12,
+        "to": 42,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 12,
+        "to": 42,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 36,
+        "to": 42,
+        "label": "data_dep: net"
+      },
+      {
+        "from": 12,
+        "to": 43,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 12,
+        "to": 43,
+        "label": "data_dep: s"
+      }
+    ]
+  },
+  {
+    "name": "clip_u16",
+    "inputs": [
+      "v: u16",
+      "lo: u16",
+      "hi: u16"
+    ],
+    "nodes": [
+      {
+        "id": 47,
+        "label": "Entry"
+      },
+      {
+        "id": 48,
+        "label": "let mut out = v ;"
+      },
+      {
+        "id": 49,
+        "label": "if out < lo { out = lo ; }"
+      },
+      {
+        "id": 50,
+        "label": "out = lo ;"
+      },
+      {
+        "id": 51,
+        "label": "if out > hi { out = hi ; }"
+      },
+      {
+        "id": 52,
+        "label": "out = hi ;"
+      },
+      {
+        "id": 53,
+        "label": "out"
+      }
+    ],
+    "edges": [
+      {
+        "from": 48,
+        "to": 48,
+        "label": "def: out"
+      },
+      {
+        "from": 48,
+        "to": 49,
+        "label": "data_dep: out"
+      },
+      {
+        "from": 48,
+        "to": 49,
+        "label": "data_dep: out"
+      },
+      {
+        "from": 48,
+        "to": 50,
+        "label": "data_dep: out"
+      },
+      {
+        "from": 48,
+        "to": 51,
+        "label": "data_dep: out"
+      },
+      {
+        "from": 48,
+        "to": 51,
+        "label": "data_dep: out"
+      },
+      {
+        "from": 48,
+        "to": 52,
+        "label": "data_dep: out"
+      },
+      {
+        "from": 48,
+        "to": 53,
+        "label": "data_dep: out"
+      }
+    ]
+  },
+  {
+    "name": "mul_div",
+    "inputs": [
+      "a: u64",
+      "b: u64",
+      "d: u64"
+    ],
+    "nodes": [
+      {
+        "id": 54,
+        "label": "Entry"
+      },
+      {
+        "id": 55,
+        "label": "((a as u128 * b as u128) / d as u128) as u64"
+      }
+    ],
+    "edges": []
+  }
+]

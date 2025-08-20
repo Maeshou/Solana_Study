@@ -1,43 +1,186 @@
 [
   {
-    "name": "split_account",
+    "name": "init_garden",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx043 >",
-      "amount: u64"
+      "ctx: Context < InitGarden >",
+      "cap: u32"
     ],
     "attributes": [],
     "body": [
-      "let cpi_accounts = Transfer { from : ctx . accounts . from_token . to_account_info () , to : ctx . accounts . to_token . to_account_info () , authority : ctx . accounts . authority . to_account_info () , } ;",
-      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
-      "token :: transfer (cpi_ctx , amount) ? ;",
+      "let g = & mut ctx . accounts ;",
+      "g . cfg . keeper = g . keeper . key () ;",
+      "g . cfg . cap_q24 = cap << 8 ;",
+      "g . cfg . state = Seed ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx043",
+    "name": "grow",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Growing >",
+      "days: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let g = & mut ctx . accounts ;",
+      "for _ in 0 .. days",
+      "{",
+      "let inc = (g . tree . height_q24 >> 3) + 256 ;",
+      "g . tree . height_q24 = g . tree . height_q24 . saturating_add (inc) ;",
+      "g . tree . hue = g . tree . hue . rotate_left (3) ^ (g . tree . hue >> 2) ;",
+      "g . journal . stamps = g . journal . stamps . wrapping_add (1) ;",
+      "}",
+      "if g . tree . height_q24 > g . cfg . cap_q24",
+      "{",
+      "g . cfg . state = Trim ;",
+      "g . tree . height_q24 = g . cfg . cap_q24 ;",
+      "g . journal . prunes = g . journal . prunes . wrapping_add (2) ;",
+      "g . tree . hue ^= 0x0F0F ;",
+      "msg ! (\"trimmed: clip height, +prunes, hue xor\") ;",
+      "} else",
+      "{",
+      "g . cfg . state = Bloom ;",
+      "g . journal . notes = g . journal . notes . wrapping_add (3) ;",
+      "g . tree . height_q24 = g . tree . height_q24 + 128 ;",
+      "g . tree . hue = g . tree . hue . wrapping_add (7) ;",
+      "msg ! (\"bloom: notes+3, +0.5 height, hue+7\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitGarden",
     "node_type": "struct",
     "fields": [
       {
-        "name": "from_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "cfg",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1 , seeds = [b\"cfg\" , keeper . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , GardenCfg >"
       },
       {
-        "name": "to_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "tree",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4 + 4)]",
+        "field_type": "Account < 'info , TreeQ24 >"
       },
       {
-        "name": "authority",
+        "name": "journal",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4 + 4)]",
+        "field_type": "Account < 'info , GardenJournal >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "keeper",
         "attribute": null,
         "field_type": "Signer < 'info >"
       },
       {
-        "name": "token_program",
+        "name": "system_program",
         "attribute": null,
-        "field_type": "Program < 'info , Token >"
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Growing",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "cfg",
+        "attribute": "# [account (mut , seeds = [b\"cfg\" , keeper . key () . as_ref ()] , bump , has_one = keeper)]",
+        "field_type": "Account < 'info , GardenCfg >"
+      },
+      {
+        "name": "tree",
+        "attribute": "# [account (mut , constraint = cfg . key () != tree . key () , error = SgfpErr :: Dup)]",
+        "field_type": "Account < 'info , TreeQ24 >"
+      },
+      {
+        "name": "journal",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , GardenJournal >"
+      },
+      {
+        "name": "keeper",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GardenCfg",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "keeper",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "cap_q24",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "state",
+        "attribute": null,
+        "field_type": "GardenState"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TreeQ24",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "height_q24",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "hue",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GardenJournal",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "stamps",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "prunes",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "notes",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

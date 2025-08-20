@@ -1,0 +1,165 @@
+[
+  {
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Init >",
+      "name: String",
+      "fee_bps: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let g = & mut ctx . accounts . guild ;",
+      "g . admin = ctx . accounts . admin . key () ;",
+      "g . name = name ;",
+      "g . fee_bps = fee_bps . min (800) ;",
+      "g . paid_total = 0 ;",
+      "g . round = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "pay_bonus",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PayBonus >",
+      "points: u64",
+      "round_increase: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut k = 9u64 ;",
+      "let mut r = 0 ;",
+      "while r < round_increase",
+      "{",
+      "k = k . saturating_add (2) ;",
+      "r += 1 ;",
+      "}",
+      "let gross = points . saturating_mul (k) ;",
+      "let fee = gross . saturating_mul (ctx . accounts . guild . fee_bps as u64) / 10_000 ;",
+      "let net = if gross > fee { gross - fee } else { 0 } ;",
+      "if net == 0",
+      "{",
+      "ctx . accounts . guild . round = ctx . accounts . guild . round . saturating_add (1) ;",
+      "ctx . accounts . memo_log = ctx . accounts . memo_log . saturating_add (1) ;",
+      "return Ok (()) ;",
+      "} else",
+      "{",
+      "ctx . accounts . guild . paid_total = ctx . accounts . guild . paid_total . saturating_add (net) ;",
+      "}",
+      "let ix = token_ix :: transfer (& ctx . accounts . any_token_program . key () , & ctx . accounts . treasury . key () , & ctx . accounts . member_vault . key () , & ctx . accounts . admin . key () , & [] , net ,) ? ;",
+      "invoke (& ix , & [ctx . accounts . any_token_program . to_account_info () , ctx . accounts . treasury . to_account_info () , ctx . accounts . member_vault . to_account_info () , ctx . accounts . admin . to_account_info () ,] ,) ? ;",
+      "let mut i = 0 ;",
+      "while i < 3",
+      "{",
+      "ctx . accounts . memo_log = ctx . accounts . memo_log . saturating_add (i as u64 + 1) ;",
+      "i += 1 ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Init",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 64 + 2 + 8 + 8)]",
+        "field_type": "Account < 'info , Guild >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PayBonus",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": "# [account (mut , has_one = admin)]",
+        "field_type": "Account < 'info , Guild >"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "treasury",
+        "attribute": "# [doc = \" CHECK: 外部入力\"] # [account (mut)]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "member_vault",
+        "attribute": "# [doc = \" CHECK:\"] # [account (mut)]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "any_token_program",
+        "attribute": "# [doc = \" CHECK: Program アカウントを直接受ける\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "memo_holder",
+        "attribute": "# [doc = \" CHECK: 簡易ログ\"] # [account (mut)]",
+        "field_type": "UncheckedAccount < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Guild",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "fee_bps",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "paid_total",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "round",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "memo_log",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

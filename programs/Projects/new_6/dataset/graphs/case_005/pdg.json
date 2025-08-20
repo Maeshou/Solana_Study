@@ -1,0 +1,516 @@
+[
+  {
+    "name": "init_governance",
+    "inputs": [
+      "ctx: Context < InitGovernance >"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let governance = & mut ctx . accounts . governance ;"
+      },
+      {
+        "id": 2,
+        "label": "governance . admin = ctx . accounts . admin . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "governance . total_proposals = 0 ;"
+      },
+      {
+        "id": 4,
+        "label": "governance . active_voters = 0 ;"
+      },
+      {
+        "id": 5,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: governance"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: governance"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: governance"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: governance"
+      }
+    ]
+  },
+  {
+    "name": "create_proposal",
+    "inputs": [
+      "ctx: Context < CreateProposal >",
+      "description: String"
+    ],
+    "nodes": [
+      {
+        "id": 6,
+        "label": "Entry"
+      },
+      {
+        "id": 7,
+        "label": "let proposal = & mut ctx . accounts . proposal ;"
+      },
+      {
+        "id": 8,
+        "label": "proposal . governance = ctx . accounts . governance . key () ;"
+      },
+      {
+        "id": 9,
+        "label": "proposal . proposer = ctx . accounts . proposer . key () ;"
+      },
+      {
+        "id": 10,
+        "label": "proposal . description = description ;"
+      },
+      {
+        "id": 11,
+        "label": "proposal . yes_votes = 0 ;"
+      },
+      {
+        "id": 12,
+        "label": "proposal . no_votes = 0 ;"
+      },
+      {
+        "id": 13,
+        "label": "proposal . active = true ;"
+      },
+      {
+        "id": 14,
+        "label": "let governance = & mut ctx . accounts . governance ;"
+      },
+      {
+        "id": 15,
+        "label": "governance . total_proposals = governance . total_proposals . checked_add (1) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 16,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 7,
+        "to": 7,
+        "label": "def: proposal"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: proposal"
+      },
+      {
+        "from": 7,
+        "to": 9,
+        "label": "data_dep: proposal"
+      },
+      {
+        "from": 7,
+        "to": 10,
+        "label": "data_dep: proposal"
+      },
+      {
+        "from": 7,
+        "to": 11,
+        "label": "data_dep: proposal"
+      },
+      {
+        "from": 7,
+        "to": 12,
+        "label": "data_dep: proposal"
+      },
+      {
+        "from": 7,
+        "to": 13,
+        "label": "data_dep: proposal"
+      },
+      {
+        "from": 14,
+        "to": 14,
+        "label": "def: governance"
+      },
+      {
+        "from": 14,
+        "to": 15,
+        "label": "data_dep: governance"
+      },
+      {
+        "from": 14,
+        "to": 15,
+        "label": "data_dep: governance"
+      }
+    ]
+  },
+  {
+    "name": "vulnerable_vote",
+    "inputs": [
+      "ctx: Context < VulnerableVote >"
+    ],
+    "nodes": [
+      {
+        "id": 17,
+        "label": "Entry"
+      },
+      {
+        "id": 18,
+        "label": "let governance = & mut ctx . accounts . governance ;"
+      },
+      {
+        "id": 19,
+        "label": "let voter_a_info = & ctx . accounts . voter_a ;"
+      },
+      {
+        "id": 20,
+        "label": "let voter_b_info = & ctx . accounts . voter_b ;"
+      },
+      {
+        "id": 21,
+        "label": "let voter_a_balance = * * voter_a_info . lamports . borrow () ;"
+      },
+      {
+        "id": 22,
+        "label": "let voter_b_balance = * * voter_b_info . lamports . borrow () ;"
+      },
+      {
+        "id": 23,
+        "label": "for vote_round in 0 .. 4 { if voter_a_balance > voter_b_balance { let vote_weight = (voter_a_balance >> (vote_round * 8)) & 0xFF ; governance . active_voters = governance . active_voters . checked_add (vote_weight as u32) . unwrap_or (u32 :: MAX) ; let power_bonus = (vote_weight as u64) * (vote_round + 1) as u64 ; governance . total_proposals = governance . total_proposals . checked_add (power_bonus) . unwrap_or (u64 :: MAX) ; msg ! (\"Voter A vote round {}: weight={}\" , vote_round , vote_weight) ; } else { let adjusted_balance = voter_b_balance / ((vote_round + 1) as u64) ; governance . active_voters = governance . active_voters . checked_add (adjusted_balance as u32) . unwrap_or (u32 :: MAX) ; let bit_pattern = (vote_round as u64) << 16 ; let combined_weight = adjusted_balance ^ bit_pattern ; governance . total_proposals = governance . total_proposals . checked_add (combined_weight) . unwrap_or (u64 :: MAX) ; msg ! (\"Voter B vote round {}: adjusted={}\" , vote_round , adjusted_balance) ; } }"
+      },
+      {
+        "id": 24,
+        "label": "if voter_a_balance > voter_b_balance { let vote_weight = (voter_a_balance >> (vote_round * 8)) & 0xFF ; governance . active_voters = governance . active_voters . checked_add (vote_weight as u32) . unwrap_or (u32 :: MAX) ; let power_bonus = (vote_weight as u64) * (vote_round + 1) as u64 ; governance . total_proposals = governance . total_proposals . checked_add (power_bonus) . unwrap_or (u64 :: MAX) ; msg ! (\"Voter A vote round {}: weight={}\" , vote_round , vote_weight) ; } else { let adjusted_balance = voter_b_balance / ((vote_round + 1) as u64) ; governance . active_voters = governance . active_voters . checked_add (adjusted_balance as u32) . unwrap_or (u32 :: MAX) ; let bit_pattern = (vote_round as u64) << 16 ; let combined_weight = adjusted_balance ^ bit_pattern ; governance . total_proposals = governance . total_proposals . checked_add (combined_weight) . unwrap_or (u64 :: MAX) ; msg ! (\"Voter B vote round {}: adjusted={}\" , vote_round , adjusted_balance) ; }"
+      },
+      {
+        "id": 25,
+        "label": "let vote_weight = (voter_a_balance >> (vote_round * 8)) & 0xFF ;"
+      },
+      {
+        "id": 26,
+        "label": "governance . active_voters = governance . active_voters . checked_add (vote_weight as u32) . unwrap_or (u32 :: MAX) ;"
+      },
+      {
+        "id": 27,
+        "label": "let power_bonus = (vote_weight as u64) * (vote_round + 1) as u64 ;"
+      },
+      {
+        "id": 28,
+        "label": "governance . total_proposals = governance . total_proposals . checked_add (power_bonus) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 29,
+        "label": "msg ! (\"Voter A vote round {}: weight={}\" , vote_round , vote_weight) ;"
+      },
+      {
+        "id": 30,
+        "label": "let adjusted_balance = voter_b_balance / ((vote_round + 1) as u64) ;"
+      },
+      {
+        "id": 31,
+        "label": "governance . active_voters = governance . active_voters . checked_add (adjusted_balance as u32) . unwrap_or (u32 :: MAX) ;"
+      },
+      {
+        "id": 32,
+        "label": "let bit_pattern = (vote_round as u64) << 16 ;"
+      },
+      {
+        "id": 33,
+        "label": "let combined_weight = adjusted_balance ^ bit_pattern ;"
+      },
+      {
+        "id": 34,
+        "label": "governance . total_proposals = governance . total_proposals . checked_add (combined_weight) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 35,
+        "label": "msg ! (\"Voter B vote round {}: adjusted={}\" , vote_round , adjusted_balance) ;"
+      },
+      {
+        "id": 36,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 18,
+        "to": 18,
+        "label": "def: governance"
+      },
+      {
+        "from": 19,
+        "to": 19,
+        "label": "def: voter_a_info"
+      },
+      {
+        "from": 20,
+        "to": 20,
+        "label": "def: voter_b_info"
+      },
+      {
+        "from": 21,
+        "to": 21,
+        "label": "def: voter_a_balance"
+      },
+      {
+        "from": 19,
+        "to": 21,
+        "label": "data_dep: voter_a_info"
+      },
+      {
+        "from": 22,
+        "to": 22,
+        "label": "def: voter_b_balance"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: voter_b_info"
+      },
+      {
+        "from": 21,
+        "to": 23,
+        "label": "data_dep: voter_a_balance"
+      },
+      {
+        "from": 22,
+        "to": 23,
+        "label": "data_dep: voter_b_balance"
+      },
+      {
+        "from": 21,
+        "to": 23,
+        "label": "data_dep: voter_a_balance"
+      },
+      {
+        "from": 18,
+        "to": 23,
+        "label": "data_dep: governance"
+      },
+      {
+        "from": 18,
+        "to": 23,
+        "label": "data_dep: governance"
+      },
+      {
+        "from": 18,
+        "to": 23,
+        "label": "data_dep: governance"
+      },
+      {
+        "from": 18,
+        "to": 23,
+        "label": "data_dep: governance"
+      },
+      {
+        "from": 22,
+        "to": 23,
+        "label": "data_dep: voter_b_balance"
+      },
+      {
+        "from": 18,
+        "to": 23,
+        "label": "data_dep: governance"
+      },
+      {
+        "from": 18,
+        "to": 23,
+        "label": "data_dep: governance"
+      },
+      {
+        "from": 18,
+        "to": 23,
+        "label": "data_dep: governance"
+      },
+      {
+        "from": 18,
+        "to": 23,
+        "label": "data_dep: governance"
+      },
+      {
+        "from": 21,
+        "to": 24,
+        "label": "data_dep: voter_a_balance"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: voter_b_balance"
+      },
+      {
+        "from": 21,
+        "to": 24,
+        "label": "data_dep: voter_a_balance"
+      },
+      {
+        "from": 18,
+        "to": 24,
+        "label": "data_dep: governance"
+      },
+      {
+        "from": 18,
+        "to": 24,
+        "label": "data_dep: governance"
+      },
+      {
+        "from": 18,
+        "to": 24,
+        "label": "data_dep: governance"
+      },
+      {
+        "from": 18,
+        "to": 24,
+        "label": "data_dep: governance"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: voter_b_balance"
+      },
+      {
+        "from": 18,
+        "to": 24,
+        "label": "data_dep: governance"
+      },
+      {
+        "from": 18,
+        "to": 24,
+        "label": "data_dep: governance"
+      },
+      {
+        "from": 18,
+        "to": 24,
+        "label": "data_dep: governance"
+      },
+      {
+        "from": 18,
+        "to": 24,
+        "label": "data_dep: governance"
+      },
+      {
+        "from": 25,
+        "to": 25,
+        "label": "def: vote_weight"
+      },
+      {
+        "from": 21,
+        "to": 25,
+        "label": "data_dep: voter_a_balance"
+      },
+      {
+        "from": 18,
+        "to": 26,
+        "label": "data_dep: governance"
+      },
+      {
+        "from": 18,
+        "to": 26,
+        "label": "data_dep: governance"
+      },
+      {
+        "from": 25,
+        "to": 26,
+        "label": "data_dep: vote_weight"
+      },
+      {
+        "from": 27,
+        "to": 27,
+        "label": "def: power_bonus"
+      },
+      {
+        "from": 25,
+        "to": 27,
+        "label": "data_dep: vote_weight"
+      },
+      {
+        "from": 18,
+        "to": 28,
+        "label": "data_dep: governance"
+      },
+      {
+        "from": 18,
+        "to": 28,
+        "label": "data_dep: governance"
+      },
+      {
+        "from": 27,
+        "to": 28,
+        "label": "data_dep: power_bonus"
+      },
+      {
+        "from": 30,
+        "to": 30,
+        "label": "def: adjusted_balance"
+      },
+      {
+        "from": 22,
+        "to": 30,
+        "label": "data_dep: voter_b_balance"
+      },
+      {
+        "from": 18,
+        "to": 31,
+        "label": "data_dep: governance"
+      },
+      {
+        "from": 18,
+        "to": 31,
+        "label": "data_dep: governance"
+      },
+      {
+        "from": 30,
+        "to": 31,
+        "label": "data_dep: adjusted_balance"
+      },
+      {
+        "from": 32,
+        "to": 32,
+        "label": "def: bit_pattern"
+      },
+      {
+        "from": 33,
+        "to": 33,
+        "label": "def: combined_weight"
+      },
+      {
+        "from": 30,
+        "to": 33,
+        "label": "data_dep: adjusted_balance"
+      },
+      {
+        "from": 32,
+        "to": 33,
+        "label": "data_dep: bit_pattern"
+      },
+      {
+        "from": 18,
+        "to": 34,
+        "label": "data_dep: governance"
+      },
+      {
+        "from": 18,
+        "to": 34,
+        "label": "data_dep: governance"
+      },
+      {
+        "from": 33,
+        "to": 34,
+        "label": "data_dep: combined_weight"
+      }
+    ]
+  }
+]

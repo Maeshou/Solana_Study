@@ -1,40 +1,227 @@
 [
   {
-    "name": "repay_loan",
+    "name": "init_reef",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx078 >",
-      "amount: u64"
+      "ctx: Context < InitReef >",
+      "salt: u32"
     ],
     "attributes": [],
     "body": [
-      "let src = & mut ctx . accounts . account_src ;",
-      "let dst = & mut ctx . accounts . account_dst ;",
-      "let before = * * src . to_account_info () . try_borrow_lamports () ? ;",
-      "* * src . to_account_info () . try_borrow_mut_lamports () ? = before . saturating_sub (amount) ;",
-      "* * dst . to_account_info () . try_borrow_mut_lamports () ? += amount ;",
+      "let tr = & mut ctx . accounts . tracker ;",
+      "let s1 = & mut ctx . accounts . school_a ;",
+      "let head = & mut ctx . accounts . reef ;",
+      "let s2 = & mut ctx . accounts . school_b ;",
+      "tr . reef = head . key () ;",
+      "tr . zone = 9 ;",
+      "tr . pulses = 0 ;",
+      "tr . salt = salt . rotate_left (5) ^ 0xA5A5_00FF ;",
+      "head . owner = ctx . accounts . ranger . key () ;",
+      "head . budget = 800 + (salt as u64 & 127) ;",
+      "head . phase = Survey ;",
+      "tr . reef = head . key () ;",
+      "s1 . reef = head . key () ;",
+      "s1 . zone = (salt & 7) as u8 ;",
+      "s1 . count = (salt as u64 % 37) + 20 ;",
+      "s2 . reef = head . key () ;",
+      "s2 . zone = ((salt >> 3) & 7) as u8 ;",
+      "s2 . count = ((salt as u64) . rotate_left (7) % 41) + 19 ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx078",
+    "name": "swirl",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Swirl >",
+      "rounds: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let head = & mut ctx . accounts . reef ;",
+      "let a = & mut ctx . accounts . school_a ;",
+      "let b = & mut ctx . accounts . school_b ;",
+      "let tr = & mut ctx . accounts . tracker ;",
+      "for r in 0 .. rounds",
+      "{",
+      "let bit = ((tr . salt >> 0) ^ (tr . salt >> 2) ^ (tr . salt >> 6) ^ (tr . salt >> 7)) & 1 ;",
+      "tr . salt = (tr . salt >> 1) | (bit << 31) ;",
+      "let inc_a = (tr . salt & 31) as u64 + 1 ;",
+      "let dec_b = ((tr . salt >> 5) & 31) as u64 ;",
+      "a . count = a . count . checked_add (inc_a) . unwrap_or (u64 :: MAX) ;",
+      "b . count = b . count . saturating_sub (dec_b . min (b . count)) ;",
+      "tr . pulses = tr . pulses . saturating_add (1) ;",
+      "}",
+      "let swing = (a . count as i128 - b . count as i128) . unsigned_abs () as u64 ;",
+      "if swing > head . budget",
+      "{",
+      "head . phase = Calm ;",
+      "a . zone ^= 0x1 ;",
+      "b . zone = b . zone . saturating_add (1) ;",
+      "tr . salt ^= 0x00FF_F0F0 ;",
+      "msg ! (\"calm: zone tweak & salt flip\") ;",
+      "} else",
+      "{",
+      "head . phase = Feed ;",
+      "a . count = a . count . saturating_add (17) ;",
+      "b . count = b . count / 2 + 13 ;",
+      "tr . pulses = tr . pulses . saturating_add (7) ;",
+      "msg ! (\"feed: re-balance, pulses+7\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitReef",
     "node_type": "struct",
     "fields": [
       {
-        "name": "account_src",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "reef",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 8 + 1)]",
+        "field_type": "Account < 'info , ReefHead >"
       },
       {
-        "name": "account_dst",
+        "name": "school_a",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 8)]",
+        "field_type": "Account < 'info , School >"
+      },
+      {
+        "name": "school_b",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 8)]",
+        "field_type": "Account < 'info , School >"
+      },
+      {
+        "name": "tracker",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 8 + 4)]",
+        "field_type": "Account < 'info , ReefTracker >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "ranger",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
       },
       {
         "name": "system_program",
         "attribute": null,
         "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Swirl",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "reef",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , ReefHead >"
+      },
+      {
+        "name": "school_a",
+        "attribute": "# [account (mut , has_one = reef , constraint = school_a . zone != school_b . zone @ ReefErr :: Dup)]",
+        "field_type": "Account < 'info , School >"
+      },
+      {
+        "name": "school_b",
+        "attribute": "# [account (mut , has_one = reef , constraint = school_b . zone != tracker . zone @ ReefErr :: Dup)]",
+        "field_type": "Account < 'info , School >"
+      },
+      {
+        "name": "tracker",
+        "attribute": "# [account (mut , has_one = reef)]",
+        "field_type": "Account < 'info , ReefTracker >"
+      },
+      {
+        "name": "ranger",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ReefHead",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "budget",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "phase",
+        "attribute": null,
+        "field_type": "ReefPhase"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "School",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "reef",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "zone",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "count",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ReefTracker",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "reef",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "zone",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "pulses",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "salt",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

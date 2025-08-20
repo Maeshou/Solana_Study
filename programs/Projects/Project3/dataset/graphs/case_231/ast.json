@@ -1,0 +1,276 @@
+[
+  {
+    "name": "init_wallet",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitWallet >",
+      "owners: Vec < Pubkey >",
+      "threshold: u8"
+    ],
+    "attributes": [
+      "# [doc = \" ウォレットを初期化: オーナー一覧と閾値を設定\"]"
+    ],
+    "body": [
+      "let wallet = & mut ctx . accounts . wallet ;",
+      "wallet . owners = owners ;",
+      "wallet . threshold = threshold ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "propose",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Propose >",
+      "target: Pubkey",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 送金提案の作成（オーナーのみ）\"]"
+    ],
+    "body": [
+      "let wallet = & ctx . accounts . wallet ;",
+      "require ! (wallet . owners . contains (& ctx . accounts . proposer . key ()) , MultisigError :: NotOwner) ;",
+      "let prop = & mut ctx . accounts . proposal ;",
+      "prop . wallet = wallet . key () ;",
+      "prop . target = target ;",
+      "prop . amount = amount ;",
+      "prop . approvals . clear () ;",
+      "prop . executed = false ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "approve",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Approve >"
+    ],
+    "attributes": [
+      "# [doc = \" 提案に対する承認（オーナーのみ）\"]"
+    ],
+    "body": [
+      "let wallet = & ctx . accounts . wallet ;",
+      "let prop = & mut ctx . accounts . proposal ;",
+      "let signer = ctx . accounts . owner . key () ;",
+      "require ! (wallet . owners . contains (& signer) , MultisigError :: NotOwner) ;",
+      "if ! prop . approvals . contains (& signer)",
+      "{",
+      "prop . approvals . push (signer) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "execute",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Execute >"
+    ],
+    "attributes": [
+      "# [doc = \" 条件を満たせば実行（オーナー署名必須）\"]"
+    ],
+    "body": [
+      "let wallet = & ctx . accounts . wallet ;",
+      "let prop = & mut ctx . accounts . proposal ;",
+      "let authority = ctx . accounts . authority . key () ;",
+      "require ! (wallet . owners . contains (& authority) , MultisigError :: NotOwner) ;",
+      "require ! (! prop . executed , MultisigError :: AlreadyExecuted) ;",
+      "require ! (prop . approvals . len () as u8 >= wallet . threshold , MultisigError :: InsufficientApprovals) ;",
+      "let wallet_acc = & mut ctx . accounts . wallet_account . to_account_info () ;",
+      "require ! (wallet_acc . key == & wallet . key () , MultisigError :: MismatchWallet) ;",
+      "let target_acc = & mut ctx . accounts . target . to_account_info () ;",
+      "let from = wallet_acc . lamports () ;",
+      "let to = target_acc . lamports () ;",
+      "let new_from = from . checked_sub (prop . amount) . ok_or (MultisigError :: InsufficientFunds) ? ;",
+      "let new_to = to . checked_add (prop . amount) . ok_or (MultisigError :: Overflow) ? ;",
+      "* * wallet_acc . try_borrow_mut_lamports () ? = new_from ;",
+      "* * target_acc . try_borrow_mut_lamports () ? = new_to ;",
+      "prop . executed = true ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitWallet",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "wallet",
+        "attribute": "# [account (init , seeds = [b\"wallet\"] , bump , payer = payer , space = 8 + 4 + 32 * 5 + 1)]",
+        "field_type": "Account < 'info , Wallet >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Propose",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "wallet",
+        "attribute": "# [account (mut , seeds = [b\"wallet\"] , bump = wallet . bump)]",
+        "field_type": "Account < 'info , Wallet >"
+      },
+      {
+        "name": "proposal",
+        "attribute": "# [account (init , seeds = [b\"proposal\" , wallet . key () . as_ref ()] , bump , payer = proposer , space = 8 + Proposal :: SIZE)]",
+        "field_type": "Account < 'info , Proposal >"
+      },
+      {
+        "name": "proposer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Approve",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "proposal",
+        "attribute": "# [account (mut , seeds = [b\"proposal\" , proposal . wallet . as_ref ()] , bump = proposal . bump , has_one = wallet @ MultisigError :: MismatchWallet)]",
+        "field_type": "Account < 'info , Proposal >"
+      },
+      {
+        "name": "wallet",
+        "attribute": null,
+        "field_type": "Account < 'info , Wallet >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Execute",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "wallet_account",
+        "attribute": "# [doc = \" 実際の Lamports を保持するのはこの PDA ウォレット\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "target",
+        "attribute": "# [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "wallet",
+        "attribute": null,
+        "field_type": "Account < 'info , Wallet >"
+      },
+      {
+        "name": "proposal",
+        "attribute": "# [account (mut , seeds = [b\"proposal\" , proposal . wallet . as_ref ()] , bump = proposal . bump , has_one = wallet @ MultisigError :: MismatchWallet)]",
+        "field_type": "Account < 'info , Proposal >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Wallet",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owners",
+        "attribute": null,
+        "field_type": "Vec < Pubkey >"
+      },
+      {
+        "name": "threshold",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Proposal",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "wallet",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "target",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "approvals",
+        "attribute": null,
+        "field_type": "Vec < Pubkey >"
+      },
+      {
+        "name": "executed",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

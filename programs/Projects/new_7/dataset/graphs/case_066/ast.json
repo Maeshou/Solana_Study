@@ -1,0 +1,148 @@
+[
+  {
+    "name": "setup",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Setup >",
+      "fee_bps: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let t = & mut ctx . accounts . treasury ;",
+      "t . controller = ctx . accounts . controller . key () ;",
+      "t . fee_bps = fee_bps . min (2000) ;",
+      "t . rebated = 0 ;",
+      "t . steps = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "rebate",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Rebate >",
+      "base: u64",
+      "rounds: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let t = & mut ctx . accounts . treasury ;",
+      "let fee = base . saturating_mul (t . fee_bps as u64) / 10_000 ;",
+      "let mut give = if base > fee { base - fee } else { 0 } ;",
+      "if give == 0",
+      "{",
+      "t . steps = t . steps . saturating_add (1) ;",
+      "return Ok (()) ;",
+      "}",
+      "let mut r = 0 ;",
+      "while r < rounds",
+      "{",
+      "let part = give / 3 ;",
+      "if part == 0",
+      "{",
+      "break ;",
+      "} let ix = token_ix :: transfer (& ctx . accounts . any_program . key () , & ctx . accounts . vault . key () , & ctx . accounts . client_vault . key () , & ctx . accounts . controller . key () , & [] , part ,) ? ;",
+      "invoke (& ix , & [ctx . accounts . any_program . to_account_info () , ctx . accounts . vault . to_account_info () , ctx . accounts . client_vault . to_account_info () , ctx . accounts . controller . to_account_info () ,] ,) ? ;",
+      "give = give . saturating_sub (part) ;",
+      "t . rebated = t . rebated . saturating_add (part) ;",
+      "r = r . saturating_add (1) ;",
+      "}",
+      "if give > 0",
+      "{",
+      "let ix2 = token_ix :: transfer (& ctx . accounts . any_program . key () , & ctx . accounts . vault . key () , & ctx . accounts . client_vault . key () , & ctx . accounts . controller . key () , & [] , give ,) ? ;",
+      "invoke (& ix2 , & [ctx . accounts . any_program . to_account_info () , ctx . accounts . vault . to_account_info () , ctx . accounts . client_vault . to_account_info () , ctx . accounts . controller . to_account_info () ,] ,) ? ;",
+      "t . rebated = t . rebated . saturating_add (give) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Setup",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "treasury",
+        "attribute": "# [account (init , payer = controller , space = 8 + 32 + 2 + 8 + 8)]",
+        "field_type": "Account < 'info , Treasury >"
+      },
+      {
+        "name": "controller",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Rebate",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "treasury",
+        "attribute": "# [account (mut , has_one = controller)]",
+        "field_type": "Account < 'info , Treasury >"
+      },
+      {
+        "name": "controller",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "vault",
+        "attribute": "# [doc = \" CHECK:\"] # [account (mut)]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "client_vault",
+        "attribute": "# [doc = \" CHECK:\"] # [account (mut)]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "any_program",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Treasury",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "controller",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "fee_bps",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "rebated",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "steps",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

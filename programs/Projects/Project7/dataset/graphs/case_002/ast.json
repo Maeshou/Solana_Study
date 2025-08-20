@@ -1,0 +1,147 @@
+[
+  {
+    "name": "init_boss",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitBoss >",
+      "base_drop: u64",
+      "bonus_step: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let b = & mut ctx . accounts . boss ;",
+      "b . admin = ctx . accounts . admin . key () ;",
+      "b . base_drop = base_drop ;",
+      "b . bonus_step = bonus_step ;",
+      "b . total_dropped = 0 ;",
+      "b . hard_mode = false ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_drop",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActDrop >",
+      "combo: u32",
+      "participants: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let b = & mut ctx . accounts . boss ;",
+      "require ! (participants > 0 , ErrorCode :: NoParticipants) ;",
+      "let mut bonus = 0u64 ;",
+      "for _ in 0 .. participants",
+      "{",
+      "bonus = bonus . saturating_add ((b . bonus_step as u64) * 10) ;",
+      "}",
+      "let mut reward = b . base_drop . saturating_add (bonus) ;",
+      "if combo >= 50",
+      "{",
+      "b . hard_mode = true ;",
+      "reward = reward . saturating_mul (2) ;",
+      "} else",
+      "{",
+      "b . hard_mode = false ;",
+      "}",
+      "let cpi_ctx = ctx . accounts . transfer_ctx () ;",
+      "token :: transfer (cpi_ctx , reward) ? ;",
+      "b . total_dropped = b . total_dropped . saturating_add (reward) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitBoss",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "boss",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 8 + 1 + 8 + 1)]",
+        "field_type": "Account < 'info , Boss >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActDrop",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "boss",
+        "attribute": "# [account (mut , has_one = admin)]",
+        "field_type": "Account < 'info , Boss >"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "reward_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "player_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Boss",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "base_drop",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "bonus_step",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "total_dropped",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "hard_mode",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

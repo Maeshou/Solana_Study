@@ -1,43 +1,191 @@
 [
   {
-    "name": "transfer_tokens",
+    "name": "init_subscription",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx001 >",
-      "amount: u64"
+      "ctx: Context < InitSubscription >"
     ],
     "attributes": [],
     "body": [
-      "let cpi_accounts = Transfer { from : ctx . accounts . from_token . to_account_info () , to : ctx . accounts . to_token . to_account_info () , authority : ctx . accounts . authority . to_account_info () , } ;",
-      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
-      "token :: transfer (cpi_ctx , amount) ? ;",
+      "ctx . accounts . subscriber_info . subscriber = * ctx . accounts . subscriber . key ;",
+      "ctx . accounts . subscriber_info . active = true ;",
+      "ctx . accounts . subscriber_info . bump = * ctx . bumps . get (\"subscriber_info\") . unwrap () ;",
+      "ctx . accounts . plan_config . price = 100 ;",
+      "ctx . accounts . plan_config . duration = 30 ;",
+      "ctx . accounts . plan_config . max_users = 1000 ;",
+      "ctx . accounts . subscription_stats . renewals = 0 ;",
+      "ctx . accounts . subscription_stats . cancellations = 0 ;",
+      "ctx . accounts . subscription_stats . is_active = true ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx001",
+    "name": "renew_subscription",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RenewSubscription >",
+      "months: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut count = 0u32 ;",
+      "for _ in 0 .. months",
+      "{",
+      "count += 1 ;",
+      "}",
+      "assert_ne ! (ctx . accounts . subscriber_info . key () , ctx . accounts . plan_config . key () , \"accounts must differ\") ;",
+      "if count > ctx . accounts . plan_config . max_users",
+      "{",
+      "ctx . accounts . subscription_stats . renewals -= 1 ;",
+      "msg ! (\"Exceeded max users\") ;",
+      "ctx . accounts . subscription_stats . is_active = false ;",
+      "ctx . accounts . plan_config . duration -= months ;",
+      "} else",
+      "{",
+      "ctx . accounts . subscription_stats . renewals += 1 ;",
+      "msg ! (\"Subscription renewed\") ;",
+      "ctx . accounts . subscription_stats . is_active = true ;",
+      "ctx . accounts . plan_config . duration += months ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitSubscription",
     "node_type": "struct",
     "fields": [
       {
-        "name": "from_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "subscriber_info",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 1)]",
+        "field_type": "Account < 'info , SubscriberInfo >"
       },
       {
-        "name": "to_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "plan_config",
+        "attribute": "# [account (init , payer = payer , space = 8 + 8 + 4 + 4)]",
+        "field_type": "Account < 'info , PlanConfig >"
       },
       {
-        "name": "authority",
+        "name": "subscription_stats",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4 + 4 + 1)]",
+        "field_type": "Account < 'info , SubscriptionStats >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "subscriber",
         "attribute": null,
         "field_type": "Signer < 'info >"
       },
       {
-        "name": "token_program",
+        "name": "system_program",
         "attribute": null,
-        "field_type": "Program < 'info , Token >"
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RenewSubscription",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "subscriber_info",
+        "attribute": "# [account (mut , has_one = subscriber)]",
+        "field_type": "Account < 'info , SubscriberInfo >"
+      },
+      {
+        "name": "plan_config",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , PlanConfig >"
+      },
+      {
+        "name": "subscription_stats",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , SubscriptionStats >"
+      },
+      {
+        "name": "subscriber",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SubscriberInfo",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "subscriber",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "active",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PlanConfig",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "price",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "duration",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "max_users",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SubscriptionStats",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "renewals",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "cancellations",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "is_active",
+        "attribute": null,
+        "field_type": "bool"
       }
     ],
     "inputs": null,

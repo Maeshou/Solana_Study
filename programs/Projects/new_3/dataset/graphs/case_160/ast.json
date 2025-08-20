@@ -1,0 +1,181 @@
+[
+  {
+    "name": "Warehouse",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "capacity",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "StockEntry",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "item_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "warehouse",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "quantity",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitializeWarehouse",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "warehouse",
+        "attribute": "# [account (init , payer = manager , space = 8 + 32 + 8)]",
+        "field_type": "Account < 'info , Warehouse >"
+      },
+      {
+        "name": "manager",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AddStock",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "warehouse",
+        "attribute": "# [doc = \" Warehouse.manager == manager.key() は検証される\"] # [account (mut , has_one = manager)]",
+        "field_type": "Account < 'info , Warehouse >"
+      },
+      {
+        "name": "stock_entry",
+        "attribute": "# [doc = \" StockEntry.warehouse == warehouse.key() の検証がない\"] # [account (init , payer = manager , space = 8 + 8 + 32 + 8)]",
+        "field_type": "Account < 'info , StockEntry >"
+      },
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RemoveStock",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "warehouse",
+        "attribute": "# [doc = \" Warehouse.manager == manager.key() は検証される\"] # [account (mut , has_one = manager)]",
+        "field_type": "Account < 'info , Warehouse >"
+      },
+      {
+        "name": "stock_entry",
+        "attribute": "# [doc = \" StockEntry.warehouse と warehouse.key() の一致チェックがない\"] # [account (mut)]",
+        "field_type": "Account < 'info , StockEntry >"
+      },
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "initialize_warehouse",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeWarehouse >",
+      "capacity: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 倉庫を初期化\"]"
+    ],
+    "body": [
+      "let wh = & mut ctx . accounts . warehouse ;",
+      "wh . manager = ctx . accounts . manager . key () ;",
+      "wh . capacity = capacity ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "add_stock",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AddStock >",
+      "item_id: u64",
+      "qty: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 在庫を追加\"]"
+    ],
+    "body": [
+      "let wh = & mut ctx . accounts . warehouse ;",
+      "let se = & mut ctx . accounts . stock_entry ;",
+      "se . item_id = item_id ;",
+      "se . warehouse = wh . key () ;",
+      "se . quantity = qty ;",
+      "wh . capacity = wh . capacity . checked_sub (qty) . unwrap () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "remove_stock",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RemoveStock >",
+      "qty: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 在庫を出庫\"]"
+    ],
+    "body": [
+      "let wh = & mut ctx . accounts . warehouse ;",
+      "let se = & mut ctx . accounts . stock_entry ;",
+      "se . quantity = se . quantity . checked_sub (qty) . unwrap () ;",
+      "wh . capacity = wh . capacity . checked_add (qty) . unwrap () ;",
+      "Ok (())"
+    ]
+  }
+]

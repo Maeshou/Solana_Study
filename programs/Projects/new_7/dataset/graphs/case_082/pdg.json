@@ -1,0 +1,654 @@
+[
+  {
+    "name": "init",
+    "inputs": [
+      "ctx: Context < Init >",
+      "cap_value: u64"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let pipeline_state = & mut ctx . accounts . pipeline_state ;"
+      },
+      {
+        "id": 2,
+        "label": "pipeline_state . master_authority = ctx . accounts . master_authority . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "pipeline_state . cap_value = cap_value ;"
+      },
+      {
+        "id": 4,
+        "label": "pipeline_state . step_counter = 5 ;"
+      },
+      {
+        "id": 5,
+        "label": "pipeline_state . accumulator = (cap_value ^ 0xA5A5) as u64 ;"
+      },
+      {
+        "id": 6,
+        "label": "pipeline_state . route_program_id = Pubkey :: new_unique () ;"
+      },
+      {
+        "id": 7,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: pipeline_state"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: pipeline_state"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: pipeline_state"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: pipeline_state"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: pipeline_state"
+      },
+      {
+        "from": 1,
+        "to": 6,
+        "label": "data_dep: pipeline_state"
+      }
+    ]
+  },
+  {
+    "name": "rebind",
+    "inputs": [
+      "ctx: Context < Rebind >",
+      "new_route: Pubkey"
+    ],
+    "nodes": [
+      {
+        "id": 8,
+        "label": "Entry"
+      },
+      {
+        "id": 9,
+        "label": "let pipeline_state = & mut ctx . accounts . pipeline_state ;"
+      },
+      {
+        "id": 10,
+        "label": "require_keys_eq ! (pipeline_state . master_authority , ctx . accounts . master_authority . key () , ErrorCode :: Denied) ;"
+      },
+      {
+        "id": 11,
+        "label": "pipeline_state . route_program_id = new_route ;"
+      },
+      {
+        "id": 12,
+        "label": "pipeline_state . step_counter = pipeline_state . step_counter . saturating_add (3) ;"
+      },
+      {
+        "id": 13,
+        "label": "pipeline_state . accumulator = pipeline_state . accumulator . rotate_left (3) ;"
+      },
+      {
+        "id": 14,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 9,
+        "to": 9,
+        "label": "def: pipeline_state"
+      },
+      {
+        "from": 9,
+        "to": 11,
+        "label": "data_dep: pipeline_state"
+      },
+      {
+        "from": 9,
+        "to": 12,
+        "label": "data_dep: pipeline_state"
+      },
+      {
+        "from": 9,
+        "to": 12,
+        "label": "data_dep: pipeline_state"
+      },
+      {
+        "from": 9,
+        "to": 13,
+        "label": "data_dep: pipeline_state"
+      },
+      {
+        "from": 9,
+        "to": 13,
+        "label": "data_dep: pipeline_state"
+      }
+    ]
+  },
+  {
+    "name": "stream",
+    "inputs": [
+      "ctx: Context < Stream >",
+      "value: u64",
+      "loop_count: u8"
+    ],
+    "nodes": [
+      {
+        "id": 15,
+        "label": "Entry"
+      },
+      {
+        "id": 16,
+        "label": "let pipeline_state = & mut ctx . accounts . pipeline_state ;"
+      },
+      {
+        "id": 17,
+        "label": "if value <= 3 { pipeline_state . step_counter = pipeline_state . step_counter . saturating_add (1) ; pipeline_state . accumulator = pipeline_state . accumulator . wrapping_add (19) ; return Ok (()) ; }"
+      },
+      {
+        "id": 18,
+        "label": "pipeline_state . step_counter = pipeline_state . step_counter . saturating_add (1) ;"
+      },
+      {
+        "id": 19,
+        "label": "pipeline_state . accumulator = pipeline_state . accumulator . wrapping_add (19) ;"
+      },
+      {
+        "id": 20,
+        "label": "return Ok (()) ;"
+      },
+      {
+        "id": 21,
+        "label": "let mut remaining_value = value ;"
+      },
+      {
+        "id": 22,
+        "label": "let mut round_index : u8 = 0 ;"
+      },
+      {
+        "id": 23,
+        "label": "while round_index < loop_count { let transfer_part = (remaining_value / 3) . max (4) ; if transfer_part >= remaining_value { break ; } let transfer_ix = token_ix :: transfer (& pipeline_state . route_program_id , & ctx . accounts . source_vault . key () , & ctx . accounts . sink_vault . key () , & ctx . accounts . master_authority . key () , & [] , transfer_part ,) ? ; let external_program_ai = ctx . remaining_accounts . get (1) . ok_or (ErrorCode :: NoProgram) ? ; invoke (& transfer_ix , & [external_program_ai . clone () , ctx . accounts . source_vault . to_account_info () , ctx . accounts . sink_vault . to_account_info () , ctx . accounts . master_authority . to_account_info () ,] ,) ? ; remaining_value = remaining_value . saturating_sub (transfer_part) ; pipeline_state . step_counter = pipeline_state . step_counter . saturating_add (1) ; round_index = round_index . saturating_add (1) ; if remaining_value < pipeline_state . cap_value / 3 { pipeline_state . accumulator = pipeline_state . accumulator . wrapping_add (transfer_part ^ 17) ; } else { pipeline_state . accumulator = pipeline_state . accumulator . wrapping_mul (3) . wrapping_add (23) ; } }"
+      },
+      {
+        "id": 24,
+        "label": "let transfer_part = (remaining_value / 3) . max (4) ;"
+      },
+      {
+        "id": 25,
+        "label": "if transfer_part >= remaining_value { break ; }"
+      },
+      {
+        "id": 26,
+        "label": "break ;"
+      },
+      {
+        "id": 27,
+        "label": "let transfer_ix = token_ix :: transfer (& pipeline_state . route_program_id , & ctx . accounts . source_vault . key () , & ctx . accounts . sink_vault . key () , & ctx . accounts . master_authority . key () , & [] , transfer_part ,) ? ;"
+      },
+      {
+        "id": 28,
+        "label": "let external_program_ai = ctx . remaining_accounts . get (1) . ok_or (ErrorCode :: NoProgram) ? ;"
+      },
+      {
+        "id": 29,
+        "label": "invoke (& transfer_ix , & [external_program_ai . clone () , ctx . accounts . source_vault . to_account_info () , ctx . accounts . sink_vault . to_account_info () , ctx . accounts . master_authority . to_account_info () ,] ,) ? ;"
+      },
+      {
+        "id": 30,
+        "label": "remaining_value = remaining_value . saturating_sub (transfer_part) ;"
+      },
+      {
+        "id": 31,
+        "label": "pipeline_state . step_counter = pipeline_state . step_counter . saturating_add (1) ;"
+      },
+      {
+        "id": 32,
+        "label": "round_index = round_index . saturating_add (1) ;"
+      },
+      {
+        "id": 33,
+        "label": "if remaining_value < pipeline_state . cap_value / 3 { pipeline_state . accumulator = pipeline_state . accumulator . wrapping_add (transfer_part ^ 17) ; } else { pipeline_state . accumulator = pipeline_state . accumulator . wrapping_mul (3) . wrapping_add (23) ; }"
+      },
+      {
+        "id": 34,
+        "label": "pipeline_state . accumulator = pipeline_state . accumulator . wrapping_add (transfer_part ^ 17) ;"
+      },
+      {
+        "id": 35,
+        "label": "pipeline_state . accumulator = pipeline_state . accumulator . wrapping_mul (3) . wrapping_add (23) ;"
+      },
+      {
+        "id": 36,
+        "label": "if remaining_value > 3 { let final_ix = token_ix :: transfer (& pipeline_state . route_program_id , & ctx . accounts . source_vault . key () , & ctx . accounts . sink_vault . key () , & ctx . accounts . master_authority . key () , & [] , remaining_value - 3 ,) ? ; let external_program_ai = ctx . remaining_accounts . get (1) . ok_or (ErrorCode :: NoProgram) ? ; invoke (& final_ix , & [external_program_ai . clone () , ctx . accounts . source_vault . to_account_info () , ctx . accounts . sink_vault . to_account_info () , ctx . accounts . master_authority . to_account_info () ,] ,) ? ; pipeline_state . accumulator = pipeline_state . accumulator . wrapping_add (remaining_value - 3) ; }"
+      },
+      {
+        "id": 37,
+        "label": "let final_ix = token_ix :: transfer (& pipeline_state . route_program_id , & ctx . accounts . source_vault . key () , & ctx . accounts . sink_vault . key () , & ctx . accounts . master_authority . key () , & [] , remaining_value - 3 ,) ? ;"
+      },
+      {
+        "id": 38,
+        "label": "let external_program_ai = ctx . remaining_accounts . get (1) . ok_or (ErrorCode :: NoProgram) ? ;"
+      },
+      {
+        "id": 39,
+        "label": "invoke (& final_ix , & [external_program_ai . clone () , ctx . accounts . source_vault . to_account_info () , ctx . accounts . sink_vault . to_account_info () , ctx . accounts . master_authority . to_account_info () ,] ,) ? ;"
+      },
+      {
+        "id": 40,
+        "label": "pipeline_state . accumulator = pipeline_state . accumulator . wrapping_add (remaining_value - 3) ;"
+      },
+      {
+        "id": 41,
+        "label": "let mut tail_turn : u8 = 1 ;"
+      },
+      {
+        "id": 42,
+        "label": "while tail_turn < 3 { pipeline_state . step_counter = pipeline_state . step_counter . saturating_add (2) ; pipeline_state . accumulator = pipeline_state . accumulator . rotate_right (tail_turn as u32) ; tail_turn = tail_turn . saturating_add (1) ; }"
+      },
+      {
+        "id": 43,
+        "label": "pipeline_state . step_counter = pipeline_state . step_counter . saturating_add (2) ;"
+      },
+      {
+        "id": 44,
+        "label": "pipeline_state . accumulator = pipeline_state . accumulator . rotate_right (tail_turn as u32) ;"
+      },
+      {
+        "id": 45,
+        "label": "tail_turn = tail_turn . saturating_add (1) ;"
+      },
+      {
+        "id": 46,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 16,
+        "to": 16,
+        "label": "def: pipeline_state"
+      },
+      {
+        "from": 16,
+        "to": 17,
+        "label": "data_dep: pipeline_state"
+      },
+      {
+        "from": 16,
+        "to": 17,
+        "label": "data_dep: pipeline_state"
+      },
+      {
+        "from": 16,
+        "to": 17,
+        "label": "data_dep: pipeline_state"
+      },
+      {
+        "from": 16,
+        "to": 17,
+        "label": "data_dep: pipeline_state"
+      },
+      {
+        "from": 16,
+        "to": 18,
+        "label": "data_dep: pipeline_state"
+      },
+      {
+        "from": 16,
+        "to": 18,
+        "label": "data_dep: pipeline_state"
+      },
+      {
+        "from": 16,
+        "to": 19,
+        "label": "data_dep: pipeline_state"
+      },
+      {
+        "from": 16,
+        "to": 19,
+        "label": "data_dep: pipeline_state"
+      },
+      {
+        "from": 21,
+        "to": 21,
+        "label": "def: remaining_value"
+      },
+      {
+        "from": 21,
+        "to": 23,
+        "label": "data_dep: remaining_value"
+      },
+      {
+        "from": 21,
+        "to": 23,
+        "label": "data_dep: remaining_value"
+      },
+      {
+        "from": 16,
+        "to": 23,
+        "label": "data_dep: pipeline_state"
+      },
+      {
+        "from": 21,
+        "to": 23,
+        "label": "data_dep: remaining_value"
+      },
+      {
+        "from": 21,
+        "to": 23,
+        "label": "data_dep: remaining_value"
+      },
+      {
+        "from": 16,
+        "to": 23,
+        "label": "data_dep: pipeline_state"
+      },
+      {
+        "from": 16,
+        "to": 23,
+        "label": "data_dep: pipeline_state"
+      },
+      {
+        "from": 21,
+        "to": 23,
+        "label": "data_dep: remaining_value"
+      },
+      {
+        "from": 16,
+        "to": 23,
+        "label": "data_dep: pipeline_state"
+      },
+      {
+        "from": 16,
+        "to": 23,
+        "label": "data_dep: pipeline_state"
+      },
+      {
+        "from": 16,
+        "to": 23,
+        "label": "data_dep: pipeline_state"
+      },
+      {
+        "from": 16,
+        "to": 23,
+        "label": "data_dep: pipeline_state"
+      },
+      {
+        "from": 16,
+        "to": 23,
+        "label": "data_dep: pipeline_state"
+      },
+      {
+        "from": 24,
+        "to": 24,
+        "label": "def: transfer_part"
+      },
+      {
+        "from": 21,
+        "to": 24,
+        "label": "data_dep: remaining_value"
+      },
+      {
+        "from": 24,
+        "to": 25,
+        "label": "data_dep: transfer_part"
+      },
+      {
+        "from": 21,
+        "to": 25,
+        "label": "data_dep: remaining_value"
+      },
+      {
+        "from": 27,
+        "to": 27,
+        "label": "def: transfer_ix"
+      },
+      {
+        "from": 16,
+        "to": 27,
+        "label": "data_dep: pipeline_state"
+      },
+      {
+        "from": 24,
+        "to": 27,
+        "label": "data_dep: transfer_part"
+      },
+      {
+        "from": 28,
+        "to": 28,
+        "label": "def: external_program_ai"
+      },
+      {
+        "from": 27,
+        "to": 29,
+        "label": "data_dep: transfer_ix"
+      },
+      {
+        "from": 28,
+        "to": 29,
+        "label": "data_dep: external_program_ai"
+      },
+      {
+        "from": 21,
+        "to": 30,
+        "label": "data_dep: remaining_value"
+      },
+      {
+        "from": 21,
+        "to": 30,
+        "label": "data_dep: remaining_value"
+      },
+      {
+        "from": 24,
+        "to": 30,
+        "label": "data_dep: transfer_part"
+      },
+      {
+        "from": 16,
+        "to": 31,
+        "label": "data_dep: pipeline_state"
+      },
+      {
+        "from": 16,
+        "to": 31,
+        "label": "data_dep: pipeline_state"
+      },
+      {
+        "from": 21,
+        "to": 33,
+        "label": "data_dep: remaining_value"
+      },
+      {
+        "from": 16,
+        "to": 33,
+        "label": "data_dep: pipeline_state"
+      },
+      {
+        "from": 16,
+        "to": 33,
+        "label": "data_dep: pipeline_state"
+      },
+      {
+        "from": 16,
+        "to": 33,
+        "label": "data_dep: pipeline_state"
+      },
+      {
+        "from": 24,
+        "to": 33,
+        "label": "data_dep: transfer_part"
+      },
+      {
+        "from": 16,
+        "to": 33,
+        "label": "data_dep: pipeline_state"
+      },
+      {
+        "from": 16,
+        "to": 33,
+        "label": "data_dep: pipeline_state"
+      },
+      {
+        "from": 16,
+        "to": 34,
+        "label": "data_dep: pipeline_state"
+      },
+      {
+        "from": 16,
+        "to": 34,
+        "label": "data_dep: pipeline_state"
+      },
+      {
+        "from": 24,
+        "to": 34,
+        "label": "data_dep: transfer_part"
+      },
+      {
+        "from": 16,
+        "to": 35,
+        "label": "data_dep: pipeline_state"
+      },
+      {
+        "from": 16,
+        "to": 35,
+        "label": "data_dep: pipeline_state"
+      },
+      {
+        "from": 21,
+        "to": 36,
+        "label": "data_dep: remaining_value"
+      },
+      {
+        "from": 16,
+        "to": 36,
+        "label": "data_dep: pipeline_state"
+      },
+      {
+        "from": 21,
+        "to": 36,
+        "label": "data_dep: remaining_value"
+      },
+      {
+        "from": 28,
+        "to": 36,
+        "label": "data_dep: external_program_ai"
+      },
+      {
+        "from": 16,
+        "to": 36,
+        "label": "data_dep: pipeline_state"
+      },
+      {
+        "from": 16,
+        "to": 36,
+        "label": "data_dep: pipeline_state"
+      },
+      {
+        "from": 21,
+        "to": 36,
+        "label": "data_dep: remaining_value"
+      },
+      {
+        "from": 37,
+        "to": 37,
+        "label": "def: final_ix"
+      },
+      {
+        "from": 16,
+        "to": 37,
+        "label": "data_dep: pipeline_state"
+      },
+      {
+        "from": 21,
+        "to": 37,
+        "label": "data_dep: remaining_value"
+      },
+      {
+        "from": 38,
+        "to": 38,
+        "label": "def: external_program_ai"
+      },
+      {
+        "from": 37,
+        "to": 39,
+        "label": "data_dep: final_ix"
+      },
+      {
+        "from": 38,
+        "to": 39,
+        "label": "data_dep: external_program_ai"
+      },
+      {
+        "from": 16,
+        "to": 40,
+        "label": "data_dep: pipeline_state"
+      },
+      {
+        "from": 16,
+        "to": 40,
+        "label": "data_dep: pipeline_state"
+      },
+      {
+        "from": 21,
+        "to": 40,
+        "label": "data_dep: remaining_value"
+      },
+      {
+        "from": 16,
+        "to": 42,
+        "label": "data_dep: pipeline_state"
+      },
+      {
+        "from": 16,
+        "to": 42,
+        "label": "data_dep: pipeline_state"
+      },
+      {
+        "from": 16,
+        "to": 42,
+        "label": "data_dep: pipeline_state"
+      },
+      {
+        "from": 16,
+        "to": 42,
+        "label": "data_dep: pipeline_state"
+      },
+      {
+        "from": 16,
+        "to": 43,
+        "label": "data_dep: pipeline_state"
+      },
+      {
+        "from": 16,
+        "to": 43,
+        "label": "data_dep: pipeline_state"
+      },
+      {
+        "from": 16,
+        "to": 44,
+        "label": "data_dep: pipeline_state"
+      },
+      {
+        "from": 16,
+        "to": 44,
+        "label": "data_dep: pipeline_state"
+      }
+    ]
+  }
+]

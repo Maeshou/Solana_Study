@@ -1,0 +1,220 @@
+[
+  {
+    "name": "init_subject",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitSubject >",
+      "name: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . subject ;",
+      "s . owner = ctx . accounts . teacher . key () ;",
+      "s . name = name ;",
+      "s . weight = 100 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "submit_answer",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SubmitAnswer >",
+      "subject_code: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let a = & mut ctx . accounts . answer ;",
+      "a . parent = ctx . accounts . subject . key () ;",
+      "a . subject_code = subject_code ;",
+      "a . raw = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "finalize",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Finalize >",
+      "bonus: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . subject ;",
+      "let a = & mut ctx . accounts . answer_a ;",
+      "let b = & mut ctx . accounts . answer_b ;",
+      "let r = & mut ctx . accounts . record ;",
+      "for i in 0 .. r . hist . len ()",
+      "{",
+      "let inc = (((i as u16) << 2) ^ bonus) as u32 ;",
+      "r . hist [i] = r . hist [i] . saturating_add (inc) ;",
+      "}",
+      "if ((a . subject_code ^ b . subject_code) & 1) == 0",
+      "{",
+      "a . raw = a . raw . saturating_add ((r . hist [0] / 3) as u64) ;",
+      "r . best = r . best . max (a . raw) ;",
+      "s . weight = s . weight . saturating_add (1) ;",
+      "msg ! (\"even code: A boosted\") ;",
+      "} else",
+      "{",
+      "b . raw = b . raw . saturating_add ((r . hist [1] / 2) as u64) ;",
+      "r . best = r . best . max (b . raw) ;",
+      "s . weight = s . weight . saturating_sub (1) . max (1) ;",
+      "msg ! (\"odd code: B boosted\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitSubject",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "subject",
+        "attribute": "# [account (init , payer = teacher , space = 8 + 32 + 4 + 64 + 2)]",
+        "field_type": "Account < 'info , Subject >"
+      },
+      {
+        "name": "teacher",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SubmitAnswer",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "subject",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Subject >"
+      },
+      {
+        "name": "answer",
+        "attribute": "# [account (init , payer = teacher , space = 8 + 32 + 2 + 8)]",
+        "field_type": "Account < 'info , Answer >"
+      },
+      {
+        "name": "teacher",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Finalize",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "subject",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Subject >"
+      },
+      {
+        "name": "answer_a",
+        "attribute": "# [account (mut , constraint = answer_a . parent == subject . key () @ GradeErr :: Cosplay , constraint = answer_a . subject_code != answer_b . subject_code @ GradeErr :: Cosplay)]",
+        "field_type": "Account < 'info , Answer >"
+      },
+      {
+        "name": "answer_b",
+        "attribute": "# [account (mut , constraint = answer_b . parent == subject . key () @ GradeErr :: Cosplay)]",
+        "field_type": "Account < 'info , Answer >"
+      },
+      {
+        "name": "record",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Record >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Subject",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "weight",
+        "attribute": null,
+        "field_type": "u16"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Answer",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "subject_code",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "raw",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Record",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "best",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "hist",
+        "attribute": null,
+        "field_type": "[u32 ; 4]"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

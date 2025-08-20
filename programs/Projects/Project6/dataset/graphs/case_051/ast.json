@@ -1,0 +1,112 @@
+[
+  {
+    "name": "cast_meteor_spell",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CastAbility >",
+      "damage_multiplier: u32"
+    ],
+    "attributes": [
+      "# [doc = \" 特殊アビリティ「メテオ」を使用する\"]"
+    ],
+    "body": [
+      "let character = & mut ctx . accounts . player_character ;",
+      "let monster = & mut ctx . accounts . monster ;",
+      "let clock = Clock :: get () ? ;",
+      "character . stats . current_mana = character . stats . current_mana . saturating_sub (150) ;",
+      "let base_damage = character . stats . intelligence * damage_multiplier ;",
+      "let final_damage = base_damage . saturating_sub (monster . magic_resistance) ;",
+      "monster . current_health = monster . current_health . saturating_sub (final_damage as u64) ;",
+      "character . last_ability_timestamp = clock . unix_timestamp + 300 ;",
+      "msg ! (\"Meteor cast! Dealt {} damage.\" , final_damage) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CastAbility",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "player_character",
+        "attribute": "# [account (mut , has_one = owner , constraint = player_character . stats . current_mana >= 150 @ GameErrorCode :: NotEnoughEnergy , constraint = Clock :: get () . unwrap () . unix_timestamp > player_character . last_ability_timestamp @ GameErrorCode :: CharacterOnCooldown)]",
+        "field_type": "Account < 'info , PlayerCharacter >"
+      },
+      {
+        "name": "monster",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Monster >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PlayerCharacter",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "stats",
+        "attribute": null,
+        "field_type": "CharacterStats"
+      },
+      {
+        "name": "last_ability_timestamp",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CharacterStats",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "intelligence",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "current_mana",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Monster",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "current_health",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "magic_resistance",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

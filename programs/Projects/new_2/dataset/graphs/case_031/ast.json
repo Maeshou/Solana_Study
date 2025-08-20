@@ -1,0 +1,219 @@
+[
+  {
+    "name": "Vault",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "initialize_vault",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitVault >",
+      "bump: u8"
+    ],
+    "attributes": [
+      "# [doc = \" PDA を初期化：authority と bump を格納\"]"
+    ],
+    "body": [
+      "let vault = & mut ctx . accounts . vault ;",
+      "vault . authority = * ctx . accounts . authority . key ;",
+      "vault . bump = bump ;",
+      "msg ! (\"vault initialized for {}\" , ctx . accounts . authority . key ()) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "secure_credit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SecureCredit >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" フルガード：PDA シードと has_one で authority を検証\"]"
+    ],
+    "body": [
+      "let info = ctx . accounts . vault . to_account_info () ;",
+      "* * info . try_borrow_mut_lamports () ? += amount ;",
+      "msg ! (\"secure_credit +{}\" , amount) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "partial_credit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PartialCredit >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 部分ガード：PDA シードは検証するが has_one は省略\"]"
+    ],
+    "body": [
+      "let info = ctx . accounts . vault . to_account_info () ;",
+      "* * info . try_borrow_mut_lamports () ? += amount ;",
+      "msg ! (\"partial_credit +{} (authority unchecked)\" , amount) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "manual_pda_credit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ManualPdaCredit >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 手動 PDA チェック：プログラム内で find_program_address を使って検証\"]"
+    ],
+    "body": [
+      "let (pda , _bump) = Pubkey :: find_program_address (& [b\"vault\" , ctx . accounts . authority . key . as_ref ()] , ctx . program_id ,) ;",
+      "if pda == ctx . accounts . vault_pda . key ()",
+      "{",
+      "* * ctx . accounts . vault_pda . try_borrow_mut_lamports () ? += amount ;",
+      "msg ! (\"manual_pda_credit +",
+      "{",
+      "}\" , amount) ;",
+      "} else",
+      "{",
+      "msg ! (\"manual_pda_credit skipped: invalid PDA\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "raw_credit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RawCredit >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 完全未検証：生の AccountInfo を直接操作\"]"
+    ],
+    "body": [
+      "* * ctx . accounts . free_vault . try_borrow_mut_lamports () ? += amount ;",
+      "msg ! (\"raw_credit +{}\" , amount) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitVault",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": "# [account (init , seeds = [b\"vault\" , authority . key . as_ref ()] , bump , payer = authority , space = 8 + 32 + 1)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "rent",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Rent >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SecureCredit",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": "# [account (mut , seeds = [b\"vault\" , authority . key . as_ref ()] , bump = vault . bump , has_one = authority)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PartialCredit",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": "# [account (mut , seeds = [b\"vault\" , authority . key . as_ref ()] , bump = vault . bump)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ManualPdaCredit",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault_pda",
+        "attribute": "# [doc = \" CHECK: プログラム内で PDA を手動検証\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RawCredit",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "free_vault",
+        "attribute": "# [doc = \" CHECK: 完全未検証の生データ\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

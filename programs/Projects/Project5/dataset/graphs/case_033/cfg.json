@@ -1,6 +1,6 @@
 [
   {
-    "name": "unstake_nft",
+    "name": "init_tuner",
     "nodes": [
       {
         "id": 0,
@@ -8,26 +8,22 @@
       },
       {
         "id": 1,
-        "label": "let src = & mut ctx . accounts . account_src ;"
+        "label": "let s = & mut ctx . accounts ;"
       },
       {
         "id": 2,
-        "label": "let dst = & mut ctx . accounts . account_dst ;"
+        "label": "s . tuner . owner = s . owner . key () ;"
       },
       {
         "id": 3,
-        "label": "let before = * * src . to_account_info () . try_borrow_lamports () ? ;"
+        "label": "s . tuner . ceiling = ceiling ;"
       },
       {
         "id": 4,
-        "label": "* * src . to_account_info () . try_borrow_mut_lamports () ? = before . saturating_sub (amount) ;"
+        "label": "s . tuner . state = TuneState :: Calibrating ;"
       },
       {
         "id": 5,
-        "label": "* * dst . to_account_info () . try_borrow_mut_lamports () ? += amount ;"
-      },
-      {
-        "id": 6,
         "label": "Ok (())"
       }
     ],
@@ -56,11 +52,274 @@
         "from": 4,
         "to": 5,
         "label": "next"
+      }
+    ]
+  },
+  {
+    "name": "tune",
+    "nodes": [
+      {
+        "id": 6,
+        "label": "Entry"
       },
       {
-        "from": 5,
-        "to": 6,
-        "label": "call"
+        "id": 7,
+        "label": "let run = & mut ctx . accounts ;"
+      },
+      {
+        "id": 8,
+        "label": "assert_ne ! (run . telemetry . key () , run . car . key () , \"telemetry/car must differ\") ;"
+      },
+      {
+        "id": 9,
+        "label": "let alpha = alpha_ppm . clamp (1 , 1_000_000) ;"
+      },
+      {
+        "id": 10,
+        "label": "let inv = 1_000_000u64 - alpha as u64 ;"
+      },
+      {
+        "id": 11,
+        "label": "Loop Start"
+      },
+      {
+        "id": 12,
+        "label": "let input = (run . car . torque as u64 * (3 + (i % 5) as u64)) & 0xFFFF_FFFF ;"
+      },
+      {
+        "id": 13,
+        "label": "let ema_num = (run . telemetry . speed as u64 * inv) . checked_add (input * alpha as u64) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 14,
+        "label": "run . telemetry . speed = (ema_num / 1_000_000) . min (u64 :: from (u32 :: MAX)) as u32 ;"
+      },
+      {
+        "id": 15,
+        "label": "let rot = (13 + (i % 11)) as u32 ;"
+      },
+      {
+        "id": 16,
+        "label": "let mixed = run . car . seed . rotate_left (rot) ^ run . telemetry . speed . rotate_right (7) ;"
+      },
+      {
+        "id": 17,
+        "label": "run . car . seed = mixed ^ 0xA5A5_5A5A ;"
+      },
+      {
+        "id": 18,
+        "label": "Loop End"
+      },
+      {
+        "id": 19,
+        "label": "let sum = (run . telemetry . speed as u64) . saturating_add (run . car . torque as u64) ;"
+      },
+      {
+        "id": 20,
+        "label": "if statement"
+      },
+      {
+        "id": 21,
+        "label": "predicate"
+      },
+      {
+        "id": 22,
+        "label": "sum > run . tuner . ceiling as u64"
+      },
+      {
+        "id": 23,
+        "label": "True body"
+      },
+      {
+        "id": 24,
+        "label": "run . tuner . state = TuneState :: Locked ;"
+      },
+      {
+        "id": 25,
+        "label": "run . car . torque = max (run . car . torque / 2 , 1) ;"
+      },
+      {
+        "id": 26,
+        "label": "run . telemetry . variance = run . telemetry . variance . wrapping_add (0x1F) ;"
+      },
+      {
+        "id": 27,
+        "label": "msg ! (\"locked: torque halved, variance bumped\") ;"
+      },
+      {
+        "id": 28,
+        "label": "False body"
+      },
+      {
+        "id": 29,
+        "label": "run . tuner . state = TuneState :: Calibrating ;"
+      },
+      {
+        "id": 30,
+        "label": "run . car . torque = min (run . car . torque . saturating_mul (2) , u32 :: MAX) ;"
+      },
+      {
+        "id": 31,
+        "label": "run . telemetry . samples = run . telemetry . samples . wrapping_add (1) ;"
+      },
+      {
+        "id": 32,
+        "label": "msg ! (\"calibrating: torque doubled, samples++\") ;"
+      },
+      {
+        "id": 33,
+        "label": "merge"
+      },
+      {
+        "id": 34,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 6,
+        "to": 7,
+        "label": "next"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "next"
+      },
+      {
+        "from": 8,
+        "to": 9,
+        "label": "next"
+      },
+      {
+        "from": 9,
+        "to": 10,
+        "label": "next"
+      },
+      {
+        "from": 10,
+        "to": 11,
+        "label": "next"
+      },
+      {
+        "from": 11,
+        "to": 12,
+        "label": "next"
+      },
+      {
+        "from": 12,
+        "to": 13,
+        "label": "next"
+      },
+      {
+        "from": 13,
+        "to": 14,
+        "label": "next"
+      },
+      {
+        "from": 14,
+        "to": 15,
+        "label": "next"
+      },
+      {
+        "from": 15,
+        "to": 16,
+        "label": "next"
+      },
+      {
+        "from": 16,
+        "to": 17,
+        "label": "next"
+      },
+      {
+        "from": 11,
+        "to": 18,
+        "label": "for"
+      },
+      {
+        "from": 18,
+        "to": 19,
+        "label": "next"
+      },
+      {
+        "from": 19,
+        "to": 20,
+        "label": "next"
+      },
+      {
+        "from": 20,
+        "to": 21,
+        "label": "predicate"
+      },
+      {
+        "from": 21,
+        "to": 22,
+        "label": "next"
+      },
+      {
+        "from": 20,
+        "to": 23,
+        "label": "true"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "next"
+      },
+      {
+        "from": 24,
+        "to": 25,
+        "label": "next"
+      },
+      {
+        "from": 25,
+        "to": 26,
+        "label": "next"
+      },
+      {
+        "from": 26,
+        "to": 27,
+        "label": "next"
+      },
+      {
+        "from": 20,
+        "to": 28,
+        "label": "false"
+      },
+      {
+        "from": 28,
+        "to": 29,
+        "label": "next"
+      },
+      {
+        "from": 29,
+        "to": 30,
+        "label": "next"
+      },
+      {
+        "from": 30,
+        "to": 31,
+        "label": "next"
+      },
+      {
+        "from": 31,
+        "to": 32,
+        "label": "next"
+      },
+      {
+        "from": 27,
+        "to": 33,
+        "label": "next"
+      },
+      {
+        "from": 32,
+        "to": 33,
+        "label": "next"
+      },
+      {
+        "from": 33,
+        "to": 34,
+        "label": "next"
       }
     ]
   }

@@ -1,40 +1,175 @@
 [
   {
-    "name": "init_lending_market",
+    "name": "init_table",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx048 >",
-      "amount: u64"
+      "ctx: Context < InitTable >"
     ],
     "attributes": [],
     "body": [
-      "let src = & mut ctx . accounts . account_src ;",
-      "let dst = & mut ctx . accounts . account_dst ;",
-      "let before = * * src . to_account_info () . try_borrow_lamports () ? ;",
-      "* * src . to_account_info () . try_borrow_mut_lamports () ? = before . saturating_sub (amount) ;",
-      "* * dst . to_account_info () . try_borrow_mut_lamports () ? += amount ;",
+      "let s = & mut ctx . accounts ;",
+      "s . table . host = s . host . key () ;",
+      "s . table . state = Prep ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx048",
+    "name": "cast",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CastRunes >",
+      "turns: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts ;",
+      "for t in 0 .. turns",
+      "{",
+      "let h = hashv (& [s . table . host . as_ref () , & s . bag . rolls . to_le_bytes () , & t . to_le_bytes ()]) ;",
+      "let v = u32 :: from_le_bytes ([h . 0 [0] , h . 0 [1] , h . 0 [2] , h . 0 [3]]) ;",
+      "s . bag . rolls = s . bag . rolls . wrapping_add (v & 0x3FF) ;",
+      "s . log . faces = s . log . faces . rotate_left ((v % 31) + 1) ;",
+      "s . log . turns = s . log . turns . wrapping_add (1) ;",
+      "}",
+      "if (s . bag . rolls & 1) == 1",
+      "{",
+      "s . table . state = Lock ;",
+      "s . log . flags = s . log . flags . wrapping_add (2) ;",
+      "s . bag . rolls ^= s . log . faces ;",
+      "s . log . faces = s . log . faces . rotate_right (4) ;",
+      "msg ! (\"odd parity: lock, flags+2, xor+rotate\") ;",
+      "} else",
+      "{",
+      "s . table . state = Cast ;",
+      "s . log . turns = s . log . turns . wrapping_mul (2) ;",
+      "s . bag . rolls = s . bag . rolls . wrapping_add (7) ;",
+      "s . log . faces ^= 0xDEAD_BEEF ;",
+      "msg ! (\"even parity: cast, turns*2, rolls+7, faces xor\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitTable",
     "node_type": "struct",
     "fields": [
       {
-        "name": "account_src",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "table",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1)]",
+        "field_type": "Account < 'info , DiceTable >"
       },
       {
-        "name": "account_dst",
+        "name": "bag",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4)]",
+        "field_type": "Account < 'info , DiceBag >"
+      },
+      {
+        "name": "log",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4 + 4)]",
+        "field_type": "Account < 'info , DiceLog >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "host",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
       },
       {
         "name": "system_program",
         "attribute": null,
         "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CastRunes",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "table",
+        "attribute": "# [account (mut , has_one = host)]",
+        "field_type": "Account < 'info , DiceTable >"
+      },
+      {
+        "name": "bag",
+        "attribute": "# [account (mut , constraint = bag . key () != table . key () @ RdErr :: Dup , constraint = bag . key () != log . key () @ RdErr :: Dup)]",
+        "field_type": "Account < 'info , DiceBag >"
+      },
+      {
+        "name": "log",
+        "attribute": "# [account (mut , constraint = log . key () != table . key () @ RdErr :: Dup)]",
+        "field_type": "Account < 'info , DiceLog >"
+      },
+      {
+        "name": "host",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DiceTable",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "host",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "state",
+        "attribute": null,
+        "field_type": "TableState"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DiceBag",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "rolls",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DiceLog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "faces",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "turns",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "flags",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

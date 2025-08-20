@@ -1,0 +1,245 @@
+[
+  {
+    "name": "plan",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Plan >",
+      "tier: TournamentTier",
+      "stake: u64",
+      "rating: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let now = Clock :: get () ? . unix_timestamp ;",
+      "let mut table : Vec < (u32 , u64) > = vec ! [(1 , 10_000) , (2 , 5_000) , (3 , 2_500) , (4 , 1_000)] ;",
+      "if is_silver (tier)",
+      "{",
+      "table = vec ! [(1 , 20_000) , (2 , 10_000) , (3 , 5_000) , (4 , 2_000)] ;",
+      "}",
+      "if is_gold (tier)",
+      "{",
+      "table = vec ! [(1 , 50_000) , (2 , 25_000) , (3 , 12_500) , (4 , 5_000)] ;",
+      "}",
+      "if is_platinum (tier)",
+      "{",
+      "table = vec ! [(1 , 100_000) , (2 , 50_000) , (3 , 25_000) , (4 , 10_000)] ;",
+      "}",
+      "if is_diamond (tier)",
+      "{",
+      "table = vec ! [(1 , 250_000) , (2 , 125_000) , (3 , 62_500) , (4 , 25_000)] ;",
+      "}",
+      "if is_master (tier)",
+      "{",
+      "table = vec ! [(1 , 500_000) , (2 , 250_000) , (3 , 125_000) , (4 , 50_000)] ;",
+      "}",
+      "if is_grandmaster (tier)",
+      "{",
+      "table = vec ! [(1 , 1_000_000) , (2 , 500_000) , (3 , 250_000) , (4 , 100_000)] ;",
+      "}",
+      "let mut out : Vec < RewardRow > = Vec :: new () ;",
+      "let mut i = 0usize ;",
+      "while i < table . len ()",
+      "{",
+      "let placement = table [i] . 0 ;",
+      "let base = table [i] . 1 ;",
+      "let mut tier_bonus = base / 15 ;",
+      "if is_diamond (tier)",
+      "{",
+      "tier_bonus = base / 10 ;",
+      "} if is_master (tier)",
+      "{",
+      "tier_bonus = base / 8 ;",
+      "} if is_grandmaster (tier)",
+      "{",
+      "tier_bonus = base / 5 ;",
+      "} let seasonal_phase = ((now % (86_400 * 90)) / (86_400 * 30)) as u32 ;",
+      "let seasonal = 250u32 + seasonal_phase . saturating_mul (100) ;",
+      "let mut points = 150u32 ;",
+      "if placement == 1",
+      "{",
+      "points = 500 ;",
+      "} if placement == 2",
+      "{",
+      "points = 350 ;",
+      "} if placement == 3",
+      "{",
+      "points = 250 ;",
+      "} out . push (RewardRow",
+      "{",
+      "placement , monetary : base . saturating_add (stake / 10) . saturating_add (tier_bonus) , experience : (base / 100) . saturating_add (rating / 10) , ranking_points : points , seasonal_bonus : seasonal , }) ;",
+      "i = i . saturating_add (1) ;",
+      "}",
+      "ctx . accounts . rewards . rows = out ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "is_silver",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "t: TournamentTier"
+    ],
+    "attributes": [],
+    "body": [
+      "if let TournamentTier :: Silver = t",
+      "{",
+      "return true",
+      "}",
+      "false"
+    ]
+  },
+  {
+    "name": "is_gold",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "t: TournamentTier"
+    ],
+    "attributes": [],
+    "body": [
+      "if let TournamentTier :: Gold = t",
+      "{",
+      "return true",
+      "}",
+      "false"
+    ]
+  },
+  {
+    "name": "is_platinum",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "t: TournamentTier"
+    ],
+    "attributes": [],
+    "body": [
+      "if let TournamentTier :: Platinum = t",
+      "{",
+      "return true",
+      "}",
+      "false"
+    ]
+  },
+  {
+    "name": "is_diamond",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "t: TournamentTier"
+    ],
+    "attributes": [],
+    "body": [
+      "if let TournamentTier :: Diamond = t",
+      "{",
+      "return true",
+      "}",
+      "false"
+    ]
+  },
+  {
+    "name": "is_master",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "t: TournamentTier"
+    ],
+    "attributes": [],
+    "body": [
+      "if let TournamentTier :: Master = t",
+      "{",
+      "return true",
+      "}",
+      "false"
+    ]
+  },
+  {
+    "name": "is_grandmaster",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "t: TournamentTier"
+    ],
+    "attributes": [],
+    "body": [
+      "if let TournamentTier :: Grandmaster = t",
+      "{",
+      "return true",
+      "}",
+      "false"
+    ]
+  },
+  {
+    "name": "Plan",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "rewards",
+        "attribute": "# [account (init , payer = planner , space = 8 + RewardsTable :: LEN , seeds = [b\"rewards\" , planner . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , RewardsTable >"
+      },
+      {
+        "name": "planner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RewardsTable",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "rows",
+        "attribute": null,
+        "field_type": "Vec < RewardRow >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RewardRow",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "placement",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "monetary",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "experience",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "ranking_points",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "seasonal_bonus",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

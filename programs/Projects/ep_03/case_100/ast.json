@@ -1,0 +1,180 @@
+[
+  {
+    "name": "unlock_achievement",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyAchievement >",
+      "achievement_id: u8"
+    ],
+    "attributes": [
+      "# [doc = \" 新しい実績をアンロックするが、\"]",
+      "# [doc = \" achievement_account.owner と ctx.accounts.user.key() の一致検証がない\"]"
+    ],
+    "body": [
+      "let acct = & mut ctx . accounts . achievement_account ;",
+      "mark_unlocked (acct , achievement_id) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "claim_reward",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ClaimReward >"
+    ],
+    "attributes": [
+      "# [doc = \" アンロックした実績の報酬を請求するが、\"]",
+      "# [doc = \" achievement_account.owner と ctx.accounts.user.key() の一致検証がない\"]"
+    ],
+    "body": [
+      "let acct = & mut ctx . accounts . achievement_account ;",
+      "let vault = & mut ctx . accounts . reward_vault . to_account_info () ;",
+      "let user = & mut ctx . accounts . user . to_account_info () ;",
+      "let amount = ctx . accounts . config . reward_amount ;",
+      "transfer_reward (vault , user , amount) ? ;",
+      "record_claim (acct) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "mark_unlocked",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "acct: & mut AchievementAccount",
+      "id: u8"
+    ],
+    "attributes": [
+      "# [doc = \" 実績をアンロックし、アンロック回数を更新するヘルパー\"]"
+    ],
+    "body": [
+      "acct . last_unlocked = id ;",
+      "acct . unlock_count = acct . unlock_count . saturating_add (1) ;"
+    ]
+  },
+  {
+    "name": "transfer_reward",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "from: & AccountInfo",
+      "to: & AccountInfo",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" Lamports を vault から user へ直接移動するヘルパー\"]"
+    ],
+    "body": [
+      "* * from . lamports . borrow_mut () = from . lamports () . checked_sub (amount) . unwrap () ;",
+      "* * to . lamports . borrow_mut () = to . lamports () . checked_add (amount) . unwrap () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "record_claim",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "acct: & mut AchievementAccount"
+    ],
+    "attributes": [
+      "# [doc = \" 報酬請求回数を更新するヘルパー\"]"
+    ],
+    "body": [
+      "acct . claim_count = acct . claim_count . saturating_add (1) ;"
+    ]
+  },
+  {
+    "name": "ModifyAchievement",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "achievement_account",
+        "attribute": "# [account (mut)] # [doc = \" 本来は #[account(has_one = owner)] で所有者照合を行うべき\"]",
+        "field_type": "Account < 'info , AchievementAccount >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 実績をアンロックするユーザー（署名者）\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ClaimReward",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "achievement_account",
+        "attribute": "# [account (mut)] # [doc = \" 本来は #[account(has_one = owner)] で所有者照合を行うべき\"]",
+        "field_type": "Account < 'info , AchievementAccount >"
+      },
+      {
+        "name": "reward_vault",
+        "attribute": "# [doc = \" 報酬を保管するプールアカウント\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 報酬を受け取るユーザー（署名者）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "config",
+        "attribute": "# [doc = \" 報酬量設定を保持するアカウント\"]",
+        "field_type": "Account < 'info , AchievementConfig >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AchievementAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 本来この実績を所有するべきユーザーの Pubkey\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "last_unlocked",
+        "attribute": "# [doc = \" 最後にアンロックされた実績の ID\"]",
+        "field_type": "u8"
+      },
+      {
+        "name": "unlock_count",
+        "attribute": "# [doc = \" アンロック操作の累計回数\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "claim_count",
+        "attribute": "# [doc = \" 報酬請求操作の累計回数\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AchievementConfig",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "reward_amount",
+        "attribute": "# [doc = \" 1 実績あたりの報酬 Lamports\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

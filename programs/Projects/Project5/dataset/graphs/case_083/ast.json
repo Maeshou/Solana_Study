@@ -1,33 +1,224 @@
 [
   {
-    "name": "init_futures",
+    "name": "init_wall",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx083 >"
+      "ctx: Context < InitWall >",
+      "base: u32"
     ],
     "attributes": [],
     "body": [
-      "let a = & ctx . accounts . first ;",
-      "let b = & ctx . accounts . second ;",
-      "msg ! (\"Account A: {}\" , a . key ()) ;",
-      "msg ! (\"Account B: {}\" , b . key ()) ;",
+      "let w = & mut ctx . accounts . wall ;",
+      "w . owner = ctx . accounts . artist . key () ;",
+      "w . quota = base * 3 + 100 ;",
+      "w . state = Prime ;",
+      "let a = & mut ctx . accounts . piece_a ;",
+      "let b = & mut ctx . accounts . piece_b ;",
+      "let c = & mut ctx . accounts . counter ;",
+      "a . wall = w . key () ;",
+      "a . channel = (base & 7) as u8 ;",
+      "a . paint = base + 11 ;",
+      "b . wall = w . key () ;",
+      "b . channel = ((base >> 2) & 7) as u8 ;",
+      "b . paint = base . rotate_left (3) + 7 ;",
+      "c . wall = w . key () ;",
+      "c . channel = 9 ;",
+      "c . batch = 0 ;",
+      "c . blend = base ^ 0xDEAD_BEEF ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx083",
+    "name": "spray",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Spray >",
+      "iters: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let w = & mut ctx . accounts . wall ;",
+      "let a = & mut ctx . accounts . piece_a ;",
+      "let b = & mut ctx . accounts . piece_b ;",
+      "let c = & mut ctx . accounts . counter ;",
+      "for i in 0 .. iters",
+      "{",
+      "let r = ((a . paint ^ b . paint) as u64) . wrapping_mul (1469598103934665603) ;",
+      "a . paint = a . paint . checked_add (((r & 63) as u32) + 3) . unwrap_or (u32 :: MAX) ;",
+      "b . paint = b . paint . saturating_add ((((r >> 6) & 63) as u32) + 5) ;",
+      "c . batch = c . batch . saturating_add (1) ;",
+      "c . blend ^= (r as u32) . rotate_left ((i % 11) as u32) ;",
+      "}",
+      "let mean = if c . batch == 0 { 0 } else { c . blend / (c . batch as u32) } ;",
+      "if mean > w . quota",
+      "{",
+      "w . state = Seal ;",
+      "a . channel ^= 1 ;",
+      "b . channel = b . channel . saturating_add (1) ;",
+      "c . channel = c . channel . saturating_add (1) ;",
+      "msg ! (\"seal: channel tweaks & counter move\") ;",
+      "} else",
+      "{",
+      "w . state = Spray ;",
+      "a . paint = a . paint . saturating_add (9) ;",
+      "b . paint = b . paint / 2 + 11 ;",
+      "c . blend ^= 0x0F0F_F0F0 ;",
+      "msg ! (\"spray: adjust paint & blend flip\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitWall",
     "node_type": "struct",
     "fields": [
       {
-        "name": "first",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "wall",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Wall >"
       },
       {
-        "name": "second",
+        "name": "piece_a",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Piece >"
+      },
+      {
+        "name": "piece_b",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Piece >"
+      },
+      {
+        "name": "counter",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 8 + 4)]",
+        "field_type": "Account < 'info , Counter >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "artist",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Spray",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "wall",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Wall >"
+      },
+      {
+        "name": "piece_a",
+        "attribute": "# [account (mut , has_one = wall , constraint = piece_a . channel != piece_b . channel @ WallErr :: Dup)]",
+        "field_type": "Account < 'info , Piece >"
+      },
+      {
+        "name": "piece_b",
+        "attribute": "# [account (mut , has_one = wall , constraint = piece_b . channel != counter . channel @ WallErr :: Dup)]",
+        "field_type": "Account < 'info , Piece >"
+      },
+      {
+        "name": "counter",
+        "attribute": "# [account (mut , has_one = wall)]",
+        "field_type": "Account < 'info , Counter >"
+      },
+      {
+        "name": "artist",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Wall",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "quota",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "state",
+        "attribute": null,
+        "field_type": "WallState"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Piece",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "wall",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "channel",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "paint",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Counter",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "wall",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "channel",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "batch",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "blend",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

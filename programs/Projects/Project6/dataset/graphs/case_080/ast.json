@@ -1,0 +1,99 @@
+[
+  {
+    "name": "draw_from_gacha",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < DrawGacha >",
+      "amount: u32"
+    ],
+    "attributes": [
+      "# [doc = \" 通貨を消費し、ランダムなアイテムIDのリストを生成します。\"]"
+    ],
+    "body": [
+      "let player_resources = & mut ctx . accounts . player_resources ;",
+      "let gacha_receipt = & mut ctx . accounts . gacha_receipt ;",
+      "let clock = Clock :: get () ? ;",
+      "let cost_per_draw = 100 ;",
+      "player_resources . gems = player_resources . gems . saturating_sub (cost_per_draw * amount) ;",
+      "let mut received_items = Vec :: new () ;",
+      "let loot_table : [u32 ; 5] = [1001 , 2005 , 3010 , 4050 , 9999] ;",
+      "for i in 1 ..= amount",
+      "{",
+      "let seed = clock . slot . saturating_add (i as u64) ;",
+      "let random_index = seed % (loot_table . len () as u64) ;",
+      "received_items . push (loot_table [random_index as usize]) ;",
+      "}",
+      "gacha_receipt . player = * ctx . accounts . player . key ;",
+      "gacha_receipt . items_won = received_items ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "DrawGacha",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "player_resources",
+        "attribute": "# [account (mut , has_one = owner , constraint = player_resources . gems >= 100 @ GameErrorCode :: NotEnoughGems)]",
+        "field_type": "Account < 'info , PlayerResources >"
+      },
+      {
+        "name": "gacha_receipt",
+        "attribute": "# [account (init , payer = player , space = 8 + 32 + 4 + (10 * 4))]",
+        "field_type": "Account < 'info , GachaReceipt >"
+      },
+      {
+        "name": "player",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PlayerResources",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "gems",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GachaReceipt",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "player",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "items_won",
+        "attribute": null,
+        "field_type": "Vec < u32 >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

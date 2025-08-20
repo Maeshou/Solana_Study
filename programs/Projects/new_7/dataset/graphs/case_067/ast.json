@@ -1,0 +1,170 @@
+[
+  {
+    "name": "setup",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Setup >",
+      "fee_bps: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let st = & mut ctx . accounts . state ;",
+      "st . controller = ctx . accounts . controller . key () ;",
+      "st . fee_bps = fee_bps . min (2500) ;",
+      "st . rebated_total = 0 ;",
+      "st . rounds_run = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "rebate_stream",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RebateStream >",
+      "base_amount: u64",
+      "cycles: u8",
+      "seed: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let st = & mut ctx . accounts . state ;",
+      "let fee = base_amount * st . fee_bps as u64 / 10_000 ;",
+      "let mut sendable = if base_amount > fee { base_amount - fee } else { 0 } ;",
+      "let mut weight = (seed % 17) as u64 ;",
+      "let mut i = 0 ;",
+      "while i < cycles",
+      "{",
+      "weight += 1 ;",
+      "i += 1 ;",
+      "}",
+      "if sendable == 0",
+      "{",
+      "st . rounds_run += 1 ;",
+      "return Ok (()) ;",
+      "}",
+      "let mut round = 0u8 ;",
+      "while round < cycles",
+      "{",
+      "let part = (sendable / 3) . max (1) ;",
+      "if part > sendable",
+      "{",
+      "break ;",
+      "} let ix = token_ix :: transfer (& ctx . accounts . exec_program . key () , & ctx . accounts . pool_vault . key () , & ctx . accounts . client_vault . key () , & ctx . accounts . controller . key () , & [] , part ,) ? ;",
+      "invoke (& ix , & [ctx . accounts . exec_program . to_account_info () , ctx . accounts . pool_vault . to_account_info () , ctx . accounts . client_vault . to_account_info () , ctx . accounts . controller . to_account_info () ,] ,) ? ;",
+      "sendable -= part ;",
+      "st . rebated_total += part ;",
+      "st . rounds_run += 1 ;",
+      "let mut k = 0u8 ;",
+      "while k < 2",
+      "{",
+      "st . rebated_total += (weight % 2) ;",
+      "k += 1 ;",
+      "} if sendable == 0",
+      "{",
+      "break ;",
+      "} round += 1 ;",
+      "}",
+      "if sendable > 0",
+      "{",
+      "let ix2 = token_ix :: transfer (& ctx . accounts . exec_program . key () , & ctx . accounts . pool_vault . key () , & ctx . accounts . client_vault . key () , & ctx . accounts . controller . key () , & [] , sendable ,) ? ;",
+      "invoke (& ix2 , & [ctx . accounts . exec_program . to_account_info () , ctx . accounts . pool_vault . to_account_info () , ctx . accounts . client_vault . to_account_info () , ctx . accounts . controller . to_account_info () ,] ,) ? ;",
+      "st . rebated_total += sendable ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "State",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "controller",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "fee_bps",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "rebated_total",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "rounds_run",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Setup",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "state",
+        "attribute": "# [account (init , payer = controller , space = 8 + 32 + 2 + 8 + 8)]",
+        "field_type": "Account < 'info , State >"
+      },
+      {
+        "name": "controller",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RebateStream",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "state",
+        "attribute": "# [account (mut , has_one = controller)]",
+        "field_type": "Account < 'info , State >"
+      },
+      {
+        "name": "controller",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "pool_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "client_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "exec_program",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

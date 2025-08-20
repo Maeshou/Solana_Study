@@ -1,17 +1,99 @@
 [
   {
-    "name": "SetOracleCtxvrmr",
+    "name": "init_escrow",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitEscrow >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" エスクロー初期化\"]"
+    ],
+    "body": [
+      "let esc = & mut ctx . accounts . escrow ;",
+      "esc . depositor = ctx . accounts . depositor . key () ;",
+      "esc . amount = amount ;",
+      "esc . is_ready = false ;",
+      "emit ! (EscrowCreated { depositor : esc . depositor , amount }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "deposit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Deposit >"
+    ],
+    "attributes": [
+      "# [doc = \" デポジット：指定量を転送し準備完了\"]"
+    ],
+    "body": [
+      "let esc = & mut ctx . accounts . escrow ;",
+      "let ix = anchor_lang :: solana_program :: system_instruction :: transfer (& ctx . accounts . depositor . key () , & ctx . accounts . escrow_acc . key () , esc . amount ,) ;",
+      "anchor_lang :: solana_program :: program :: invoke (& ix , & [ctx . accounts . depositor . to_account_info () , ctx . accounts . escrow_acc . to_account_info () ,] ,) ? ;",
+      "esc . is_ready = true ;",
+      "emit ! (Deposited { by : esc . depositor , amount : esc . amount }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "release",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Release >"
+    ],
+    "attributes": [
+      "# [doc = \" 解放：受取人への払戻し\"]"
+    ],
+    "body": [
+      "let esc = & ctx . accounts . escrow ;",
+      "require ! (esc . is_ready , ErrorCode :: NotReady) ;",
+      "* * ctx . accounts . recipient . lamports . borrow_mut () += esc . amount ;",
+      "* * ctx . accounts . escrow_acc . lamports . borrow_mut () -= esc . amount ;",
+      "emit ! (Released { to : ctx . accounts . recipient . key () , amount : esc . amount }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "refund",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Release >"
+    ],
+    "attributes": [
+      "# [doc = \" 返還：デポジットなしなら戻せない\"]"
+    ],
+    "body": [
+      "let esc = & ctx . accounts . escrow ;",
+      "require ! (! esc . is_ready , ErrorCode :: AlreadyDeposited) ;",
+      "* * ctx . accounts . depositor . lamports . borrow_mut () += esc . amount ;",
+      "* * ctx . accounts . escrow_acc . lamports . borrow_mut () -= esc . amount ;",
+      "emit ! (Refunded { to : esc . depositor , amount : esc . amount }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitEscrow",
     "node_type": "struct",
     "fields": [
       {
-        "name": "oracle",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
+        "name": "escrow",
+        "attribute": "# [account (init , payer = depositor , space = 8 + 32 + 8 + 1)]",
+        "field_type": "Account < 'info , EscrowData >"
       },
       {
-        "name": "updater",
+        "name": "depositor",
         "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "escrow_acc",
+        "attribute": "# [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
       },
       {
         "name": "system_program",
@@ -24,11 +106,88 @@
     "body": null
   },
   {
-    "name": "DataAccount",
+    "name": "Deposit",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data",
+        "name": "escrow",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , EscrowData >"
+      },
+      {
+        "name": "depositor",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "escrow_acc",
+        "attribute": "# [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Release",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "escrow",
+        "attribute": null,
+        "field_type": "Account < 'info , EscrowData >"
+      },
+      {
+        "name": "recipient",
+        "attribute": "# [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "depositor",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EscrowData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "depositor",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "is_ready",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EscrowCreated",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "depositor",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "amount",
         "attribute": null,
         "field_type": "u64"
       }
@@ -38,19 +197,60 @@
     "body": null
   },
   {
-    "name": "set_oracle",
-    "node_type": "function",
-    "fields": null,
-    "inputs": [
-      "ctx: Context < SetOracleCtxvrmr >",
-      "amount: u64"
+    "name": "Deposited",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "by",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "amount",
+        "attribute": null,
+        "field_type": "u64"
+      }
     ],
-    "attributes": [],
-    "body": [
-      "let acct = & mut ctx . accounts . oracle ;",
-      "* * ctx . accounts . oracle . to_account_info () . try_borrow_mut_lamports () ? += amount ;",
-      "msg ! (\"Executed set_oracle logic\") ;",
-      "Ok (())"
-    ]
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Released",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "to",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "amount",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Refunded",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "to",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "amount",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
   }
 ]

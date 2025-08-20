@@ -1,9 +1,9 @@
 [
   {
-    "name": "remove_reserve_liquidity",
+    "name": "init_garden",
     "inputs": [
-      "ctx: Context < Ctx046 >",
-      "amount: u64"
+      "ctx: Context < InitGarden >",
+      "cap: u32"
     ],
     "nodes": [
       {
@@ -12,18 +12,22 @@
       },
       {
         "id": 1,
-        "label": "let cpi_accounts = Transfer { from : ctx . accounts . from_token . to_account_info () , to : ctx . accounts . to_token . to_account_info () , authority : ctx . accounts . authority . to_account_info () , } ;"
+        "label": "let g = & mut ctx . accounts ;"
       },
       {
         "id": 2,
-        "label": "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;"
+        "label": "g . cfg . keeper = g . keeper . key () ;"
       },
       {
         "id": 3,
-        "label": "token :: transfer (cpi_ctx , amount) ? ;"
+        "label": "g . cfg . cap_q24 = cap << 8 ;"
       },
       {
         "id": 4,
+        "label": "g . cfg . state = Seed ;"
+      },
+      {
+        "id": 5,
         "label": "Ok (())"
       }
     ],
@@ -31,22 +35,349 @@
       {
         "from": 1,
         "to": 1,
-        "label": "def: cpi_accounts"
-      },
-      {
-        "from": 2,
-        "to": 2,
-        "label": "def: cpi_ctx"
+        "label": "def: g"
       },
       {
         "from": 1,
         "to": 2,
-        "label": "data_dep: cpi_accounts"
+        "label": "data_dep: g"
       },
       {
-        "from": 2,
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 1,
         "to": 3,
-        "label": "data_dep: cpi_ctx"
+        "label": "data_dep: g"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: g"
+      }
+    ]
+  },
+  {
+    "name": "grow",
+    "inputs": [
+      "ctx: Context < Growing >",
+      "days: u32"
+    ],
+    "nodes": [
+      {
+        "id": 6,
+        "label": "Entry"
+      },
+      {
+        "id": 7,
+        "label": "let g = & mut ctx . accounts ;"
+      },
+      {
+        "id": 8,
+        "label": "for _ in 0 .. days { let inc = (g . tree . height_q24 >> 3) + 256 ; g . tree . height_q24 = g . tree . height_q24 . saturating_add (inc) ; g . tree . hue = g . tree . hue . rotate_left (3) ^ (g . tree . hue >> 1) ; g . journal . stamps = g . journal . stamps . wrapping_add (1) ; }"
+      },
+      {
+        "id": 9,
+        "label": "let inc = (g . tree . height_q24 >> 3) + 256 ;"
+      },
+      {
+        "id": 10,
+        "label": "g . tree . height_q24 = g . tree . height_q24 . saturating_add (inc) ;"
+      },
+      {
+        "id": 11,
+        "label": "g . tree . hue = g . tree . hue . rotate_left (3) ^ (g . tree . hue >> 1) ;"
+      },
+      {
+        "id": 12,
+        "label": "g . journal . stamps = g . journal . stamps . wrapping_add (1) ;"
+      },
+      {
+        "id": 13,
+        "label": "if g . tree . height_q24 > g . cfg . cap_q24 { g . cfg . state = Trim ; g . tree . height_q24 = g . cfg . cap_q24 ; g . journal . prunes = g . journal . prunes . wrapping_add (2) ; g . tree . hue ^= 0x00FF_00FF ; msg ! (\"trim: clip height, prunes+2, hue xor\") ; } else { g . cfg . state = Bloom ; g . journal . notes = g . journal . notes . wrapping_add (3) ; g . tree . height_q24 = g . tree . height_q24 + 128 ; g . tree . hue = g . tree . hue . wrapping_add (9) ; msg ! (\"bloom: notes+3, height+0.5, hue+9\") ; }"
+      },
+      {
+        "id": 14,
+        "label": "g . cfg . state = Trim ;"
+      },
+      {
+        "id": 15,
+        "label": "g . tree . height_q24 = g . cfg . cap_q24 ;"
+      },
+      {
+        "id": 16,
+        "label": "g . journal . prunes = g . journal . prunes . wrapping_add (2) ;"
+      },
+      {
+        "id": 17,
+        "label": "g . tree . hue ^= 0x00FF_00FF ;"
+      },
+      {
+        "id": 18,
+        "label": "msg ! (\"trim: clip height, prunes+2, hue xor\") ;"
+      },
+      {
+        "id": 19,
+        "label": "g . cfg . state = Bloom ;"
+      },
+      {
+        "id": 20,
+        "label": "g . journal . notes = g . journal . notes . wrapping_add (3) ;"
+      },
+      {
+        "id": 21,
+        "label": "g . tree . height_q24 = g . tree . height_q24 + 128 ;"
+      },
+      {
+        "id": 22,
+        "label": "g . tree . hue = g . tree . hue . wrapping_add (9) ;"
+      },
+      {
+        "id": 23,
+        "label": "msg ! (\"bloom: notes+3, height+0.5, hue+9\") ;"
+      },
+      {
+        "id": 24,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 7,
+        "to": 7,
+        "label": "def: g"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 9,
+        "to": 9,
+        "label": "def: inc"
+      },
+      {
+        "from": 7,
+        "to": 9,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 7,
+        "to": 10,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 7,
+        "to": 10,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 9,
+        "to": 10,
+        "label": "data_dep: inc"
+      },
+      {
+        "from": 7,
+        "to": 11,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 7,
+        "to": 11,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 7,
+        "to": 11,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 7,
+        "to": 12,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 7,
+        "to": 12,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 7,
+        "to": 13,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 7,
+        "to": 13,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 7,
+        "to": 13,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 7,
+        "to": 13,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 7,
+        "to": 13,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 7,
+        "to": 13,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 7,
+        "to": 13,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 7,
+        "to": 13,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 7,
+        "to": 13,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 7,
+        "to": 13,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 7,
+        "to": 13,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 7,
+        "to": 13,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 7,
+        "to": 13,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 7,
+        "to": 13,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 7,
+        "to": 13,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 7,
+        "to": 14,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 7,
+        "to": 15,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 7,
+        "to": 15,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 7,
+        "to": 16,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 7,
+        "to": 16,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 7,
+        "to": 19,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 7,
+        "to": 20,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 7,
+        "to": 20,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 7,
+        "to": 21,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 7,
+        "to": 21,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 7,
+        "to": 22,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 7,
+        "to": 22,
+        "label": "data_dep: g"
       }
     ]
   }

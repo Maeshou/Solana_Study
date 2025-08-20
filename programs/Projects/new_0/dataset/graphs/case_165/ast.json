@@ -1,0 +1,173 @@
+[
+  {
+    "name": "initialize_rewards",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeRewards >",
+      "bump: u8",
+      "starting_tier: u8"
+    ],
+    "attributes": [
+      "# [doc = \" プログラム開始：PDA を生成し、ウェルカムポイント＋初期ランクを設定\"]"
+    ],
+    "body": [
+      "* ctx . accounts . loyalty = Loyalty { owner : ctx . accounts . user . key () , bump , points_balance : 50 , tier : starting_tier , action_count : 1 , last_action_ts : ctx . accounts . clock . unix_timestamp , } ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "earn_points",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyRewards >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" ポイント獲得：amount を加算し、アクション数とタイムスタンプを更新\"]"
+    ],
+    "body": [
+      "let r = & mut ctx . accounts . loyalty ;",
+      "r . points_balance = r . points_balance . wrapping_add (amount) ;",
+      "r . action_count = r . action_count . wrapping_add (1) ;",
+      "r . last_action_ts = ctx . accounts . clock . unix_timestamp ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "redeem_points",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyRewards >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" ポイント利用：amount を減算（ゼロ未満はゼロ）、アクション数とタイムスタンプを更新\"]"
+    ],
+    "body": [
+      "let r = & mut ctx . accounts . loyalty ;",
+      "r . points_balance = r . points_balance . saturating_sub (amount) ;",
+      "r . action_count = r . action_count . wrapping_add (1) ;",
+      "r . last_action_ts = ctx . accounts . clock . unix_timestamp ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "change_tier",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyRewards >",
+      "new_tier: u8"
+    ],
+    "attributes": [
+      "# [doc = \" ランク変更：新しいランクを設定し、アクション数とタイムスタンプを更新\"]"
+    ],
+    "body": [
+      "let r = & mut ctx . accounts . loyalty ;",
+      "r . tier = new_tier ;",
+      "r . action_count = r . action_count . wrapping_add (1) ;",
+      "r . last_action_ts = ctx . accounts . clock . unix_timestamp ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializeRewards",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "loyalty",
+        "attribute": "# [doc = \" PDA で生成する Loyalty アカウント\"] # [account (init , payer = user , space = 8 + 32 + 1 + 8 + 1 + 4 + 8 , seeds = [b\"loyalty\" , user . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Loyalty >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" プログラム利用者（署名必須）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": "# [doc = \" タイムスタンプ取得用\"]",
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ModifyRewards",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "loyalty",
+        "attribute": "# [doc = \" 既存の Loyalty（PDA 検証 + オーナーチェック）\"] # [account (mut , seeds = [b\"loyalty\" , owner . key () . as_ref ()] , bump = loyalty . bump , has_one = owner)]",
+        "field_type": "Account < 'info , Loyalty >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" Loyalty 所有者（署名必須）\"] # [account (signer)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": "# [doc = \" タイムスタンプ取得用\"]",
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Loyalty",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "points_balance",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "tier",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "action_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "last_action_ts",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

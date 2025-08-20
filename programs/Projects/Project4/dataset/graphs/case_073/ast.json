@@ -1,33 +1,68 @@
 [
   {
-    "name": "initialize_cross_chain_status",
+    "name": "init_fuel",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Initialize073 >",
-      "param: u64"
+      "ctx: Context < InitFuel >",
+      "capacity: u32"
     ],
     "attributes": [],
     "body": [
-      "let mut data = CrossChainStatusData :: try_from_slice (& ctx . accounts . data_account . data . borrow ()) ? ;",
-      "data . value = param ;",
-      "data . serialize (& mut * ctx . accounts . data_account . data . borrow_mut ()) ? ;",
+      "let f = & mut ctx . accounts . fuel ;",
+      "f . tank_capacity = capacity ;",
+      "f . fuel_level = capacity ;",
+      "f . reserve_flag = false ;",
+      "let threshold = capacity * 5 / 100 ;",
+      "if f . fuel_level <= threshold",
+      "{",
+      "f . reserve_flag = true ;",
+      "}",
       "Ok (())"
     ]
   },
   {
-    "name": "Initialize073",
+    "name": "consume",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Consume >",
+      "amount: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let f = & mut ctx . accounts . fuel ;",
+      "if amount > f . tank_capacity / 2",
+      "{",
+      "f . fuel_level = f . fuel_level . saturating_sub (f . tank_capacity / 4) ;",
+      "}",
+      "f . fuel_level = f . fuel_level . saturating_sub (amount . min (f . fuel_level)) ;",
+      "let threshold = f . tank_capacity * 10 / 100 ;",
+      "if f . fuel_level <= threshold",
+      "{",
+      "f . reserve_flag = true ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitFuel",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "fuel",
+        "attribute": "# [account (init , payer = user , space = 8 + 4 + 4 + 1)]",
+        "field_type": "Account < 'info , FuelData >"
       },
       {
-        "name": "authority",
-        "attribute": null,
+        "name": "user",
+        "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -35,13 +70,37 @@
     "body": null
   },
   {
-    "name": "CrossChainStatusData",
+    "name": "Consume",
     "node_type": "struct",
     "fields": [
       {
-        "name": "value",
+        "name": "fuel",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , FuelData >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "FuelData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "tank_capacity",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "u32"
+      },
+      {
+        "name": "fuel_level",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "reserve_flag",
+        "attribute": null,
+        "field_type": "bool"
       }
     ],
     "inputs": null,

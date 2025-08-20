@@ -1,0 +1,70 @@
+[
+  {
+    "name": "submit_match_result",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SubmitMatchResult >",
+      "winner: Pubkey",
+      "loser: Pubkey",
+      "reward: u64"
+    ],
+    "attributes": [
+      "# [doc = \" PvPマッチの結果を登録し、報酬を支払う  \"]",
+      "# [doc = \" (`match_results_account` の owner チェックを全く行っていないため、  \"]",
+      "# [doc = \"  攻撃者が他人の結果格納アカウントを指定して  \"]",
+      "# [doc = \"  勝敗、報酬、支払い先を好き勝手に書き換えられる脆弱性があります)\"]"
+    ],
+    "body": [
+      "let acct = & mut ctx . accounts . match_results_account . to_account_info () ;",
+      "let buf = & mut acct . data . borrow_mut () ;",
+      "let mut cursor = Cursor :: new (vec ! [0u8 ; buf . len ()]) ;",
+      "cursor . write_all (winner . as_ref ()) . unwrap () ;",
+      "cursor . write_all (loser . as_ref ()) . unwrap () ;",
+      "cursor . write_u64 :: < LittleEndian > (reward) . unwrap () ;",
+      "cursor . write_u8 (1) . unwrap () ;",
+      "let now = Clock :: get () ? . unix_timestamp as u64 ;",
+      "cursor . write_u64 :: < LittleEndian > (now) . unwrap () ;",
+      "let pool = & mut ctx . accounts . reward_pool . to_account_info () ;",
+      "if * * pool . lamports . borrow () < reward",
+      "{",
+      "return err ! (ErrorCode :: InsufficientFunds) ;",
+      "}",
+      "* * pool . lamports . borrow_mut () -= reward ;",
+      "* * ctx . accounts . winner . to_account_info () . lamports . borrow_mut () += reward ;",
+      "let data = cursor . into_inner () ;",
+      "buf [.. data . len ()] . copy_from_slice (& data) ;",
+      "msg ! (\"Match {} settled: {}→{} lamports transferred to {} at {}\" , acct . key () , reward , reward , winner , now) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "SubmitMatchResult",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "match_results_account",
+        "attribute": "# [doc = \" CHECK: owner == program_id の検証を一切行っていない生の AccountInfo\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "reward_pool",
+        "attribute": "# [doc = \" 報酬プール（owner チェックなし）\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "winner",
+        "attribute": "# [doc = \" 勝者の受取先（owner チェックなし）\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [doc = \" 結果を提出するオーソライズ済みオラクル等（署名のみ検証）\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

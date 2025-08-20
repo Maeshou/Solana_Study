@@ -1,0 +1,89 @@
+[
+  {
+    "name": "PlayerProfile",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "username",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "avatar_uri",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "updated_at",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "update_profile",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < UpdateProfile >",
+      "new_name: String",
+      "new_avatar: String"
+    ],
+    "attributes": [
+      "# [doc = \" プレイヤーのプロフィールを更新する  \"]",
+      "# [doc = \" (`profile_account` の owner チェックを一切行っていないため、  \"]",
+      "# [doc = \"  攻撃者が他人のプロフィールアカウントを指定して  \"]",
+      "# [doc = \"  任意の名前やアバターを設定できる脆弱性があります)\"]"
+    ],
+    "body": [
+      "let now = Clock :: get () ? . unix_timestamp as u64 ;",
+      "let profile = PlayerProfile { username : new_name , avatar_uri : new_avatar , updated_at : now , } ;",
+      "let json = to_vec (& profile) . map_err (| _ | ErrorCode :: SerializationFailed) ? ;",
+      "let fee : u64 = 10 ;",
+      "let payer = & mut ctx . accounts . user . to_account_info () ;",
+      "let vault = & mut ctx . accounts . fee_vault . to_account_info () ;",
+      "* * payer . lamports . borrow_mut () = payer . lamports () . saturating_sub (fee) ;",
+      "* * vault . lamports . borrow_mut () = vault . lamports () . saturating_add (fee) ;",
+      "let buf = & mut ctx . accounts . profile_account . data . borrow_mut () ;",
+      "if buf . len () < json . len ()",
+      "{",
+      "return err ! (ErrorCode :: AccountTooSmall) ;",
+      "}",
+      "buf [.. json . len ()] . copy_from_slice (& json) ;",
+      "msg ! (\"Profile {} updated by {} at {}\" , ctx . accounts . profile_account . key () , ctx . accounts . user . key () , now) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "UpdateProfile",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "profile_account",
+        "attribute": "# [doc = \" CHECK: owner == program_id の検証をまったく行っていない AccountInfo\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 更新者（署名のみ検証）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "fee_vault",
+        "attribute": "# [doc = \" 手数料を集めるアカウント（owner チェックなし）\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": "# [doc = \" Clock Sysvar 用\"]",
+        "field_type": "Sysvar < 'info , Clock >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

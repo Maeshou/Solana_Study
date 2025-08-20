@@ -1,0 +1,143 @@
+[
+  {
+    "name": "License",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "issuer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "product",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "total_keys",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "LicenseKey",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "license_id",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "activated",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "IssueKey",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "license",
+        "attribute": "# [doc = \" License.issuer == issuer.key() は検証される\"] # [account (mut , has_one = issuer)]",
+        "field_type": "Account < 'info , License >"
+      },
+      {
+        "name": "key_account",
+        "attribute": "# [doc = \" LicenseKey.license_id の検証がないまま初期化\"] # [account (init , payer = issuer , space = 8 + 32 + (4 + 64) + 32 + 1)]",
+        "field_type": "Account < 'info , LicenseKey >"
+      },
+      {
+        "name": "issuer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActivateKey",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "license",
+        "attribute": "# [doc = \" License.issuer == issuer.key() は検証される\"] # [account (mut , has_one = issuer)]",
+        "field_type": "Account < 'info , License >"
+      },
+      {
+        "name": "key_account",
+        "attribute": "# [doc = \" LicenseKey.license_id と license.key() の一致検証がない\"] # [account (mut)]",
+        "field_type": "Account < 'info , LicenseKey >"
+      },
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "issue_key",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < IssueKey >",
+      "user: Pubkey"
+    ],
+    "attributes": [
+      "# [doc = \" 新しいライセンスキーを発行\"]"
+    ],
+    "body": [
+      "let lic = & mut ctx . accounts . license ;",
+      "let key = & mut ctx . accounts . key_account ;",
+      "key . user = user ;",
+      "key . license_id = lic . key () ;",
+      "key . activated = false ;",
+      "lic . total_keys = lic . total_keys . checked_add (1) . unwrap () ;",
+      "msg ! (\"Issued key for {} on product '{}'\" , user , lic . product) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "activate_key",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActivateKey >"
+    ],
+    "attributes": [
+      "# [doc = \" ライセンスキーを有効化\"]"
+    ],
+    "body": [
+      "let lic = & ctx . accounts . license ;",
+      "let key = & mut ctx . accounts . key_account ;",
+      "key . activated = true ;",
+      "msg ! (\"Key {} activated for product '{}'\" , key . key () , lic . product) ;",
+      "Ok (())"
+    ]
+  }
+]

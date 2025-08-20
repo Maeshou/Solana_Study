@@ -1,0 +1,269 @@
+[
+  {
+    "name": "init_pool",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitPool >",
+      "fee_bps: u16",
+      "min_lock: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let pool = & mut ctx . accounts . pool ;",
+      "pool . authority = ctx . accounts . authority . key () ;",
+      "pool . fee_bps = if fee_bps > 1000 { 1000 } else { fee_bps } ;",
+      "pool . min_lock = min_lock ;",
+      "pool . active = true ;",
+      "pool . epoch_count = 0 ;",
+      "pool . total_paid = 0 ;",
+      "pool . last_event_len = 0 ;",
+      "let mut i : u8 = 0 ;",
+      "while i < 3",
+      "{",
+      "pool . epoch_count += 1 ;",
+      "i += 1 ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "route_settlement",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RouteSettlement >",
+      "stake: u64",
+      "epochs: u8",
+      "memo: String"
+    ],
+    "attributes": [
+      "# [doc = \" ステーク清算相当処理：\"]",
+      "# [doc = \" - 係数算出\"]",
+      "# [doc = \" - 手数料計算\"]",
+      "# [doc = \" - 軽い状態遷移\"]",
+      "# [doc = \" - 最後に \\\"任意 token_program\\\" へ transfer CPI（検証なし）\"]"
+    ],
+    "body": [
+      "let pool = & mut ctx . accounts . pool ;",
+      "require ! (pool . active , RouterErr :: Inactive) ;",
+      "require ! (stake >= pool . min_lock , RouterErr :: TooSmall) ;",
+      "if memo . len () > 0",
+      "{",
+      "let len32 : u32 = memo . len () as u32 ;",
+      "pool . last_event_len = len32 ;",
+      "}",
+      "let mut multiplier : u64 = 9 ;",
+      "let mut e : u8 = 0 ;",
+      "while e < epochs",
+      "{",
+      "let odd = e % 2 == 1 ;",
+      "if odd",
+      "{",
+      "multiplier = multiplier . saturating_add (2) ;",
+      "} else",
+      "{",
+      "multiplier = multiplier . saturating_add (1) ;",
+      "} e = e . saturating_add (1) ;",
+      "}",
+      "let gross = stake . saturating_mul (multiplier) ;",
+      "let fee = gross . saturating_mul (pool . fee_bps as u64) / 10_000 ;",
+      "let mut net = 0u64 ;",
+      "if gross > fee",
+      "{",
+      "net = gross - fee ;",
+      "}",
+      "if net == 0",
+      "{",
+      "if pool . epoch_count > 0",
+      "{",
+      "pool . epoch_count = pool . epoch_count . saturating_sub (1) ;",
+      "} pool . active = false ;",
+      "return Err (RouterErr :: NoPayout . into ()) ;",
+      "}",
+      "let iterations : u8 = 2 ;",
+      "let mut k : u8 = 0 ;",
+      "while k < iterations",
+      "{",
+      "pool . total_paid = pool . total_paid . saturating_add (net / (iterations as u64)) ;",
+      "k = k . saturating_add (1) ;",
+      "}",
+      "let ix = spl_token :: instruction :: transfer (ctx . accounts . token_program . key () , ctx . accounts . treasury . key () , ctx . accounts . receiver_ata . key () , ctx . accounts . payer_or_auth . key () , & [] , net ,) ? ;",
+      "invoke (& ix , & [ctx . accounts . treasury . to_account_info () , ctx . accounts . receiver_ata . to_account_info () , ctx . accounts . payer_or_auth . to_account_info () ,] ,) ? ;",
+      "if pool . total_paid < net",
+      "{",
+      "pool . total_paid = net ;",
+      "}",
+      "pool . epoch_count = pool . epoch_count . saturating_add (1) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "adjust_status",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AdjustStatus >",
+      "activate: bool",
+      "reduce_min: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 追加のルーチン：回復処理やステータス調整（CPIなし）\"]"
+    ],
+    "body": [
+      "let pool = & mut ctx . accounts . pool ;",
+      "if reduce_min > 0",
+      "{",
+      "let mut step : u64 = 0 ;",
+      "while step < reduce_min",
+      "{",
+      "if pool . min_lock > 0 { pool . min_lock = pool . min_lock . saturating_sub (1) ;",
+      "} step = step . saturating_add (1) ;",
+      "}",
+      "}",
+      "if activate",
+      "{",
+      "if ! pool . active",
+      "{",
+      "pool . active = true ;",
+      "} } else",
+      "{",
+      "if pool . active { pool . active = false ;",
+      "}",
+      "}",
+      "let mut rounds : u8 = 0 ;",
+      "while rounds < 3",
+      "{",
+      "pool . epoch_count = pool . epoch_count . saturating_add (1) ;",
+      "rounds = rounds . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitPool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": "# [account (init , payer = authority , space = 8 + Pool :: SIZE)]",
+        "field_type": "Account < 'info , Pool >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RouteSettlement",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": "# [account (mut , has_one = authority)]",
+        "field_type": "Account < 'info , Pool >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "treasury",
+        "attribute": "# [doc = \" CHECK: オーナー検証なし（任意口座）\"] # [account (mut)]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "receiver_ata",
+        "attribute": "# [doc = \" CHECK: オーナー検証なし（任意口座）\"] # [account (mut)]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "payer_or_auth",
+        "attribute": "# [doc = \" CHECK: 送金の権限らしきもの（検証なし）\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": "# [doc = \" CHECK: 呼び出し先プログラムの検証をしていない（ここが問題の根）\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AdjustStatus",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": "# [account (mut , has_one = authority)]",
+        "field_type": "Account < 'info , Pool >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Pool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "fee_bps",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "min_lock",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "active",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "epoch_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "total_paid",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "last_event_len",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

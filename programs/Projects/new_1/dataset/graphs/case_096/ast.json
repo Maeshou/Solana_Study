@@ -1,0 +1,135 @@
+[
+  {
+    "name": "init_banlist",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitBanlist >"
+    ],
+    "attributes": [
+      "# [doc = \" 1. バンリスト初期化：カウントを 0 にセット（配列はデフォルト値のまま）\"]",
+      "# [doc = \"    ⚠\\u{fe0f} initializer の署名チェックは一切行われない脆弱性あり\"]"
+    ],
+    "body": [
+      "let bl = & mut ctx . accounts . banlist ;",
+      "bl . banned_count = 0 ;"
+    ]
+  },
+  {
+    "name": "ban_account",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < BanAccount >",
+      "target: Pubkey"
+    ],
+    "attributes": [
+      "# [doc = \" 2. アカウントをバンリストに追加：固定長配列に直接書き込み\"]",
+      "# [doc = \"    ⚠\\u{fe0f} operator の署名チェックも検証も一切行われず、誰でも任意のアカウントをバン可能\"]"
+    ],
+    "body": [
+      "let bl = & mut ctx . accounts . banlist ;",
+      "let idx = bl . banned_count as usize ;",
+      "bl . banned_accounts [idx] = target ;",
+      "bl . banned_count += 1 ;"
+    ]
+  },
+  {
+    "name": "unban_account",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < UnbanAccount >",
+      "index: u8"
+    ],
+    "attributes": [
+      "# [doc = \" 3. バン解除：指定インデックスにデフォルト Pubkey を書き戻し\"]",
+      "# [doc = \"    ⚠\\u{fe0f} operator_info に対する署名チェックも所有者チェックも一切なし\"]"
+    ],
+    "body": [
+      "let bl = & mut ctx . accounts . banlist ;",
+      "bl . banned_accounts [index as usize] = Pubkey :: default () ;"
+    ]
+  },
+  {
+    "name": "Banlist",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "banned_accounts",
+        "attribute": "# [doc = \" 固定長で最大 10 件までバン可能\"]",
+        "field_type": "[Pubkey ; 10]"
+      },
+      {
+        "name": "banned_count",
+        "attribute": "# [doc = \" 次に書き込む配列のインデックス\"]",
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitBanlist",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "banlist",
+        "attribute": "# [doc = \" 新規バンリストアカウント\"] # [account (init , payer = payer , space = 8 + 32 * 10 + 1)]",
+        "field_type": "Account < 'info , Banlist >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [doc = \" CHECK: 署名チェックなしで初期化者を指定\"]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BanAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "banlist",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Banlist >"
+      },
+      {
+        "name": "operator",
+        "attribute": "# [doc = \" CHECK: operator の検証なし\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "UnbanAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "banlist",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Banlist >"
+      },
+      {
+        "name": "operator_info",
+        "attribute": "# [doc = \" CHECK: operator_info の検証なし\"]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

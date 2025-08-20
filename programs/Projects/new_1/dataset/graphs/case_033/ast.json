@@ -1,0 +1,231 @@
+[
+  {
+    "name": "freeze_nft",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < FreezeCtx >"
+    ],
+    "attributes": [
+      "# [doc = \" 指定された NFT アカウントを凍結します。\"]",
+      "# [doc = \"\"]",
+      "# [doc = \" ※ `operator` に対する署名者チェックを敢えて省略しているため、\"]",
+      "# [doc = \"    なりすましによる凍結が可能です。\"]"
+    ],
+    "body": [
+      "let info = & mut ctx . accounts . nft_info ;",
+      "info . frozen = true ;",
+      "msg ! (\"VULN: NFT {} frozen by operator {}\" , info . mint , ctx . accounts . operator . key ()) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "unfreeze_nft",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < FreezeCtx >"
+    ],
+    "attributes": [
+      "# [doc = \" 指定された NFT アカウントの凍結を解除します。\"]",
+      "# [doc = \"\"]",
+      "# [doc = \" 同様に署名者チェックがありません。\"]"
+    ],
+    "body": [
+      "let info = & mut ctx . accounts . nft_info ;",
+      "info . frozen = false ;",
+      "msg ! (\"VULN: NFT {} unfrozen by operator {}\" , info . mint , ctx . accounts . operator . key ()) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "set_penalty_rate",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RateCtx >",
+      "new_rate: u8"
+    ],
+    "attributes": [
+      "# [doc = \" ペナルティ率（0–100%）を設定します。\"]",
+      "# [doc = \"\"]",
+      "# [doc = \" `admin` に対する検証もなく、誰でも設定可能なままです。\"]"
+    ],
+    "body": [
+      "let cfg = & mut ctx . accounts . penalty_cfg ;",
+      "cfg . rate = new_rate ;",
+      "msg ! (\"VULN: Penalty rate set to {}% by {}\" , new_rate , ctx . accounts . admin . key ()) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "collect_penalty",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CollectCtx >"
+    ],
+    "attributes": [
+      "# [doc = \" 凍結中の NFT 保有者からペナルティを徴収し、バイヤルトに蓄えます。\"]",
+      "# [doc = \"\"]",
+      "# [doc = \" こちらも `collector` の署名チェックがありません。\"]"
+    ],
+    "body": [
+      "let info = & mut ctx . accounts . nft_info ;",
+      "let vault = & mut ctx . accounts . penalty_vault ;",
+      "let cfg = & ctx . accounts . penalty_cfg ;",
+      "if info . frozen",
+      "{",
+      "let amount = vault . collected . checked_add (cfg . rate as u64) . unwrap () ;",
+      "vault . collected = amount ;",
+      "msg ! (\"VULN: Collected",
+      "{",
+      "} tokens from NFT {} (rate {}%)\" , cfg . rate , info . mint , cfg . rate) ;",
+      "} else",
+      "{",
+      "msg ! (\"NFT {} is not frozen;",
+      "no penalty collected\" , info . mint) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "FreezeCtx",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "nft_info",
+        "attribute": "# [account (mut , has_one = operator)]",
+        "field_type": "Account < 'info , NftInfo >"
+      },
+      {
+        "name": "operator",
+        "attribute": "# [doc = \" オペレータ―（**署名チェック省略**）\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RateCtx",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "penalty_cfg",
+        "attribute": "# [account (mut , has_one = admin)]",
+        "field_type": "Account < 'info , PenaltyConfig >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [doc = \" 管理者（**署名チェック省略**）\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CollectCtx",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "nft_info",
+        "attribute": "# [account (mut , has_one = operator)]",
+        "field_type": "Account < 'info , NftInfo >"
+      },
+      {
+        "name": "penalty_vault",
+        "attribute": "# [account (mut , has_one = operator)]",
+        "field_type": "Account < 'info , PenaltyVault >"
+      },
+      {
+        "name": "penalty_cfg",
+        "attribute": "# [account (has_one = operator)]",
+        "field_type": "Account < 'info , PenaltyConfig >"
+      },
+      {
+        "name": "collector",
+        "attribute": "# [doc = \" 徴収者（**署名チェック省略**）\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": "# [doc = \" ペナルティ権限を持つ PDA 秘密鍵検証も省略\"]",
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "NftInfo",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "mint",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "frozen",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PenaltyConfig",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "rate",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PenaltyVault",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "collected",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

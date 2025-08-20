@@ -1,33 +1,208 @@
 [
   {
-    "name": "place_bid",
+    "name": "init_studio",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx026 >"
+      "ctx: Context < InitStudio >",
+      "threshold: u32"
     ],
     "attributes": [],
     "body": [
-      "let a = & ctx . accounts . first ;",
-      "let b = & ctx . accounts . second ;",
-      "msg ! (\"Account A: {}\" , a . key ()) ;",
-      "msg ! (\"Account B: {}\" , b . key ()) ;",
+      "let accs = & mut ctx . accounts ;",
+      "accs . studio . master = accs . master . key () ;",
+      "accs . studio . threshold = threshold ;",
+      "accs . studio . phase = Phase :: Outline ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx026",
+    "name": "engrave",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Engrave >",
+      "strokes: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let a = & mut ctx . accounts ;",
+      "let impact = a . tablet . apply_strokes (strokes , & mut a . tools) ;",
+      "a . log . entries = a . log . entries . saturating_add (impact as u64) ;",
+      "if a . tablet . potency > a . studio . threshold as u64",
+      "{",
+      "a . studio . phase = Phase :: Finish ;",
+      "a . tools . file = a . tools . file . saturating_add (7) ;",
+      "a . log . pages = a . log . pages . saturating_add (2) ;",
+      "msg ! (\"finish phase: file+7 pages+2\") ;",
+      "} else",
+      "{",
+      "a . studio . phase = Phase :: Carve ;",
+      "a . tools . chisel = a . tools . chisel . saturating_add (5) ;",
+      "a . log . entries = a . log . entries . saturating_add (3) ;",
+      "msg ! (\"carving: chisel+5 entries+3\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitStudio",
     "node_type": "struct",
     "fields": [
       {
-        "name": "first",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "studio",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Studio >"
       },
       {
-        "name": "second",
+        "name": "tablet",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4 + 8)]",
+        "field_type": "Account < 'info , Tablet >"
+      },
+      {
+        "name": "tools",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4 + 4 + 4)]",
+        "field_type": "Account < 'info , Tools >"
+      },
+      {
+        "name": "log",
+        "attribute": "# [account (init , payer = payer , space = 8 + 8 + 4)]",
+        "field_type": "Account < 'info , StudioLog >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "master",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Engrave",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "studio",
+        "attribute": "# [account (mut , has_one = master , constraint = studio . key () != tablet . key () , error = RErr :: Dup)]",
+        "field_type": "Account < 'info , Studio >"
+      },
+      {
+        "name": "tablet",
+        "attribute": "# [account (mut , constraint = tablet . key () != tools . key () , error = RErr :: Dup)]",
+        "field_type": "Account < 'info , Tablet >"
+      },
+      {
+        "name": "tools",
+        "attribute": "# [account (mut , constraint = studio . key () != tools . key () , error = RErr :: Dup)]",
+        "field_type": "Account < 'info , Tools >"
+      },
+      {
+        "name": "log",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , StudioLog >"
+      },
+      {
+        "name": "master",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Studio",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "master",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "threshold",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "phase",
+        "attribute": null,
+        "field_type": "Phase"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Tablet",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "runes",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "potency",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Tools",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "chisel",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "file",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "wear",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "StudioLog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "entries",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "pages",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

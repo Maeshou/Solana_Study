@@ -1,0 +1,151 @@
+[
+  {
+    "name": "initialize_registry",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeRegistry >"
+    ],
+    "attributes": [
+      "# [doc = \" レジストリの初期化：空の会員リストを作成\"]"
+    ],
+    "body": [
+      "let registry = & mut ctx . accounts . registry ;",
+      "registry . members = Vec :: new () ;",
+      "registry . user_data = Vec :: new () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "register_user",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RegisterUser >",
+      "nickname: String"
+    ],
+    "attributes": [
+      "# [doc = \" 会員登録：ユーザー情報（ニックネーム）を保存  \"]",
+      "# [doc = \" ⚠\\u{fe0f} `user` と `operator_info` の署名チェックが一切行われない脆弱性あり\"]"
+    ],
+    "body": [
+      "let registry = & mut ctx . accounts . registry ;",
+      "registry . members . push (ctx . accounts . user . key ()) ;",
+      "registry . user_data . push (nickname) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "unregister_user",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < UnregisterUser >"
+    ],
+    "attributes": [
+      "# [doc = \" 会員削除：リストからユーザーを除外  \"]",
+      "# [doc = \" ⚠\\u{fe0f} こちらも署名チェックなしで誰でも実行可能\"]"
+    ],
+    "body": [
+      "let registry = & mut ctx . accounts . registry ;",
+      "let target = ctx . accounts . user . key () ;",
+      "if let Some (idx) = registry . members . iter () . position (| & k | k == target)",
+      "{",
+      "registry . members . swap_remove (idx) ;",
+      "registry . user_data . swap_remove (idx) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Registry",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "members",
+        "attribute": "# [doc = \" 登録された会員の Pubkey リスト\"]",
+        "field_type": "Vec < Pubkey >"
+      },
+      {
+        "name": "user_data",
+        "attribute": "# [doc = \" 各会員のニックネーム\"]",
+        "field_type": "Vec < String >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitializeRegistry",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "registry",
+        "attribute": "# [account (init , payer = payer , space = 8 + (4 + 32 * 100) + (4 + 4 * 100))]",
+        "field_type": "Account < 'info , Registry >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RegisterUser",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "registry",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Registry >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" CHECK: 本来は Signer であるべきだが、あえて検証していない\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "operator_info",
+        "attribute": "# [doc = \" CHECK: 操作主体の検証もなし\"]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "UnregisterUser",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "registry",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Registry >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" CHECK: 削除対象のユーザーを指定するが検証なし\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "caller_info",
+        "attribute": "# [doc = \" CHECK: 実行者も検証しない\"]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

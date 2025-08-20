@@ -1,0 +1,202 @@
+[
+  {
+    "name": "initialize_vesting",
+    "inputs": [
+      "ctx: Context < InitializeVesting >",
+      "start_ts: i64",
+      "duration: i64",
+      "total_amount: u64"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "require ! (ctx . accounts . admin . is_signer , ErrorCode :: Unauthorized) ;"
+      },
+      {
+        "id": 2,
+        "label": "let v = & mut ctx . accounts . vesting ;"
+      },
+      {
+        "id": 3,
+        "label": "v . admin = ctx . accounts . admin . key () ;"
+      },
+      {
+        "id": 4,
+        "label": "v . beneficiary = ctx . accounts . beneficiary . key () ;"
+      },
+      {
+        "id": 5,
+        "label": "v . start_ts = start_ts ;"
+      },
+      {
+        "id": 6,
+        "label": "v . duration = duration ;"
+      },
+      {
+        "id": 7,
+        "label": "v . total_amount = total_amount ;"
+      },
+      {
+        "id": 8,
+        "label": "v . claimed = 0 ;"
+      },
+      {
+        "id": 9,
+        "label": "msg ! (\"Vesting initialized: {} -> {}, start {}, dur {}, amt {}\" , v . admin , v . beneficiary , v . start_ts , v . duration , v . total_amount) ;"
+      },
+      {
+        "id": 10,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 2,
+        "to": 2,
+        "label": "def: v"
+      },
+      {
+        "from": 2,
+        "to": 3,
+        "label": "data_dep: v"
+      },
+      {
+        "from": 2,
+        "to": 4,
+        "label": "data_dep: v"
+      },
+      {
+        "from": 2,
+        "to": 5,
+        "label": "data_dep: v"
+      },
+      {
+        "from": 2,
+        "to": 6,
+        "label": "data_dep: v"
+      },
+      {
+        "from": 2,
+        "to": 7,
+        "label": "data_dep: v"
+      },
+      {
+        "from": 2,
+        "to": 8,
+        "label": "data_dep: v"
+      }
+    ]
+  },
+  {
+    "name": "claim_vested",
+    "inputs": [
+      "ctx: Context < ClaimVested >"
+    ],
+    "nodes": [
+      {
+        "id": 11,
+        "label": "Entry"
+      },
+      {
+        "id": 12,
+        "label": "require ! (ctx . accounts . beneficiary . is_signer , ErrorCode :: Unauthorized) ;"
+      },
+      {
+        "id": 13,
+        "label": "let clock = Clock :: get () ? ;"
+      },
+      {
+        "id": 14,
+        "label": "let elapsed = clock . unix_timestamp . checked_sub (ctx . accounts . vesting . start_ts) . unwrap () . min (ctx . accounts . vesting . duration) . max (0) ;"
+      },
+      {
+        "id": 15,
+        "label": "let vested = (ctx . accounts . vesting . total_amount as u128) . checked_mul (elapsed as u128) . unwrap () . checked_div (ctx . accounts . vesting . duration as u128) . unwrap () as u64 ;"
+      },
+      {
+        "id": 16,
+        "label": "let amount = vested . checked_sub (ctx . accounts . vesting . claimed) . unwrap () ;"
+      },
+      {
+        "id": 17,
+        "label": "require ! (amount > 0 , ErrorCode :: NothingToClaim) ;"
+      },
+      {
+        "id": 18,
+        "label": "* * ctx . accounts . vault . to_account_info () . try_borrow_mut_lamports () ? -= amount ;"
+      },
+      {
+        "id": 19,
+        "label": "* * ctx . accounts . beneficiary . to_account_info () . try_borrow_mut_lamports () ? += amount ;"
+      },
+      {
+        "id": 20,
+        "label": "ctx . accounts . vesting . claimed = ctx . accounts . vesting . claimed . checked_add (amount) . unwrap () ;"
+      },
+      {
+        "id": 21,
+        "label": "msg ! (\"{} claimed {} tokens (total claimed {})\" , ctx . accounts . beneficiary . key () , amount , ctx . accounts . vesting . claimed) ;"
+      },
+      {
+        "id": 22,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 13,
+        "to": 13,
+        "label": "def: clock"
+      },
+      {
+        "from": 14,
+        "to": 14,
+        "label": "def: elapsed"
+      },
+      {
+        "from": 13,
+        "to": 14,
+        "label": "data_dep: clock"
+      },
+      {
+        "from": 15,
+        "to": 15,
+        "label": "def: vested"
+      },
+      {
+        "from": 14,
+        "to": 15,
+        "label": "data_dep: elapsed"
+      },
+      {
+        "from": 16,
+        "to": 16,
+        "label": "def: amount"
+      },
+      {
+        "from": 15,
+        "to": 16,
+        "label": "data_dep: vested"
+      },
+      {
+        "from": 16,
+        "to": 18,
+        "label": "data_dep: amount"
+      },
+      {
+        "from": 16,
+        "to": 19,
+        "label": "data_dep: amount"
+      },
+      {
+        "from": 16,
+        "to": 20,
+        "label": "data_dep: amount"
+      }
+    ]
+  }
+]

@@ -1,0 +1,159 @@
+[
+  {
+    "name": "init_market",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitMarket >",
+      "fee_bps: u16",
+      "cap: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let m = & mut ctx . accounts . market ;",
+      "m . operator = ctx . accounts . operator . key () ;",
+      "m . fee_rate_bps = fee_bps . min (2000) . max (100) ;",
+      "m . settlement_cap = cap . max (10) ;",
+      "m . trade_count = 5 ;",
+      "m . gross_volume = cap . saturating_div (2) . max (6) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_settle",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActSettle >",
+      "unit_price: u64",
+      "quantity: u64",
+      "basket_parts: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let m = & mut ctx . accounts . market ;",
+      "let mut q = quantity . max (1) ;",
+      "let parts = basket_parts . max (1) ;",
+      "let mut i = 0u8 ;",
+      "while i < parts",
+      "{",
+      "let slice = q . saturating_div ((parts - i) . max (1) as u64) . max (1) ;",
+      "let total = slice . saturating_mul (unit_price) ;",
+      "if total > m . settlement_cap",
+      "{",
+      "return Err (ErrMkt :: OverCap . into ()) ;",
+      "} let fee = total . saturating_mul (m . fee_rate_bps as u64) / 10_000 ;",
+      "let seller_net = total . saturating_sub (fee) ;",
+      "token :: transfer (ctx . accounts . buyer_to_seller () , seller_net) ? ;",
+      "token :: transfer (ctx . accounts . buyer_to_fee () , fee) ? ;",
+      "m . gross_volume = m . gross_volume . saturating_add (total) ;",
+      "q = q . saturating_sub (slice) ;",
+      "i = i . saturating_add (1) ;",
+      "}",
+      "m . trade_count = m . trade_count . saturating_add (1) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitMarket",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "market",
+        "attribute": "# [account (init , payer = operator , space = 8 + 32 + 2 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , MarketState >"
+      },
+      {
+        "name": "operator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActSettle",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "market",
+        "attribute": "# [account (mut , has_one = operator)]",
+        "field_type": "Account < 'info , MarketState >"
+      },
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "buyer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "buyer_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "seller_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "fee_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MarketState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "fee_rate_bps",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "settlement_cap",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "trade_count",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "gross_volume",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

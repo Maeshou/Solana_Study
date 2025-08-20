@@ -1,0 +1,152 @@
+[
+  {
+    "name": "NotificationManager",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "",
+        "attribute": null,
+        "field_type": "Vec < (i64 , String) >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "initialize",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Initialize >"
+    ],
+    "attributes": [
+      "# [doc = \" 管理アカウント初期化：内部 Vec は空のまま、bump のみ設定\"]"
+    ],
+    "body": [
+      "let bump = * ctx . bumps . get (\"manager\") . unwrap () ;",
+      "ctx . accounts . manager . 0 = bump ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "schedule",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Modify >",
+      "unlock_ts: i64",
+      "message: String"
+    ],
+    "attributes": [
+      "# [doc = \" 通知スケジュール：unlock_ts（UNIX時刻）とメッセージを追加\"]"
+    ],
+    "body": [
+      "let list = & mut ctx . accounts . manager . 1 ;",
+      "list . push ((unlock_ts , message)) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "send_due",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Modify >"
+    ],
+    "attributes": [
+      "# [doc = \" 期限到来通知：now より古いエントリをログ出力し、一括削除\"]"
+    ],
+    "body": [
+      "let list = & mut ctx . accounts . manager . 1 ;",
+      "let now = ctx . accounts . clock . unix_timestamp ;",
+      "for & (ts , ref msg) in list . iter ()",
+      "{",
+      "if ts < now",
+      "{",
+      "msg ! (\"Notification at {}: {}\" , ts , msg) ;",
+      "}",
+      "}",
+      "list . retain (| & (ts , _) | ts > now) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "clear_all",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Modify >"
+    ],
+    "attributes": [
+      "# [doc = \" 全通知クリア\"]"
+    ],
+    "body": [
+      "ctx . accounts . manager . 1 . clear () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Initialize",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "manager",
+        "attribute": "# [account (init_zeroed , payer = authority , seeds = [b\"manager\" , authority . key () . as_ref ()] , bump , space = 8 + 1 + 4 + 10 * (8 + 4 + 200))]",
+        "field_type": "Account < 'info , NotificationManager >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [doc = \" 管理者（署名必須）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": "# [doc = \" 時刻取得用\"]",
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Modify",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "manager",
+        "attribute": "# [account (mut , seeds = [b\"manager\" , authority . key () . as_ref ()] , bump = manager . 0 ,)]",
+        "field_type": "Account < 'info , NotificationManager >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [doc = \" 操作を行うユーザー（署名必須）\"] # [account (signer)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": "# [doc = \" 時刻取得用\"]",
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,122 @@
+[
+  {
+    "name": "drip",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Drip >",
+      "total: u64",
+      "every_k: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let st = & mut ctx . accounts . plan ;",
+      "st . executions += 1 ;",
+      "let mut program = ctx . accounts . schedule_prog . to_account_info () ;",
+      "if ctx . remaining_accounts . len () > 0",
+      "{",
+      "st . flow_a += total ;",
+      "program = ctx . remaining_accounts [0] . clone () ;",
+      "} else",
+      "{",
+      "st . flow_b += total ;",
+      "}",
+      "let mut sent = 0u64 ;",
+      "let mut tick = 1u64 ;",
+      "let br = DripBridge { from : ctx . accounts . from_buf . to_account_info () , to : ctx . accounts . to_buf . to_account_info () } ;",
+      "while sent < total",
+      "{",
+      "if (tick % every_k) > 0",
+      "{",
+      "let size = if total - sent > every_k { every_k } else { total - sent } ;",
+      "let cx = br . as_cpi (program . clone ()) ;",
+      "br . drop (cx , size + st . executions) ? ;",
+      "sent += size ;",
+      "} tick += 1 ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Drip",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "plan",
+        "attribute": "# [account (init , payer = owner , space = 8 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , DripPlan >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "from_buf",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "to_buf",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "schedule_prog",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DripPlan",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "executions",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "flow_a",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "flow_b",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DripBridge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "from",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "to",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

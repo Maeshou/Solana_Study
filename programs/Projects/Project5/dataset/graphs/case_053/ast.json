@@ -1,33 +1,228 @@
 [
   {
-    "name": "init_farm",
+    "name": "init_lake",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx053 >"
+      "ctx: Context < InitLake >",
+      "cap: u32"
     ],
     "attributes": [],
     "body": [
-      "let a = & ctx . accounts . first ;",
-      "let b = & ctx . accounts . second ;",
-      "msg ! (\"Account A: {}\" , a . key ()) ;",
-      "msg ! (\"Account B: {}\" , b . key ()) ;",
+      "let l = & mut ctx . accounts ;",
+      "l . lake . warden = l . warden . key () ;",
+      "l . lake . cap = cap ;",
+      "l . lake . state = Open ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx053",
+    "name": "cast",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Cast >",
+      "tries: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let l = & mut ctx . accounts ;",
+      "for t in 0 .. tries",
+      "{",
+      "let phase = (t % 8) as u32 ;",
+      "if phase < 4",
+      "{",
+      "l . stats . lam_q16 = l . stats . lam_q16 . saturating_add (1 << 14) ;",
+      "l . card . casts = l . card . casts . wrapping_add (1) ;",
+      "l . trace . notes = l . trace . notes . wrapping_add (1) ;",
+      "l . trace . flags = l . trace . flags ^ 0x1 ;",
+      "} else",
+      "{",
+      "let dec = (1 << 14) . min (l . stats . lam_q16) ;",
+      "l . stats . lam_q16 = l . stats . lam_q16 - dec ;",
+      "l . card . casts = l . card . casts . wrapping_add (1) ;",
+      "l . trace . notes = l . trace . notes . wrapping_add (1) ;",
+      "l . trace . flags = l . trace . flags ^ 0x2 ;",
+      "} l . stats . count_q16 = l . stats . count_q16 . saturating_add (l . stats . lam_q16) ;",
+      "l . stats . var_q16 = l . stats . var_q16 . saturating_add (l . stats . lam_q16 / 2) ;",
+      "}",
+      "let exp_catch = l . stats . count_q16 >> 16 ;",
+      "if exp_catch > l . lake . cap",
+      "{",
+      "l . lake . state = Closed ;",
+      "l . card . trophies = l . card . trophies . wrapping_add (3) ;",
+      "l . stats . count_q16 = (l . lake . cap as u32) << 16 ;",
+      "l . trace . flags = l . trace . flags | 0x10 ;",
+      "msg ! (\"closed: trophies+3, clamp count, flag set\") ;",
+      "} else",
+      "{",
+      "l . lake . state = Busy ;",
+      "l . card . casts = l . card . casts + 7 ;",
+      "l . stats . var_q16 = l . stats . var_q16 + (1 << 12) ;",
+      "l . trace . notes = l . trace . notes . wrapping_mul (2) ;",
+      "msg ! (\"busy: casts+7, var bump, notes*2\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitLake",
     "node_type": "struct",
     "fields": [
       {
-        "name": "first",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "lake",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1 , seeds = [b\"lake\" , warden . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , LakeCfg >"
       },
       {
-        "name": "second",
+        "name": "stats",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4 + 4)]",
+        "field_type": "Account < 'info , PoissonStats >"
+      },
+      {
+        "name": "card",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4 + 4 , seeds = [b\"card\" , warden . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , FishCard >"
+      },
+      {
+        "name": "trace",
+        "attribute": "# [account (init , payer = payer , space = 8 + 8 + 4)]",
+        "field_type": "Account < 'info , LakeTrace >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "warden",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Cast",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "lake",
+        "attribute": "# [account (mut , seeds = [b\"lake\" , warden . key () . as_ref ()] , bump , has_one = warden)]",
+        "field_type": "Account < 'info , LakeCfg >"
+      },
+      {
+        "name": "stats",
+        "attribute": "# [account (mut , constraint = stats . key () != lake . key () @ FfdErr :: Dup , constraint = stats . key () != card . key () @ FfdErr :: Dup)]",
+        "field_type": "Account < 'info , PoissonStats >"
+      },
+      {
+        "name": "card",
+        "attribute": "# [account (mut , seeds = [b\"card\" , warden . key () . as_ref ()] , bump , constraint = card . key () != trace . key () @ FfdErr :: Dup)]",
+        "field_type": "Account < 'info , FishCard >"
+      },
+      {
+        "name": "trace",
+        "attribute": "# [account (mut , constraint = trace . key () != lake . key () @ FfdErr :: Dup)]",
+        "field_type": "Account < 'info , LakeTrace >"
+      },
+      {
+        "name": "warden",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "LakeCfg",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "warden",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "cap",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "state",
+        "attribute": null,
+        "field_type": "LakeState"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PoissonStats",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "lam_q16",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "count_q16",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "var_q16",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "FishCard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "casts",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "trophies",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "LakeTrace",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "notes",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "flags",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

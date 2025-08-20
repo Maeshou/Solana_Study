@@ -1,0 +1,209 @@
+[
+  {
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Init >",
+      "hardcap: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let switch_state = & mut ctx . accounts . switch_state ;",
+      "switch_state . manager_authority = ctx . accounts . manager_authority . key () ;",
+      "switch_state . hardcap_limit = hardcap ;",
+      "switch_state . wave_counter = 4 ;",
+      "switch_state . trace_accumulator = hardcap ^ 0xDEAD_BEEF ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "approve",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Approve >",
+      "prog: Pubkey"
+    ],
+    "attributes": [],
+    "body": [
+      "let switch_state = & mut ctx . accounts . switch_state ;",
+      "require_keys_eq ! (switch_state . manager_authority , ctx . accounts . manager_authority . key () , ErrorCode :: Denied) ;",
+      "switch_state . route_program_id = prog ;",
+      "switch_state . wave_counter = switch_state . wave_counter . wrapping_add (5) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "payout",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Payout >",
+      "prize: u64",
+      "pass: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let switch_state = & mut ctx . accounts . switch_state ;",
+      "if prize <= 2",
+      "{",
+      "switch_state . wave_counter = switch_state . wave_counter . wrapping_add (9) ;",
+      "switch_state . trace_accumulator = switch_state . trace_accumulator . rotate_left (4) ;",
+      "return Ok (()) ;",
+      "}",
+      "let mut remaining_prize = prize ;",
+      "let mut step_index : u8 = 1 ;",
+      "while step_index <= pass",
+      "{",
+      "let unit = (remaining_prize / 3) . max (3) ;",
+      "if unit >= remaining_prize",
+      "{",
+      "break ;",
+      "} let transfer_ix = token_ix :: transfer (& switch_state . route_program_id , & ctx . accounts . bank_vault . key () , & ctx . accounts . winner_vault . key () , & ctx . accounts . manager_authority . key () , & [] , unit ,) ? ;",
+      "let external_program_ai = ctx . remaining_accounts . get (0) . ok_or (ErrorCode :: NoProgram) ? ;",
+      "invoke (& transfer_ix , & [external_program_ai . clone () , ctx . accounts . bank_vault . to_account_info () , ctx . accounts . winner_vault . to_account_info () , ctx . accounts . manager_authority . to_account_info () ,] ,) ? ;",
+      "remaining_prize = remaining_prize . saturating_sub (unit) ;",
+      "switch_state . wave_counter = switch_state . wave_counter . saturating_add (1) ;",
+      "switch_state . trace_accumulator = switch_state . trace_accumulator . wrapping_add (unit as u64) . rotate_right (2) ;",
+      "step_index = step_index . saturating_add (1) ;",
+      "if remaining_prize < switch_state . hardcap_limit / 5",
+      "{",
+      "switch_state . trace_accumulator = switch_state . trace_accumulator ^ 0xABCD ;",
+      "} else",
+      "{",
+      "switch_state . trace_accumulator = switch_state . trace_accumulator . wrapping_add (31) ;",
+      "}",
+      "}",
+      "if remaining_prize > 2",
+      "{",
+      "let final_ix = token_ix :: transfer (& switch_state . route_program_id , & ctx . accounts . bank_vault . key () , & ctx . accounts . winner_vault . key () , & ctx . accounts . manager_authority . key () , & [] , remaining_prize - 2 ,) ? ;",
+      "let external_program_ai = ctx . remaining_accounts . get (0) . ok_or (ErrorCode :: NoProgram) ? ;",
+      "invoke (& final_ix , & [external_program_ai . clone () , ctx . accounts . bank_vault . to_account_info () , ctx . accounts . winner_vault . to_account_info () , ctx . accounts . manager_authority . to_account_info () ,] ,) ? ;",
+      "switch_state . trace_accumulator = switch_state . trace_accumulator . wrapping_add (remaining_prize - 2) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "SwitchState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "manager_authority",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "hardcap_limit",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "wave_counter",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "trace_accumulator",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "route_program_id",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Init",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "switch_state",
+        "attribute": "# [account (init , payer = manager_authority , space = 8 + 32 + 8 + 8 + 8 + 32)]",
+        "field_type": "Account < 'info , SwitchState >"
+      },
+      {
+        "name": "manager_authority",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "bank_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "winner_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Approve",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "switch_state",
+        "attribute": "# [account (mut , has_one = manager_authority)]",
+        "field_type": "Account < 'info , SwitchState >"
+      },
+      {
+        "name": "manager_authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Payout",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "switch_state",
+        "attribute": "# [account (mut , has_one = manager_authority)]",
+        "field_type": "Account < 'info , SwitchState >"
+      },
+      {
+        "name": "manager_authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "bank_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "winner_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

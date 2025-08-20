@@ -1,15 +1,115 @@
 [
   {
-    "name": "BidCtxfdsg",
+    "name": "create_multisig",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateMultisig >",
+      "owners: Vec < Pubkey >",
+      "threshold: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let multisig_info = ctx . accounts . multisig . to_account_info () ;",
+      "require ! (multisig_info . owner == ctx . program_id , ErrorCode :: InvalidMultisigOwner) ;",
+      "require ! (threshold > 0 , ErrorCode :: InvalidThreshold) ;",
+      "require ! (threshold <= owners . len () as u8 , ErrorCode :: ThresholdTooHigh) ;",
+      "let multisig = & mut ctx . accounts . multisig ;",
+      "multisig . owners = owners ;",
+      "multisig . threshold = threshold ;",
+      "multisig . nonce = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "create_transaction",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateTransaction >",
+      "destination: Pubkey",
+      "amount: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let multisig_info = ctx . accounts . multisig . to_account_info () ;",
+      "require ! (multisig_info . owner == ctx . program_id , ErrorCode :: InvalidMultisigOwner) ;",
+      "let transaction_info = ctx . accounts . transaction . to_account_info () ;",
+      "require ! (transaction_info . owner == ctx . program_id , ErrorCode :: InvalidTransactionOwner) ;",
+      "let multisig = & ctx . accounts . multisig ;",
+      "require ! (multisig . owners . contains (& ctx . accounts . proposer . key ()) , ErrorCode :: NotAnOwner) ;",
+      "let transaction = & mut ctx . accounts . transaction ;",
+      "transaction . multisig = ctx . accounts . multisig . key () ;",
+      "transaction . destination = destination ;",
+      "transaction . amount = amount ;",
+      "transaction . executed = false ;",
+      "transaction . signers = vec ! [false ; multisig . owners . len ()] ;",
+      "let proposer_index = multisig . owners . iter () . position (| & owner | owner == ctx . accounts . proposer . key ()) . unwrap () ;",
+      "transaction . signers [proposer_index] = true ;",
+      "transaction . signature_count = 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "approve_transaction",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ApproveTransaction >"
+    ],
+    "attributes": [],
+    "body": [
+      "require ! (ctx . accounts . multisig . to_account_info () . owner == ctx . program_id , ErrorCode :: InvalidMultisigOwner) ;",
+      "require ! (ctx . accounts . transaction . to_account_info () . owner == ctx . program_id , ErrorCode :: InvalidTransactionOwner) ;",
+      "let multisig = & ctx . accounts . multisig ;",
+      "let transaction = & mut ctx . accounts . transaction ;",
+      "require ! (! transaction . executed , ErrorCode :: AlreadyExecuted) ;",
+      "require ! (multisig . owners . contains (& ctx . accounts . owner . key ()) , ErrorCode :: NotAnOwner) ;",
+      "let owner_index = multisig . owners . iter () . position (| & owner | owner == ctx . accounts . owner . key ()) . unwrap () ;",
+      "require ! (! transaction . signers [owner_index] , ErrorCode :: AlreadySigned) ;",
+      "transaction . signers [owner_index] = true ;",
+      "transaction . signature_count += 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "execute_transaction",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ExecuteTransaction >"
+    ],
+    "attributes": [],
+    "body": [
+      "let multisig_info = ctx . accounts . multisig . to_account_info () ;",
+      "require ! (multisig_info . owner == ctx . program_id , ErrorCode :: InvalidMultisigOwner) ;",
+      "let transaction_info = ctx . accounts . transaction . to_account_info () ;",
+      "require ! (transaction_info . owner == ctx . program_id , ErrorCode :: InvalidTransactionOwner) ;",
+      "require ! (ctx . accounts . multisig_vault . owner == & token :: ID , ErrorCode :: InvalidVaultOwner) ;",
+      "let multisig = & ctx . accounts . multisig ;",
+      "let transaction = & mut ctx . accounts . transaction ;",
+      "require ! (! transaction . executed , ErrorCode :: AlreadyExecuted) ;",
+      "require ! (transaction . signature_count >= multisig . threshold , ErrorCode :: NotEnoughSignatures) ;",
+      "let seeds = & [b\"multisig\" , multisig . owners [0] . as_ref () , & [ctx . accounts . multisig . nonce] ,] ;",
+      "let signer = & [& seeds [..]] ;",
+      "let transfer_instruction = Transfer { from : ctx . accounts . multisig_vault . to_account_info () , to : ctx . accounts . destination_account . to_account_info () , authority : ctx . accounts . multisig . to_account_info () , } ;",
+      "let cpi_ctx = CpiContext :: new_with_signer (ctx . accounts . token_program . to_account_info () , transfer_instruction , signer ,) ;",
+      "token :: transfer (cpi_ctx , transaction . amount) ? ;",
+      "transaction . executed = true ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CreateMultisig",
     "node_type": "struct",
     "fields": [
       {
-        "name": "auction",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
+        "name": "multisig",
+        "attribute": "# [account (init , payer = creator , space = 8 + 4 + 32 * 10 + 1 + 1 , constraint = multisig . to_account_info () . owner == program_id)]",
+        "field_type": "Account < 'info , Multisig >"
       },
       {
-        "name": "bidder",
+        "name": "creator",
         "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
       },
@@ -24,13 +124,28 @@
     "body": null
   },
   {
-    "name": "DataAccount",
+    "name": "CreateTransaction",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data",
+        "name": "multisig",
+        "attribute": "# [account (constraint = multisig . to_account_info () . owner == program_id)]",
+        "field_type": "Account < 'info , Multisig >"
+      },
+      {
+        "name": "transaction",
+        "attribute": "# [account (init , payer = proposer , space = 8 + 32 + 32 + 8 + 1 + 4 + 10 + 1 , constraint = transaction . to_account_info () . owner == program_id)]",
+        "field_type": "Account < 'info , Transaction >"
+      },
+      {
+        "name": "proposer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -38,20 +153,124 @@
     "body": null
   },
   {
-    "name": "bid",
-    "node_type": "function",
-    "fields": null,
-    "inputs": [
-      "ctx: Context < BidCtxfdsg >",
-      "amount: u64"
+    "name": "ApproveTransaction",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "multisig",
+        "attribute": "# [account (constraint = multisig . to_account_info () . owner == program_id)]",
+        "field_type": "Account < 'info , Multisig >"
+      },
+      {
+        "name": "transaction",
+        "attribute": "# [account (mut , constraint = transaction . to_account_info () . owner == program_id)]",
+        "field_type": "Account < 'info , Transaction >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
     ],
-    "attributes": [],
-    "body": [
-      "let acct = & mut ctx . accounts . auction ;",
-      "let temp = acct . data ;",
-      "acct . data = temp . checked_mul (2) . unwrap () ;",
-      "msg ! (\"Executed bid logic\") ;",
-      "Ok (())"
-    ]
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ExecuteTransaction",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "multisig",
+        "attribute": "# [account (constraint = multisig . to_account_info () . owner == program_id)]",
+        "field_type": "Account < 'info , Multisig >"
+      },
+      {
+        "name": "transaction",
+        "attribute": "# [account (mut , constraint = transaction . to_account_info () . owner == program_id)]",
+        "field_type": "Account < 'info , Transaction >"
+      },
+      {
+        "name": "multisig_vault",
+        "attribute": "# [account (mut , constraint = multisig_vault . owner == & token :: ID)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "destination_account",
+        "attribute": "# [account (mut , constraint = destination_account . owner == & token :: ID)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Multisig",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owners",
+        "attribute": null,
+        "field_type": "Vec < Pubkey >"
+      },
+      {
+        "name": "threshold",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "nonce",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Transaction",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "multisig",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "destination",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "executed",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "signers",
+        "attribute": null,
+        "field_type": "Vec < bool >"
+      },
+      {
+        "name": "signature_count",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
   }
 ]

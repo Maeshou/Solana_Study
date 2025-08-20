@@ -1,0 +1,308 @@
+[
+  {
+    "name": "create_guild_alliance",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateGuildAlliance >",
+      "guild_name: String",
+      "initial_treasury: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let guild_account = & mut ctx . accounts . guild_account ;",
+      "let founder_account = & mut ctx . accounts . founder_account ;",
+      "require ! (guild_name . len () >= 3 && guild_name . len () <= 32 , GuildError :: InvalidGuildName) ;",
+      "guild_account . guild_name = guild_name . clone () ;",
+      "guild_account . guild_leader = ctx . accounts . authority . key () ;",
+      "guild_account . member_roster = vec ! [ctx . accounts . authority . key ()] ;",
+      "guild_account . treasury_balance = initial_treasury ;",
+      "guild_account . guild_level = 1 ;",
+      "guild_account . territory_holdings = Vec :: new () ;",
+      "guild_account . alliance_reputation = 0 ;",
+      "founder_account . guild_membership = Some (guild_account . key ()) ;",
+      "founder_account . member_rank = GuildRank :: Leader ;",
+      "founder_account . contribution_points = 100 ;",
+      "emit ! (GuildCreated { guild_address : guild_account . key () , founder : ctx . accounts . authority . key () , guild_name , }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "execute_territory_conquest",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < TerritoryConquest >",
+      "target_territory_id: u32",
+      "attacking_force_size: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let attacking_guild = & mut ctx . accounts . attacking_guild ;",
+      "let territory_registry = & ctx . accounts . territory_registry ;",
+      "require ! (attacking_guild . guild_level >= 5 , GuildError :: InsufficientGuildLevel) ;",
+      "let conquest_cost_base = target_territory_id * 1000 ;",
+      "let force_multiplier = attacking_force_size / 10 ;",
+      "let total_conquest_cost = conquest_cost_base + (force_multiplier * 500) ;",
+      "require ! (attacking_guild . treasury_balance >= total_conquest_cost as u64 , GuildError :: InsufficientTreasuryFunds) ;",
+      "let territory_defense_rating = target_territory_id % 100 ;",
+      "let guild_attack_power = attacking_guild . guild_level * 10 + attacking_force_size ;",
+      "if guild_attack_power > territory_defense_rating",
+      "{",
+      "attacking_guild . territory_holdings . push (target_territory_id) ;",
+      "attacking_guild . treasury_balance -= total_conquest_cost as u64 ;",
+      "attacking_guild . alliance_reputation += 50 ;",
+      "let territory_income_bonus = target_territory_id / 100 ;",
+      "attacking_guild . guild_level += territory_income_bonus ;",
+      "emit ! (TerritoryConquered",
+      "{",
+      "guild : attacking_guild . key () , territory_id : target_territory_id , conquest_cost : total_conquest_cost as u64 , }) ;",
+      "} else",
+      "{",
+      "attacking_guild . treasury_balance -= (total_conquest_cost / 2) as u64 ;",
+      "return Err (GuildError :: ConquestFailed . into ()) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "distribute_guild_rewards",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < DistributeRewards >",
+      "reward_pool_amount: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let guild_account = & ctx . accounts . guild_account ;",
+      "let member_account = & mut ctx . accounts . member_account ;",
+      "require ! (member_account . guild_membership == Some (guild_account . key ()) , GuildError :: NotGuildMember) ;",
+      "let member_count = guild_account . member_roster . len () as u64 ;",
+      "let base_reward = reward_pool_amount / member_count ;",
+      "let rank_multiplier = match member_account . member_rank { GuildRank :: Leader => 3.0 , GuildRank :: Officer => 2.5 , GuildRank :: Veteran => 2.0 , GuildRank :: Member => 1.5 , GuildRank :: Recruit => 1.0 , } ;",
+      "let contribution_bonus = member_account . contribution_points / 100 ;",
+      "let final_reward = (base_reward as f64 * rank_multiplier) as u64 + contribution_bonus ;",
+      "member_account . accumulated_rewards += final_reward ;",
+      "member_account . last_reward_timestamp = Clock :: get () ? . unix_timestamp ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CreateGuildAlliance",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild_account",
+        "attribute": "# [account (init , payer = authority , space = 8 + GuildAccount :: INIT_SPACE)]",
+        "field_type": "Account < 'info , GuildAccount >"
+      },
+      {
+        "name": "founder_account",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , PlayerMemberAccount >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TerritoryConquest",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "attacking_guild",
+        "attribute": "# [account (mut , has_one = guild_leader @ GuildError :: NotGuildLeader)]",
+        "field_type": "Account < 'info , GuildAccount >"
+      },
+      {
+        "name": "territory_registry",
+        "attribute": null,
+        "field_type": "Account < 'info , TerritoryRegistry >"
+      },
+      {
+        "name": "guild_leader",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DistributeRewards",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild_account",
+        "attribute": null,
+        "field_type": "Account < 'info , GuildAccount >"
+      },
+      {
+        "name": "member_account",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , PlayerMemberAccount >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GuildAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild_name",
+        "attribute": "# [max_len (32)]",
+        "field_type": "String"
+      },
+      {
+        "name": "guild_leader",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "member_roster",
+        "attribute": "# [max_len (50)]",
+        "field_type": "Vec < Pubkey >"
+      },
+      {
+        "name": "treasury_balance",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "guild_level",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "territory_holdings",
+        "attribute": "# [max_len (20)]",
+        "field_type": "Vec < u32 >"
+      },
+      {
+        "name": "alliance_reputation",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PlayerMemberAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild_membership",
+        "attribute": null,
+        "field_type": "Option < Pubkey >"
+      },
+      {
+        "name": "member_rank",
+        "attribute": null,
+        "field_type": "GuildRank"
+      },
+      {
+        "name": "contribution_points",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "accumulated_rewards",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "last_reward_timestamp",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TerritoryRegistry",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "available_territories",
+        "attribute": "# [max_len (100)]",
+        "field_type": "Vec < u32 >"
+      },
+      {
+        "name": "conquest_difficulty_modifier",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GuildCreated",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild_address",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "founder",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "guild_name",
+        "attribute": null,
+        "field_type": "String"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TerritoryConquered",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "territory_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "conquest_cost",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

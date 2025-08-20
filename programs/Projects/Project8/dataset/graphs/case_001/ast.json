@@ -1,0 +1,132 @@
+[
+  {
+    "name": "initialize_vault",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeVault >",
+      "seed_hint: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let v = & mut ctx . accounts . vault ;",
+      "v . owner = ctx . accounts . user . key () ;",
+      "v . bump_saved = * ctx . bumps . get (\"vault\") . ok_or (error ! (VaultErr :: MissingBump)) ? ;",
+      "v . energy = seed_hint . rotate_left (2) . wrapping_add (41) ;",
+      "v . turns = 1 ;",
+      "for k in 1u8 .. 4u8",
+      "{",
+      "let t = (v . energy ^ (k as u64 * 13)) . rotate_right (1) ;",
+      "v . energy = v . energy . wrapping_add (t) . wrapping_mul (2) . wrapping_add (9 + k as u64) ;",
+      "v . turns = v . turns . saturating_add (((v . energy % 27) as u32) + 3) ;",
+      "}",
+      "if v . energy > seed_hint",
+      "{",
+      "let add = v . energy . rotate_left (1) . wrapping_add (17) ;",
+      "v . energy = v . energy . wrapping_add (add) . wrapping_mul (2) ;",
+      "v . turns = v . turns . saturating_add (((v . energy % 19) as u32) + 4) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "withdraw",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Withdraw >",
+      "lamports: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let v = & ctx . accounts . vault ;",
+      "let from_key = ctx . accounts . vault . key () ;",
+      "let ix = system_instruction :: transfer (& from_key , & ctx . accounts . recipient . key () , lamports) ;",
+      "let seeds : & [& [u8]] = & [b\"vault\" , ctx . accounts . user . key . as_ref () , & [v . bump_saved] ,] ;",
+      "invoke_signed (& ix , & [ctx . accounts . vault . to_account_info () , ctx . accounts . recipient . to_account_info () , ctx . accounts . system_program . to_account_info () ,] , & [seeds] ,) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializeVault",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": "# [account (init , payer = user , space = 8 + 32 + 8 + 4 + 1 , seeds = [b\"vault\" , user . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , VaultState >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Withdraw",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": "# [account (mut , seeds = [b\"vault\" , user . key () . as_ref ()] , bump = vault . bump_saved)]",
+        "field_type": "Account < 'info , VaultState >"
+      },
+      {
+        "name": "recipient",
+        "attribute": "# [account (mut)]",
+        "field_type": "SystemAccount < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "VaultState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "energy",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "turns",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "bump_saved",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

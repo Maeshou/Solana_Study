@@ -1,0 +1,627 @@
+[
+  {
+    "name": "init_swap_pool",
+    "inputs": [
+      "ctx: Context < InitSwapPool >"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let pool = & mut ctx . accounts . swap_pool ;"
+      },
+      {
+        "id": 2,
+        "label": "pool . authority = ctx . accounts . authority . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "pool . token_a_amount = 0 ;"
+      },
+      {
+        "id": 4,
+        "label": "pool . token_b_amount = 0 ;"
+      },
+      {
+        "id": 5,
+        "label": "pool . fee_rate = 30 ;"
+      },
+      {
+        "id": 6,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: pool"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: pool"
+      }
+    ]
+  },
+  {
+    "name": "add_liquidity",
+    "inputs": [
+      "ctx: Context < AddLiquidity >",
+      "amount_a: u64",
+      "amount_b: u64"
+    ],
+    "nodes": [
+      {
+        "id": 7,
+        "label": "Entry"
+      },
+      {
+        "id": 8,
+        "label": "let position = & mut ctx . accounts . liquidity_position ;"
+      },
+      {
+        "id": 9,
+        "label": "position . pool = ctx . accounts . swap_pool . key () ;"
+      },
+      {
+        "id": 10,
+        "label": "position . provider = ctx . accounts . provider . key () ;"
+      },
+      {
+        "id": 11,
+        "label": "position . token_a_deposited = amount_a ;"
+      },
+      {
+        "id": 12,
+        "label": "position . token_b_deposited = amount_b ;"
+      },
+      {
+        "id": 13,
+        "label": "position . share_percentage = 0 ;"
+      },
+      {
+        "id": 14,
+        "label": "let pool = & mut ctx . accounts . swap_pool ;"
+      },
+      {
+        "id": 15,
+        "label": "pool . token_a_amount = pool . token_a_amount . checked_add (amount_a) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 16,
+        "label": "pool . token_b_amount = pool . token_b_amount . checked_add (amount_b) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 17,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 8,
+        "to": 8,
+        "label": "def: position"
+      },
+      {
+        "from": 8,
+        "to": 9,
+        "label": "data_dep: position"
+      },
+      {
+        "from": 8,
+        "to": 10,
+        "label": "data_dep: position"
+      },
+      {
+        "from": 8,
+        "to": 11,
+        "label": "data_dep: position"
+      },
+      {
+        "from": 8,
+        "to": 12,
+        "label": "data_dep: position"
+      },
+      {
+        "from": 8,
+        "to": 13,
+        "label": "data_dep: position"
+      },
+      {
+        "from": 14,
+        "to": 14,
+        "label": "def: pool"
+      },
+      {
+        "from": 14,
+        "to": 15,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 14,
+        "to": 15,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 14,
+        "to": 16,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 14,
+        "to": 16,
+        "label": "data_dep: pool"
+      }
+    ]
+  },
+  {
+    "name": "exploit_swap",
+    "inputs": [
+      "ctx: Context < VulnerableSwap >"
+    ],
+    "nodes": [
+      {
+        "id": 18,
+        "label": "Entry"
+      },
+      {
+        "id": 19,
+        "label": "let pool = & mut ctx . accounts . swap_pool ;"
+      },
+      {
+        "id": 20,
+        "label": "let pos_a_info = & ctx . accounts . position_a ;"
+      },
+      {
+        "id": 21,
+        "label": "let pos_b_info = & ctx . accounts . position_b ;"
+      },
+      {
+        "id": 22,
+        "label": "let pos_a_data = pos_a_info . try_borrow_data () ? ;"
+      },
+      {
+        "id": 23,
+        "label": "let pos_b_data = pos_b_info . try_borrow_data () ? ;"
+      },
+      {
+        "id": 24,
+        "label": "if pos_a_data . len () >= 48 && pos_b_data . len () >= 48 { let a_deposited = u64 :: from_le_bytes ([pos_a_data [40] , pos_a_data [41] , pos_a_data [42] , pos_a_data [43] , pos_a_data [44] , pos_a_data [45] , pos_a_data [46] , pos_a_data [47]]) ; for swap_round in 0 .. 4 { if pool . token_a_amount > 1000 { let swap_amount = (a_deposited >> swap_round) & 0xFF ; pool . token_a_amount = pool . token_a_amount . saturating_sub (swap_amount) ; pool . token_b_amount = pool . token_b_amount . checked_add (swap_amount * 2) . unwrap_or (u64 :: MAX) ; msg ! (\"Swap A->B: {}\" , swap_amount) ; } else { let fee_collected = pool . fee_rate as u64 * 10 ; pool . token_b_amount = pool . token_b_amount . checked_add (fee_collected) . unwrap_or (u64 :: MAX) ; pool . fee_rate = (pool . fee_rate + swap_round as u32) . min (100) ; msg ! (\"Fee collection: {}\" , fee_collected) ; } } }"
+      },
+      {
+        "id": 25,
+        "label": "let a_deposited = u64 :: from_le_bytes ([pos_a_data [40] , pos_a_data [41] , pos_a_data [42] , pos_a_data [43] , pos_a_data [44] , pos_a_data [45] , pos_a_data [46] , pos_a_data [47]]) ;"
+      },
+      {
+        "id": 26,
+        "label": "for swap_round in 0 .. 4 { if pool . token_a_amount > 1000 { let swap_amount = (a_deposited >> swap_round) & 0xFF ; pool . token_a_amount = pool . token_a_amount . saturating_sub (swap_amount) ; pool . token_b_amount = pool . token_b_amount . checked_add (swap_amount * 2) . unwrap_or (u64 :: MAX) ; msg ! (\"Swap A->B: {}\" , swap_amount) ; } else { let fee_collected = pool . fee_rate as u64 * 10 ; pool . token_b_amount = pool . token_b_amount . checked_add (fee_collected) . unwrap_or (u64 :: MAX) ; pool . fee_rate = (pool . fee_rate + swap_round as u32) . min (100) ; msg ! (\"Fee collection: {}\" , fee_collected) ; } }"
+      },
+      {
+        "id": 27,
+        "label": "if pool . token_a_amount > 1000 { let swap_amount = (a_deposited >> swap_round) & 0xFF ; pool . token_a_amount = pool . token_a_amount . saturating_sub (swap_amount) ; pool . token_b_amount = pool . token_b_amount . checked_add (swap_amount * 2) . unwrap_or (u64 :: MAX) ; msg ! (\"Swap A->B: {}\" , swap_amount) ; } else { let fee_collected = pool . fee_rate as u64 * 10 ; pool . token_b_amount = pool . token_b_amount . checked_add (fee_collected) . unwrap_or (u64 :: MAX) ; pool . fee_rate = (pool . fee_rate + swap_round as u32) . min (100) ; msg ! (\"Fee collection: {}\" , fee_collected) ; }"
+      },
+      {
+        "id": 28,
+        "label": "let swap_amount = (a_deposited >> swap_round) & 0xFF ;"
+      },
+      {
+        "id": 29,
+        "label": "pool . token_a_amount = pool . token_a_amount . saturating_sub (swap_amount) ;"
+      },
+      {
+        "id": 30,
+        "label": "pool . token_b_amount = pool . token_b_amount . checked_add (swap_amount * 2) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 31,
+        "label": "msg ! (\"Swap A->B: {}\" , swap_amount) ;"
+      },
+      {
+        "id": 32,
+        "label": "let fee_collected = pool . fee_rate as u64 * 10 ;"
+      },
+      {
+        "id": 33,
+        "label": "pool . token_b_amount = pool . token_b_amount . checked_add (fee_collected) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 34,
+        "label": "pool . fee_rate = (pool . fee_rate + swap_round as u32) . min (100) ;"
+      },
+      {
+        "id": 35,
+        "label": "msg ! (\"Fee collection: {}\" , fee_collected) ;"
+      },
+      {
+        "id": 36,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 19,
+        "to": 19,
+        "label": "def: pool"
+      },
+      {
+        "from": 20,
+        "to": 20,
+        "label": "def: pos_a_info"
+      },
+      {
+        "from": 21,
+        "to": 21,
+        "label": "def: pos_b_info"
+      },
+      {
+        "from": 22,
+        "to": 22,
+        "label": "def: pos_a_data"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: pos_a_info"
+      },
+      {
+        "from": 23,
+        "to": 23,
+        "label": "def: pos_b_data"
+      },
+      {
+        "from": 21,
+        "to": 23,
+        "label": "data_dep: pos_b_info"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: pos_a_data"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "data_dep: pos_b_data"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: pos_a_data"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: pos_a_data"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: pos_a_data"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: pos_a_data"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: pos_a_data"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: pos_a_data"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: pos_a_data"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: pos_a_data"
+      },
+      {
+        "from": 19,
+        "to": 24,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 19,
+        "to": 24,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 19,
+        "to": 24,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 19,
+        "to": 24,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 19,
+        "to": 24,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 19,
+        "to": 24,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 19,
+        "to": 24,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 19,
+        "to": 24,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 19,
+        "to": 24,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 19,
+        "to": 24,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 25,
+        "to": 25,
+        "label": "def: a_deposited"
+      },
+      {
+        "from": 22,
+        "to": 25,
+        "label": "data_dep: pos_a_data"
+      },
+      {
+        "from": 22,
+        "to": 25,
+        "label": "data_dep: pos_a_data"
+      },
+      {
+        "from": 22,
+        "to": 25,
+        "label": "data_dep: pos_a_data"
+      },
+      {
+        "from": 22,
+        "to": 25,
+        "label": "data_dep: pos_a_data"
+      },
+      {
+        "from": 22,
+        "to": 25,
+        "label": "data_dep: pos_a_data"
+      },
+      {
+        "from": 22,
+        "to": 25,
+        "label": "data_dep: pos_a_data"
+      },
+      {
+        "from": 22,
+        "to": 25,
+        "label": "data_dep: pos_a_data"
+      },
+      {
+        "from": 22,
+        "to": 25,
+        "label": "data_dep: pos_a_data"
+      },
+      {
+        "from": 19,
+        "to": 26,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 25,
+        "to": 26,
+        "label": "data_dep: a_deposited"
+      },
+      {
+        "from": 19,
+        "to": 26,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 19,
+        "to": 26,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 19,
+        "to": 26,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 19,
+        "to": 26,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 19,
+        "to": 26,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 19,
+        "to": 26,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 19,
+        "to": 26,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 19,
+        "to": 26,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 19,
+        "to": 26,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 19,
+        "to": 27,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 25,
+        "to": 27,
+        "label": "data_dep: a_deposited"
+      },
+      {
+        "from": 19,
+        "to": 27,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 19,
+        "to": 27,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 19,
+        "to": 27,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 19,
+        "to": 27,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 19,
+        "to": 27,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 19,
+        "to": 27,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 19,
+        "to": 27,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 19,
+        "to": 27,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 19,
+        "to": 27,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 28,
+        "to": 28,
+        "label": "def: swap_amount"
+      },
+      {
+        "from": 25,
+        "to": 28,
+        "label": "data_dep: a_deposited"
+      },
+      {
+        "from": 19,
+        "to": 29,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 19,
+        "to": 29,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 28,
+        "to": 29,
+        "label": "data_dep: swap_amount"
+      },
+      {
+        "from": 19,
+        "to": 30,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 19,
+        "to": 30,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 28,
+        "to": 30,
+        "label": "data_dep: swap_amount"
+      },
+      {
+        "from": 32,
+        "to": 32,
+        "label": "def: fee_collected"
+      },
+      {
+        "from": 19,
+        "to": 32,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 19,
+        "to": 33,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 19,
+        "to": 33,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 32,
+        "to": 33,
+        "label": "data_dep: fee_collected"
+      },
+      {
+        "from": 19,
+        "to": 34,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 19,
+        "to": 34,
+        "label": "data_dep: pool"
+      }
+    ]
+  }
+]

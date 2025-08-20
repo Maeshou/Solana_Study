@@ -1,0 +1,283 @@
+[
+  {
+    "name": "update_profile",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < UpdateProfile >",
+      "name: Vec < u8 >",
+      "level: u16",
+      "bump: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut n = name . clone () ;",
+      "if n . len () > 32",
+      "{",
+      "n . truncate (32) ;",
+      "}",
+      "let mut score : u32 = 0 ;",
+      "for (i , b) in n . iter () . enumerate ()",
+      "{",
+      "score = score . wrapping_add ((* b as u32) . wrapping_mul (i as u32 + 7)) ;",
+      "}",
+      "let seeds = [& ctx . accounts . owner . key () . to_bytes () [..] , & n [..]] ;",
+      "let addr = Pubkey :: create_program_address (& seeds , & ctx . program_id , & [bump]) . map_err (| _ | error ! (MultiErr :: BadPda)) ? ;",
+      "if addr != ctx . accounts . profile_cell . key ()",
+      "{",
+      "return Err (error ! (MultiErr :: BadPda)) ;",
+      "}",
+      "let p = & mut ctx . accounts . profile ;",
+      "p . owner = ctx . accounts . owner . key () ;",
+      "p . name = n ;",
+      "p . level = level ;",
+      "p . rep = p . rep . wrapping_add (score) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "purchase_item",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PurchaseItem >",
+      "item_code: [u8 ; 6]",
+      "qty: u16",
+      "bump: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut code = item_code ;",
+      "for i in 0 .. code . len ()",
+      "{",
+      "if ! code [i] . is_ascii_alphanumeric ()",
+      "{",
+      "code [i] = b'X' ;",
+      "}",
+      "}",
+      "let mut cost = 0u32 ;",
+      "for c in code . iter ()",
+      "{",
+      "cost = cost . wrapping_add (* c as u32) ;",
+      "}",
+      "let mut quantity = qty ;",
+      "if quantity > 999",
+      "{",
+      "quantity = 999 ;",
+      "}",
+      "let seeds = [& ctx . accounts . buyer . key () . to_bytes () [..] , & code [..]] ;",
+      "let addr = Pubkey :: create_program_address (& seeds , & ctx . program_id , & [bump]) . map_err (| _ | error ! (MultiErr :: BadPda)) ? ;",
+      "if addr != ctx . accounts . item_cell . key ()",
+      "{",
+      "return Err (error ! (MultiErr :: BadPda)) ;",
+      "}",
+      "let i = & mut ctx . accounts . item_log ;",
+      "i . buyer = ctx . accounts . buyer . key () ;",
+      "i . code = code ;",
+      "i . total_qty = i . total_qty . saturating_add (quantity as u32) ;",
+      "i . spent = i . spent . wrapping_add (cost as u64) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "advance_quest",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AdvanceQuest >",
+      "stage: u32",
+      "notes: Vec < u8 >",
+      "bump: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut s = stage ;",
+      "if s > 50",
+      "{",
+      "s = 50 ;",
+      "}",
+      "let mut n = notes . clone () ;",
+      "if n . len () > 64",
+      "{",
+      "n . truncate (64) ;",
+      "}",
+      "let mut hash : u64 = 1469598103934665603 ;",
+      "for b in n . iter ()",
+      "{",
+      "hash ^= * b as u64 ;",
+      "hash = hash . wrapping_mul (1099511628211) ;",
+      "}",
+      "let seeds = [& ctx . accounts . player . key () . to_bytes () [..] , & s . to_le_bytes () [..]] ;",
+      "let addr = Pubkey :: create_program_address (& seeds , & ctx . program_id , & [bump]) . map_err (| _ | error ! (MultiErr :: BadPda)) ? ;",
+      "if addr != ctx . accounts . quest_cell . key ()",
+      "{",
+      "return Err (error ! (MultiErr :: BadPda)) ;",
+      "}",
+      "let q = & mut ctx . accounts . quest ;",
+      "q . player = ctx . accounts . player . key () ;",
+      "q . stage = s ;",
+      "q . notes = n ;",
+      "q . progress_hash = q . progress_hash . wrapping_add (hash) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "UpdateProfile",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "profile",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Profile >"
+      },
+      {
+        "name": "profile_cell",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PurchaseItem",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "item_log",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , ItemLog >"
+      },
+      {
+        "name": "item_cell",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "buyer",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AdvanceQuest",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "quest",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Quest >"
+      },
+      {
+        "name": "quest_cell",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "player",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Profile",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "Vec < u8 >"
+      },
+      {
+        "name": "level",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "rep",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ItemLog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "buyer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "code",
+        "attribute": null,
+        "field_type": "[u8 ; 6]"
+      },
+      {
+        "name": "total_qty",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "spent",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Quest",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "player",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "stage",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "notes",
+        "attribute": null,
+        "field_type": "Vec < u8 >"
+      },
+      {
+        "name": "progress_hash",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

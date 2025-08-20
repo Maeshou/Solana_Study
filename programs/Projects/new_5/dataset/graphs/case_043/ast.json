@@ -1,0 +1,249 @@
+[
+  {
+    "name": "initialize_market",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeMarket >",
+      "market_id: u64",
+      "name: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let market = & mut ctx . accounts . market ;",
+      "market . operator = ctx . accounts . operator . key () ;",
+      "market . market_id = market_id ;",
+      "market . name = name ;",
+      "market . market_status = MarketStatus :: Open ;",
+      "market . last_transaction_slot = Clock :: get () ? . slot ;",
+      "market . total_orders = 0 ;",
+      "msg ! (\"Market '{}' initialized. Status is Open.\" , market . name) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "create_order",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateOrder >",
+      "order_id: u64",
+      "price: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let order = & mut ctx . accounts . order ;",
+      "let market = & mut ctx . accounts . market ;",
+      "if market . market_status != MarketStatus :: Open",
+      "{",
+      "return Err (error ! (MarketError :: MarketClosed)) ;",
+      "}",
+      "order . market = market . key () ;",
+      "order . order_id = order_id ;",
+      "order . trader = ctx . accounts . trader . key () ;",
+      "order . price = price ;",
+      "order . order_status = OrderStatus :: Pending ;",
+      "order . order_type = OrderType :: Buy ;",
+      "market . total_orders = market . total_orders . saturating_add (1) ;",
+      "msg ! (\"Order {} created with price {}. Status is Pending.\" , order . order_id , order . price) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "match_orders",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < MatchOrders >"
+    ],
+    "attributes": [],
+    "body": [
+      "let order_one = & mut ctx . accounts . order_one ;",
+      "let order_two = & mut ctx . accounts . order_two ;",
+      "if order_one . order_status != OrderStatus :: Pending || order_two . order_status != OrderStatus :: Pending",
+      "{",
+      "return Err (error ! (MarketError :: OrderNotPending)) ;",
+      "}",
+      "let mut loop_count = 0 ;",
+      "while loop_count < 2",
+      "{",
+      "if order_one . price > order_two . price",
+      "{",
+      "order_one . price = order_one . price . saturating_sub (order_two . price / 2) ;",
+      "order_two . price = order_two . price . saturating_add (order_one . price / 2) ;",
+      "msg ! (\"Order One has higher price, adjusting.\") ;",
+      "} else",
+      "{",
+      "order_one . price = order_one . price . saturating_add (order_two . price / 2) ;",
+      "order_two . price = order_two . price . saturating_sub (order_one . price / 2) ;",
+      "msg ! (\"Order Two has higher or equal price, adjusting.\") ;",
+      "} loop_count += 1 ;",
+      "}",
+      "if order_one . price == order_two . price",
+      "{",
+      "order_one . order_status = OrderStatus :: Fulfilled ;",
+      "order_two . order_status = OrderStatus :: Fulfilled ;",
+      "msg ! (\"Orders matched and fulfilled!\") ;",
+      "} else",
+      "{",
+      "msg ! (\"Orders did not match.\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializeMarket",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "market",
+        "attribute": "# [account (init , payer = operator , space = 8 + 32 + 8 + 32 + 1 + 8 + 4)]",
+        "field_type": "Account < 'info , Market >"
+      },
+      {
+        "name": "operator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreateOrder",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "market",
+        "attribute": "# [account (mut , has_one = market)]",
+        "field_type": "Account < 'info , Market >"
+      },
+      {
+        "name": "order",
+        "attribute": "# [account (init , payer = trader , space = 8 + 32 + 8 + 32 + 8 + 1 + 1)]",
+        "field_type": "Account < 'info , Order >"
+      },
+      {
+        "name": "trader",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MatchOrders",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "market",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Market >"
+      },
+      {
+        "name": "order_one",
+        "attribute": "# [account (mut , has_one = market)]",
+        "field_type": "Account < 'info , Order >"
+      },
+      {
+        "name": "order_two",
+        "attribute": "# [account (mut , has_one = market)]",
+        "field_type": "Account < 'info , Order >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Market",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "market_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "market_status",
+        "attribute": null,
+        "field_type": "MarketStatus"
+      },
+      {
+        "name": "last_transaction_slot",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_orders",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Order",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "market",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "order_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "trader",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "price",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "order_status",
+        "attribute": null,
+        "field_type": "OrderStatus"
+      },
+      {
+        "name": "order_type",
+        "attribute": null,
+        "field_type": "OrderType"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

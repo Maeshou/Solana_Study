@@ -1,0 +1,140 @@
+[
+  {
+    "name": "renew_policy",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RenewPolicy >",
+      "extra_days: i64"
+    ],
+    "attributes": [
+      "# [doc = \" 保険契約を更新するが、\"]",
+      "# [doc = \" has_one = config のみ検証されており、\"]",
+      "# [doc = \" 本来必要な has_one = owner が欠落しているため、\"]",
+      "# [doc = \" 攻撃者が他人の契約アカウントを指定して更新できてしまう\"]"
+    ],
+    "body": [
+      "let policy = & mut ctx . accounts . policy_account ;",
+      "extend_expiration (policy , extra_days) ;",
+      "increment_renewals (policy) ;",
+      "accrue_premium (policy , ctx . accounts . config . premium_per_day) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "RenewPolicy",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "policy_account",
+        "attribute": "# [account (mut , has_one = config ,)]",
+        "field_type": "Account < 'info , PolicyAccount >"
+      },
+      {
+        "name": "config",
+        "attribute": "# [doc = \" 保険料設定アカウント\"]",
+        "field_type": "Account < 'info , PolicyConfig >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 更新をリクエストするユーザー（署名者）\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "extend_expiration",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "policy: & mut PolicyAccount",
+      "days: i64"
+    ],
+    "attributes": [
+      "# [doc = \" 期限を延長するヘルパー（plain + を wrapping_add に変更）\"]"
+    ],
+    "body": [
+      "policy . expiration = policy . expiration . wrapping_add (days) ;"
+    ]
+  },
+  {
+    "name": "increment_renewals",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "policy: & mut PolicyAccount"
+    ],
+    "attributes": [
+      "# [doc = \" 更新回数を増やすヘルパー（plain +1 を wrapping_add に置き換え）\"]"
+    ],
+    "body": [
+      "policy . renewal_count = policy . renewal_count . wrapping_add (1) ;"
+    ]
+  },
+  {
+    "name": "accrue_premium",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "policy: & mut PolicyAccount",
+      "premium: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 累計保険料を加算するヘルパー（plain + を wrapping_add に置き換え）\"]"
+    ],
+    "body": [
+      "policy . total_premium = policy . total_premium . wrapping_add (premium) ;"
+    ]
+  },
+  {
+    "name": "PolicyAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 本来この契約を所有するべきユーザーの Pubkey\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "config",
+        "attribute": "# [doc = \" 紐づく設定アカウントの Pubkey\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "expiration",
+        "attribute": "# [doc = \" 保険終了日時（UNIXタイム）\"]",
+        "field_type": "i64"
+      },
+      {
+        "name": "renewal_count",
+        "attribute": "# [doc = \" 更新回数\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "total_premium",
+        "attribute": "# [doc = \" 累計支払保険料\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PolicyConfig",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "premium_per_day",
+        "attribute": "# [doc = \" 1 日あたりの保険料（Lamports）\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

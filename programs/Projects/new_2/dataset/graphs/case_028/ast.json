@@ -1,0 +1,58 @@
+[
+  {
+    "name": "cancel_listing",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CancelListing >"
+    ],
+    "attributes": [
+      "# [doc = \" マーケットプレイス出品をキャンセルし、  \"]",
+      "# [doc = \" 出品情報の一部をクリア／更新する  \"]",
+      "# [doc = \" （owner チェックを行っていないため、任意のアカウントで操作可能）\"]"
+    ],
+    "body": [
+      "let listing_acc = & mut ctx . accounts . listing_account . to_account_info () ;",
+      "let mut data = listing_acc . data . borrow_mut () ;",
+      "const REQUIRED : usize = 62 ;",
+      "if data . len () < REQUIRED",
+      "{",
+      "return err ! (ErrorCode :: DataTooShort) ;",
+      "}",
+      "let (price_slice , rest1) = data . split_at_mut (8) ;",
+      "let (_fee_slice , rest2) = rest1 . split_at_mut (2) ;",
+      "let (expiry_slice , rest3) = rest2 . split_at_mut (8) ;",
+      "let (_seller_slice , rest4) = rest3 . split_at_mut (32) ;",
+      "let (created_slice , rest5) = rest4 . split_at_mut (8) ;",
+      "let (cancel_cnt_slice , _) = rest5 . split_at_mut (4) ;",
+      "let prev = u32 :: from_le_bytes (cancel_cnt_slice . try_into () . unwrap ()) ;",
+      "let new_cnt = prev . saturating_add (1) ;",
+      "cancel_cnt_slice . copy_from_slice (& new_cnt . to_le_bytes ()) ;",
+      "price_slice . copy_from_slice (& 0u64 . to_le_bytes ()) ;",
+      "expiry_slice . copy_from_slice (& 0u64 . to_le_bytes ()) ;",
+      "let now = Clock :: get () ? . unix_timestamp as u64 ;",
+      "created_slice . copy_from_slice (& now . to_le_bytes ()) ;",
+      "msg ! (\"Listing {} canceled by {}. Total cancels: {}\" , listing_acc . key () , ctx . accounts . user . key () , new_cnt) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CancelListing",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "listing_account",
+        "attribute": "# [doc = \" CHECK: owner == program_id の確認を一切行っていない\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 呼び出し元ユーザーの署名のみ検証\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

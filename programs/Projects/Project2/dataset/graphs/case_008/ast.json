@@ -1,22 +1,126 @@
 [
   {
-    "name": "PlaceOrderCtxouxm",
+    "name": "create_collection",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateCollection >",
+      "name: String",
+      "symbol: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let collection = & mut ctx . accounts . collection ;",
+      "collection . authority = ctx . accounts . authority . key () ;",
+      "collection . name = name ;",
+      "collection . symbol = symbol ;",
+      "collection . total_minted = 0 ;",
+      "collection . bump = * ctx . bumps . get (\"collection\") . unwrap () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "mint_nft",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < MintNft >",
+      "uri: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let collection = & mut ctx . accounts . collection ;",
+      "let nft_metadata = & mut ctx . accounts . nft_metadata ;",
+      "nft_metadata . collection = collection . key () ;",
+      "nft_metadata . owner = ctx . accounts . recipient . key () ;",
+      "nft_metadata . uri = uri ;",
+      "nft_metadata . token_id = collection . total_minted ;",
+      "nft_metadata . bump = * ctx . bumps . get (\"nft_metadata\") . unwrap () ;",
+      "collection . total_minted += 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Collection",
     "node_type": "struct",
     "fields": [
       {
-        "name": "order_book",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Pubkey"
       },
       {
-        "name": "user",
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "symbol",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "total_minted",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "NftMetadata",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "collection",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "uri",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "token_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreateCollection",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "collection",
+        "attribute": "# [account (init , payer = authority , space = 8 + 32 + 4 + name . len () + 4 + symbol . len () + 8 + 1 , seeds = [b\"collection\" , authority . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Collection >"
+      },
+      {
+        "name": "authority",
         "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
-      },
-      {
-        "name": "system_program",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
       },
       {
         "name": "system_program",
@@ -29,34 +133,37 @@
     "body": null
   },
   {
-    "name": "DataAccount",
+    "name": "MintNft",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data",
+        "name": "collection",
+        "attribute": "# [account (mut , seeds = [b\"collection\" , collection . authority . as_ref ()] , bump = collection . bump , constraint = collection . authority == authority . key ())]",
+        "field_type": "Account < 'info , Collection >"
+      },
+      {
+        "name": "nft_metadata",
+        "attribute": "# [account (init , payer = authority , space = 8 + 32 + 32 + 4 + uri . len () + 8 + 1 , seeds = [b\"nft\" , collection . key () . as_ref () , & collection . total_minted . to_le_bytes ()] , bump)]",
+        "field_type": "Account < 'info , NftMetadata >"
+      },
+      {
+        "name": "authority",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "recipient",
+        "attribute": "# [doc = \" CHECK: This account is properly validated as the recipient\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
     "attributes": null,
     "body": null
-  },
-  {
-    "name": "place_order",
-    "node_type": "function",
-    "fields": null,
-    "inputs": [
-      "ctx: Context < PlaceOrderCtxouxm >",
-      "amount: u64"
-    ],
-    "attributes": [],
-    "body": [
-      "let acct = & mut ctx . accounts . order_book ;",
-      "assert ! (ctx . accounts . order_book . data > 0) ;",
-      "acct . data -= amount ;",
-      "msg ! (\"Executed place_order logic\") ;",
-      "Ok (())"
-    ]
   }
 ]

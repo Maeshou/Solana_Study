@@ -1,0 +1,192 @@
+[
+  {
+    "name": "init_network",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitNetwork >",
+      "base_rate_bps_input: u16",
+      "min_uptime_bps_input: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let state = & mut ctx . accounts . network_state ;",
+      "state . admin = ctx . accounts . admin . key () ;",
+      "state . base_rate_bps = clamp_u16 (base_rate_bps_input , 50 , 3000) ;",
+      "state . min_uptime_bps = clamp_u16 (min_uptime_bps_input , 8000 , 10_000) ;",
+      "state . epoch_index = 1 ;",
+      "state . total_paid = 1 ;",
+      "state . curve = IncentiveCurve :: Flat ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_reward",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActReward >",
+      "uptime_bps_reported: u16",
+      "epochs_continuous: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let state = & mut ctx . accounts . network_state ;",
+      "if uptime_bps_reported < state . min_uptime_bps",
+      "{",
+      "state . epoch_index = state . epoch_index + 1 ;",
+      "return Err (NodeErr :: LowUptime . into ()) ;",
+      "}",
+      "let mut harmonic_bps : u64 = 0 ;",
+      "let mut epoch_counter : u8 = 1 ;",
+      "while epoch_counter <= epochs_continuous",
+      "{",
+      "harmonic_bps = harmonic_bps + (10_000 / (epoch_counter as u64 + 9)) ;",
+      "epoch_counter = epoch_counter + 1 ;",
+      "}",
+      "let mut effective_bps : u64 = state . base_rate_bps as u64 + (harmonic_bps / 60) ;",
+      "if state . curve == IncentiveCurve :: Aggressive",
+      "{",
+      "effective_bps = effective_bps + (effective_bps / 8) ;",
+      "}",
+      "if state . curve == IncentiveCurve :: Cautious",
+      "{",
+      "effective_bps = effective_bps - (effective_bps / 12) ;",
+      "}",
+      "let mut reward_units : u64 = (uptime_bps_reported as u64) * effective_bps / 10_000 ;",
+      "let upper_limit : u64 = (state . base_rate_bps as u64) * 4 / 10 ;",
+      "if reward_units > upper_limit",
+      "{",
+      "reward_units = upper_limit ;",
+      "}",
+      "if reward_units < 1",
+      "{",
+      "reward_units = 1 ;",
+      "}",
+      "token :: transfer (ctx . accounts . pool_to_validator () , reward_units) ? ;",
+      "state . total_paid = state . total_paid + reward_units ;",
+      "state . epoch_index = state . epoch_index + 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitNetwork",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "network_state",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 2 + 2 + 8 + 8 + 1)]",
+        "field_type": "Account < 'info , NetworkState >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActReward",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "network_state",
+        "attribute": "# [account (mut , has_one = admin)]",
+        "field_type": "Account < 'info , NetworkState >"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "reward_pool",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "validator_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "NetworkState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "base_rate_bps",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "min_uptime_bps",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "epoch_index",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_paid",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "curve",
+        "attribute": null,
+        "field_type": "IncentiveCurve"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "clamp_u16",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "v: u16",
+      "lo: u16",
+      "hi: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut out = v ;",
+      "if out < lo",
+      "{",
+      "out = lo ;",
+      "}",
+      "if out > hi",
+      "{",
+      "out = hi ;",
+      "}",
+      "out"
+    ]
+  }
+]

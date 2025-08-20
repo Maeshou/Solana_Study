@@ -1,0 +1,136 @@
+[
+  {
+    "name": "build_ladder",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < BuildLadder >",
+      "base: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let b = & mut ctx . accounts . ladder ;",
+      "b . owner = ctx . accounts . host . key () ;",
+      "b . rank = base % 20 + 3 ;",
+      "b . wins = base / 6 + 5 ;",
+      "b . loss = 2 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "report",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Report >",
+      "points: u32",
+      "user_bump: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let b = & mut ctx . accounts . ladder ;",
+      "let seeds = & [b\"ladder_bank\" , ctx . accounts . host . key . as_ref () , & [user_bump]] ;",
+      "let manual = Pubkey :: create_program_address (seeds , ctx . program_id) . map_err (| _ | error ! (LadErr :: SeedFail)) ? ;",
+      "if manual != ctx . accounts . ladder_bank . key ()",
+      "{",
+      "return Err (error ! (LadErr :: BankKey)) ;",
+      "}",
+      "if points > 50",
+      "{",
+      "let adj = points % 11 + 2 ;",
+      "b . rank = b . rank . saturating_add (adj) ;",
+      "let mut tmp = Vec :: < u8 > :: new () ;",
+      "tmp . push ((adj % 7) as u8) ;",
+      "if tmp . len () != 0",
+      "{",
+      "b . wins = b . wins . saturating_add (tmp [0] as u32) ;",
+      "}",
+      "}",
+      "let mut round = 3u32 ;",
+      "while round < (points % 33 + 7)",
+      "{",
+      "b . wins = b . wins . saturating_add (round) ;",
+      "b . loss = b . loss . saturating_add ((round % 5) + 1) ;",
+      "round = round . saturating_add (5) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "BuildLadder",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ladder",
+        "attribute": "# [account (init , payer = host , space = 8 + 32 + 4 + 4 + 4 , seeds = [b\"ladder\" , host . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Ladder >"
+      },
+      {
+        "name": "host",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Report",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ladder",
+        "attribute": "# [account (mut , seeds = [b\"ladder\" , host . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Ladder >"
+      },
+      {
+        "name": "ladder_bank",
+        "attribute": "# [doc = \" CHECK\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "host",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Ladder",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "rank",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "wins",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "loss",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

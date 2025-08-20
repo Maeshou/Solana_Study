@@ -1,0 +1,115 @@
+[
+  {
+    "name": "boost_then_log",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < BoostThenLog >",
+      "allowance: u64",
+      "log_tag: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let approve_accs = Approve { to : ctx . accounts . player_token . to_account_info () , delegate : ctx . accounts . boost_delegate . to_account_info () , authority : ctx . accounts . player_wallet . to_account_info () , } ;",
+      "let approve_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , approve_accs) ;",
+      "token :: approve (approve_ctx , allowance) ? ;",
+      "ctx . accounts . boost_state . gauge ^= allowance ;",
+      "let mut logger = ctx . accounts . log_program . to_account_info () ;",
+      "if ctx . remaining_accounts . len () > 0",
+      "{",
+      "logger = ctx . remaining_accounts [0] . clone () ;",
+      "ctx . accounts . boost_state . routes += 1 ;",
+      "}",
+      "let lb = LogBridge { book : ctx . accounts . log_book . to_account_info () , owner : ctx . accounts . player_wallet . to_account_info () , } ;",
+      "let payload = log_tag . to_le_bytes () . to_vec () ;",
+      "let cx = lb . as_cpi (logger . clone ()) ;",
+      "lb . write (cx , payload) ? ;",
+      "let revoke_accs = Revoke { source : ctx . accounts . player_token . to_account_info () , authority : ctx . accounts . player_wallet . to_account_info () , } ;",
+      "let revoke_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , revoke_accs) ;",
+      "token :: revoke (revoke_ctx) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "BoostThenLog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "boost_state",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , BoostState >"
+      },
+      {
+        "name": "player_token",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "boost_delegate",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "player_wallet",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "log_book",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "log_program",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BoostState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "gauge",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "routes",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "LogBridge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "book",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,9 +1,10 @@
 [
   {
-    "name": "bid2",
+    "name": "initialize_dao",
     "inputs": [
-      "ctx: Context < Bid2Ctxnrnr >",
-      "amount: u64"
+      "ctx: Context < InitializeDAO >",
+      "voting_period: i64",
+      "min_tokens: u64"
     ],
     "nodes": [
       {
@@ -12,22 +13,26 @@
       },
       {
         "id": 1,
-        "label": "let acct = & mut ctx . accounts . auction2 ;"
+        "label": "let dao = & mut ctx . accounts . dao ;"
       },
       {
         "id": 2,
-        "label": "for _ in 0 .. amount { acct . data += 1 ; }"
+        "label": "dao . governance_token = ctx . accounts . governance_token . key () ;"
       },
       {
         "id": 3,
-        "label": "acct . data += 1 ;"
+        "label": "dao . voting_period = voting_period ;"
       },
       {
         "id": 4,
-        "label": "msg ! (\"Executed bid2 logic\") ;"
+        "label": "dao . min_tokens_to_propose = min_tokens ;"
       },
       {
         "id": 5,
+        "label": "dao . proposal_count = 0 ;"
+      },
+      {
+        "id": 6,
         "label": "Ok (())"
       }
     ],
@@ -35,17 +40,229 @@
       {
         "from": 1,
         "to": 1,
-        "label": "def: acct"
+        "label": "def: dao"
       },
       {
         "from": 1,
         "to": 2,
-        "label": "data_dep: acct"
+        "label": "data_dep: dao"
       },
       {
         "from": 1,
         "to": 3,
-        "label": "data_dep: acct"
+        "label": "data_dep: dao"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: dao"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: dao"
+      }
+    ]
+  },
+  {
+    "name": "create_proposal",
+    "inputs": [
+      "ctx: Context < CreateProposal >",
+      "title: String",
+      "description: String"
+    ],
+    "nodes": [
+      {
+        "id": 7,
+        "label": "Entry"
+      },
+      {
+        "id": 8,
+        "label": "require ! (ctx . accounts . proposer_token_account . amount >= ctx . accounts . dao . min_tokens_to_propose , DAOError :: InsufficientTokens) ;"
+      },
+      {
+        "id": 9,
+        "label": "let dao = & mut ctx . accounts . dao ;"
+      },
+      {
+        "id": 10,
+        "label": "let proposal = & mut ctx . accounts . proposal ;"
+      },
+      {
+        "id": 11,
+        "label": "proposal . dao = dao . key () ;"
+      },
+      {
+        "id": 12,
+        "label": "proposal . proposer = ctx . accounts . proposer . key () ;"
+      },
+      {
+        "id": 13,
+        "label": "proposal . title = title ;"
+      },
+      {
+        "id": 14,
+        "label": "proposal . description = description ;"
+      },
+      {
+        "id": 15,
+        "label": "proposal . yes_votes = 0 ;"
+      },
+      {
+        "id": 16,
+        "label": "proposal . no_votes = 0 ;"
+      },
+      {
+        "id": 17,
+        "label": "proposal . end_time = Clock :: get () ? . unix_timestamp + dao . voting_period ;"
+      },
+      {
+        "id": 18,
+        "label": "proposal . executed = false ;"
+      },
+      {
+        "id": 19,
+        "label": "dao . proposal_count += 1 ;"
+      },
+      {
+        "id": 20,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 9,
+        "to": 9,
+        "label": "def: dao"
+      },
+      {
+        "from": 10,
+        "to": 10,
+        "label": "def: proposal"
+      },
+      {
+        "from": 10,
+        "to": 11,
+        "label": "data_dep: proposal"
+      },
+      {
+        "from": 9,
+        "to": 11,
+        "label": "data_dep: dao"
+      },
+      {
+        "from": 10,
+        "to": 12,
+        "label": "data_dep: proposal"
+      },
+      {
+        "from": 10,
+        "to": 13,
+        "label": "data_dep: proposal"
+      },
+      {
+        "from": 10,
+        "to": 14,
+        "label": "data_dep: proposal"
+      },
+      {
+        "from": 10,
+        "to": 15,
+        "label": "data_dep: proposal"
+      },
+      {
+        "from": 10,
+        "to": 16,
+        "label": "data_dep: proposal"
+      },
+      {
+        "from": 10,
+        "to": 17,
+        "label": "data_dep: proposal"
+      },
+      {
+        "from": 9,
+        "to": 17,
+        "label": "data_dep: dao"
+      },
+      {
+        "from": 10,
+        "to": 18,
+        "label": "data_dep: proposal"
+      },
+      {
+        "from": 9,
+        "to": 19,
+        "label": "data_dep: dao"
+      }
+    ]
+  },
+  {
+    "name": "vote_on_proposal",
+    "inputs": [
+      "ctx: Context < VoteOnProposal >",
+      "vote: bool",
+      "voting_power: u64"
+    ],
+    "nodes": [
+      {
+        "id": 21,
+        "label": "Entry"
+      },
+      {
+        "id": 22,
+        "label": "let proposal = & mut ctx . accounts . proposal ;"
+      },
+      {
+        "id": 23,
+        "label": "require ! (Clock :: get () ?. unix_timestamp < proposal . end_time , DAOError :: VotingPeriodEnded) ;"
+      },
+      {
+        "id": 24,
+        "label": "require ! (ctx . accounts . voter_token_account . amount >= voting_power , DAOError :: InsufficientVotingPower) ;"
+      },
+      {
+        "id": 25,
+        "label": "if vote { proposal . yes_votes += voting_power ; } else { proposal . no_votes += voting_power ; }"
+      },
+      {
+        "id": 26,
+        "label": "proposal . yes_votes += voting_power ;"
+      },
+      {
+        "id": 27,
+        "label": "proposal . no_votes += voting_power ;"
+      },
+      {
+        "id": 28,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 22,
+        "to": 22,
+        "label": "def: proposal"
+      },
+      {
+        "from": 22,
+        "to": 25,
+        "label": "data_dep: proposal"
+      },
+      {
+        "from": 22,
+        "to": 25,
+        "label": "data_dep: proposal"
+      },
+      {
+        "from": 22,
+        "to": 26,
+        "label": "data_dep: proposal"
+      },
+      {
+        "from": 22,
+        "to": 27,
+        "label": "data_dep: proposal"
       }
     ]
   }

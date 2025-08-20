@@ -1,0 +1,109 @@
+[
+  {
+    "name": "send_gift",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SendGift >",
+      "note: String"
+    ],
+    "attributes": [
+      "# [doc = \" NFT をギフトし、手数料を徴収するが、\"]",
+      "# [doc = \" gift_account.owner と ctx.accounts.sender.key() の照合チェックがない\"]"
+    ],
+    "body": [
+      "let gift_acc = & mut ctx . accounts . gift_account ;",
+      "let fee = ctx . accounts . config . gift_fee ;",
+      "* * ctx . accounts . sender . to_account_info () . lamports . borrow_mut () -= fee ;",
+      "* * ctx . accounts . fee_pool . to_account_info () . lamports . borrow_mut () += fee ;",
+      "gift_acc . gifts_sent = gift_acc . gifts_sent . saturating_add (1) ;",
+      "gift_acc . last_note = note ;",
+      "let cpi_accounts = Transfer { from : ctx . accounts . sender_nft . to_account_info () , to : ctx . accounts . recipient_nft . to_account_info () , authority : ctx . accounts . sender . to_account_info () , } ;",
+      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
+      "token :: transfer (cpi_ctx , 1) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "SendGift",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "gift_account",
+        "attribute": "# [account (mut)] # [doc = \" 本来は #[account(has_one = owner)] を付けて\"] # [doc = \" gift_account.owner と sender.key() を照合すべき\"]",
+        "field_type": "Account < 'info , GiftAccount >"
+      },
+      {
+        "name": "fee_pool",
+        "attribute": "# [doc = \" 徴収した手数料を貯めるプール\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "sender",
+        "attribute": "# [doc = \" ギフトを送るユーザー（署名者）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "sender_nft",
+        "attribute": "# [doc = \" 送信者の NFT トークンアカウント\"] # [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "recipient_nft",
+        "attribute": "# [doc = \" 受取人の NFT トークンアカウント\"] # [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": "# [doc = \" SPL トークンプログラム\"]",
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "config",
+        "attribute": "# [doc = \" ギフト手数料設定を保持するアカウント\"]",
+        "field_type": "Account < 'info , GiftConfig >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GiftAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 本来このギフト機能を操作できるべきユーザーの Pubkey\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "gifts_sent",
+        "attribute": "# [doc = \" 累計ギフト送信回数\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "last_note",
+        "attribute": "# [doc = \" 最後に添えられたメモ\"]",
+        "field_type": "String"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GiftConfig",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "gift_fee",
+        "attribute": "# [doc = \" 1 回のギフト送信につき徴収する手数料（Lamports）\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

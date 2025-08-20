@@ -1,43 +1,254 @@
 [
   {
-    "name": "init_auction",
+    "name": "CraftEvent",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "passes",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "rarity_delta",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "init_bench",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx025 >",
-      "amount: u64"
+      "ctx: Context < InitBench >",
+      "limit: u32"
     ],
     "attributes": [],
     "body": [
-      "let cpi_accounts = Transfer { from : ctx . accounts . from_token . to_account_info () , to : ctx . accounts . to_token . to_account_info () , authority : ctx . accounts . authority . to_account_info () , } ;",
-      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
-      "token :: transfer (cpi_ctx , amount) ? ;",
+      "let accs = & mut ctx . accounts ;",
+      "accs . bench . owner = accs . crafter . key () ;",
+      "accs . bench . limit = limit ;",
+      "accs . bench . mode = BenchMode :: Warm ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx025",
+    "name": "craft",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Craft >",
+      "passes: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let accs = & mut ctx . accounts ;",
+      "let (bench , bin , ledger) = (& mut accs . bench , & mut accs . ore_bin , & mut accs . ledger) ;",
+      "assert_ne ! (bench . key () , bin . key () , \"bench/bin must differ\") ;",
+      "let rarity_delta = simulate_crafting (bin , passes) ;",
+      "ledger . rarity_score = ledger . rarity_score . saturating_add (rarity_delta) ;",
+      "ledger . crafts = ledger . crafts . saturating_add (passes as u64) ;",
+      "let hue_boost = hue_mix (& [bench . owner . as_ref () , & passes . to_le_bytes () , & ledger . crafts . to_le_bytes ()]) ;",
+      "bin . chromatic = bin . chromatic . saturating_add (hue_boost as u32) ;",
+      "if bin . iron . saturating_add (bin . silica) > bench . limit",
+      "{",
+      "bench . mode = BenchMode :: Overdrive ;",
+      "ledger . rarity_score = ledger . rarity_score . saturating_add (7) ;",
+      "bin . hardness = bin . hardness . saturating_add (5) ;",
+      "msg ! (\"limit exceeded: overdrive on, rarity+7 hardness+5\") ;",
+      "} else",
+      "{",
+      "bench . mode = BenchMode :: Warm ;",
+      "ledger . crafts = ledger . crafts . saturating_add (1) ;",
+      "bin . hardness = bin . hardness . saturating_add (2) ;",
+      "msg ! (\"within limit: warm mode, crafts+1 hardness+2\") ;",
+      "}",
+      "emit ! (CraftEvent { owner : bench . owner , passes , rarity_delta }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "simulate_crafting",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "bin: & mut OreBin",
+      "passes: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut rarity = 0u64 ;",
+      "for step in 0 .. passes",
+      "{",
+      "let gain = (2 + (step % 3)) as u32 ;",
+      "bin . iron = bin . iron . saturating_add (gain) ;",
+      "bin . silica = bin . silica . saturating_add (gain + 1) ;",
+      "bin . cutlines = bin . cutlines . saturating_add (3) ;",
+      "rarity = rarity . saturating_add ((gain as u64) * 2) ;",
+      "}",
+      "rarity"
+    ]
+  },
+  {
+    "name": "hue_mix",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "parts: & [& [u8]]"
+    ],
+    "attributes": [],
+    "body": [
+      "let h = hashv (parts) ;",
+      "u16 :: from_le_bytes ([h . 0 [0] , h . 0 [1]]) % 97 + 3"
+    ]
+  },
+  {
+    "name": "InitBench",
     "node_type": "struct",
     "fields": [
       {
-        "name": "from_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "bench",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Bench >"
       },
       {
-        "name": "to_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "ore_bin",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4 + 4 + 4 + 4)]",
+        "field_type": "Account < 'info , OreBin >"
       },
       {
-        "name": "authority",
+        "name": "ledger",
+        "attribute": "# [account (init , payer = payer , space = 8 + 8 + 8 , seeds = [b\"ledger\" , crafter . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Ledger >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "crafter",
         "attribute": null,
         "field_type": "Signer < 'info >"
       },
       {
-        "name": "token_program",
+        "name": "system_program",
         "attribute": null,
-        "field_type": "Program < 'info , Token >"
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Craft",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "bench",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Bench >"
+      },
+      {
+        "name": "ore_bin",
+        "attribute": "# [account (mut , constraint = ore_bin . key () != ledger . key () , error = GemErr :: Dup)]",
+        "field_type": "Account < 'info , OreBin >"
+      },
+      {
+        "name": "ledger",
+        "attribute": "# [account (mut , seeds = [b\"ledger\" , owner . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Ledger >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Bench",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "limit",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "mode",
+        "attribute": null,
+        "field_type": "BenchMode"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "OreBin",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "iron",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "silica",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "cutlines",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "hardness",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "chromatic",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Ledger",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "crafts",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "rarity_score",
+        "attribute": null,
+        "field_type": "u64"
       }
     ],
     "inputs": null,

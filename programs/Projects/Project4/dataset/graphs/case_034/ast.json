@@ -1,33 +1,58 @@
 [
   {
-    "name": "initialize_bot_config",
+    "name": "register_vehicle",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Initialize034 >",
-      "param: u64"
+      "ctx: Context < RegVeh >",
+      "vin: String"
     ],
     "attributes": [],
     "body": [
-      "let mut data = BotConfigData :: try_from_slice (& ctx . accounts . data_account . data . borrow ()) ? ;",
-      "data . value = param ;",
-      "data . serialize (& mut * ctx . accounts . data_account . data . borrow_mut ()) ? ;",
+      "let now = Clock :: get () ? . unix_timestamp ;",
+      "let v = & mut ctx . accounts . vehicle ;",
+      "v . vin = vin ;",
+      "v . maint_count = 0 ;",
+      "v . registered_at = now ;",
+      "v . next_service = now + 30 * 24 * 60 * 60 ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Initialize034",
+    "name": "service_vehicle",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ServiceVeh >"
+    ],
+    "attributes": [],
+    "body": [
+      "let now = Clock :: get () ? . unix_timestamp ;",
+      "let v = & mut ctx . accounts . vehicle ;",
+      "v . maint_count += 1 ;",
+      "v . last_service = now ;",
+      "v . next_service = now + 30 * 24 * 60 * 60 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "RegVeh",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "vehicle",
+        "attribute": "# [account (init , payer = owner , space = 8 + 64 + 4 + 8 * 4)]",
+        "field_type": "Account < 'info , VehicleData >"
       },
       {
-        "name": "authority",
-        "attribute": null,
+        "name": "owner",
+        "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -35,13 +60,57 @@
     "body": null
   },
   {
-    "name": "BotConfigData",
+    "name": "ServiceVeh",
     "node_type": "struct",
     "fields": [
       {
-        "name": "value",
+        "name": "vehicle",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "Account < 'info , VehicleData >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "VehicleData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vin",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "maint_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "registered_at",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "last_service",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "next_service",
+        "attribute": null,
+        "field_type": "i64"
       }
     ],
     "inputs": null,

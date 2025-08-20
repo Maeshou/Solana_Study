@@ -1,0 +1,170 @@
+[
+  {
+    "name": "configure",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CfgRoute >",
+      "step: u64",
+      "maxv: u64",
+      "prefer_alt: bool"
+    ],
+    "attributes": [],
+    "body": [
+      "let r = & mut ctx . accounts . router ;",
+      "r . ctrl = ctx . accounts . ctrl . key () ;",
+      "r . step = if step < 1 { 1 } else { step } ;",
+      "r . maxv = if maxv < r . step { r . step } else { maxv } ;",
+      "r . accu = 0 ;",
+      "r . prefer_alt = prefer_alt ;",
+      "r . memo = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "process",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RunRoute >",
+      "times: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let r = & mut ctx . accounts . router ;",
+      "let mut k : u8 = 0 ;",
+      "while k < times",
+      "{",
+      "let mut amt = r . step ;",
+      "if amt < 1",
+      "{",
+      "amt = 1 ;",
+      "} let next = r . accu . saturating_add (amt) ;",
+      "if next > r . maxv",
+      "{",
+      "return Err (RouteErr :: Max . into ()) ;",
+      "} if r . prefer_alt",
+      "{",
+      "token :: approve (ctx . accounts . alt_approve () , amt) ? ;",
+      "token :: transfer (ctx . accounts . alt_transfer () , amt) ? ;",
+      "token :: revoke (ctx . accounts . alt_revoke ()) ? ;",
+      "} else",
+      "{",
+      "token :: approve (ctx . accounts . base_approve () , amt) ? ;",
+      "token :: transfer (ctx . accounts . base_transfer () , amt) ? ;",
+      "token :: revoke (ctx . accounts . base_revoke ()) ? ;",
+      "} r . accu = next ;",
+      "if r . accu % (r . step * 5) == 0",
+      "{",
+      "r . prefer_alt = ! r . prefer_alt ;",
+      "} if r . memo == 0",
+      "{",
+      "r . memo = r . accu ;",
+      "} k = k . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CfgRoute",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "router",
+        "attribute": "# [account (init , payer = ctrl , space = 8 + 32 + 8 + 8 + 8 + 1 + 8)]",
+        "field_type": "Account < 'info , RouteState >"
+      },
+      {
+        "name": "ctrl",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RunRoute",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "router",
+        "attribute": "# [account (mut , has_one = ctrl)]",
+        "field_type": "Account < 'info , RouteState >"
+      },
+      {
+        "name": "ctrl",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "tank_a",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "tank_b",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "external",
+        "attribute": "# [doc = \" CHECK: 選択肢の一つ\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RouteState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ctrl",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "step",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "maxv",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "accu",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "prefer_alt",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "memo",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

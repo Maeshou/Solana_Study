@@ -1,0 +1,243 @@
+[
+  {
+    "name": "init_referee",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitReferee >",
+      "seed: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let r = & mut ctx . accounts . referee ;",
+      "r . owner = ctx . accounts . owner . key () ;",
+      "r . seed = seed ;",
+      "r . rng = seed ^ 0xA5A5_A5A5 ;",
+      "r . rounds = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_board",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitBoard >",
+      "slot: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let b = & mut ctx . accounts . board ;",
+      "b . parent = ctx . accounts . referee . key () ;",
+      "b . slot = slot ;",
+      "b . phase = Warmup ;",
+      "b . score = 0 ;",
+      "b . combos = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "tally_pair",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < TallyPair >",
+      "boost: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let r = & mut ctx . accounts . referee ;",
+      "let b1 = & mut ctx . accounts . a_board ;",
+      "let b2 = & mut ctx . accounts . b_board ;",
+      "for _ in 0 .. 5",
+      "{",
+      "r . rng = r . rng . rotate_left (5) ^ (r . seed . rotate_right (3)) ;",
+      "r . rounds = r . rounds . saturating_add (1) ;",
+      "}",
+      "if (r . rng & 1) == 1",
+      "{",
+      "b1 . phase = Active ;",
+      "b1 . score = b1 . score . saturating_add (boost + (r . rounds as u32 & 31)) ;",
+      "b1 . combos = b1 . combos . saturating_add (2) ;",
+      "r . seed = r . seed ^ 0x5F5F_5F5F ;",
+      "msg ! (\"B1 active;",
+      "score=",
+      "{",
+      "}, combos={}\" , b1 . score , b1 . combos) ;",
+      "} else",
+      "{",
+      "b1 . phase = Cooldown ;",
+      "b1 . score = b1 . score / 2 + (b1 . combos & 7) ;",
+      "b1 . combos = b1 . combos . saturating_sub (1) ;",
+      "r . seed = r . seed / 3 + 17 ;",
+      "msg ! (\"B1 cool;",
+      "score=",
+      "{",
+      "}, combos={}\" , b1 . score , b1 . combos) ;",
+      "}",
+      "for _ in 0 .. 4",
+      "{",
+      "if (b2 . slot as u32 + r . rounds as u32) & 3 == 0",
+      "{",
+      "b2 . phase = Active ;",
+      "b2 . combos = b2 . combos . saturating_add (1) ;",
+      "b2 . score = b2 . score . saturating_add (5 + (r . seed & 15)) ;",
+      "msg ! (\"B2 chain+;",
+      "score=",
+      "{",
+      "}, combos={}\" , b2 . score , b2 . combos) ;",
+      "} else",
+      "{",
+      "b2 . phase = Warmup ;",
+      "b2 . score = b2 . score . saturating_sub (b2 . score . min (3)) ;",
+      "r . rng = r . rng ^ (b2 . score as u32) ;",
+      "msg ! (\"B2 warm;",
+      "score=",
+      "{",
+      "}, rng={}\" , b2 . score , r . rng) ;",
+      "}",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitReferee",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "referee",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 4 + 4 + 8)]",
+        "field_type": "Account < 'info , Referee >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitBoard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "referee",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Referee >"
+      },
+      {
+        "name": "board",
+        "attribute": "# [account (init , payer = maker , space = 8 + 32 + 2 + 1 + 4 + 4)]",
+        "field_type": "Account < 'info , Board >"
+      },
+      {
+        "name": "maker",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TallyPair",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "referee",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Referee >"
+      },
+      {
+        "name": "a_board",
+        "attribute": "# [account (mut , has_one = parent)]",
+        "field_type": "Account < 'info , Board >"
+      },
+      {
+        "name": "b_board",
+        "attribute": "# [account (mut , has_one = parent)]",
+        "field_type": "Account < 'info , Board >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Referee",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "seed",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "rng",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "rounds",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Board",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "slot",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "phase",
+        "attribute": null,
+        "field_type": "BoardPhase"
+      },
+      {
+        "name": "score",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "combos",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

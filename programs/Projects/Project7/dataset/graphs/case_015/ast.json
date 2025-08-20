@@ -1,0 +1,173 @@
+[
+  {
+    "name": "init_pool",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitPool >",
+      "base_bps: u16",
+      "min_units: u64",
+      "early_rounds: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let pool = & mut ctx . accounts . pool ;",
+      "pool . admin = ctx . accounts . admin . key () ;",
+      "pool . base_rate_bps = base_bps . min (2500) . max (50) ;",
+      "pool . minimum_stake = min_units . max (1) ;",
+      "pool . current_round = early_rounds . max (1) as u64 ;",
+      "pool . cumulative_payout = min_units . saturating_div (3) . max (1) ;",
+      "pool . conservative_mode = false ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_settle",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActSettle >",
+      "deposit_units: u64",
+      "epochs: u16",
+      "boost_step_bps: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let pool = & mut ctx . accounts . pool ;",
+      "require ! (deposit_units >= pool . minimum_stake , ErrStk :: TooSmall) ;",
+      "let mut fee_bps = 500u64 ;",
+      "let mut r = 1u64 ;",
+      "while r < pool . current_round",
+      "{",
+      "if fee_bps > 100",
+      "{",
+      "fee_bps = fee_bps . saturating_sub (100) ;",
+      "} r = r . saturating_add (1) ;",
+      "}",
+      "let mut boost_bps = 0u64 ;",
+      "let mut e = 0u16 ;",
+      "while e < epochs",
+      "{",
+      "boost_bps = boost_bps . saturating_add (boost_step_bps as u64) ;",
+      "e = e . saturating_add (1) ;",
+      "}",
+      "let mut effective_bps = pool . base_rate_bps as u64 ;",
+      "if pool . conservative_mode",
+      "{",
+      "effective_bps = effective_bps . saturating_sub (25) ;",
+      "}",
+      "let capped = effective_bps . saturating_add (boost_bps) ;",
+      "let bps_for_reward = if capped > effective_bps . saturating_mul (3) { effective_bps . saturating_mul (3) } else { capped } ;",
+      "let gross = deposit_units . saturating_mul (bps_for_reward) / 10_000 ;",
+      "let fee = gross . saturating_mul (fee_bps) / 10_000 ;",
+      "let net = gross . saturating_sub (fee) ;",
+      "if net < pool . minimum_stake . saturating_div (12)",
+      "{",
+      "pool . conservative_mode = true ;",
+      "pool . current_round = pool . current_round . saturating_add (1) ;",
+      "return Err (ErrStk :: NoMeaningfulReward . into ()) ;",
+      "}",
+      "pool . cumulative_payout = pool . cumulative_payout . saturating_add (net) ;",
+      "pool . current_round = pool . current_round . saturating_add (1) ;",
+      "token :: transfer (ctx . accounts . pool_to_staker () , net) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitPool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 2 + 8 + 8 + 8 + 1)]",
+        "field_type": "Account < 'info , PoolState >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActSettle",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": "# [account (mut , has_one = admin)]",
+        "field_type": "Account < 'info , PoolState >"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "pool_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "user_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PoolState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "base_rate_bps",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "minimum_stake",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "current_round",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "cumulative_payout",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "conservative_mode",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

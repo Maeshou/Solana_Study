@@ -1,0 +1,233 @@
+[
+  {
+    "name": "init_guild_registry",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitGuildRegistry >",
+      "guild_tag: u32",
+      "tier: GuildTier"
+    ],
+    "attributes": [],
+    "body": [
+      "let registry = & mut ctx . accounts . registry ;",
+      "registry . master_guild = ctx . accounts . master . key () ;",
+      "registry . guild_tag = guild_tag ;",
+      "registry . tier = tier ;",
+      "registry . total_battles = 1u32 ;",
+      "registry . win_streak = 1u16 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_battle_record",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitBattleRecord >",
+      "battle_id: u64",
+      "status: BattleStatus"
+    ],
+    "attributes": [],
+    "body": [
+      "let record = & mut ctx . accounts . record ;",
+      "record . parent_registry = ctx . accounts . registry . key () ;",
+      "record . battle_id = battle_id ;",
+      "record . status = status ;",
+      "record . participant_count = 2u8 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "process_battle_results",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ProcessBattleResults >"
+    ],
+    "attributes": [],
+    "body": [
+      "let left_reg = & mut ctx . accounts . left_registry ;",
+      "let right_reg = & mut ctx . accounts . right_registry ;",
+      "let battle_log = & mut ctx . accounts . battle_log ;",
+      "for iteration in 1 ..= 5u8",
+      "{",
+      "if iteration % 2 == 1",
+      "{",
+      "let base_score = left_reg . total_battles . checked_mul (3) . unwrap_or (u32 :: MAX) ;",
+      "left_reg . total_battles = base_score . checked_add (iteration as u32) . unwrap_or (u32 :: MAX) ;",
+      "left_reg . win_streak = left_reg . win_streak . saturating_add (1) ;",
+      "battle_log . victory_points = battle_log . victory_points . wrapping_add (base_score as u64) ;",
+      "msg ! (\"Left guild processed: iteration",
+      "{",
+      "}\" , iteration) ;",
+      "} else",
+      "{",
+      "let penalty = right_reg . win_streak . saturating_sub (1) ;",
+      "right_reg . win_streak = penalty ;",
+      "right_reg . total_battles = right_reg . total_battles . saturating_add (2) ;",
+      "battle_log . defeat_penalty = battle_log . defeat_penalty . checked_add (penalty as u64) . unwrap_or (u64 :: MAX) ;",
+      "msg ! (\"Right guild processed: iteration",
+      "{",
+      "}\" , iteration) ;",
+      "}",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitGuildRegistry",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "registry",
+        "attribute": "# [account (init , payer = master , space = 8 + 32 + 4 + 1 + 4 + 2)]",
+        "field_type": "Account < 'info , GuildRegistry >"
+      },
+      {
+        "name": "master",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitBattleRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "registry",
+        "attribute": "# [account (mut , has_one = master_guild)]",
+        "field_type": "Account < 'info , GuildRegistry >"
+      },
+      {
+        "name": "record",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 8 + 1 + 1)]",
+        "field_type": "Account < 'info , BattleRecord >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ProcessBattleResults",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "left_registry",
+        "attribute": "# [account (mut , has_one = master_guild , constraint = left_registry . guild_tag != right_registry . guild_tag @ ErrorCode :: CosplayBlocked)]",
+        "field_type": "Account < 'info , GuildRegistry >"
+      },
+      {
+        "name": "right_registry",
+        "attribute": "# [account (mut , has_one = master_guild , owner = crate :: ID)]",
+        "field_type": "Account < 'info , GuildRegistry >"
+      },
+      {
+        "name": "battle_log",
+        "attribute": "# [account (mut , has_one = parent_registry)]",
+        "field_type": "Account < 'info , BattleRecord >"
+      },
+      {
+        "name": "master_guild",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GuildRegistry",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "master_guild",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "guild_tag",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "tier",
+        "attribute": null,
+        "field_type": "GuildTier"
+      },
+      {
+        "name": "total_battles",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "win_streak",
+        "attribute": null,
+        "field_type": "u16"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BattleRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent_registry",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "battle_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "status",
+        "attribute": null,
+        "field_type": "BattleStatus"
+      },
+      {
+        "name": "participant_count",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "victory_points",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "defeat_penalty",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

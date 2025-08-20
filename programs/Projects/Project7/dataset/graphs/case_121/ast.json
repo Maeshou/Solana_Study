@@ -1,0 +1,151 @@
+[
+  {
+    "name": "set_route",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SetRoute >",
+      "target_program_key: Pubkey",
+      "daily_cap: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let route_config = & mut ctx . accounts . route_config ;",
+      "route_config . admin = ctx . accounts . admin . key () ;",
+      "route_config . program_key = target_program_key ;",
+      "route_config . daily_cap = daily_cap ;",
+      "route_config . moved_today = 0 ;",
+      "route_config . last_day = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "hop",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Hop >",
+      "move_amount: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let route_config = & mut ctx . accounts . route_config ;",
+      "let current_day = (Clock :: get () ? . unix_timestamp as u64) / 86_400 ;",
+      "if route_config . last_day != current_day",
+      "{",
+      "route_config . last_day = current_day ;",
+      "route_config . moved_today = 0 ;",
+      "}",
+      "let planned_total = route_config . moved_today . saturating_add (move_amount) ;",
+      "require ! (planned_total <= route_config . daily_cap , RouteErr :: DailyLimit) ;",
+      "let wanted_key = route_config . program_key ;",
+      "let mut selected_program : Option < AccountInfo > = None ;",
+      "for candidate in ctx . remaining_accounts . iter ()",
+      "{",
+      "if candidate . key () == wanted_key",
+      "{",
+      "selected_program = Some (candidate . clone ()) ;",
+      "break ;",
+      "}",
+      "}",
+      "let selected_program = selected_program . ok_or (RouteErr :: ProgramNotFound) ? ;",
+      "token :: approve (CpiContext :: new (selected_program . clone () , Approve { to : ctx . accounts . from_account . to_account_info () , delegate : ctx . accounts . to_account . to_account_info () , authority : ctx . accounts . admin . to_account_info () , }) , move_amount) ? ;",
+      "token :: transfer (CpiContext :: new (selected_program . clone () , Transfer { from : ctx . accounts . from_account . to_account_info () , to : ctx . accounts . to_account . to_account_info () , authority : ctx . accounts . admin . to_account_info () , }) , move_amount) ? ;",
+      "token :: revoke (CpiContext :: new (selected_program , Revoke { source : ctx . accounts . from_account . to_account_info () , authority : ctx . accounts . admin . to_account_info () , })) ? ;",
+      "route_config . moved_today = planned_total ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "SetRoute",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "route_config",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 32 + 8 + 8)]",
+        "field_type": "Account < 'info , RouteConfig >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Hop",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "route_config",
+        "attribute": "# [account (mut , has_one = admin)]",
+        "field_type": "Account < 'info , RouteConfig >"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "from_account",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "to_account",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RouteConfig",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "program_key",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "daily_cap",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "moved_today",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "last_day",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

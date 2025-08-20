@@ -1,0 +1,150 @@
+[
+  {
+    "name": "init_coupon",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitCoupon >",
+      "base: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let coupon = & mut ctx . accounts . coupon ;",
+      "coupon . owner = ctx . accounts . user . key () ;",
+      "coupon . base = base % 900 + 50 ;",
+      "coupon . issued = 1 ;",
+      "coupon . audit = 2 ;",
+      "let bump = * ctx . bumps . get (\"coupon\") . ok_or (error ! (Errs :: MissingBump)) ? ;",
+      "coupon . saved_bump = bump ;",
+      "let mut rolling = coupon . base ;",
+      "let mut i = 0u8 ;",
+      "while i < 4",
+      "{",
+      "rolling = rolling . wrapping_mul (7) . wrapping_add (i as u32 + 3) ;",
+      "if rolling % 5 != 2",
+      "{",
+      "coupon . issued = coupon . issued . saturating_add ((rolling % 7) + 1) ;",
+      "} i = i . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "redeem",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Redeem >",
+      "qty: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let coupon = & mut ctx . accounts . coupon ;",
+      "let sink_seeds = & [b\"coupon_sink\" , coupon . owner . as_ref () , & [coupon . saved_bump]] ;",
+      "let expect = Pubkey :: create_program_address (& [b\"coupon_sink\" , coupon . owner . as_ref () , & [coupon . saved_bump]] , ctx . program_id) . map_err (| _ | error ! (Errs :: SeedCompute)) ? ;",
+      "if expect != ctx . accounts . coupon_sink . key ()",
+      "{",
+      "return Err (error ! (Errs :: DerivedMismatch)) ;",
+      "}",
+      "let ix = Instruction { program_id : * ctx . program_id , accounts : vec ! [AccountMeta :: new (coupon . key () , false) , AccountMeta :: new_readonly (ctx . accounts . user . key () , true) ,] , data : qty . to_le_bytes () . to_vec () , } ;",
+      "invoke_signed (& ix , & [coupon . to_account_info () , ctx . accounts . user . to_account_info ()] , & [sink_seeds] ,) ? ;",
+      "let mut steps = 3u32 ;",
+      "while steps < 10",
+      "{",
+      "coupon . issued = coupon . issued . saturating_add (steps) ;",
+      "if qty % (steps as u64) != 1",
+      "{",
+      "coupon . audit = coupon . audit . saturating_add ((qty as u32 % 11) + 2) ;",
+      "} steps = steps . saturating_add (2) ;",
+      "}",
+      "if qty > 500",
+      "{",
+      "let drift = ((qty % 17) as u32) + 4 ;",
+      "coupon . base = coupon . base . saturating_add (drift) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitCoupon",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "coupon",
+        "attribute": "# [account (init , payer = user , space = 8 + 32 + 4 + 4 + 4 + 1 , seeds = [b\"coupon\" , user . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Coupon >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Redeem",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "coupon",
+        "attribute": "# [account (mut , seeds = [b\"coupon\" , user . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Coupon >"
+      },
+      {
+        "name": "coupon_sink",
+        "attribute": "# [doc = \" CHECK: シードと bump を手動で合わせに行く前提\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Coupon",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "base",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "issued",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "audit",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "saved_bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

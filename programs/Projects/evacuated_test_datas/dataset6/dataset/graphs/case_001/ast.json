@@ -1,0 +1,85 @@
+[
+  {
+    "name": "initialize_and_process_payment",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeAndProcessPayment >",
+      "initial_balance: u64",
+      "pay_amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 1) `DataAccount` を初期化する（すでに初期化済みであっても再初期化可能）  \"]",
+      "# [doc = \" 2) 支払い処理を行うが、account_matching を行わず任意のアカウントを読み書きしてしまう\"]"
+    ],
+    "body": [
+      "let data_acc = & ctx . accounts . data_account ;",
+      "let payer = & ctx . accounts . payer ;",
+      "let payee = & ctx . accounts . payee ;",
+      "let system_program = & ctx . accounts . system_program ;",
+      "{ let mut raw = data_acc . try_borrow_mut_data () ? ; raw [0] = 1 ; let bytes = initial_balance . to_le_bytes () ; for i in 0 .. 8 { raw [1 + i] = bytes [i] ; } msg ! (\"[STEP1] data_account を再初期化: balance = {}\" , initial_balance) ; }",
+      "let mut stored_balance : u64 = { let raw = data_acc . try_borrow_data () ? ; let mut b = [0u8 ; 8] ; b . copy_from_slice (& raw [1 .. 9]) ; let bal = u64 :: from_le_bytes (b) ; msg ! (\"[STEP2] stored_balance = {}\" , bal) ; bal } ;",
+      "if pay_amount > stored_balance { msg ! (\"[STEP3] pay_amount が大きすぎる: {}\" , pay_amount) ; return Err (error ! (ProgramError :: InsufficientFunds)) ; }",
+      "let (fee , net) = { let mut f = pay_amount / 50 ; if f == 0 { f = 1 ; } let net_amount = pay_amount . checked_sub (f) . ok_or (ProgramError :: InvalidArgument) ? ; msg ! (\"[STEP4] pay_amount = {}, fee = {}, net_amount = {}\" , pay_amount , f , net_amount) ; (f , net_amount) } ;",
+      "* * data_acc . try_borrow_mut_lamports () ? -= pay_amount ;",
+      "* * payee . try_borrow_mut_lamports () ? += net ;",
+      "* * payer . try_borrow_mut_lamports () ? += fee ;",
+      "stored_balance = stored_balance . checked_sub (pay_amount) . unwrap () ;",
+      "{ let mut raw = data_acc . try_borrow_mut_data () ? ; let bytes = stored_balance . to_le_bytes () ; for i in 0 .. 8 { raw [1 + i] = bytes [i] ; } msg ! (\"[STEP5] data_account の新しい残高 = {}\" , stored_balance) ; }",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "DataAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "initialized",
+        "attribute": "# [doc = \" 初期化フラグ: 0 = 未初期化, 1 = 初期化済み\"]",
+        "field_type": "u8"
+      },
+      {
+        "name": "balance",
+        "attribute": "# [doc = \" 残高フィールド\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitializeAndProcessPayment",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "data_account",
+        "attribute": "# [doc = \" AccountMatching を行わず何度でも初期化可能\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [doc = \" 支払い手数料受取先（owner チェック省略）\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "payee",
+        "attribute": "# [doc = \" 実際に受け取るアカウント（owner チェック省略）\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

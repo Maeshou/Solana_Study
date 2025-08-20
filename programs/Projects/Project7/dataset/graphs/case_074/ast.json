@@ -1,0 +1,169 @@
+[
+  {
+    "name": "init_project",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitProject >",
+      "milestone_step_input: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let project = & mut ctx . accounts . project ;",
+      "project . owner = ctx . accounts . owner . key () ;",
+      "project . milestone_step = milestone_step_input ;",
+      "if project . milestone_step < 5",
+      "{",
+      "project . milestone_step = 5 ;",
+      "}",
+      "project . material_burned = 1 ;",
+      "project . progress_points = 0 ;",
+      "project . milestones_completed = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_build",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActBuild >",
+      "material_units: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let project = & mut ctx . accounts . project ;",
+      "let mut burn_units : u64 = material_units ;",
+      "if burn_units < 1",
+      "{",
+      "burn_units = 1 ;",
+      "}",
+      "token :: burn (ctx . accounts . burn_ctx () , burn_units) ? ;",
+      "let mut added_points : u64 = burn_units / 2 + 1 ;",
+      "let mut step_counter : u8 = 0 ;",
+      "while step_counter < 3",
+      "{",
+      "added_points = added_points + step_counter as u64 ;",
+      "step_counter = step_counter + 1 ;",
+      "}",
+      "project . progress_points = project . progress_points + added_points ;",
+      "project . material_burned = project . material_burned + burn_units ;",
+      "let mut bonus_units : u64 = 0 ;",
+      "if project . progress_points >= project . milestone_step",
+      "{",
+      "bonus_units = project . milestone_step / 3 + 1 ;",
+      "token :: mint_to (ctx . accounts . mint_ctx () , bonus_units) ? ;",
+      "project . progress_points = project . progress_points - project . milestone_step ;",
+      "project . milestones_completed = project . milestones_completed + 1 ;",
+      "}",
+      "if project . milestones_completed % 5 == 0 && project . milestones_completed > 0",
+      "{",
+      "let additional = bonus_units + 2 ;",
+      "token :: mint_to (ctx . accounts . mint_ctx () , additional) ? ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitProject",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "project",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , ProjectState >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActBuild",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "project",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , ProjectState >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "material_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "material_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "bonus_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "bonus_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ProjectState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "milestone_step",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "material_burned",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "progress_points",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "milestones_completed",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

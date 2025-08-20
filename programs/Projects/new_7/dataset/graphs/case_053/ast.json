@@ -1,0 +1,167 @@
+[
+  {
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Init >",
+      "id0: Pubkey",
+      "id1: Pubkey"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . sys ;",
+      "s . owner = ctx . accounts . owner . key () ;",
+      "s . id0 = id0 ;",
+      "s . id1 = id1 ;",
+      "s . turn = 0 ;",
+      "s . coeff = vec ! [3 , 1 , 4 , 1 , 5 , 9] ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "pay",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Pay >",
+      "x: u64",
+      "note: String",
+      "base: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . sys ;",
+      "require ! (s . owner == ctx . accounts . owner . key () , Errs :: Owner) ;",
+      "let mut val = 0u64 ;",
+      "let mut i = 0usize ;",
+      "while i < s . coeff . len ()",
+      "{",
+      "val = val . saturating_mul (x) . saturating_add (s . coeff [i] as u64) ;",
+      "i += 1 ;",
+      "}",
+      "let b = note . as_bytes () ;",
+      "let mut j = 0usize ;",
+      "while j < b . len ()",
+      "{",
+      "let idx = (j % s . coeff . len ()) as usize ;",
+      "if j % 2 == 0",
+      "{",
+      "s . coeff [idx] = s . coeff [idx] . saturating_add ((b [j] % 7) as u32) ;",
+      "} else",
+      "{",
+      "if s . coeff [idx] > 0 { s . coeff [idx] = s . coeff [idx] . saturating_sub (1) ;",
+      "} } j += 1 ;",
+      "}",
+      "let mut id = s . id0 ;",
+      "if s . turn % 2 == 1",
+      "{",
+      "id = s . id1 ;",
+      "}",
+      "s . turn = s . turn . saturating_add (1) ;",
+      "let mut extra = 0u64 ;",
+      "let mut k = 0u8 ;",
+      "while k < 5",
+      "{",
+      "extra = extra . saturating_add (((s . turn % 11) as u64) + (k as u64)) ;",
+      "k = k . saturating_add (1) ;",
+      "}",
+      "let amt = base . saturating_add (val) . saturating_add (extra) ;",
+      "let ix = spl_token :: instruction :: transfer (id , ctx . accounts . pool . key () , ctx . accounts . receiver_ata . key () , ctx . accounts . owner . key () , & [] , amt ,) ? ;",
+      "invoke (& ix , & [ctx . accounts . pool . to_account_info () , ctx . accounts . receiver_ata . to_account_info () , ctx . accounts . owner . to_account_info () ,]) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Sys2",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "id0",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "id1",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "turn",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "coeff",
+        "attribute": null,
+        "field_type": "Vec < u32 >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Init",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "sys",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 32 + 32 + 4 + 4 + (4 * 8))]",
+        "field_type": "Account < 'info , Sys2 >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Pay",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "sys",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Sys2 >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "pool",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "receiver_ata",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

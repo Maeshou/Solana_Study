@@ -1,0 +1,165 @@
+[
+  {
+    "name": "open",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < OpenW >",
+      "unit: u64",
+      "roof: u64",
+      "window: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let w = & mut ctx . accounts . wcfg ;",
+      "w . guard = ctx . accounts . guard . key () ;",
+      "w . unit = if unit < 1 { 1 } else { unit } ;",
+      "w . roof = if roof < w . unit { w . unit } else { roof } ;",
+      "w . window = if window < 1 { 1 } else { window } ;",
+      "w . total = 0 ;",
+      "w . in_window = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "pump",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PumpW >",
+      "n: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let w = & mut ctx . accounts . wcfg ;",
+      "let mut r : u8 = 0 ;",
+      "while r < n",
+      "{",
+      "let mut amt = w . unit ;",
+      "if amt < 1",
+      "{",
+      "amt = 1 ;",
+      "} let nxt = w . total . saturating_add (amt) ;",
+      "if nxt > w . roof",
+      "{",
+      "return Err (WinErr :: Roof . into ()) ;",
+      "} let over = w . in_window >= w . window ;",
+      "let prg = if over",
+      "{",
+      "ctx . accounts . gateway . to_account_info () } else { ctx . accounts . token_program . to_account_info () } ;",
+      "token :: approve (ctx . accounts . a (prg . clone ()) , amt) ? ;",
+      "token :: transfer (ctx . accounts . t (prg . clone ()) , amt) ? ;",
+      "token :: revoke (ctx . accounts . r (prg)) ? ;",
+      "w . total = nxt ;",
+      "w . in_window = w . in_window . saturating_add (1) ;",
+      "if w . in_window % (w . window * 2) == 0",
+      "{",
+      "w . in_window = 0 ;",
+      "} r = r . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "OpenW",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "wcfg",
+        "attribute": "# [account (init , payer = guard , space = 8 + 32 + 8 + 8 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , WinState >"
+      },
+      {
+        "name": "guard",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PumpW",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "wcfg",
+        "attribute": "# [account (mut , has_one = guard)]",
+        "field_type": "Account < 'info , WinState >"
+      },
+      {
+        "name": "guard",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "tube_in",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "tube_out",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "gateway",
+        "attribute": "# [doc = \" CHECK: ウィンドウ超過時に使用\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "WinState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guard",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "unit",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "roof",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "window",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "in_window",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

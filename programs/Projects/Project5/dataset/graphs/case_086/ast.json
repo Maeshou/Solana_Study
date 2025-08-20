@@ -1,33 +1,232 @@
 [
   {
-    "name": "init_prediction_market",
+    "name": "init_resort",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx086 >"
+      "ctx: Context < InitResort >",
+      "n: u32"
     ],
     "attributes": [],
     "body": [
-      "let a = & ctx . accounts . first ;",
-      "let b = & ctx . accounts . second ;",
-      "msg ! (\"Account A: {}\" , a . key ()) ;",
-      "msg ! (\"Account B: {}\" , b . key ()) ;",
+      "let r = & mut ctx . accounts . resort ;",
+      "r . owner = ctx . accounts . manager . key () ;",
+      "r . limit = n * 5 + 150 ;",
+      "r . state = Prep ;",
+      "let a = & mut ctx . accounts . lift_a ;",
+      "let b = & mut ctx . accounts . lift_b ;",
+      "let c = & mut ctx . accounts . counter ;",
+      "let mut crc = 0xFFFF_FFFFu32 ^ n ;",
+      "for _ in 0 .. 4",
+      "{",
+      "let bit = (crc ^ (n >> 3)) & 1 ;",
+      "crc = (crc >> 1) ^ (if bit == 1",
+      "{",
+      "0x1EDC6F41 } else { 0 }) ;",
+      "}",
+      "a . resort = r . key () ;",
+      "a . gate = (n & 7) as u8 ;",
+      "a . riders = (crc & 1023) + 30 ;",
+      "b . resort = r . key () ;",
+      "b . gate = ((n >> 2) & 7) as u8 ;",
+      "b . riders = ((crc >> 10) & 1023) + 27 ;",
+      "c . resort = r . key () ;",
+      "c . gate = 9 ;",
+      "c . laps = 0 ;",
+      "c . seed = crc ^ 0xBEEF_BEEF ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx086",
+    "name": "glide",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Glide >",
+      "loops: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let r = & mut ctx . accounts . resort ;",
+      "let a = & mut ctx . accounts . lift_a ;",
+      "let b = & mut ctx . accounts . lift_b ;",
+      "let c = & mut ctx . accounts . counter ;",
+      "for i in 0 .. loops",
+      "{",
+      "let z = ((a . riders ^ b . riders) as u64) . wrapping_mul (1469598103934665603) ;",
+      "a . riders = a . riders . checked_add (((z & 63) as u32) + 3) . unwrap_or (u32 :: MAX) ;",
+      "b . riders = b . riders . saturating_add ((((z >> 6) & 63) as u32) + 5) ;",
+      "c . laps = c . laps . saturating_add (1) ;",
+      "c . seed ^= (z as u32) . rotate_left ((i % 19) as u32) ;",
+      "}",
+      "let sum = a . riders + b . riders ;",
+      "if sum > r . limit",
+      "{",
+      "r . state = Stop ;",
+      "a . gate ^= 1 ;",
+      "b . gate = b . gate . saturating_add (1) ;",
+      "c . gate = c . gate . saturating_add (1) ;",
+      "msg ! (\"stop: gate tweaks & counter move\") ;",
+      "} else",
+      "{",
+      "r . state = Run ;",
+      "a . riders = a . riders . saturating_add (9) ;",
+      "b . riders = b . riders / 2 + 11 ;",
+      "c . seed ^= 0x0F0F_F0F0 ;",
+      "msg ! (\"run: adjust riders & seed flip\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitResort",
     "node_type": "struct",
     "fields": [
       {
-        "name": "first",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "resort",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Resort >"
       },
       {
-        "name": "second",
+        "name": "lift_a",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Lift >"
+      },
+      {
+        "name": "lift_b",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Lift >"
+      },
+      {
+        "name": "counter",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 8 + 4)]",
+        "field_type": "Account < 'info , LiftCounter >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Glide",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "resort",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Resort >"
+      },
+      {
+        "name": "lift_a",
+        "attribute": "# [account (mut , has_one = resort , constraint = lift_a . gate != lift_b . gate @ SnowErr :: Dup)]",
+        "field_type": "Account < 'info , Lift >"
+      },
+      {
+        "name": "lift_b",
+        "attribute": "# [account (mut , has_one = resort , constraint = lift_b . gate != counter . gate @ SnowErr :: Dup)]",
+        "field_type": "Account < 'info , Lift >"
+      },
+      {
+        "name": "counter",
+        "attribute": "# [account (mut , has_one = resort)]",
+        "field_type": "Account < 'info , LiftCounter >"
+      },
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Resort",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "limit",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "state",
+        "attribute": null,
+        "field_type": "LiftState"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Lift",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "resort",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "gate",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "riders",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "LiftCounter",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "resort",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "gate",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "laps",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "seed",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

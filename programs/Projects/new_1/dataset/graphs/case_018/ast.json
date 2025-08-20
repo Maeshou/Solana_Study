@@ -1,0 +1,170 @@
+[
+  {
+    "name": "register_skin",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RegisterSkin >",
+      "name: String",
+      "symbol: String",
+      "uri: String",
+      "description: String"
+    ],
+    "attributes": [
+      "# [doc = \" 1) オリジナルスキンのメタデータを登録\"]"
+    ],
+    "body": [
+      "let skin = & mut ctx . accounts . skin_account ;",
+      "skin . owner = * ctx . accounts . user . key ;",
+      "skin . name = name ;",
+      "skin . symbol = symbol ;",
+      "skin . uri = uri ;",
+      "skin . description = description ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "mint_genesis",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < MintGenesis >"
+    ],
+    "attributes": [
+      "# [doc = \" 2) 登録済みスキンを元にジェネシスNFTを新規ミント\"]"
+    ],
+    "body": [
+      "let skin = & ctx . accounts . skin_account ;",
+      "let metadata_data = DataV2 { name : skin . name . clone () , symbol : skin . symbol . clone () , uri : skin . uri . clone () , seller_fee_basis_points : 500 , creators : Some (vec ! [mpl_token_metadata :: state :: Creator { address : skin . owner , verified : false , share : 100 , }]) , collection : None , uses : None , } ;",
+      "let metadata_ix = create_metadata_accounts_v3 (ctx . accounts . token_metadata_program . key () , ctx . accounts . metadata_account . key () , ctx . accounts . genesis_mint . key () , ctx . accounts . user . key () , ctx . accounts . user . key () , ctx . accounts . user . key () , metadata_data , true , true , None , None , None ,) ;",
+      "invoke (& metadata_ix , & [ctx . accounts . metadata_account . to_account_info () , ctx . accounts . genesis_mint . to_account_info () , ctx . accounts . user . to_account_info () , ctx . accounts . user . to_account_info () , ctx . accounts . user . to_account_info () , ctx . accounts . token_metadata_program . to_account_info () , ctx . accounts . system_program . to_account_info () , ctx . accounts . rent . to_account_info () ,] ,) ? ;",
+      "let edition_ix = create_master_edition_v3 (ctx . accounts . token_metadata_program . key () , ctx . accounts . master_edition_account . key () , ctx . accounts . genesis_mint . key () , ctx . accounts . user . key () , ctx . accounts . user . key () , ctx . accounts . metadata_account . key () , ctx . accounts . user . key () , Some (0) ,) ;",
+      "invoke (& edition_ix , & [ctx . accounts . master_edition_account . to_account_info () , ctx . accounts . genesis_mint . to_account_info () , ctx . accounts . user . to_account_info () , ctx . accounts . user . to_account_info () , ctx . accounts . metadata_account . to_account_info () , ctx . accounts . token_metadata_program . to_account_info () , ctx . accounts . system_program . to_account_info () , ctx . accounts . rent . to_account_info () ,] ,) ? ;",
+      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , mint_to :: Accounts { mint : ctx . accounts . genesis_mint . to_account_info () , to : ctx . accounts . user_ata . to_account_info () , authority : ctx . accounts . user . to_account_info () , } ,) ;",
+      "mint_to (cpi_ctx , 1) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "SkinAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "symbol",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "uri",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "description",
+        "attribute": null,
+        "field_type": "String"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RegisterSkin",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "skin_account",
+        "attribute": "# [account (init_if_needed , payer = user , space = 8 + 32 + 4 * 4 + 200 , seeds = [b\"skin\" , user . key () . as_ref ()] , bump ,)]",
+        "field_type": "Account < 'info , SkinAccount >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "rent",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Rent >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MintGenesis",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "skin_account",
+        "attribute": "# [doc = \" 登録済みスキン情報\"] # [account (seeds = [b\"skin\" , user . key () . as_ref ()] , bump , has_one = owner @ ErrorCode :: Unauthorized ,)]",
+        "field_type": "Account < 'info , SkinAccount >"
+      },
+      {
+        "name": "genesis_mint",
+        "attribute": "# [doc = \" 新規Mintアカウント (ジェネシス用)\"] # [account (init , payer = user , mint :: decimals = 0 , mint :: authority = user , mint :: freeze_authority = user ,)]",
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "user_ata",
+        "attribute": "# [doc = \" ユーザーの Associated Token Account\"] # [account (init_if_needed , payer = user , associated_token :: mint = genesis_mint , associated_token :: authority = user ,)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_metadata_program",
+        "attribute": "# [doc = \" Metaplex Token Metadata\"] # [doc = \" CHECK: CPI先アドレス\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "metadata_account",
+        "attribute": "# [doc = \" Metadata PDA\"] # [account (mut)]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "master_edition_account",
+        "attribute": "# [doc = \" Master Edition PDA\"] # [account (mut)]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "rent",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Rent >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

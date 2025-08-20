@@ -1,17 +1,230 @@
 [
   {
-    "name": "RemoveLiquidityCtxgkoq",
+    "name": "create_campaign",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateCampaign >",
+      "title: String",
+      "description: String",
+      "goal_amount: u64",
+      "duration_days: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let campaign = & mut ctx . accounts . campaign ;",
+      "let clock = Clock :: get () ? ;",
+      "let current_time = clock . unix_timestamp ;",
+      "campaign . creator = ctx . accounts . creator . key () ;",
+      "campaign . title = title ;",
+      "campaign . description = description ;",
+      "campaign . goal_amount = goal_amount ;",
+      "campaign . raised_amount = 0 ;",
+      "campaign . start_time = current_time ;",
+      "campaign . end_time = current_time . checked_add (duration_days as i64 * 24 * 60 * 60) . ok_or (CrowdfundingError :: Overflow) ? ;",
+      "campaign . is_active = true ;",
+      "campaign . is_successful = false ;",
+      "campaign . backer_count = 0 ;",
+      "campaign . bump = * ctx . bumps . get (\"campaign\") . unwrap () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "contribute",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Contribute >",
+      "amount: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let campaign = & mut ctx . accounts . campaign ;",
+      "let contribution = & mut ctx . accounts . contribution ;",
+      "let clock = Clock :: get () ? ;",
+      "let current_time = clock . unix_timestamp ;",
+      "require ! (campaign . is_active , CrowdfundingError :: CampaignNotActive) ;",
+      "require ! (current_time <= campaign . end_time , CrowdfundingError :: CampaignEnded) ;",
+      "require ! (amount > 0 , CrowdfundingError :: InvalidAmount) ;",
+      "contribution . campaign = campaign . key () ;",
+      "contribution . backer = ctx . accounts . backer . key () ;",
+      "contribution . amount = amount ;",
+      "contribution . contributed_at = current_time ;",
+      "contribution . refunded = false ;",
+      "contribution . bump = * ctx . bumps . get (\"contribution\") . unwrap () ;",
+      "campaign . raised_amount = campaign . raised_amount . checked_add (amount) . ok_or (CrowdfundingError :: Overflow) ? ;",
+      "campaign . backer_count = campaign . backer_count . checked_add (1) . ok_or (CrowdfundingError :: Overflow) ? ;",
+      "if campaign . raised_amount >= campaign . goal_amount",
+      "{",
+      "campaign . is_successful = true ;",
+      "}",
+      "let ix = system_instruction :: transfer (& ctx . accounts . backer . key () , & ctx . accounts . campaign . key () , amount ,) ;",
+      "invoke (& ix , & [ctx . accounts . backer . to_account_info () , ctx . accounts . campaign . to_account_info () , ctx . accounts . system_program . to_account_info () ,] ,) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "finalize_campaign",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < FinalizeCampaign >"
+    ],
+    "attributes": [],
+    "body": [
+      "let campaign = & mut ctx . accounts . campaign ;",
+      "let clock = Clock :: get () ? ;",
+      "let current_time = clock . unix_timestamp ;",
+      "require ! (current_time > campaign . end_time , CrowdfundingError :: CampaignStillActive) ;",
+      "require ! (campaign . creator == ctx . accounts . creator . key () , CrowdfundingError :: Unauthorized) ;",
+      "campaign . is_active = false ;",
+      "if campaign . is_successful",
+      "{",
+      "let amount = campaign . raised_amount ;",
+      "let ix = system_instruction :: transfer (& campaign . key () , & ctx . accounts . creator . key () , amount ,) ;",
+      "invoke (& ix , & [ctx . accounts . campaign . to_account_info () , ctx . accounts . creator . to_account_info () , ctx . accounts . system_program . to_account_info () ,] ,) ? ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "refund_contribution",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RefundContribution >"
+    ],
+    "attributes": [],
+    "body": [
+      "let campaign = & ctx . accounts . campaign ;",
+      "let contribution = & mut ctx . accounts . contribution ;",
+      "require ! (! campaign . is_active , CrowdfundingError :: CampaignStillActive) ;",
+      "require ! (! campaign . is_successful , CrowdfundingError :: CampaignSuccessful) ;",
+      "require ! (contribution . backer == ctx . accounts . backer . key () , CrowdfundingError :: Unauthorized) ;",
+      "require ! (! contribution . refunded , CrowdfundingError :: AlreadyRefunded) ;",
+      "contribution . refunded = true ;",
+      "let amount = contribution . amount ;",
+      "let ix = system_instruction :: transfer (& ctx . accounts . campaign . key () , & ctx . accounts . backer . key () , amount ,) ;",
+      "invoke (& ix , & [ctx . accounts . campaign . to_account_info () , ctx . accounts . backer . to_account_info () , ctx . accounts . system_program . to_account_info () ,] ,) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Campaign",
     "node_type": "struct",
     "fields": [
       {
-        "name": "pool_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
+        "name": "creator",
+        "attribute": null,
+        "field_type": "Pubkey"
       },
       {
-        "name": "provider",
+        "name": "title",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "description",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "goal_amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "raised_amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "start_time",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "end_time",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "is_active",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "is_successful",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "backer_count",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Contribution",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "campaign",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "backer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "contributed_at",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "refunded",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreateCampaign",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "campaign",
+        "attribute": "# [account (init , payer = creator , space = 8 + 32 + 4 + title . as_bytes () . len () + 4 + description . as_bytes () . len () + 8 + 8 + 8 + 8 + 1 + 1 + 8 + 1 , seeds = [b\"campaign\" , creator . key () . as_ref () , title . as_bytes ()] , bump)]",
+        "field_type": "Account < 'info , Campaign >"
+      },
+      {
+        "name": "creator",
         "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
+        "field_type": "Signer < 'info >"
       },
       {
         "name": "system_program",
@@ -24,13 +237,28 @@
     "body": null
   },
   {
-    "name": "DataAccount",
+    "name": "Contribute",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data",
+        "name": "campaign",
+        "attribute": "# [account (mut , seeds = [b\"campaign\" , campaign . creator . as_ref () , campaign . title . as_bytes ()] , bump = campaign . bump ,)]",
+        "field_type": "Account < 'info , Campaign >"
+      },
+      {
+        "name": "contribution",
+        "attribute": "# [account (init , payer = backer , space = 8 + 32 + 32 + 8 + 8 + 1 + 1 , seeds = [b\"contribution\" , campaign . key () . as_ref () , backer . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Contribution >"
+      },
+      {
+        "name": "backer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -38,19 +266,56 @@
     "body": null
   },
   {
-    "name": "remove_liquidity",
-    "node_type": "function",
-    "fields": null,
-    "inputs": [
-      "ctx: Context < RemoveLiquidityCtxgkoq >",
-      "amount: u64"
+    "name": "FinalizeCampaign",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "campaign",
+        "attribute": "# [account (mut , seeds = [b\"campaign\" , campaign . creator . as_ref () , campaign . title . as_bytes ()] , bump = campaign . bump , constraint = campaign . creator == creator . key () ,)]",
+        "field_type": "Account < 'info , Campaign >"
+      },
+      {
+        "name": "creator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
     ],
-    "attributes": [],
-    "body": [
-      "let acct = & mut ctx . accounts . pool_account ;",
-      "acct . data = acct . data . checked_add (amount) . unwrap () ;",
-      "msg ! (\"Executed remove_liquidity logic\") ;",
-      "Ok (())"
-    ]
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RefundContribution",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "campaign",
+        "attribute": "# [account (mut , seeds = [b\"campaign\" , campaign . creator . as_ref () , campaign . title . as_bytes ()] , bump = campaign . bump ,)]",
+        "field_type": "Account < 'info , Campaign >"
+      },
+      {
+        "name": "contribution",
+        "attribute": "# [account (mut , seeds = [b\"contribution\" , campaign . key () . as_ref () , backer . key () . as_ref ()] , bump = contribution . bump , constraint = contribution . backer == backer . key () ,)]",
+        "field_type": "Account < 'info , Contribution >"
+      },
+      {
+        "name": "backer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
   }
 ]

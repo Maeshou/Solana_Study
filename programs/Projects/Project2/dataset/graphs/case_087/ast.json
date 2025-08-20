@@ -1,15 +1,76 @@
 [
   {
-    "name": "OpenPositionCtxrihw",
+    "name": "init_pool",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitPool >",
+      "fee_bps: u16"
+    ],
+    "attributes": [
+      "# [doc = \" プール生成：パラメータ設定\"]"
+    ],
+    "body": [
+      "let pool = & mut ctx . accounts . pool ;",
+      "pool . fee_basis = fee_bps ;",
+      "pool . total_staked = 0 ;",
+      "emit ! (PoolCreated { fee_bps }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "stake",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Stake >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" ステーク：ユーザーからトークン受領し記録\"]"
+    ],
+    "body": [
+      "let cpi = CpiContext :: new (ctx . accounts . token_program . to_account_info () , Transfer { from : ctx . accounts . user_token . to_account_info () , to : ctx . accounts . pool_token . to_account_info () , authority : ctx . accounts . user . to_account_info () , } ,) ;",
+      "anchor_spl :: token :: transfer (cpi , amount) ? ;",
+      "let pool = & mut ctx . accounts . pool ;",
+      "pool . total_staked = pool . total_staked . checked_add (amount) . unwrap () ;",
+      "emit ! (Staked { user : ctx . accounts . user . key () , amount }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "unstake",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Stake >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 解除：手数料差引き後に返却\"]"
+    ],
+    "body": [
+      "let pool = & mut ctx . accounts . pool ;",
+      "require ! (pool . total_staked >= amount , ErrorCode :: Insufficient) ;",
+      "let fee = amount * pool . fee_basis as u64 / 10_000 ;",
+      "let net = amount . checked_sub (fee) . unwrap () ;",
+      "* * ctx . accounts . user_token . to_account_info () . lamports . borrow_mut () += net ;",
+      "pool . total_staked = pool . total_staked . checked_sub (amount) . unwrap () ;",
+      "emit ! (Unstaked { user : ctx . accounts . user . key () , amount : net }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitPool",
     "node_type": "struct",
     "fields": [
       {
-        "name": "position",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
+        "name": "pool",
+        "attribute": "# [account (init , payer = payer , space = 8 + 2 + 8)]",
+        "field_type": "Account < 'info , StakePool >"
       },
       {
-        "name": "trader",
+        "name": "payer",
         "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
       },
@@ -24,11 +85,50 @@
     "body": null
   },
   {
-    "name": "DataAccount",
+    "name": "Stake",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data",
+        "name": "pool",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , StakePool >"
+      },
+      {
+        "name": "user_token",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "pool_token",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "StakePool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "fee_basis",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "total_staked",
         "attribute": null,
         "field_type": "u64"
       }
@@ -38,20 +138,55 @@
     "body": null
   },
   {
-    "name": "open_position",
-    "node_type": "function",
-    "fields": null,
-    "inputs": [
-      "ctx: Context < OpenPositionCtxrihw >",
-      "amount: u64"
+    "name": "PoolCreated",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "fee_bps",
+        "attribute": null,
+        "field_type": "u16"
+      }
     ],
-    "attributes": [],
-    "body": [
-      "let acct = & mut ctx . accounts . position ;",
-      "let temp = acct . data ;",
-      "acct . data = temp . checked_mul (2) . unwrap () ;",
-      "msg ! (\"Executed open_position logic\") ;",
-      "Ok (())"
-    ]
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Staked",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "amount",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Unstaked",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "amount",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
   }
 ]

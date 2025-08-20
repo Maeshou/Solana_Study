@@ -1,0 +1,162 @@
+[
+  {
+    "name": "initialize_marketplace",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeMarketplace >",
+      "fee_bps: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let market_state = & mut ctx . accounts . marketplace_state ;",
+      "market_state . admin = ctx . accounts . admin . key () ;",
+      "market_state . fee_bps = fee_bps ;",
+      "market_state . fee_collector_account = ctx . accounts . fee_collector_account . key () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "process_sale",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ProcessSale >",
+      "sale_amount: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let market_state = & ctx . accounts . marketplace_state ;",
+      "let fee_amount = sale_amount * market_state . fee_bps as u64 / 10000 ;",
+      "let final_seller_amount = sale_amount - fee_amount ;",
+      "let mut paid_fee = false ;",
+      "if fee_amount > 0",
+      "{",
+      "let fee_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , Transfer",
+      "{",
+      "from : ctx . accounts . payer_token_account . to_account_info () , to : ctx . accounts . fee_collector_account . to_account_info () , authority : ctx . accounts . payer . to_account_info () , } ,) ;",
+      "token :: transfer (fee_ctx , fee_amount) ? ;",
+      "paid_fee = true ;",
+      "}",
+      "if final_seller_amount > 0",
+      "{",
+      "let seller_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , Transfer",
+      "{",
+      "from : ctx . accounts . payer_token_account . to_account_info () , to : ctx . accounts . seller_token_account . to_account_info () , authority : ctx . accounts . payer . to_account_info () , } ,) ;",
+      "token :: transfer (seller_ctx , final_seller_amount) ? ;",
+      "} else",
+      "{",
+      "if ! paid_fee { return Err (ErrorCode :: NoPaymentMade . into ()) ;",
+      "}",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializeMarketplace",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "marketplace_state",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 2 + 32)]",
+        "field_type": "Account < 'info , MarketplaceState >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "fee_collector_account",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ProcessSale",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "marketplace_state",
+        "attribute": "# [account (has_one = admin)]",
+        "field_type": "Account < 'info , MarketplaceState >"
+      },
+      {
+        "name": "payer_token_account",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "seller_token_account",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "fee_collector_account",
+        "attribute": "# [doc = \" CHECK: This account is checked by the marketplace_state.\"] # [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MarketplaceState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "fee_bps",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "fee_collector_account",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

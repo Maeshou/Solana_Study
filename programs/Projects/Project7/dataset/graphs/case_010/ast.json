@@ -1,0 +1,148 @@
+[
+  {
+    "name": "init_board",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitBoard >",
+      "max_per_day: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let b = & mut ctx . accounts . board ;",
+      "b . owner = ctx . accounts . owner . key () ;",
+      "b . max_per_day = max_per_day ;",
+      "b . issued_today = 0 ;",
+      "b . streak = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_claim",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActClaim >",
+      "tasks_done: u8",
+      "burn_proof: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let b = & mut ctx . accounts . board ;",
+      "token :: burn (ctx . accounts . burn_ctx () , burn_proof) ? ;",
+      "let mut reward = 0u64 ;",
+      "for _ in 0 .. tasks_done",
+      "{",
+      "reward = reward . saturating_add (10) ;",
+      "}",
+      "if b . issued_today . saturating_add (reward) > b . max_per_day",
+      "{",
+      "b . streak = 0 ;",
+      "return Err (ErrorCode :: OverDailyLimit . into ()) ;",
+      "} else",
+      "{",
+      "b . streak = b . streak . saturating_add (1) ;",
+      "}",
+      "token :: mint_to (ctx . accounts . mint_ctx () , reward) ? ;",
+      "b . issued_today = b . issued_today . saturating_add (reward) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitBoard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "board",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , Board >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActClaim",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "board",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Board >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "proof_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "user_proof",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "bonus_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "user_bonus",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Board",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "max_per_day",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "issued_today",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "streak",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

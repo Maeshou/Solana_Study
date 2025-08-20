@@ -1,0 +1,117 @@
+[
+  {
+    "name": "init_grid",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitGrid >"
+    ],
+    "attributes": [],
+    "body": [
+      "let g = & mut ctx . accounts . grid ;",
+      "g . node = ctx . accounts . installer . key () ;",
+      "g . buffer = [0u16 ; 6] ;",
+      "g . load = 0 ;",
+      "g . mode = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_cycle",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CycleEnergy >",
+      "pulse: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let g = & mut ctx . accounts . grid ;",
+      "let updater = & ctx . accounts . updater ;",
+      "for i in 0 .. 6",
+      "{",
+      "let v = (pulse ^ (i as u16) . rotate_left (2)) & 0xFF ;",
+      "g . buffer [i] = g . buffer [i] . wrapping_add (v) ;",
+      "}",
+      "if g . buffer . iter () . all (| & x | x > 1000)",
+      "{",
+      "g . load = g . buffer . iter () . sum :: < u16 > () % 2048 ;",
+      "g . mode = g . load . trailing_zeros () as u8 ;",
+      "}",
+      "g . node = updater . key () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitGrid",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "grid",
+        "attribute": "# [account (init , payer = installer , space = 8 + 32 + 12 + 2 + 1)]",
+        "field_type": "Account < 'info , EnergyGrid >"
+      },
+      {
+        "name": "installer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CycleEnergy",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "grid",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , EnergyGrid >"
+      },
+      {
+        "name": "updater",
+        "attribute": "# [doc = \" CHECK: ノード管理者とエネルギー更新者を区別しない\"]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EnergyGrid",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "node",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "buffer",
+        "attribute": null,
+        "field_type": "[u16 ; 6]"
+      },
+      {
+        "name": "load",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "mode",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

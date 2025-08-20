@@ -1,0 +1,129 @@
+[
+  {
+    "name": "stake_and_update",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < StakeUpdate >",
+      "reward_per_nft: u64",
+      "is_premium: u8"
+    ],
+    "attributes": [
+      "# [doc = \" NFT を 1 枚「ステーク」すると、その総数に応じた報酬を累積更新します。\"]",
+      "# [doc = \" - `reward_per_nft` : 1 枚あたりの基礎報酬  \"]",
+      "# [doc = \" - `is_premium`     : プレミアム NFT なら 1、そうでなければ 0  \"]",
+      "# [doc = \" ※ 署名チェック omitted intentionally\"]"
+    ],
+    "body": [
+      "let prev_count = ctx . accounts . stake_data . staked_count ;",
+      "let new_count = prev_count + 1 ;",
+      "let base_reward = reward_per_nft . checked_mul (new_count) . unwrap () ;",
+      "let bonus = is_premium as u64 ;",
+      "let reward = base_reward . checked_add (bonus) . unwrap () ;",
+      "let total_before = ctx . accounts . reward_data . total_reward ;",
+      "let total_after = total_before . checked_add (reward) . unwrap () ;",
+      "let now = ctx . accounts . clock . unix_timestamp ;",
+      "ctx . accounts . stake_data . staked_count = new_count ;",
+      "ctx . accounts . stake_data . last_stake_time = now ;",
+      "ctx . accounts . reward_data . total_reward = total_after ;",
+      "ctx . accounts . reward_data . last_reward_time = now ;",
+      "emit ! (StakeEvent { user : * ctx . accounts . user . key , staked : new_count , reward , total : total_after , }) ;"
+    ]
+  },
+  {
+    "name": "StakeUpdate",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 呼び出しユーザー（AccountInfo のまま、署名チェック省略）\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "stake_data",
+        "attribute": "# [doc = \" ステーク状況を保持する PDA\"] # [account (mut)]",
+        "field_type": "Account < 'info , StakeData >"
+      },
+      {
+        "name": "reward_data",
+        "attribute": "# [doc = \" 報酬状況を保持する PDA\"] # [account (mut)]",
+        "field_type": "Account < 'info , RewardData >"
+      },
+      {
+        "name": "clock",
+        "attribute": "# [doc = \" タイムスタンプ参照用\"]",
+        "field_type": "Sysvar < 'info , Clock >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "StakeData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "staked_count",
+        "attribute": "# [doc = \" これまでにステークした NFT 枚数\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "last_stake_time",
+        "attribute": "# [doc = \" 最後にステークした時刻（Unix秒）\"]",
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RewardData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "total_reward",
+        "attribute": "# [doc = \" これまでに付与された累計報酬\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "last_reward_time",
+        "attribute": "# [doc = \" 最後に報酬を更新した時刻（Unix秒）\"]",
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "StakeEvent",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "staked",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "reward",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

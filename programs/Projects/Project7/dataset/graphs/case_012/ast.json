@@ -1,0 +1,160 @@
+[
+  {
+    "name": "init_boss",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitBoss >",
+      "base_reward: u64",
+      "combo_step: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let boss_state = & mut ctx . accounts . boss_state ;",
+      "boss_state . operator = ctx . accounts . operator . key () ;",
+      "boss_state . default_reward = base_reward ;",
+      "boss_state . combo_step = combo_step . min (1000) ;",
+      "boss_state . defeats = 1 ;",
+      "boss_state . max_combo_seen = 1 ;",
+      "boss_state . hard_flag = false ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_distribute",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActDistribute >",
+      "combo: u32",
+      "party_size: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "require ! (party_size > 0 , RaidErr :: EmptyParty) ;",
+      "let boss_state = & mut ctx . accounts . boss_state ;",
+      "let mut group_bonus = 0u64 ;",
+      "for _ in 0 .. party_size",
+      "{",
+      "group_bonus = group_bonus . saturating_add (boss_state . combo_step as u64) ;",
+      "}",
+      "if combo > boss_state . max_combo_seen",
+      "{",
+      "boss_state . max_combo_seen = combo as u64 ;",
+      "}",
+      "if combo >= 40",
+      "{",
+      "boss_state . hard_flag = true ;",
+      "} else",
+      "{",
+      "boss_state . hard_flag = false ;",
+      "}",
+      "let mut payout = boss_state . default_reward . saturating_add (group_bonus) ;",
+      "if boss_state . hard_flag",
+      "{",
+      "payout = payout . saturating_mul (2) ;",
+      "}",
+      "let cpi = ctx . accounts . transfer_reward () ;",
+      "token :: transfer (cpi , payout) ? ;",
+      "boss_state . defeats = boss_state . defeats . saturating_add (1) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitBoss",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "boss_state",
+        "attribute": "# [account (init , payer = operator , space = 8 + 32 + 8 + 2 + 8 + 8 + 1)]",
+        "field_type": "Account < 'info , BossState >"
+      },
+      {
+        "name": "operator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActDistribute",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "boss_state",
+        "attribute": "# [account (mut , has_one = operator)]",
+        "field_type": "Account < 'info , BossState >"
+      },
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "reward_treasury",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "player_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BossState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "default_reward",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "combo_step",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "defeats",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "max_combo_seen",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "hard_flag",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

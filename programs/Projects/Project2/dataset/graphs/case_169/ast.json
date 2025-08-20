@@ -1,0 +1,173 @@
+[
+  {
+    "name": "initialize_subscription",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeSubscription >",
+      "initial_plan: u8"
+    ],
+    "attributes": [
+      "# [doc = \" サブスクリプション開始：初期プランを設定し、有効化＋タイムスタンプ登録\"]"
+    ],
+    "body": [
+      "let sub = & mut ctx . accounts . subscription ;",
+      "sub . owner = ctx . accounts . user . key () ;",
+      "sub . bump = * ctx . bumps . get (\"subscription\") . unwrap () ;",
+      "sub . plan = initial_plan ;",
+      "let now = ctx . accounts . clock . unix_timestamp ;",
+      "sub . start_ts = now ;",
+      "sub . last_payment_ts = now ;",
+      "sub . active = true ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "change_plan",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifySubscription >",
+      "new_plan: u8"
+    ],
+    "attributes": [
+      "# [doc = \" プラン変更：新プランを設定し、最終支払時刻を更新\"]"
+    ],
+    "body": [
+      "let sub = & mut ctx . accounts . subscription ;",
+      "sub . plan = new_plan ;",
+      "sub . last_payment_ts = ctx . accounts . clock . unix_timestamp ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "renew_subscription",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifySubscription >"
+    ],
+    "attributes": [
+      "# [doc = \" 更新支払：最終支払時刻のみを更新（自動延長などに利用）\"]"
+    ],
+    "body": [
+      "let sub = & mut ctx . accounts . subscription ;",
+      "sub . last_payment_ts = ctx . accounts . clock . unix_timestamp ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "cancel_subscription",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifySubscription >"
+    ],
+    "attributes": [
+      "# [doc = \" サブスクリプション取消：アクティブフラグを下げ、時刻を更新\"]"
+    ],
+    "body": [
+      "let sub = & mut ctx . accounts . subscription ;",
+      "sub . active = false ;",
+      "sub . last_payment_ts = ctx . accounts . clock . unix_timestamp ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializeSubscription",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "subscription",
+        "attribute": "# [doc = \" ゼロクリア後、必要フィールドだけ設定\"] # [account (init_zeroed , payer = user , seeds = [b\"subscription\" , user . key () . as_ref ()] , bump , space = 8 + 32 + 1 + 1 + 8 + 8 + 1)]",
+        "field_type": "Account < 'info , Subscription >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" サブスクリプション利用者（署名必須）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": "# [doc = \" 時刻取得用\"]",
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ModifySubscription",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "subscription",
+        "attribute": "# [doc = \" 既存の Subscription（PDA検証 + オーナーチェック）\"] # [account (mut , seeds = [b\"subscription\" , owner . key () . as_ref ()] , bump = subscription . bump , has_one = owner)]",
+        "field_type": "Account < 'info , Subscription >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 認証されたサブスク所有者（署名必須）\"] # [account (signer)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": "# [doc = \" 時刻取得用\"]",
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Subscription",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "plan",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "start_ts",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "last_payment_ts",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "active",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

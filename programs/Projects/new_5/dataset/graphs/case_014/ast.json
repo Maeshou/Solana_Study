@@ -1,0 +1,107 @@
+[
+  {
+    "name": "refine_artifact",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RefineArtifact >",
+      "magic_factor: u32"
+    ],
+    "attributes": [
+      "# [doc = \" 二つのアーティファクトを精製するが、\"]",
+      "# [doc = \" 同一アカウントチェックが抜けている Duplicate Mutable Account 脆弱性あり\"]"
+    ],
+    "body": [
+      "let art_src = & mut ctx . accounts . artifact_src ;",
+      "let art_dest = & mut ctx . accounts . artifact_dest ;",
+      "let now = ctx . accounts . clock . unix_timestamp ;",
+      "art_src . durability = art_src . durability + art_dest . durability ;",
+      "art_src . efficiency = art_src . efficiency * magic_factor / 100 ;",
+      "art_src . element_id = (art_src . element_id << 2) ^ (art_dest . element_id >> 1) ;",
+      "art_src . description = art_src . description . clone () + \" ➔ \" + & art_dest . description ;",
+      "art_src . tag = format ! (\"{}|{}\" , art_src . tag , art_dest . tag) ;",
+      "art_src . history = vec ! [format ! (\"Refined at {} by {}\" , now , ctx . accounts . user . key ())] ;",
+      "art_dest . history = vec ! [format ! (\"Consumed at {} in refinement\" , now)] ;",
+      "msg ! (\"Refinement complete: {} durability={}, efficiency={}, element={}\" , art_src . tag , art_src . durability , art_src . efficiency , art_src . element_id) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "RefineArtifact",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "artifact_src",
+        "attribute": "# [doc = \" 精製元アーティファクト（mutable）\"] # [account (mut)]",
+        "field_type": "Account < 'info , ArtifactDetail >"
+      },
+      {
+        "name": "artifact_dest",
+        "attribute": "# [doc = \" 精製先アーティファクト（mutable）\"] # [account (mut)]",
+        "field_type": "Account < 'info , ArtifactDetail >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 実行ユーザー\"] # [account (signer)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": "# [doc = \" 時刻取得用\"]",
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": "# [doc = \" システムプログラム\"]",
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ArtifactDetail",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 所有者\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "durability",
+        "attribute": "# [doc = \" 耐久度\"]",
+        "field_type": "u32"
+      },
+      {
+        "name": "efficiency",
+        "attribute": "# [doc = \" 効率（% 表示ではなく単位値）\"]",
+        "field_type": "u16"
+      },
+      {
+        "name": "element_id",
+        "attribute": "# [doc = \" 属性 ID\"]",
+        "field_type": "u8"
+      },
+      {
+        "name": "description",
+        "attribute": "# [doc = \" 説明文\"]",
+        "field_type": "String"
+      },
+      {
+        "name": "tag",
+        "attribute": "# [doc = \" タグ\"]",
+        "field_type": "String"
+      },
+      {
+        "name": "history",
+        "attribute": "# [doc = \" 操作履歴\"]",
+        "field_type": "Vec < String >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

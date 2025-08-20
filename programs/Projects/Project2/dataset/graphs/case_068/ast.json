@@ -1,17 +1,92 @@
 [
   {
-    "name": "EndAuction2Ctxrvpe",
+    "name": "create_escrow",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateEscrow >",
+      "amount: u64",
+      "milestones: Vec < u64 >"
+    ],
+    "attributes": [],
+    "body": [
+      "require ! (milestones . len () > 0 , EscrowError :: NoMilestones) ;",
+      "require ! (milestones . iter () . sum ::< u64 > () == amount , EscrowError :: MilestoneAmountMismatch) ;",
+      "let escrow = & mut ctx . accounts . escrow ;",
+      "escrow . client = ctx . accounts . client . key () ;",
+      "escrow . provider = ctx . accounts . provider . key () ;",
+      "escrow . total_amount = amount ;",
+      "escrow . milestones = milestones ;",
+      "escrow . completed_milestones = 0 ;",
+      "escrow . is_active = true ;",
+      "let cpi_accounts = anchor_spl :: token :: Transfer { from : ctx . accounts . client_token_account . to_account_info () , to : ctx . accounts . escrow_token_account . to_account_info () , authority : ctx . accounts . client . to_account_info () , } ;",
+      "let cpi_program = ctx . accounts . token_program . to_account_info () ;",
+      "let cpi_ctx = CpiContext :: new (cpi_program , cpi_accounts) ;",
+      "anchor_spl :: token :: transfer (cpi_ctx , amount) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "approve_milestone",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ApproveMilestone >"
+    ],
+    "attributes": [],
+    "body": [
+      "let escrow = & mut ctx . accounts . escrow ;",
+      "require ! (escrow . is_active , EscrowError :: EscrowInactive) ;",
+      "require ! (escrow . completed_milestones < escrow . milestones . len () as u64 , EscrowError :: AllMilestonesCompleted) ;",
+      "let milestone_amount = escrow . milestones [escrow . completed_milestones as usize] ;",
+      "escrow . completed_milestones += 1 ;",
+      "let seeds = & [b\"escrow\" , escrow . client . as_ref () , escrow . provider . as_ref () , & [ctx . bumps . escrow_token_account] ,] ;",
+      "let signer = & [& seeds [..]] ;",
+      "let cpi_accounts = anchor_spl :: token :: Transfer { from : ctx . accounts . escrow_token_account . to_account_info () , to : ctx . accounts . provider_token_account . to_account_info () , authority : ctx . accounts . escrow_token_account . to_account_info () , } ;",
+      "let cpi_program = ctx . accounts . token_program . to_account_info () ;",
+      "let cpi_ctx = CpiContext :: new_with_signer (cpi_program , cpi_accounts , signer) ;",
+      "anchor_spl :: token :: transfer (cpi_ctx , milestone_amount) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CreateEscrow",
     "node_type": "struct",
     "fields": [
       {
-        "name": "auction2",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
+        "name": "escrow",
+        "attribute": "# [account (init , payer = client , space = 8 + 500 , seeds = [b\"escrow\" , client . key () . as_ref () , provider . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Escrow >"
       },
       {
-        "name": "authority",
+        "name": "escrow_token_account",
+        "attribute": "# [account (init , payer = client , token :: mint = token_mint , token :: authority = escrow_token_account , seeds = [b\"escrow\" , client . key () . as_ref () , provider . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "client_token_account",
+        "attribute": "# [account (mut , constraint = client_token_account . mint == token_mint . key ())]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "provider",
+        "attribute": "# [doc = \" CHECK: Provider pubkey for escrow creation\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "client",
         "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
       },
       {
         "name": "system_program",
@@ -24,13 +99,33 @@
     "body": null
   },
   {
-    "name": "DataAccount",
+    "name": "ApproveMilestone",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data",
+        "name": "escrow",
+        "attribute": "# [account (mut , seeds = [b\"escrow\" , escrow . client . as_ref () , escrow . provider . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Escrow >"
+      },
+      {
+        "name": "escrow_token_account",
+        "attribute": "# [account (mut , seeds = [b\"escrow\" , escrow . client . as_ref () , escrow . provider . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "provider_token_account",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "client",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
       }
     ],
     "inputs": null,
@@ -38,20 +133,42 @@
     "body": null
   },
   {
-    "name": "end_auction2",
-    "node_type": "function",
-    "fields": null,
-    "inputs": [
-      "ctx: Context < EndAuction2Ctxrvpe >",
-      "amount: u64"
+    "name": "Escrow",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "client",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "provider",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "total_amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "milestones",
+        "attribute": null,
+        "field_type": "Vec < u64 >"
+      },
+      {
+        "name": "completed_milestones",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "is_active",
+        "attribute": null,
+        "field_type": "bool"
+      }
     ],
-    "attributes": [],
-    "body": [
-      "let acct = & mut ctx . accounts . auction2 ;",
-      "let temp = acct . data ;",
-      "acct . data = temp . checked_mul (2) . unwrap () ;",
-      "msg ! (\"Executed end_auction2 logic\") ;",
-      "Ok (())"
-    ]
+    "inputs": null,
+    "attributes": null,
+    "body": null
   }
 ]

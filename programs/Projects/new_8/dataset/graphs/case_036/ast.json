@@ -1,0 +1,132 @@
+[
+  {
+    "name": "init_workshop",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitWorkshop >",
+      "capacity: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let ws = & mut ctx . accounts . workshop ;",
+      "ws . curator = ctx . accounts . curator . key () ;",
+      "ws . capacity = capacity % 64 + 8 ;",
+      "ws . queue_len = capacity as u32 / 2 + 3 ;",
+      "ws . tokens_issued = 11 ;",
+      "if ws . queue_len < 2",
+      "{",
+      "ws . queue_len = 2 ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "print_token",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PrintToken >",
+      "series: u16",
+      "user_bump: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let ws = & mut ctx . accounts . workshop ;",
+      "let seeds = & [b\"print_sink\" , ctx . accounts . curator . key . as_ref () , & [user_bump]] ;",
+      "let expect = Pubkey :: create_program_address (seeds , ctx . program_id) . map_err (| _ | error ! (CraftErr :: SeedBad)) ? ;",
+      "if expect != ctx . accounts . print_sink . key ()",
+      "{",
+      "return Err (error ! (CraftErr :: SinkMismatch)) ;",
+      "}",
+      "let mut cycles = series as u32 % 17 + 5 ;",
+      "let mut wave = 2u32 ;",
+      "while wave < cycles",
+      "{",
+      "ws . tokens_issued = ws . tokens_issued . saturating_add (wave) ;",
+      "if ws . tokens_issued % 3 != 1",
+      "{",
+      "ws . queue_len = ws . queue_len . saturating_add (1) ;",
+      "} wave = wave . saturating_add (4) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitWorkshop",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "workshop",
+        "attribute": "# [account (init , payer = curator , space = 8 + 32 + 2 + 4 + 4 , seeds = [b\"workshop\" , curator . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Workshop >"
+      },
+      {
+        "name": "curator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PrintToken",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "workshop",
+        "attribute": "# [account (mut , seeds = [b\"workshop\" , curator . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Workshop >"
+      },
+      {
+        "name": "print_sink",
+        "attribute": "# [doc = \" CHECK: 手動 bump の別PDA\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "curator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Workshop",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "curator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "capacity",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "queue_len",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "tokens_issued",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

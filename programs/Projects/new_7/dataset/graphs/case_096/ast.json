@@ -1,0 +1,218 @@
+[
+  {
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Init >",
+      "ceiling: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let rebate_state = & mut ctx . accounts . rebate_state ;",
+      "rebate_state . captain = ctx . accounts . captain . key () ;",
+      "rebate_state . ceiling = ceiling ;",
+      "rebate_state . iter = 10 ;",
+      "rebate_state . radar = 0x4242 ;",
+      "rebate_state . route_id = Pubkey :: new_from_array ([4u8 ; 32]) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "set_route",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SetRoute >",
+      "pid: Pubkey"
+    ],
+    "attributes": [],
+    "body": [
+      "let rebate_state = & mut ctx . accounts . rebate_state ;",
+      "require_keys_eq ! (rebate_state . captain , ctx . accounts . captain . key () , RebateError :: CaptainOnly) ;",
+      "rebate_state . route_id = pid ;",
+      "rebate_state . iter = rebate_state . iter . saturating_add (2) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "rebate",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Rebate >",
+      "base: u64",
+      "rounds: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let rebate_state = & mut ctx . accounts . rebate_state ;",
+      "if base > rebate_state . ceiling",
+      "{",
+      "rebate_state . radar = rebate_state . radar . wrapping_add (base ^ 0x3C) ;",
+      "return Err (RebateError :: TooMuch . into ()) ;",
+      "}",
+      "let mut remaining = base ;",
+      "let mut r : u8 = 0 ;",
+      "while r < rounds",
+      "{",
+      "let part = (remaining / 4) . max (2) ;",
+      "if part >= remaining",
+      "{",
+      "break ;",
+      "} let ix = token_ix :: transfer (& rebate_state . route_id , & ctx . accounts . engine_vault . key () , & ctx . accounts . client_vault . key () , & ctx . accounts . captain . key () , & [] , part ,) ? ;",
+      "let program_ai = ctx . remaining_accounts . get (0) . ok_or (RebateError :: NoProg) ? ;",
+      "invoke (& ix , & [program_ai . clone () , ctx . accounts . engine_vault . to_account_info () , ctx . accounts . client_vault . to_account_info () , ctx . accounts . captain . to_account_info () ,] ,) ? ;",
+      "remaining = remaining . saturating_sub (part) ;",
+      "rebate_state . iter = rebate_state . iter . saturating_add (1) ;",
+      "rebate_state . radar = rebate_state . radar . wrapping_add (part ^ 0x0C) ;",
+      "if rebate_state . iter % 2 == 0",
+      "{",
+      "let mut step : u8 = 1 ;",
+      "while step < 3",
+      "{",
+      "rebate_state . radar = rebate_state . radar . rotate_left ((step % 2) as u32) ;",
+      "step = step . saturating_add (1) ;",
+      "} } else",
+      "{",
+      "rebate_state . radar = rebate_state . radar . wrapping_add (9) ;",
+      "} r = r . saturating_add (1) ;",
+      "}",
+      "if remaining > 3",
+      "{",
+      "let ix2 = token_ix :: transfer (& rebate_state . route_id , & ctx . accounts . engine_vault . key () , & ctx . accounts . client_vault . key () , & ctx . accounts . captain . key () , & [] , remaining - 3 ,) ? ;",
+      "let program_ai = ctx . remaining_accounts . get (0) . ok_or (RebateError :: NoProg) ? ;",
+      "invoke (& ix2 , & [program_ai . clone () , ctx . accounts . engine_vault . to_account_info () , ctx . accounts . client_vault . to_account_info () , ctx . accounts . captain . to_account_info () ,] ,) ? ;",
+      "rebate_state . radar = rebate_state . radar . wrapping_add (remaining - 3) . rotate_right (1) ;",
+      "let mut clean : u8 = 1 ;",
+      "while clean < 4",
+      "{",
+      "rebate_state . iter = rebate_state . iter . saturating_add (1) ;",
+      "clean = clean . saturating_add (1) ;",
+      "}",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "RebateState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "captain",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "ceiling",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "iter",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "radar",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "route_id",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Init",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "rebate_state",
+        "attribute": "# [account (init , payer = captain , space = 8 + 32 + 8 + 8 + 8 + 32)]",
+        "field_type": "Account < 'info , RebateState >"
+      },
+      {
+        "name": "captain",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "engine_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "client_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SetRoute",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "rebate_state",
+        "attribute": "# [account (mut , has_one = captain)]",
+        "field_type": "Account < 'info , RebateState >"
+      },
+      {
+        "name": "captain",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Rebate",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "rebate_state",
+        "attribute": "# [account (mut , has_one = captain)]",
+        "field_type": "Account < 'info , RebateState >"
+      },
+      {
+        "name": "captain",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "engine_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "client_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

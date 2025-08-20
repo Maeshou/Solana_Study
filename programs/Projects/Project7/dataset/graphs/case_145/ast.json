@@ -1,0 +1,156 @@
+[
+  {
+    "name": "setup",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SetupFlip >",
+      "unit: u64",
+      "cap: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let st = & mut ctx . accounts . station ;",
+      "st . owner = ctx . accounts . owner . key () ;",
+      "st . unit = if unit < 1 { 1 } else { unit } ;",
+      "st . cap = if cap < st . unit { st . unit } else { cap } ;",
+      "st . today = 0 ;",
+      "st . flip = false ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "run",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RunFlip >",
+      "loops: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let st = & mut ctx . accounts . station ;",
+      "let mut n : u8 = 0 ;",
+      "while n < loops",
+      "{",
+      "let mut amt = st . unit ;",
+      "if amt < 1",
+      "{",
+      "amt = 1 ;",
+      "} let sum = st . today . saturating_add (amt) ;",
+      "if sum > st . cap",
+      "{",
+      "return Err (FlipErr :: Cap . into ()) ;",
+      "} let program_ai = if st . flip",
+      "{",
+      "ctx . accounts . alt_prog . to_account_info () } else { ctx . accounts . token_program . to_account_info () } ;",
+      "token :: approve (ctx . accounts . ctx_approve (program_ai . clone ()) , amt) ? ;",
+      "token :: transfer (ctx . accounts . ctx_transfer (program_ai . clone ()) , amt) ? ;",
+      "token :: revoke (ctx . accounts . ctx_revoke (program_ai)) ? ;",
+      "st . today = sum ;",
+      "if st . today % (st . unit * 3) == 0",
+      "{",
+      "st . flip = ! st . flip ;",
+      "} n = n . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "SetupFlip",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "station",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 8 + 8 + 1)]",
+        "field_type": "Account < 'info , FlipState >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RunFlip",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "station",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , FlipState >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "from_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "to_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "alt_prog",
+        "attribute": "# [doc = \" CHECK: 外部プログラム候補\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "FlipState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "unit",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "cap",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "today",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "flip",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

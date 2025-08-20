@@ -1,0 +1,143 @@
+[
+  {
+    "name": "swap_tokens",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SwapTokens >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" ユーザーが TokenA を TokenB と交換するが、\"]",
+      "# [doc = \" swap_account.owner の照合チェックがなく、攻撃者が他人のスワップアカウントを指定して操作できる\"]"
+    ],
+    "body": [
+      "let swap_acc = & mut ctx . accounts . swap_account ;",
+      "swap_acc . swap_count = swap_acc . swap_count . saturating_add (1) ;",
+      "let cpi_in = Transfer { from : ctx . accounts . user_source . to_account_info () , to : ctx . accounts . vault_source . to_account_info () , authority : ctx . accounts . user . to_account_info () , } ;",
+      "let cpi_ctx_in = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_in) ;",
+      "token :: transfer (cpi_ctx_in , amount) ? ;",
+      "let out_amount = amount . checked_sub (ctx . accounts . config . swap_fee) . unwrap () ;",
+      "let cpi_out = Transfer { from : ctx . accounts . vault_dest . to_account_info () , to : ctx . accounts . user_dest . to_account_info () , authority : ctx . accounts . user . to_account_info () , } ;",
+      "let cpi_ctx_out = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_out) ;",
+      "token :: transfer (cpi_ctx_out , out_amount) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "SwapTokens",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "swap_account",
+        "attribute": "# [account (mut , has_one = pool)] # [doc = \" 本来は `has_one = owner` も追加して\"] # [doc = \" `swap_account.owner` と `ctx.accounts.user.key()` の一致を検証すべき\"]",
+        "field_type": "Account < 'info , SwapAccount >"
+      },
+      {
+        "name": "user_source",
+        "attribute": "# [doc = \" ユーザーの TokenA 保有アカウント\"] # [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "vault_source",
+        "attribute": "# [doc = \" プールの TokenA Vault\"] # [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "vault_dest",
+        "attribute": "# [doc = \" プールの TokenB Vault\"] # [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "user_dest",
+        "attribute": "# [doc = \" ユーザーの TokenB 受取アカウント\"] # [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "pool",
+        "attribute": "# [doc = \" 関連する流動性プール\"]",
+        "field_type": "Account < 'info , SwapPool >"
+      },
+      {
+        "name": "config",
+        "attribute": "# [doc = \" スワップ時の手数料設定\"]",
+        "field_type": "Account < 'info , SwapConfig >"
+      },
+      {
+        "name": "token_program",
+        "attribute": "# [doc = \" SPL Token プログラム\"]",
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" スワップをリクエストするユーザー（署名者）\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SwapAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 本来このスワップを所有すべきユーザーの Pubkey\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "pool",
+        "attribute": "# [doc = \" 紐づく SwapPool の Pubkey\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "swap_count",
+        "attribute": "# [doc = \" 実行されたスワップ回数\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SwapConfig",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "swap_fee",
+        "attribute": "# [doc = \" 1 回のスワップで徴収する手数料 (TokenA 単位)\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SwapPool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "token_a_vault",
+        "attribute": "# [doc = \" プール内の TokenA Vault アドレス\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "token_b_vault",
+        "attribute": "# [doc = \" プール内の TokenB Vault アドレス\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "swap_account",
+        "attribute": "# [doc = \" 紐づく SwapAccount のアドレス\"]",
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

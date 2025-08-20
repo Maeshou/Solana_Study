@@ -1,15 +1,149 @@
 [
   {
-    "name": "CancelOrderCtxikih",
+    "name": "create_lottery",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateLottery >",
+      "ticket_price: u64",
+      "max_tickets: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let lottery = & mut ctx . accounts . lottery ;",
+      "lottery . admin = ctx . accounts . admin . key () ;",
+      "lottery . ticket_price = ticket_price ;",
+      "lottery . max_tickets = max_tickets ;",
+      "lottery . tickets_sold = 0 ;",
+      "lottery . is_active = true ;",
+      "lottery . winner = None ;",
+      "lottery . bump = * ctx . bumps . get (\"lottery\") . unwrap () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "buy_ticket",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < BuyTicket >"
+    ],
+    "attributes": [],
+    "body": [
+      "let lottery = & mut ctx . accounts . lottery ;",
+      "let ticket = & mut ctx . accounts . ticket ;",
+      "require ! (lottery . is_active , LotteryError :: LotteryNotActive) ;",
+      "require ! (lottery . tickets_sold < lottery . max_tickets , LotteryError :: SoldOut) ;",
+      "ticket . lottery = lottery . key () ;",
+      "ticket . owner = ctx . accounts . buyer . key () ;",
+      "ticket . ticket_number = lottery . tickets_sold ;",
+      "ticket . bump = * ctx . bumps . get (\"ticket\") . unwrap () ;",
+      "lottery . tickets_sold += 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "draw_winner",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < DrawWinner >"
+    ],
+    "attributes": [],
+    "body": [
+      "let lottery = & mut ctx . accounts . lottery ;",
+      "require ! (lottery . is_active , LotteryError :: LotteryNotActive) ;",
+      "require ! (lottery . tickets_sold > 0 , LotteryError :: NoTicketsSold) ;",
+      "let winner_ticket = lottery . tickets_sold % 10 ;",
+      "lottery . winner = Some (winner_ticket) ;",
+      "lottery . is_active = false ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Lottery",
     "node_type": "struct",
     "fields": [
       {
-        "name": "order_book",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
       },
       {
-        "name": "user",
+        "name": "ticket_price",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "max_tickets",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "tickets_sold",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "is_active",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "winner",
+        "attribute": null,
+        "field_type": "Option < u64 >"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Ticket",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "lottery",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "ticket_number",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreateLottery",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "lottery",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 8 + 8 + 8 + 1 + 1 + 8 + 1 , seeds = [b\"lottery\" , admin . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Lottery >"
+      },
+      {
+        "name": "admin",
         "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
       },
@@ -24,13 +158,28 @@
     "body": null
   },
   {
-    "name": "DataAccount",
+    "name": "BuyTicket",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data",
+        "name": "lottery",
+        "attribute": "# [account (mut , seeds = [b\"lottery\" , lottery . admin . as_ref ()] , bump = lottery . bump)]",
+        "field_type": "Account < 'info , Lottery >"
+      },
+      {
+        "name": "ticket",
+        "attribute": "# [account (init , payer = buyer , space = 8 + 32 + 32 + 8 + 1 , seeds = [b\"ticket\" , lottery . key () . as_ref () , & lottery . tickets_sold . to_le_bytes ()] , bump)]",
+        "field_type": "Account < 'info , Ticket >"
+      },
+      {
+        "name": "buyer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -38,20 +187,22 @@
     "body": null
   },
   {
-    "name": "cancel_order",
-    "node_type": "function",
-    "fields": null,
-    "inputs": [
-      "ctx: Context < CancelOrderCtxikih >",
-      "amount: u64"
+    "name": "DrawWinner",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "lottery",
+        "attribute": "# [account (mut , seeds = [b\"lottery\" , admin . key () . as_ref ()] , bump = lottery . bump , constraint = lottery . admin == admin . key ())]",
+        "field_type": "Account < 'info , Lottery >"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
     ],
-    "attributes": [],
-    "body": [
-      "let acct = & mut ctx . accounts . order_book ;",
-      "let temp = acct . data ;",
-      "acct . data = temp . checked_mul (2) . unwrap () ;",
-      "msg ! (\"Executed cancel_order logic\") ;",
-      "Ok (())"
-    ]
+    "inputs": null,
+    "attributes": null,
+    "body": null
   }
 ]

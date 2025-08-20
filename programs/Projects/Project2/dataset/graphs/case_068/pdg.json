@@ -1,9 +1,10 @@
 [
   {
-    "name": "end_auction2",
+    "name": "create_escrow",
     "inputs": [
-      "ctx: Context < EndAuction2Ctxrvpe >",
-      "amount: u64"
+      "ctx: Context < CreateEscrow >",
+      "amount: u64",
+      "milestones: Vec < u64 >"
     ],
     "nodes": [
       {
@@ -12,50 +13,278 @@
       },
       {
         "id": 1,
-        "label": "let acct = & mut ctx . accounts . auction2 ;"
+        "label": "require ! (milestones . len () > 0 , EscrowError :: NoMilestones) ;"
       },
       {
         "id": 2,
-        "label": "let temp = acct . data ;"
+        "label": "require ! (milestones . iter () . sum ::< u64 > () == amount , EscrowError :: MilestoneAmountMismatch) ;"
       },
       {
         "id": 3,
-        "label": "acct . data = temp . checked_mul (2) . unwrap () ;"
+        "label": "let escrow = & mut ctx . accounts . escrow ;"
       },
       {
         "id": 4,
-        "label": "msg ! (\"Executed end_auction2 logic\") ;"
+        "label": "escrow . client = ctx . accounts . client . key () ;"
       },
       {
         "id": 5,
+        "label": "escrow . provider = ctx . accounts . provider . key () ;"
+      },
+      {
+        "id": 6,
+        "label": "escrow . total_amount = amount ;"
+      },
+      {
+        "id": 7,
+        "label": "escrow . milestones = milestones ;"
+      },
+      {
+        "id": 8,
+        "label": "escrow . completed_milestones = 0 ;"
+      },
+      {
+        "id": 9,
+        "label": "escrow . is_active = true ;"
+      },
+      {
+        "id": 10,
+        "label": "let cpi_accounts = anchor_spl :: token :: Transfer { from : ctx . accounts . client_token_account . to_account_info () , to : ctx . accounts . escrow_token_account . to_account_info () , authority : ctx . accounts . client . to_account_info () , } ;"
+      },
+      {
+        "id": 11,
+        "label": "let cpi_program = ctx . accounts . token_program . to_account_info () ;"
+      },
+      {
+        "id": 12,
+        "label": "let cpi_ctx = CpiContext :: new (cpi_program , cpi_accounts) ;"
+      },
+      {
+        "id": 13,
+        "label": "anchor_spl :: token :: transfer (cpi_ctx , amount) ? ;"
+      },
+      {
+        "id": 14,
         "label": "Ok (())"
       }
     ],
     "edges": [
       {
-        "from": 1,
-        "to": 1,
-        "label": "def: acct"
-      },
-      {
-        "from": 2,
-        "to": 2,
-        "label": "def: temp"
-      },
-      {
-        "from": 1,
-        "to": 2,
-        "label": "data_dep: acct"
-      },
-      {
-        "from": 1,
+        "from": 3,
         "to": 3,
-        "label": "data_dep: acct"
+        "label": "def: escrow"
       },
       {
-        "from": 2,
-        "to": 3,
-        "label": "data_dep: temp"
+        "from": 3,
+        "to": 4,
+        "label": "data_dep: escrow"
+      },
+      {
+        "from": 3,
+        "to": 5,
+        "label": "data_dep: escrow"
+      },
+      {
+        "from": 3,
+        "to": 6,
+        "label": "data_dep: escrow"
+      },
+      {
+        "from": 3,
+        "to": 7,
+        "label": "data_dep: escrow"
+      },
+      {
+        "from": 3,
+        "to": 8,
+        "label": "data_dep: escrow"
+      },
+      {
+        "from": 3,
+        "to": 9,
+        "label": "data_dep: escrow"
+      },
+      {
+        "from": 10,
+        "to": 10,
+        "label": "def: cpi_accounts"
+      },
+      {
+        "from": 11,
+        "to": 11,
+        "label": "def: cpi_program"
+      },
+      {
+        "from": 12,
+        "to": 12,
+        "label": "def: cpi_ctx"
+      },
+      {
+        "from": 11,
+        "to": 12,
+        "label": "data_dep: cpi_program"
+      },
+      {
+        "from": 10,
+        "to": 12,
+        "label": "data_dep: cpi_accounts"
+      },
+      {
+        "from": 12,
+        "to": 13,
+        "label": "data_dep: cpi_ctx"
+      }
+    ]
+  },
+  {
+    "name": "approve_milestone",
+    "inputs": [
+      "ctx: Context < ApproveMilestone >"
+    ],
+    "nodes": [
+      {
+        "id": 15,
+        "label": "Entry"
+      },
+      {
+        "id": 16,
+        "label": "let escrow = & mut ctx . accounts . escrow ;"
+      },
+      {
+        "id": 17,
+        "label": "require ! (escrow . is_active , EscrowError :: EscrowInactive) ;"
+      },
+      {
+        "id": 18,
+        "label": "require ! (escrow . completed_milestones < escrow . milestones . len () as u64 , EscrowError :: AllMilestonesCompleted) ;"
+      },
+      {
+        "id": 19,
+        "label": "let milestone_amount = escrow . milestones [escrow . completed_milestones as usize] ;"
+      },
+      {
+        "id": 20,
+        "label": "escrow . completed_milestones += 1 ;"
+      },
+      {
+        "id": 21,
+        "label": "let seeds = & [b\"escrow\" , escrow . client . as_ref () , escrow . provider . as_ref () , & [ctx . bumps . escrow_token_account] ,] ;"
+      },
+      {
+        "id": 22,
+        "label": "let signer = & [& seeds [..]] ;"
+      },
+      {
+        "id": 23,
+        "label": "let cpi_accounts = anchor_spl :: token :: Transfer { from : ctx . accounts . escrow_token_account . to_account_info () , to : ctx . accounts . provider_token_account . to_account_info () , authority : ctx . accounts . escrow_token_account . to_account_info () , } ;"
+      },
+      {
+        "id": 24,
+        "label": "let cpi_program = ctx . accounts . token_program . to_account_info () ;"
+      },
+      {
+        "id": 25,
+        "label": "let cpi_ctx = CpiContext :: new_with_signer (cpi_program , cpi_accounts , signer) ;"
+      },
+      {
+        "id": 26,
+        "label": "anchor_spl :: token :: transfer (cpi_ctx , milestone_amount) ? ;"
+      },
+      {
+        "id": 27,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 16,
+        "to": 16,
+        "label": "def: escrow"
+      },
+      {
+        "from": 19,
+        "to": 19,
+        "label": "def: milestone_amount"
+      },
+      {
+        "from": 16,
+        "to": 19,
+        "label": "data_dep: escrow"
+      },
+      {
+        "from": 16,
+        "to": 19,
+        "label": "data_dep: escrow"
+      },
+      {
+        "from": 16,
+        "to": 20,
+        "label": "data_dep: escrow"
+      },
+      {
+        "from": 21,
+        "to": 21,
+        "label": "def: seeds"
+      },
+      {
+        "from": 16,
+        "to": 21,
+        "label": "data_dep: escrow"
+      },
+      {
+        "from": 16,
+        "to": 21,
+        "label": "data_dep: escrow"
+      },
+      {
+        "from": 22,
+        "to": 22,
+        "label": "def: signer"
+      },
+      {
+        "from": 21,
+        "to": 22,
+        "label": "data_dep: seeds"
+      },
+      {
+        "from": 23,
+        "to": 23,
+        "label": "def: cpi_accounts"
+      },
+      {
+        "from": 24,
+        "to": 24,
+        "label": "def: cpi_program"
+      },
+      {
+        "from": 25,
+        "to": 25,
+        "label": "def: cpi_ctx"
+      },
+      {
+        "from": 24,
+        "to": 25,
+        "label": "data_dep: cpi_program"
+      },
+      {
+        "from": 23,
+        "to": 25,
+        "label": "data_dep: cpi_accounts"
+      },
+      {
+        "from": 22,
+        "to": 25,
+        "label": "data_dep: signer"
+      },
+      {
+        "from": 25,
+        "to": 26,
+        "label": "data_dep: cpi_ctx"
+      },
+      {
+        "from": 19,
+        "to": 26,
+        "label": "data_dep: milestone_amount"
       }
     ]
   }

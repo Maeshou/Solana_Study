@@ -1,0 +1,614 @@
+[
+  {
+    "name": "init_warehouse",
+    "inputs": [
+      "ctx: Context < InitWarehouse >",
+      "code: u32"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let w = & mut ctx . accounts . warehouse ;"
+      },
+      {
+        "id": 2,
+        "label": "w . owner = ctx . accounts . owner . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "w . code = code ;"
+      },
+      {
+        "id": 4,
+        "label": "w . items = 0 ;"
+      },
+      {
+        "id": 5,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: w"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: w"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: w"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: w"
+      }
+    ]
+  },
+  {
+    "name": "create_slots",
+    "inputs": [
+      "ctx: Context < CreateSlots >",
+      "input_kind: SlotType",
+      "output_kind: SlotType"
+    ],
+    "nodes": [
+      {
+        "id": 6,
+        "label": "Entry"
+      },
+      {
+        "id": 7,
+        "label": "let w = & mut ctx . accounts . warehouse ;"
+      },
+      {
+        "id": 8,
+        "label": "let a = & mut ctx . accounts . input_slot ;"
+      },
+      {
+        "id": 9,
+        "label": "a . warehouse = w . key () ;"
+      },
+      {
+        "id": 10,
+        "label": "a . kind = input_kind ;"
+      },
+      {
+        "id": 11,
+        "label": "a . count = 0 ;"
+      },
+      {
+        "id": 12,
+        "label": "let b = & mut ctx . accounts . output_slot ;"
+      },
+      {
+        "id": 13,
+        "label": "b . warehouse = w . key () ;"
+      },
+      {
+        "id": 14,
+        "label": "b . kind = output_kind ;"
+      },
+      {
+        "id": 15,
+        "label": "b . count = 0 ;"
+      },
+      {
+        "id": 16,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 7,
+        "to": 7,
+        "label": "def: w"
+      },
+      {
+        "from": 8,
+        "to": 8,
+        "label": "def: a"
+      },
+      {
+        "from": 8,
+        "to": 9,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 9,
+        "label": "data_dep: w"
+      },
+      {
+        "from": 8,
+        "to": 10,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 8,
+        "to": 11,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 12,
+        "to": 12,
+        "label": "def: b"
+      },
+      {
+        "from": 12,
+        "to": 13,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 7,
+        "to": 13,
+        "label": "data_dep: w"
+      },
+      {
+        "from": 12,
+        "to": 14,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 12,
+        "to": 15,
+        "label": "data_dep: b"
+      }
+    ]
+  },
+  {
+    "name": "move_items",
+    "inputs": [
+      "ctx: Context < MoveItems >",
+      "batches: Vec < u16 >"
+    ],
+    "nodes": [
+      {
+        "id": 17,
+        "label": "Entry"
+      },
+      {
+        "id": 18,
+        "label": "let w = & mut ctx . accounts . warehouse ;"
+      },
+      {
+        "id": 19,
+        "label": "let input = & mut ctx . accounts . input_slot ;"
+      },
+      {
+        "id": 20,
+        "label": "let output = & mut ctx . accounts . output_slot ;"
+      },
+      {
+        "id": 21,
+        "label": "let rec = & mut ctx . accounts . record ;"
+      },
+      {
+        "id": 22,
+        "label": "let mut moved : u32 = 0 ;"
+      },
+      {
+        "id": 23,
+        "label": "let mut entropy : u16 = 0 ;"
+      },
+      {
+        "id": 24,
+        "label": "for b in batches { let cap = b . min (1000) ; moved = moved . saturating_add (cap as u32) ; entropy ^= (cap << 1) | (cap >> 1) ; }"
+      },
+      {
+        "id": 25,
+        "label": "let cap = b . min (1000) ;"
+      },
+      {
+        "id": 26,
+        "label": "moved = moved . saturating_add (cap as u32) ;"
+      },
+      {
+        "id": 27,
+        "label": "entropy ^= (cap << 1) | (cap >> 1) ;"
+      },
+      {
+        "id": 28,
+        "label": "if input . kind == Inlet { let take = moved . min (input . count as u32) ; input . count = input . count . saturating_sub (take as u16) ; output . count = output . count . saturating_add ((take as u16) . min (2000)) ; w . items = w . items . saturating_add (take) ; msg ! (\"Inlet path: moved={}, in.count={}, out.count={}\" , moved , input . count , output . count) ; } else { let give = moved . min (2000) ; input . count = input . count . saturating_add (give as u16) ; output . count = output . count . saturating_sub (give . min (output . count as u32) as u16) ; w . items = w . items . saturating_add (give) ; msg ! (\"Outlet path: moved={}, in.count={}, out.count={}\" , moved , input . count , output . count) ; }"
+      },
+      {
+        "id": 29,
+        "label": "let take = moved . min (input . count as u32) ;"
+      },
+      {
+        "id": 30,
+        "label": "input . count = input . count . saturating_sub (take as u16) ;"
+      },
+      {
+        "id": 31,
+        "label": "output . count = output . count . saturating_add ((take as u16) . min (2000)) ;"
+      },
+      {
+        "id": 32,
+        "label": "w . items = w . items . saturating_add (take) ;"
+      },
+      {
+        "id": 33,
+        "label": "msg ! (\"Inlet path: moved={}, in.count={}, out.count={}\" , moved , input . count , output . count) ;"
+      },
+      {
+        "id": 34,
+        "label": "let give = moved . min (2000) ;"
+      },
+      {
+        "id": 35,
+        "label": "input . count = input . count . saturating_add (give as u16) ;"
+      },
+      {
+        "id": 36,
+        "label": "output . count = output . count . saturating_sub (give . min (output . count as u32) as u16) ;"
+      },
+      {
+        "id": 37,
+        "label": "w . items = w . items . saturating_add (give) ;"
+      },
+      {
+        "id": 38,
+        "label": "msg ! (\"Outlet path: moved={}, in.count={}, out.count={}\" , moved , input . count , output . count) ;"
+      },
+      {
+        "id": 39,
+        "label": "let mut x = (w . items as u128) . max (1) ;"
+      },
+      {
+        "id": 40,
+        "label": "let mut i = 0 ;"
+      },
+      {
+        "id": 41,
+        "label": "while i < 3 { x = (x + (w . items as u128 / x)) . max (1) / 2 ; i += 1 ; }"
+      },
+      {
+        "id": 42,
+        "label": "x = (x + (w . items as u128 / x)) . max (1) / 2 ;"
+      },
+      {
+        "id": 43,
+        "label": "i += 1 ;"
+      },
+      {
+        "id": 44,
+        "label": "rec . warehouse = w . key () ;"
+      },
+      {
+        "id": 45,
+        "label": "rec . heat = (x as u32) . saturating_add (entropy as u32) ;"
+      },
+      {
+        "id": 46,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 18,
+        "to": 18,
+        "label": "def: w"
+      },
+      {
+        "from": 19,
+        "to": 19,
+        "label": "def: input"
+      },
+      {
+        "from": 20,
+        "to": 20,
+        "label": "def: output"
+      },
+      {
+        "from": 21,
+        "to": 21,
+        "label": "def: rec"
+      },
+      {
+        "from": 25,
+        "to": 25,
+        "label": "def: cap"
+      },
+      {
+        "from": 25,
+        "to": 26,
+        "label": "data_dep: cap"
+      },
+      {
+        "from": 25,
+        "to": 27,
+        "label": "data_dep: cap"
+      },
+      {
+        "from": 25,
+        "to": 27,
+        "label": "data_dep: cap"
+      },
+      {
+        "from": 19,
+        "to": 28,
+        "label": "data_dep: input"
+      },
+      {
+        "from": 19,
+        "to": 28,
+        "label": "data_dep: input"
+      },
+      {
+        "from": 19,
+        "to": 28,
+        "label": "data_dep: input"
+      },
+      {
+        "from": 19,
+        "to": 28,
+        "label": "data_dep: input"
+      },
+      {
+        "from": 20,
+        "to": 28,
+        "label": "data_dep: output"
+      },
+      {
+        "from": 20,
+        "to": 28,
+        "label": "data_dep: output"
+      },
+      {
+        "from": 18,
+        "to": 28,
+        "label": "data_dep: w"
+      },
+      {
+        "from": 18,
+        "to": 28,
+        "label": "data_dep: w"
+      },
+      {
+        "from": 19,
+        "to": 28,
+        "label": "data_dep: input"
+      },
+      {
+        "from": 19,
+        "to": 28,
+        "label": "data_dep: input"
+      },
+      {
+        "from": 20,
+        "to": 28,
+        "label": "data_dep: output"
+      },
+      {
+        "from": 20,
+        "to": 28,
+        "label": "data_dep: output"
+      },
+      {
+        "from": 20,
+        "to": 28,
+        "label": "data_dep: output"
+      },
+      {
+        "from": 18,
+        "to": 28,
+        "label": "data_dep: w"
+      },
+      {
+        "from": 18,
+        "to": 28,
+        "label": "data_dep: w"
+      },
+      {
+        "from": 29,
+        "to": 29,
+        "label": "def: take"
+      },
+      {
+        "from": 19,
+        "to": 29,
+        "label": "data_dep: input"
+      },
+      {
+        "from": 19,
+        "to": 30,
+        "label": "data_dep: input"
+      },
+      {
+        "from": 19,
+        "to": 30,
+        "label": "data_dep: input"
+      },
+      {
+        "from": 29,
+        "to": 30,
+        "label": "data_dep: take"
+      },
+      {
+        "from": 20,
+        "to": 31,
+        "label": "data_dep: output"
+      },
+      {
+        "from": 20,
+        "to": 31,
+        "label": "data_dep: output"
+      },
+      {
+        "from": 29,
+        "to": 31,
+        "label": "data_dep: take"
+      },
+      {
+        "from": 18,
+        "to": 32,
+        "label": "data_dep: w"
+      },
+      {
+        "from": 18,
+        "to": 32,
+        "label": "data_dep: w"
+      },
+      {
+        "from": 29,
+        "to": 32,
+        "label": "data_dep: take"
+      },
+      {
+        "from": 34,
+        "to": 34,
+        "label": "def: give"
+      },
+      {
+        "from": 19,
+        "to": 35,
+        "label": "data_dep: input"
+      },
+      {
+        "from": 19,
+        "to": 35,
+        "label": "data_dep: input"
+      },
+      {
+        "from": 34,
+        "to": 35,
+        "label": "data_dep: give"
+      },
+      {
+        "from": 20,
+        "to": 36,
+        "label": "data_dep: output"
+      },
+      {
+        "from": 20,
+        "to": 36,
+        "label": "data_dep: output"
+      },
+      {
+        "from": 34,
+        "to": 36,
+        "label": "data_dep: give"
+      },
+      {
+        "from": 20,
+        "to": 36,
+        "label": "data_dep: output"
+      },
+      {
+        "from": 18,
+        "to": 37,
+        "label": "data_dep: w"
+      },
+      {
+        "from": 18,
+        "to": 37,
+        "label": "data_dep: w"
+      },
+      {
+        "from": 34,
+        "to": 37,
+        "label": "data_dep: give"
+      },
+      {
+        "from": 39,
+        "to": 39,
+        "label": "def: x"
+      },
+      {
+        "from": 18,
+        "to": 39,
+        "label": "data_dep: w"
+      },
+      {
+        "from": 40,
+        "to": 40,
+        "label": "def: i"
+      },
+      {
+        "from": 40,
+        "to": 41,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 39,
+        "to": 41,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 39,
+        "to": 41,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 18,
+        "to": 41,
+        "label": "data_dep: w"
+      },
+      {
+        "from": 39,
+        "to": 41,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 40,
+        "to": 41,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 39,
+        "to": 42,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 39,
+        "to": 42,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 18,
+        "to": 42,
+        "label": "data_dep: w"
+      },
+      {
+        "from": 39,
+        "to": 42,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 40,
+        "to": 43,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 21,
+        "to": 44,
+        "label": "data_dep: rec"
+      },
+      {
+        "from": 18,
+        "to": 44,
+        "label": "data_dep: w"
+      },
+      {
+        "from": 21,
+        "to": 45,
+        "label": "data_dep: rec"
+      },
+      {
+        "from": 39,
+        "to": 45,
+        "label": "data_dep: x"
+      }
+    ]
+  }
+]

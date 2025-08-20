@@ -1,0 +1,137 @@
+[
+  {
+    "name": "create_session",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateSession >",
+      "timestamp: i64",
+      "duration_minutes: u16",
+      "note: String"
+    ],
+    "attributes": [
+      "# [doc = \" 新規セッション記録\"]"
+    ],
+    "body": [
+      "if duration_minutes == 0",
+      "{",
+      "return Err (ErrorCode :: InvalidDuration . into ()) ;",
+      "}",
+      "if note . len () > 128",
+      "{",
+      "return Err (ErrorCode :: NoteTooLong . into ()) ;",
+      "}",
+      "let sess = & mut ctx . accounts . session ;",
+      "sess . owner = ctx . accounts . user . key () ;",
+      "sess . timestamp = timestamp ;",
+      "sess . duration_minutes = duration_minutes ;",
+      "sess . note = note ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "update_session",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < UpdateSession >",
+      "new_timestamp: i64",
+      "new_duration_minutes: u16",
+      "new_note: String"
+    ],
+    "attributes": [
+      "# [doc = \" 既存セッションを更新\"]"
+    ],
+    "body": [
+      "if new_duration_minutes == 0",
+      "{",
+      "return Err (ErrorCode :: InvalidDuration . into ()) ;",
+      "}",
+      "if new_note . len () > 128",
+      "{",
+      "return Err (ErrorCode :: NoteTooLong . into ()) ;",
+      "}",
+      "let sess = & mut ctx . accounts . session ;",
+      "if sess . owner != ctx . accounts . user . key ()",
+      "{",
+      "return Err (ErrorCode :: Unauthorized . into ()) ;",
+      "}",
+      "sess . timestamp = new_timestamp ;",
+      "sess . duration_minutes = new_duration_minutes ;",
+      "sess . note = new_note ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CreateSession",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "session",
+        "attribute": "# [doc = \" init 制約で同一アカウント再初期化防止（Reinit Attack）\"] # [account (init , payer = user , space = 8 + 32 + 8 + 2 + 4 + 128)]",
+        "field_type": "Account < 'info , Session >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" このトランザクションを署名したユーザー（Signer Authorization）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "UpdateSession",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "session",
+        "attribute": "# [doc = \" Account<> による Owner Check & Type Cosplay\"] # [account (mut)]",
+        "field_type": "Account < 'info , Session >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 実際に署名したユーザー\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Session",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" この記録を操作できるユーザー\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "timestamp",
+        "attribute": "# [doc = \" 記録タイムスタンプ (UNIX)\"]",
+        "field_type": "i64"
+      },
+      {
+        "name": "duration_minutes",
+        "attribute": "# [doc = \" セッション時間 (分)\"]",
+        "field_type": "u16"
+      },
+      {
+        "name": "note",
+        "attribute": "# [doc = \" メモ (最大128文字)\"]",
+        "field_type": "String"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

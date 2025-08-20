@@ -1,0 +1,377 @@
+[
+  {
+    "name": "initiate_combat_challenge",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitiateCombat >",
+      "challenger_warrior_id: u32",
+      "defender_warrior_id: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let challenger_account = & mut ctx . accounts . challenger_account ;",
+      "let defender_account = & mut ctx . accounts . defender_account ;",
+      "let battle_session = & mut ctx . accounts . battle_session ;",
+      "require ! (challenger_account . warrior_tokens . contains (& challenger_warrior_id) , BattleError :: WarriorNotOwned) ;",
+      "require ! (defender_account . warrior_tokens . contains (& defender_warrior_id) , BattleError :: DefenderWarriorInvalid) ;",
+      "let challenger_power = calculate_warrior_combat_rating (challenger_warrior_id) ;",
+      "let defender_power = calculate_warrior_combat_rating (defender_warrior_id) ;",
+      "battle_session . challenger_address = ctx . accounts . challenger . key () ;",
+      "battle_session . defender_address = ctx . accounts . defender . key () ;",
+      "battle_session . challenger_warrior = challenger_warrior_id ;",
+      "battle_session . defender_warrior = defender_warrior_id ;",
+      "battle_session . battle_status = BattleStatus :: InProgress ;",
+      "battle_session . combat_rounds_remaining = 10 ;",
+      "battle_session . challenger_health = 1000 ;",
+      "battle_session . defender_health = 1000 ;",
+      "let initial_damage = challenger_power / 20 ;",
+      "battle_session . defender_health = battle_session . defender_health . saturating_sub (initial_damage) ;",
+      "emit ! (CombatInitiated { battle_id : battle_session . key () , challenger : ctx . accounts . challenger . key () , defender : ctx . accounts . defender . key () , }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "execute_combat_round",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ExecuteCombatRound >",
+      "attack_strategy: AttackStrategy"
+    ],
+    "attributes": [],
+    "body": [
+      "let battle_session = & mut ctx . accounts . battle_session ;",
+      "let attacker_account = & ctx . accounts . attacker_account ;",
+      "require ! (battle_session . battle_status == BattleStatus :: InProgress , BattleError :: BattleNotActive) ;",
+      "require ! (battle_session . combat_rounds_remaining > 0 , BattleError :: BattleAlreadyFinished) ;",
+      "let attacker_warrior_id = if ctx . accounts . attacker . key () == battle_session . challenger_address { battle_session . challenger_warrior } else { battle_session . defender_warrior } ;",
+      "let base_attack_damage = calculate_attack_damage (attacker_warrior_id , attack_strategy) ;",
+      "let critical_hit_chance = attacker_warrior_id % 20 ;",
+      "let final_damage = if critical_hit_chance > 15 { base_attack_damage * 2 } else { base_attack_damage } ;",
+      "if ctx . accounts . attacker . key () == battle_session . challenger_address",
+      "{",
+      "battle_session . defender_health = battle_session . defender_health . saturating_sub (final_damage) ;",
+      "} else",
+      "{",
+      "battle_session . challenger_health = battle_session . challenger_health . saturating_sub (final_damage) ;",
+      "}",
+      "battle_session . combat_rounds_remaining -= 1 ;",
+      "let victory_condition = battle_session . challenger_health > 0 && battle_session . defender_health > 0 ;",
+      "if ! victory_condition || battle_session . combat_rounds_remaining <= 0",
+      "{",
+      "battle_session . battle_status = BattleStatus :: Completed ;",
+      "let winner_address = if battle_session . challenger_health > battle_session . defender_health",
+      "{",
+      "battle_session . challenger_address } else { battle_session . defender_address } ;",
+      "emit ! (BattleCompleted",
+      "{",
+      "battle_id : battle_session . key () , winner : winner_address , final_damage : final_damage , }) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "upgrade_warrior_equipment",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < UpgradeEquipment >",
+      "warrior_id: u32",
+      "equipment_type: EquipmentType",
+      "upgrade_level: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let warrior_owner = & mut ctx . accounts . warrior_owner ;",
+      "let equipment_forge = & ctx . accounts . equipment_forge ;",
+      "require ! (warrior_owner . warrior_tokens . contains (& warrior_id) , BattleError :: WarriorNotOwned) ;",
+      "let upgrade_cost_calculation = (upgrade_level as u64) * 500 ;",
+      "let equipment_multiplier = match equipment_type { EquipmentType :: Weapon => 3 , EquipmentType :: Armor => 2 , EquipmentType :: Accessory => 1 , } ;",
+      "let total_upgrade_cost = upgrade_cost_calculation * equipment_multiplier ;",
+      "require ! (warrior_owner . battle_tokens >= total_upgrade_cost , BattleError :: InsufficientUpgradeFunds) ;",
+      "warrior_owner . battle_tokens -= total_upgrade_cost ;",
+      "let equipment_bonus = upgrade_level as u32 * 25 ;",
+      "warrior_owner . total_warrior_power += equipment_bonus ;",
+      "let upgraded_equipment_id = warrior_id + (equipment_bonus * 1000) ;",
+      "warrior_owner . equipment_inventory . push (upgraded_equipment_id) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "calculate_warrior_combat_rating",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "warrior_id: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let base_power = warrior_id % 1000 ;",
+      "let rarity_bonus = warrior_id / 10000 ;",
+      "base_power + (rarity_bonus * 50)"
+    ]
+  },
+  {
+    "name": "calculate_attack_damage",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "warrior_id: u32",
+      "strategy: AttackStrategy"
+    ],
+    "attributes": [],
+    "body": [
+      "let base_damage = warrior_id % 100 ;",
+      "let strategy_modifier = match strategy { AttackStrategy :: Aggressive => base_damage + 20 , AttackStrategy :: Defensive => base_damage + 5 , AttackStrategy :: Balanced => base_damage + 12 , } ;",
+      "strategy_modifier"
+    ]
+  },
+  {
+    "name": "InitiateCombat",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "challenger_account",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , WarriorOwnerAccount >"
+      },
+      {
+        "name": "defender_account",
+        "attribute": null,
+        "field_type": "Account < 'info , WarriorOwnerAccount >"
+      },
+      {
+        "name": "battle_session",
+        "attribute": "# [account (init , payer = challenger , space = 8 + BattleSession :: INIT_SPACE)]",
+        "field_type": "Account < 'info , BattleSession >"
+      },
+      {
+        "name": "challenger",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "defender",
+        "attribute": "# [doc = \" CHECK: This is the defender's public key\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ExecuteCombatRound",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "battle_session",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , BattleSession >"
+      },
+      {
+        "name": "attacker_account",
+        "attribute": null,
+        "field_type": "Account < 'info , WarriorOwnerAccount >"
+      },
+      {
+        "name": "attacker",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "UpgradeEquipment",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "warrior_owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , WarriorOwnerAccount >"
+      },
+      {
+        "name": "equipment_forge",
+        "attribute": null,
+        "field_type": "Account < 'info , EquipmentForge >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "WarriorOwnerAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner_address",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "warrior_tokens",
+        "attribute": "# [max_len (20)]",
+        "field_type": "Vec < u32 >"
+      },
+      {
+        "name": "battle_tokens",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_warrior_power",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "equipment_inventory",
+        "attribute": "# [max_len (50)]",
+        "field_type": "Vec < u32 >"
+      },
+      {
+        "name": "arena_victories",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BattleSession",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "challenger_address",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "defender_address",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "challenger_warrior",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "defender_warrior",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "battle_status",
+        "attribute": null,
+        "field_type": "BattleStatus"
+      },
+      {
+        "name": "combat_rounds_remaining",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "challenger_health",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "defender_health",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EquipmentForge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "forge_level",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "upgrade_success_rate",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "master_craftsman",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CombatInitiated",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "battle_id",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "challenger",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "defender",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BattleCompleted",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "battle_id",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "winner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "final_damage",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

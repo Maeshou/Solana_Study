@@ -1,0 +1,103 @@
+use anchor_lang::prelude::*;
+use anchor_lang::solana_program::{program::invoke_signed, system_instruction};
+
+declare_id!("BadgeF0rge111111111111111111111111111111");
+
+#[program]
+pub mod badge_forge {
+    use super::*;
+
+    pub fn init_badge_forge(ctx: Context<InitBadgeForge>, seed: u64) -> Result<()> {
+        let f = &mut ctx.accounts.forge;
+        f.owner = ctx.accounts.player.key();
+        f.heat = seed.rotate_left(2).wrapping_add(31);
+        f.slots = 2;
+        f.rank = 1;
+
+        // 多様化: for → windows → loop
+        for v in [3u64, 5, 9, 16] {
+            f.heat = f.heat.wrapping_add(v.rotate_left(1) ^ f.heat);
+            f.slots = f.slots.saturating_add(1);
+        }
+        for w in [7u64, 11, 18, 29, 47].windows(2) {
+            let g = w[0].wrapping_add(w[1]).rotate_right(1);
+            if g > 14 { f.rank = f.rank.saturating_add(1); }
+            f.heat = f.heat.wrapping_add(g);
+        }
+        let mut t = 1u8;
+        loop {
+            f.heat = f.heat.wrapping_add((t as u64 * 13).rotate_left(1));
+            if t > 2 { break; }
+            t = t.saturating_add(1);
+        }
+        Ok(())
+    }
+
+    pub fn craft_badge(ctx: Context<CraftBadge>, base: u64) -> Result<()> {
+        let f = &mut ctx.accounts.forge;
+
+        for (i, v) in [4u64, 6, 10, 15].iter().enumerate() {
+            let inc = v.rotate_left((i + 1) as u32);
+            if inc > 8 { f.rank = f.rank.saturating_add(1); }
+            f.heat = f.heat.wrapping_add(inc);
+        }
+
+        let seeds: &[&[u8]] = &[
+            b"forge",
+            ctx.accounts.player.key.as_ref(),
+            ctx.accounts.collection.key().as_ref(),
+            &[ctx.bumps["forge"]],
+        ];
+        let out = base.saturating_add((f.heat % 73) + 5);
+        let ix = system_instruction::transfer(&ctx.accounts.forge.key(), &ctx.accounts.reward_vault.key(), out);
+        invoke_signed(
+            &ix,
+            &[
+                ctx.accounts.forge.to_account_info(),
+                ctx.accounts.reward_vault.to_account_info(),
+                ctx.accounts.system_program.to_account_info(),
+            ],
+            &[seeds],
+        )?;
+        Ok(())
+    }
+}
+
+#[derive(Accounts)]
+pub struct InitBadgeForge<'info> {
+    #[account(
+        init,
+        payer = player,
+        space = 8 + 32 + 8 + 2 + 1,
+        seeds = [b"forge", player.key().as_ref(), collection.key().as_ref()],
+        bump
+    )]
+    pub forge: Account<'info, Forge>,
+    #[account(mut)]
+    pub player: Signer<'info>,
+    /// CHECK: 参照のみ
+    pub collection: UncheckedAccount<'info>,
+    pub system_program: Program<'info, System>,
+}
+#[derive(Accounts)]
+pub struct CraftBadge<'info> {
+    #[account(
+        mut,
+        seeds = [b"forge", player.key().as_ref(), collection.key().as_ref()],
+        bump
+    )]
+    pub forge: Account<'info, Forge>,
+    #[account(mut)]
+    pub reward_vault: SystemAccount<'info>,
+    pub player: Signer<'info>,
+    /// CHECK
+    pub collection: UncheckedAccount<'info>,
+    pub system_program: Program<'info, System>,
+}
+#[account]
+pub struct Forge {
+    pub owner: Pubkey,
+    pub heat: u64,
+    pub slots: u16,
+    pub rank: u8,
+}

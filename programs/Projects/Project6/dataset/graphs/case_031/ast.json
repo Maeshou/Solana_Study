@@ -1,0 +1,154 @@
+[
+  {
+    "name": "level_up_character",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < LevelUpCharacter >"
+    ],
+    "attributes": [],
+    "body": [
+      "let character = & mut ctx . accounts . character ;",
+      "let player = & ctx . accounts . player ;",
+      "let required_exp = character . level . checked_mul (100) . unwrap () ;",
+      "require ! (character . experience >= required_exp , GameError :: InsufficientExperience) ;",
+      "for bonus_tier in 1 ..= 5",
+      "{",
+      "let tier_multiplier = bonus_tier . checked_mul (10) . unwrap () ;",
+      "character . attack_power = character . attack_power . checked_add (tier_multiplier) . unwrap () ;",
+      "character . defense_power = character . defense_power . checked_add (tier_multiplier / 2) . unwrap () ;",
+      "while character . level >= bonus_tier * 10",
+      "{",
+      "character . special_skills . push (SpecialSkill { skill_id : bonus_tier as u32 , power_level : tier_multiplier as u32 , cooldown : 30 , }) ;",
+      "break ;",
+      "}",
+      "}",
+      "character . level = character . level . checked_add (1) . unwrap () ;",
+      "character . experience = character . experience . checked_sub (required_exp) . unwrap () ;",
+      "character . last_level_up = Clock :: get () ? . unix_timestamp ;",
+      "emit ! (CharacterLeveledUp { player : player . key () , character : character . key () , new_level : character . level , }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Character",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "character_type",
+        "attribute": null,
+        "field_type": "CharacterType"
+      },
+      {
+        "name": "level",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "experience",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "attack_power",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "defense_power",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "special_skills",
+        "attribute": null,
+        "field_type": "Vec < SpecialSkill >"
+      },
+      {
+        "name": "last_level_up",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SpecialSkill",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "skill_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "power_level",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "cooldown",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "LevelUpCharacter",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "character",
+        "attribute": "# [account (mut , has_one = owner @ GameError :: Unauthorized , constraint = character . character_type != CharacterType :: Warrior || character . level < 100 @ GameError :: MaxLevelReached)]",
+        "field_type": "Account < 'info , Character >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "player",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CharacterLeveledUp",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "player",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "character",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "new_level",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

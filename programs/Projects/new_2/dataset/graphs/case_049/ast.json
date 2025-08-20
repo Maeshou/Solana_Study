@@ -1,0 +1,74 @@
+[
+  {
+    "name": "list_for_auction",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ListForAuction >",
+      "min_bid: u64",
+      "duration_secs: i64"
+    ],
+    "attributes": [
+      "# [doc = \" NFTトークンをエスクローに移動しつつオークション出品情報を記録する  \"]",
+      "# [doc = \" （`nft_token_account` と `auction_account` の owner チェックを行っていないため、  \"]",
+      "# [doc = \"  攻撃者が任意のアカウントを指定し、他人のNFTを無断で出品できます）\"]"
+    ],
+    "body": [
+      "let cpi_accounts = Transfer { from : ctx . accounts . nft_token_account . to_account_info () , to : ctx . accounts . escrow_nft_account . to_account_info () , authority : ctx . accounts . seller . to_account_info () , } ;",
+      "transfer (CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) , 1 ,) ? ;",
+      "let now = Clock :: get () ? . unix_timestamp ;",
+      "let expiry = now . checked_add (duration_secs) . ok_or (ErrorCode :: TimestampOverflow) ? ;",
+      "let mut buf = Vec :: with_capacity (32 + 8 + 8) ;",
+      "buf . extend_from_slice (& ctx . accounts . seller . key () . to_bytes ()) ;",
+      "buf . extend_from_slice (& min_bid . to_le_bytes ()) ;",
+      "buf . extend_from_slice (& expiry . to_le_bytes ()) ;",
+      "let data = & mut ctx . accounts . auction_account . data . borrow_mut () ;",
+      "if data . len () < buf . len ()",
+      "{",
+      "return err ! (ErrorCode :: DataTooShort) ;",
+      "}",
+      "data [.. buf . len ()] . copy_from_slice (& buf) ;",
+      "msg ! (\"Auction listing: escrow={} by {} (min_bid={}, expires_at={})\" , ctx . accounts . escrow_nft_account . key () , ctx . accounts . seller . key () , min_bid , expiry) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "ListForAuction",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "nft_token_account",
+        "attribute": "# [doc = \" CHECK: owner == Token プログラムではない可能性のある NFTトークンアカウント\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "escrow_nft_account",
+        "attribute": "# [doc = \" CHECK: owner == Token プログラムではない可能性のあるエスクローアカウント\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "auction_account",
+        "attribute": "# [doc = \" CHECK: owner == program_id の検証を行っていない生の AccountInfo\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "seller",
+        "attribute": "# [doc = \" 出品者の署名のみを検証\"]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": "# [doc = \" SPL Token プログラム CPI 用\"]",
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "clock",
+        "attribute": "# [doc = \" 有効期限計算用\"]",
+        "field_type": "Sysvar < 'info , Clock >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

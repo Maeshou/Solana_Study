@@ -1,33 +1,79 @@
 [
   {
-    "name": "initialize_debt_account",
+    "name": "setup_user",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Initialize044 >",
-      "param: u64"
+      "ctx: Context < SetupUser >",
+      "nickname: String",
+      "theme: String",
+      "notify_email: bool"
     ],
     "attributes": [],
     "body": [
-      "let mut data = DebtAccountData :: try_from_slice (& ctx . accounts . data_account . data . borrow ()) ? ;",
-      "data . value = param ;",
-      "data . serialize (& mut * ctx . accounts . data_account . data . borrow_mut ()) ? ;",
+      "let profile = & mut ctx . accounts . profile ;",
+      "profile . owner = ctx . accounts . user . key () ;",
+      "profile . nickname = nickname . clone () ;",
+      "let settings = & mut ctx . accounts . settings ;",
+      "if nickname . len () % 2 == 0",
+      "{",
+      "settings . theme = theme . to_uppercase () ;",
+      "} else",
+      "{",
+      "settings . theme = theme . to_lowercase () ;",
+      "}",
+      "settings . privacy_level = (nickname . len () % 4) as u8 ;",
+      "let notifications = & mut ctx . accounts . notifications ;",
+      "notifications . email = notify_email ;",
+      "notifications . sms = ! notify_email ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Initialize044",
+    "name": "update_settings",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < UpdateSettings >",
+      "new_theme: String",
+      "new_privacy: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let settings = & mut ctx . accounts . settings ;",
+      "settings . theme = new_theme ;",
+      "settings . privacy_level = new_privacy ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "SetupUser",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "profile",
+        "attribute": "# [account (init , payer = user , space = 8 + 32 + 64)]",
+        "field_type": "Account < 'info , ProfileData >"
       },
       {
-        "name": "authority",
-        "attribute": null,
+        "name": "settings",
+        "attribute": "# [account (init , payer = user , space = 8 + 64 + 1)]",
+        "field_type": "Account < 'info , SettingsData >"
+      },
+      {
+        "name": "notifications",
+        "attribute": "# [account (init , payer = user , space = 8 + 1 + 1)]",
+        "field_type": "Account < 'info , NotificationsData >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -35,13 +81,70 @@
     "body": null
   },
   {
-    "name": "DebtAccountData",
+    "name": "UpdateSettings",
     "node_type": "struct",
     "fields": [
       {
-        "name": "value",
+        "name": "settings",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , SettingsData >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ProfileData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "nickname",
+        "attribute": null,
+        "field_type": "String"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SettingsData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "theme",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "privacy_level",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "NotificationsData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "email",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "sms",
+        "attribute": null,
+        "field_type": "bool"
       }
     ],
     "inputs": null,

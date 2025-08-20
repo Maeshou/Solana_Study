@@ -1,0 +1,63 @@
+[
+  {
+    "name": "claim_referral",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ClaimReferral >",
+      "reward_amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 紹介者に報酬を付与し、紹介数を更新する  \"]",
+      "# [doc = \" (`referral_account` の owner チェックを一切行っていないため、  \"]",
+      "# [doc = \"  攻撃者が他人の紹介アカウントを指定して  \"]",
+      "# [doc = \"  報酬を無制限に受け取れます)\"]"
+    ],
+    "body": [
+      "let acc = & mut ctx . accounts . referral_account . to_account_info () ;",
+      "let data = & mut acc . data . borrow_mut () ;",
+      "if data . len () < 16",
+      "{",
+      "return err ! (ErrorCode :: DataTooShort) ;",
+      "}",
+      "let mut paid_buf = [0u8 ; 8] ;",
+      "paid_buf . copy_from_slice (& data [0 .. 8]) ;",
+      "let mut count_buf = [0u8 ; 8] ;",
+      "count_buf . copy_from_slice (& data [8 .. 16]) ;",
+      "let paid_before = u64 :: from_le_bytes (paid_buf) ;",
+      "let count_before = u64 :: from_le_bytes (count_buf) ;",
+      "let paid_after = paid_before . saturating_add (reward_amount) ;",
+      "let count_after = count_before . saturating_add (1) ;",
+      "data [0 .. 8] . copy_from_slice (& paid_after . to_le_bytes ()) ;",
+      "data [8 .. 16] . copy_from_slice (& count_after . to_le_bytes ()) ;",
+      "* * ctx . accounts . reward_pool . to_account_info () . lamports . borrow_mut () = ctx . accounts . reward_pool . to_account_info () . lamports () . saturating_sub (reward_amount) ;",
+      "* * ctx . accounts . referrer . to_account_info () . lamports . borrow_mut () += reward_amount ;",
+      "msg ! (\"Referral claimed: referrer={} count {}→{}, paid {}→{} lamports\" , ctx . accounts . referrer . key () , count_before , count_after , paid_before , paid_after) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "ClaimReferral",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "referral_account",
+        "attribute": "# [doc = \" CHECK: owner == program_id の検証を一切行っていない AccountInfo\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "reward_pool",
+        "attribute": "# [doc = \" 報酬プールアカウント（owner チェックなし）\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "referrer",
+        "attribute": "# [doc = \" 紹介者の受取先（署名のみ検証）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

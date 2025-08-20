@@ -1,8 +1,8 @@
 [
   {
-    "name": "swap_tokens",
+    "name": "init_inventory",
     "inputs": [
-      "ctx: Context < Ctx002 >"
+      "ctx: Context < InitInventory >"
     ],
     "nodes": [
       {
@@ -11,35 +11,135 @@
       },
       {
         "id": 1,
-        "label": "let a = & ctx . accounts . first ;"
+        "label": "ctx . accounts . inventory_record . sku = * ctx . accounts . manager . key ;"
       },
       {
         "id": 2,
-        "label": "let b = & ctx . accounts . second ;"
+        "label": "ctx . accounts . inventory_record . stock = 100 ;"
       },
       {
         "id": 3,
-        "label": "msg ! (\"Account A: {}\" , a . key ()) ;"
+        "label": "ctx . accounts . inventory_record . active = true ;"
       },
       {
         "id": 4,
-        "label": "msg ! (\"Account B: {}\" , b . key ()) ;"
+        "label": "ctx . accounts . stock_metrics . total_in = 100 ;"
       },
       {
         "id": 5,
+        "label": "ctx . accounts . stock_metrics . total_out = 0 ;"
+      },
+      {
+        "id": 6,
+        "label": "ctx . accounts . stock_metrics . bump = * ctx . bumps . get (\"inventory_record\") . unwrap () ;"
+      },
+      {
+        "id": 7,
+        "label": "ctx . accounts . reorder_policy . threshold = 20 ;"
+      },
+      {
+        "id": 8,
+        "label": "ctx . accounts . reorder_policy . lead_time = 7 ;"
+      },
+      {
+        "id": 9,
+        "label": "ctx . accounts . reorder_policy . enabled = true ;"
+      },
+      {
+        "id": 10,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": []
+  },
+  {
+    "name": "adjust_stock",
+    "inputs": [
+      "ctx: Context < AdjustStock >",
+      "used: u64"
+    ],
+    "nodes": [
+      {
+        "id": 11,
+        "label": "Entry"
+      },
+      {
+        "id": 12,
+        "label": "require_keys_neq ! (ctx . accounts . inventory_record . key () , ctx . accounts . stock_metrics . key () , InventoryError :: DuplicateAccounts) ;"
+      },
+      {
+        "id": 13,
+        "label": "let mut available = ctx . accounts . inventory_record . stock ;"
+      },
+      {
+        "id": 14,
+        "label": "for _ in 0 .. used { available -= 1 ; }"
+      },
+      {
+        "id": 15,
+        "label": "available -= 1 ;"
+      },
+      {
+        "id": 16,
+        "label": "if available < ctx . accounts . reorder_policy . threshold as u64 { ctx . accounts . stock_metrics . total_out += used ; msg ! (\"Stock low: {}\" , available) ; ctx . accounts . reorder_policy . enabled = false ; ctx . accounts . stock_metrics . total_in -= used ; } else { ctx . accounts . stock_metrics . total_out -= used ; msg ! (\"Stock sufficient: {}\" , available) ; ctx . accounts . reorder_policy . enabled = true ; ctx . accounts . stock_metrics . total_in += used ; }"
+      },
+      {
+        "id": 17,
+        "label": "ctx . accounts . stock_metrics . total_out += used ;"
+      },
+      {
+        "id": 18,
+        "label": "msg ! (\"Stock low: {}\" , available) ;"
+      },
+      {
+        "id": 19,
+        "label": "ctx . accounts . reorder_policy . enabled = false ;"
+      },
+      {
+        "id": 20,
+        "label": "ctx . accounts . stock_metrics . total_in -= used ;"
+      },
+      {
+        "id": 21,
+        "label": "ctx . accounts . stock_metrics . total_out -= used ;"
+      },
+      {
+        "id": 22,
+        "label": "msg ! (\"Stock sufficient: {}\" , available) ;"
+      },
+      {
+        "id": 23,
+        "label": "ctx . accounts . reorder_policy . enabled = true ;"
+      },
+      {
+        "id": 24,
+        "label": "ctx . accounts . stock_metrics . total_in += used ;"
+      },
+      {
+        "id": 25,
         "label": "Ok (())"
       }
     ],
     "edges": [
       {
-        "from": 1,
-        "to": 1,
-        "label": "def: a"
+        "from": 13,
+        "to": 13,
+        "label": "def: available"
       },
       {
-        "from": 2,
-        "to": 2,
-        "label": "def: b"
+        "from": 13,
+        "to": 14,
+        "label": "data_dep: available"
+      },
+      {
+        "from": 13,
+        "to": 15,
+        "label": "data_dep: available"
+      },
+      {
+        "from": 13,
+        "to": 16,
+        "label": "data_dep: available"
       }
     ]
   }

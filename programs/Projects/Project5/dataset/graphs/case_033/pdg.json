@@ -1,9 +1,9 @@
 [
   {
-    "name": "unstake_nft",
+    "name": "init_tuner",
     "inputs": [
-      "ctx: Context < Ctx033 >",
-      "amount: u64"
+      "ctx: Context < InitTuner >",
+      "ceiling: u32"
     ],
     "nodes": [
       {
@@ -12,26 +12,22 @@
       },
       {
         "id": 1,
-        "label": "let src = & mut ctx . accounts . account_src ;"
+        "label": "let s = & mut ctx . accounts ;"
       },
       {
         "id": 2,
-        "label": "let dst = & mut ctx . accounts . account_dst ;"
+        "label": "s . tuner . owner = s . owner . key () ;"
       },
       {
         "id": 3,
-        "label": "let before = * * src . to_account_info () . try_borrow_lamports () ? ;"
+        "label": "s . tuner . ceiling = ceiling ;"
       },
       {
         "id": 4,
-        "label": "* * src . to_account_info () . try_borrow_mut_lamports () ? = before . saturating_sub (amount) ;"
+        "label": "s . tuner . state = TuneState :: Calibrating ;"
       },
       {
         "id": 5,
-        "label": "* * dst . to_account_info () . try_borrow_mut_lamports () ? += amount ;"
-      },
-      {
-        "id": 6,
         "label": "Ok (())"
       }
     ],
@@ -39,37 +35,396 @@
       {
         "from": 1,
         "to": 1,
-        "label": "def: src"
+        "label": "def: s"
       },
       {
-        "from": 2,
+        "from": 1,
         "to": 2,
-        "label": "def: dst"
+        "label": "data_dep: s"
       },
       {
-        "from": 3,
-        "to": 3,
-        "label": "def: before"
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: s"
       },
       {
         "from": 1,
         "to": 3,
-        "label": "data_dep: src"
+        "label": "data_dep: s"
       },
       {
         "from": 1,
         "to": 4,
-        "label": "data_dep: src"
+        "label": "data_dep: s"
+      }
+    ]
+  },
+  {
+    "name": "tune",
+    "inputs": [
+      "ctx: Context < Tune >",
+      "laps: u32",
+      "alpha_ppm: u32"
+    ],
+    "nodes": [
+      {
+        "id": 6,
+        "label": "Entry"
       },
       {
-        "from": 3,
-        "to": 4,
-        "label": "data_dep: before"
+        "id": 7,
+        "label": "let run = & mut ctx . accounts ;"
       },
       {
-        "from": 2,
-        "to": 5,
-        "label": "data_dep: dst"
+        "id": 8,
+        "label": "assert_ne ! (run . telemetry . key () , run . car . key () , \"telemetry/car must differ\") ;"
+      },
+      {
+        "id": 9,
+        "label": "let alpha = alpha_ppm . clamp (1 , 1_000_000) ;"
+      },
+      {
+        "id": 10,
+        "label": "let inv = 1_000_000u64 - alpha as u64 ;"
+      },
+      {
+        "id": 11,
+        "label": "for i in 0 .. laps { let input = (run . car . torque as u64 * (3 + (i % 5) as u64)) & 0xFFFF_FFFF ; let ema_num = (run . telemetry . speed as u64 * inv) . checked_add (input * alpha as u64) . unwrap_or (u64 :: MAX) ; run . telemetry . speed = (ema_num / 1_000_000) . min (u64 :: from (u32 :: MAX)) as u32 ; let rot = (13 + (i % 11)) as u32 ; let mixed = run . car . seed . rotate_left (rot) ^ run . telemetry . speed . rotate_right (7) ; run . car . seed = mixed ^ 0xA5A5_5A5A ; }"
+      },
+      {
+        "id": 12,
+        "label": "let input = (run . car . torque as u64 * (3 + (i % 5) as u64)) & 0xFFFF_FFFF ;"
+      },
+      {
+        "id": 13,
+        "label": "let ema_num = (run . telemetry . speed as u64 * inv) . checked_add (input * alpha as u64) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 14,
+        "label": "run . telemetry . speed = (ema_num / 1_000_000) . min (u64 :: from (u32 :: MAX)) as u32 ;"
+      },
+      {
+        "id": 15,
+        "label": "let rot = (13 + (i % 11)) as u32 ;"
+      },
+      {
+        "id": 16,
+        "label": "let mixed = run . car . seed . rotate_left (rot) ^ run . telemetry . speed . rotate_right (7) ;"
+      },
+      {
+        "id": 17,
+        "label": "run . car . seed = mixed ^ 0xA5A5_5A5A ;"
+      },
+      {
+        "id": 18,
+        "label": "let sum = (run . telemetry . speed as u64) . saturating_add (run . car . torque as u64) ;"
+      },
+      {
+        "id": 19,
+        "label": "if sum > run . tuner . ceiling as u64 { run . tuner . state = TuneState :: Locked ; run . car . torque = max (run . car . torque / 2 , 1) ; run . telemetry . variance = run . telemetry . variance . wrapping_add (0x1F) ; msg ! (\"locked: torque halved, variance bumped\") ; } else { run . tuner . state = TuneState :: Calibrating ; run . car . torque = min (run . car . torque . saturating_mul (2) , u32 :: MAX) ; run . telemetry . samples = run . telemetry . samples . wrapping_add (1) ; msg ! (\"calibrating: torque doubled, samples++\") ; }"
+      },
+      {
+        "id": 20,
+        "label": "run . tuner . state = TuneState :: Locked ;"
+      },
+      {
+        "id": 21,
+        "label": "run . car . torque = max (run . car . torque / 2 , 1) ;"
+      },
+      {
+        "id": 22,
+        "label": "run . telemetry . variance = run . telemetry . variance . wrapping_add (0x1F) ;"
+      },
+      {
+        "id": 23,
+        "label": "msg ! (\"locked: torque halved, variance bumped\") ;"
+      },
+      {
+        "id": 24,
+        "label": "run . tuner . state = TuneState :: Calibrating ;"
+      },
+      {
+        "id": 25,
+        "label": "run . car . torque = min (run . car . torque . saturating_mul (2) , u32 :: MAX) ;"
+      },
+      {
+        "id": 26,
+        "label": "run . telemetry . samples = run . telemetry . samples . wrapping_add (1) ;"
+      },
+      {
+        "id": 27,
+        "label": "msg ! (\"calibrating: torque doubled, samples++\") ;"
+      },
+      {
+        "id": 28,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 7,
+        "to": 7,
+        "label": "def: run"
+      },
+      {
+        "from": 9,
+        "to": 9,
+        "label": "def: alpha"
+      },
+      {
+        "from": 10,
+        "to": 10,
+        "label": "def: inv"
+      },
+      {
+        "from": 9,
+        "to": 10,
+        "label": "data_dep: alpha"
+      },
+      {
+        "from": 7,
+        "to": 11,
+        "label": "data_dep: run"
+      },
+      {
+        "from": 7,
+        "to": 11,
+        "label": "data_dep: run"
+      },
+      {
+        "from": 10,
+        "to": 11,
+        "label": "data_dep: inv"
+      },
+      {
+        "from": 9,
+        "to": 11,
+        "label": "data_dep: alpha"
+      },
+      {
+        "from": 7,
+        "to": 11,
+        "label": "data_dep: run"
+      },
+      {
+        "from": 7,
+        "to": 11,
+        "label": "data_dep: run"
+      },
+      {
+        "from": 7,
+        "to": 11,
+        "label": "data_dep: run"
+      },
+      {
+        "from": 7,
+        "to": 11,
+        "label": "data_dep: run"
+      },
+      {
+        "from": 12,
+        "to": 12,
+        "label": "def: input"
+      },
+      {
+        "from": 7,
+        "to": 12,
+        "label": "data_dep: run"
+      },
+      {
+        "from": 13,
+        "to": 13,
+        "label": "def: ema_num"
+      },
+      {
+        "from": 7,
+        "to": 13,
+        "label": "data_dep: run"
+      },
+      {
+        "from": 10,
+        "to": 13,
+        "label": "data_dep: inv"
+      },
+      {
+        "from": 12,
+        "to": 13,
+        "label": "data_dep: input"
+      },
+      {
+        "from": 9,
+        "to": 13,
+        "label": "data_dep: alpha"
+      },
+      {
+        "from": 7,
+        "to": 14,
+        "label": "data_dep: run"
+      },
+      {
+        "from": 13,
+        "to": 14,
+        "label": "data_dep: ema_num"
+      },
+      {
+        "from": 15,
+        "to": 15,
+        "label": "def: rot"
+      },
+      {
+        "from": 16,
+        "to": 16,
+        "label": "def: mixed"
+      },
+      {
+        "from": 7,
+        "to": 16,
+        "label": "data_dep: run"
+      },
+      {
+        "from": 15,
+        "to": 16,
+        "label": "data_dep: rot"
+      },
+      {
+        "from": 7,
+        "to": 16,
+        "label": "data_dep: run"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: run"
+      },
+      {
+        "from": 16,
+        "to": 17,
+        "label": "data_dep: mixed"
+      },
+      {
+        "from": 18,
+        "to": 18,
+        "label": "def: sum"
+      },
+      {
+        "from": 7,
+        "to": 18,
+        "label": "data_dep: run"
+      },
+      {
+        "from": 7,
+        "to": 18,
+        "label": "data_dep: run"
+      },
+      {
+        "from": 18,
+        "to": 19,
+        "label": "data_dep: sum"
+      },
+      {
+        "from": 7,
+        "to": 19,
+        "label": "data_dep: run"
+      },
+      {
+        "from": 7,
+        "to": 19,
+        "label": "data_dep: run"
+      },
+      {
+        "from": 7,
+        "to": 19,
+        "label": "data_dep: run"
+      },
+      {
+        "from": 7,
+        "to": 19,
+        "label": "data_dep: run"
+      },
+      {
+        "from": 7,
+        "to": 19,
+        "label": "data_dep: run"
+      },
+      {
+        "from": 7,
+        "to": 19,
+        "label": "data_dep: run"
+      },
+      {
+        "from": 7,
+        "to": 19,
+        "label": "data_dep: run"
+      },
+      {
+        "from": 7,
+        "to": 19,
+        "label": "data_dep: run"
+      },
+      {
+        "from": 7,
+        "to": 19,
+        "label": "data_dep: run"
+      },
+      {
+        "from": 7,
+        "to": 19,
+        "label": "data_dep: run"
+      },
+      {
+        "from": 7,
+        "to": 19,
+        "label": "data_dep: run"
+      },
+      {
+        "from": 7,
+        "to": 20,
+        "label": "data_dep: run"
+      },
+      {
+        "from": 7,
+        "to": 21,
+        "label": "data_dep: run"
+      },
+      {
+        "from": 7,
+        "to": 21,
+        "label": "data_dep: run"
+      },
+      {
+        "from": 7,
+        "to": 22,
+        "label": "data_dep: run"
+      },
+      {
+        "from": 7,
+        "to": 22,
+        "label": "data_dep: run"
+      },
+      {
+        "from": 7,
+        "to": 24,
+        "label": "data_dep: run"
+      },
+      {
+        "from": 7,
+        "to": 25,
+        "label": "data_dep: run"
+      },
+      {
+        "from": 7,
+        "to": 25,
+        "label": "data_dep: run"
+      },
+      {
+        "from": 7,
+        "to": 26,
+        "label": "data_dep: run"
+      },
+      {
+        "from": 7,
+        "to": 26,
+        "label": "data_dep: run"
       }
     ]
   }

@@ -1,0 +1,133 @@
+[
+  {
+    "name": "register_meter",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RegisterMeter >",
+      "span: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let m = & mut ctx . accounts . meter ;",
+      "m . owner = ctx . accounts . leader . key () ;",
+      "m . window = span % 128 + 16 ;",
+      "m . readings = span / 5 + 6 ;",
+      "m . alerts = 4 ;",
+      "if m . window < 10",
+      "{",
+      "m . window = 10 ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "push_reading",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PushReading >",
+      "value: u32",
+      "user_bump: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let m = & mut ctx . accounts . meter ;",
+      "let seeds = & [b\"alert_buffer\" , ctx . accounts . leader . key . as_ref () , & [user_bump]] ;",
+      "let check = Pubkey :: create_program_address (seeds , ctx . program_id) . map_err (| _ | error ! (MeterErr :: SeedBroken)) ? ;",
+      "if check != ctx . accounts . alert_buffer . key ()",
+      "{",
+      "return Err (error ! (MeterErr :: BufferKeyMismatch)) ;",
+      "}",
+      "m . readings = m . readings . saturating_add (value % 97 + 3) ;",
+      "if m . readings % 6 != 3",
+      "{",
+      "m . alerts = m . alerts . saturating_add (2) ;",
+      "}",
+      "let mut cursor = 2u32 ;",
+      "while cursor < m . window",
+      "{",
+      "m . alerts = m . alerts . saturating_add (1) ;",
+      "cursor = cursor . saturating_add (11) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "RegisterMeter",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "meter",
+        "attribute": "# [account (init , payer = leader , space = 8 + 32 + 4 + 4 + 4 , seeds = [b\"meter\" , leader . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Meter >"
+      },
+      {
+        "name": "leader",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PushReading",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "meter",
+        "attribute": "# [account (mut , seeds = [b\"meter\" , leader . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Meter >"
+      },
+      {
+        "name": "alert_buffer",
+        "attribute": "# [doc = \" CHECK: 手動 bump の別PDA\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "leader",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Meter",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "window",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "readings",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "alerts",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

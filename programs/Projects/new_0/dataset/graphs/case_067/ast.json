@@ -1,0 +1,162 @@
+[
+  {
+    "name": "init_escrow",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitEscrow >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 初期化：エスクロー口座を作成し、支払い者と受取人を設定\"]"
+    ],
+    "body": [
+      "let esc = & mut ctx . accounts . escrow ;",
+      "esc . initializer = ctx . accounts . payer . key () ;",
+      "esc . beneficiary = ctx . accounts . beneficiary . key () ;",
+      "esc . amount = amount ;",
+      "msg ! (\"Escrow initialized: {} will pay {} lamports to {}\" , esc . initializer , esc . amount , esc . beneficiary) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "deposit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Deposit >"
+    ],
+    "attributes": [
+      "# [doc = \" 預入：payer が指定額をエスクロー口座に転送\"]"
+    ],
+    "body": [
+      "* * ctx . accounts . payer . to_account_info () . try_borrow_mut_lamports () ? -= ctx . accounts . escrow . amount ;",
+      "* * ctx . accounts . escrow . to_account_info () . try_borrow_mut_lamports () ? += ctx . accounts . escrow . amount ;",
+      "msg ! (\"Deposited {} lamports into escrow\" , ctx . accounts . escrow . amount) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "release",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Release >"
+    ],
+    "attributes": [
+      "# [doc = \" 解放：受取人が資金を引き出す\"]"
+    ],
+    "body": [
+      "* * ctx . accounts . escrow . to_account_info () . try_borrow_mut_lamports () ? -= ctx . accounts . escrow . amount ;",
+      "* * ctx . accounts . beneficiary . to_account_info () . try_borrow_mut_lamports () ? += ctx . accounts . escrow . amount ;",
+      "msg ! (\"Released {} lamports to beneficiary\" , ctx . accounts . escrow . amount) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Escrow",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "initializer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "beneficiary",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitEscrow",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "escrow",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 32 + 8 + 1 , seeds = [b\"escrow\" , payer . key () . as_ref () , beneficiary . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Escrow >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "beneficiary",
+        "attribute": "# [doc = \" ここで beneficiary に署名は不要\"]",
+        "field_type": "SystemAccount < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Deposit",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "escrow",
+        "attribute": "# [account (mut , seeds = [b\"escrow\" , payer . key () . as_ref () , beneficiary . key () . as_ref ()] , bump = escrow . bump , has_one = initializer @ ErrorCode :: Unauthorized)]",
+        "field_type": "Account < 'info , Escrow >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut , signer)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "beneficiary",
+        "attribute": "# [doc = \" 受取人はまだ資金を受け取らないので署名不要\"]",
+        "field_type": "SystemAccount < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Release",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "escrow",
+        "attribute": "# [account (mut , seeds = [b\"escrow\" , initializer . key () . as_ref () , beneficiary . key () . as_ref ()] , bump = escrow . bump , has_one = beneficiary @ ErrorCode :: Unauthorized)]",
+        "field_type": "Account < 'info , Escrow >"
+      },
+      {
+        "name": "beneficiary",
+        "attribute": "# [doc = \" 受取人のみが引き出せるよう signer constraint\"] # [account (mut , signer)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "initializer",
+        "attribute": "# [doc = \" 初期化者は関与しない\"]",
+        "field_type": "SystemAccount < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

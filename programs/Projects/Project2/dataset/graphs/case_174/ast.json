@@ -1,0 +1,183 @@
+[
+  {
+    "name": "TipJar",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "total_tips",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "top_tipper",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "top_tip",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "last_tip_ts",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "initialize_tip_jar",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeTipJar >"
+    ],
+    "attributes": [
+      "# [doc = \" TipJar 初期化：主要フィールドだけセットし、残りは Default\"]"
+    ],
+    "body": [
+      "let jar = & mut ctx . accounts . tip_jar ;",
+      "let bump = * ctx . bumps . get (\"tip_jar\") . unwrap () ;",
+      "let now = ctx . accounts . clock . unix_timestamp ;",
+      "* jar = TipJar { bump , last_tip_ts : now , .. Default :: default () } ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "tip",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Tip >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" チップ送信：累計を加算し、最高チップ更新ロジックを `if` で分離\"]"
+    ],
+    "body": [
+      "let jar = & mut ctx . accounts . tip_jar ;",
+      "let now = ctx . accounts . clock . unix_timestamp ;",
+      "jar . total_tips = jar . total_tips . wrapping_add (amount) ;",
+      "if amount > jar . top_tip",
+      "{",
+      "jar . top_tip = amount ;",
+      "jar . top_tipper = ctx . accounts . tipper . key () ;",
+      "}",
+      "jar . last_tip_ts = now ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "reset",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ResetTipJar >"
+    ],
+    "attributes": [
+      "# [doc = \" リセット：累計・最高チップ情報をクリアし、時刻だけ更新\"]"
+    ],
+    "body": [
+      "let jar = & mut ctx . accounts . tip_jar ;",
+      "let bump = jar . bump ;",
+      "let now = ctx . accounts . clock . unix_timestamp ;",
+      "* jar = TipJar { bump , last_tip_ts : now , .. Default :: default () } ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializeTipJar",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "tip_jar",
+        "attribute": "# [account (init_zeroed , payer = authority , seeds = [b\"tip_jar\" , authority . key () . as_ref ()] , bump , space = 8 + 1 + 8 + 32 + 8 + 8)]",
+        "field_type": "Account < 'info , TipJar >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": "# [doc = \" タイムスタンプ取得用\"]",
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Tip",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "tip_jar",
+        "attribute": "# [account (mut , seeds = [b\"tip_jar\" , authority . key () . as_ref ()] , bump = tip_jar . bump ,)]",
+        "field_type": "Account < 'info , TipJar >"
+      },
+      {
+        "name": "tipper",
+        "attribute": "# [doc = \" チッパー（署名必須）\"] # [account (signer)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ResetTipJar",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "tip_jar",
+        "attribute": "# [account (mut , seeds = [b\"tip_jar\" , authority . key () . as_ref ()] , bump = tip_jar . bump ,)]",
+        "field_type": "Account < 'info , TipJar >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [doc = \" 管理者（署名必須）\"] # [account (signer)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

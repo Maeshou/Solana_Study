@@ -1,0 +1,143 @@
+[
+  {
+    "name": "initialize_subscription",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeSubscription >",
+      "start_ts: i64"
+    ],
+    "attributes": [
+      "# [doc = \" ユーザーのサブスクアカウントを初回のみ初期化し、開始日と０トークンを設定します。\"]"
+    ],
+    "body": [
+      "let acct = & mut ctx . accounts . subscription ;",
+      "acct . user = ctx . accounts . user . key () ;",
+      "acct . start_timestamp = start_ts ;",
+      "acct . accumulated = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "claim_monthly",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ClaimMonthly >",
+      "current_ts: i64"
+    ],
+    "attributes": [
+      "# [doc = \" 署名済みユーザーがトークンを受け取る。経過月数×定額100を加算。\"]"
+    ],
+    "body": [
+      "let acct = & mut ctx . accounts . subscription ;",
+      "let months = ((current_ts - acct . start_timestamp) / 2_592_000) as u64 ;",
+      "let earned = months . saturating_mul (100) ;",
+      "acct . accumulated = acct . accumulated . saturating_add (earned) ;",
+      "msg ! (\"User {:?} claimed {} tokens ({} months), total = {}\" , acct . user , earned , months , acct . accumulated) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "view_subscription",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ViewSubscription >"
+    ],
+    "attributes": [
+      "# [doc = \" 現在の累計をログ出力します。\"]"
+    ],
+    "body": [
+      "let acct = & ctx . accounts . subscription ;",
+      "msg ! (\"User {:?}: start={}, accumulated={}\" , acct . user , acct . start_timestamp , acct . accumulated) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializeSubscription",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "subscription",
+        "attribute": "# [doc = \" 初回のみ PDA を生成・初期化\"] # [account (init , payer = user , space = 8 + 32 + 8 + 8 , seeds = [b\"sub\" , user . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , SubscriptionAccount >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ClaimMonthly",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "subscription",
+        "attribute": "# [doc = \" PDA と所有者チェックで不正アクセス防止\"] # [account (mut , seeds = [b\"sub\" , user . key () . as_ref ()] , bump , has_one = user)]",
+        "field_type": "Account < 'info , SubscriptionAccount >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 操作にはユーザーの署名が必要\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ViewSubscription",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "subscription",
+        "attribute": "# [doc = \" PDA と所有者チェックで不正アクセス防止\"] # [account (seeds = [b\"sub\" , user . key () . as_ref ()] , bump , has_one = user)]",
+        "field_type": "Account < 'info , SubscriptionAccount >"
+      },
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SubscriptionAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": "# [doc = \" アカウント所有者\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "start_timestamp",
+        "attribute": "# [doc = \" サブスク開始タイムスタンプ\"]",
+        "field_type": "i64"
+      },
+      {
+        "name": "accumulated",
+        "attribute": "# [doc = \" 累計獲得トークン\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

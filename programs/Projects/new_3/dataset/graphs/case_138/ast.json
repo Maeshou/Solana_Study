@@ -1,0 +1,237 @@
+[
+  {
+    "name": "EventSale",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "seller",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "price",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_tickets",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "sold",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TicketAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "sale",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "redeemed",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TicketPurchased",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "sale",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "buyer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "quantity",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TicketRedeemed",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ticket_account",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "redeemer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitializeSale",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "sale",
+        "attribute": "# [account (init , payer = seller , space = 8 + 32 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , EventSale >"
+      },
+      {
+        "name": "seller",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PurchaseTickets",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "sale",
+        "attribute": "# [doc = \" EventSale.seller == seller.key() は検証される\"] # [account (mut , has_one = seller)]",
+        "field_type": "Account < 'info , EventSale >"
+      },
+      {
+        "name": "ticket",
+        "attribute": "# [doc = \" 新規に TicketAccount を初期化。sale フィールドへは sale.key() を書くだけで検証ナシ\"] # [account (init , payer = buyer , space = 8 + 32 + 32 + 1)]",
+        "field_type": "Account < 'info , TicketAccount >"
+      },
+      {
+        "name": "buyer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RedeemTicket",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ticket",
+        "attribute": "# [doc = \" TicketAccount.owner == redeemer.key() は検証される\"] # [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , TicketAccount >"
+      },
+      {
+        "name": "sale",
+        "attribute": "# [doc = \" 本来は ticket.sale == sale.key() の検証が必要だが、ここでは一切入っていない\"] # [account (mut)]",
+        "field_type": "Account < 'info , EventSale >"
+      },
+      {
+        "name": "redeemer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "initialize_sale",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeSale >",
+      "price: u64",
+      "total: u64"
+    ],
+    "attributes": [
+      "# [doc = \" イベントチケット販売の設定\"]"
+    ],
+    "body": [
+      "let sale = & mut ctx . accounts . sale ;",
+      "sale . seller = ctx . accounts . seller . key () ;",
+      "sale . price = price ;",
+      "sale . total_tickets = total ;",
+      "sale . sold = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "purchase",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PurchaseTickets >",
+      "quantity: u64"
+    ],
+    "attributes": [
+      "# [doc = \" チケット購入\"]"
+    ],
+    "body": [
+      "let sale = & mut ctx . accounts . sale ;",
+      "let ticket = & mut ctx . accounts . ticket ;",
+      "ticket . owner = ctx . accounts . buyer . key () ;",
+      "ticket . sale = sale . key () ;",
+      "ticket . redeemed = false ;",
+      "sale . sold = sale . sold . checked_add (quantity) . unwrap () ;",
+      "emit ! (TicketPurchased { sale : sale . key () , buyer : ticket . owner , quantity , }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "redeem",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RedeemTicket >"
+    ],
+    "attributes": [
+      "# [doc = \" チケット引換\"]"
+    ],
+    "body": [
+      "let sale = & mut ctx . accounts . sale ;",
+      "let ticket = & mut ctx . accounts . ticket ;",
+      "require ! (! ticket . redeemed , TicketError :: AlreadyRedeemed) ;",
+      "ticket . redeemed = true ;",
+      "emit ! (TicketRedeemed { ticket_account : ticket . key () , redeemer : ticket . owner , }) ;",
+      "Ok (())"
+    ]
+  }
+]

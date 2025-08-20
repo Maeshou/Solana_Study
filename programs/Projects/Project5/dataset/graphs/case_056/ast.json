@@ -1,33 +1,213 @@
 [
   {
-    "name": "harvest_farm",
+    "name": "init_studio",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx056 >"
+      "ctx: Context < InitStudio >",
+      "limit: u32"
     ],
     "attributes": [],
     "body": [
-      "let a = & ctx . accounts . first ;",
-      "let b = & ctx . accounts . second ;",
-      "msg ! (\"Account A: {}\" , a . key ()) ;",
-      "msg ! (\"Account B: {}\" , b . key ()) ;",
+      "let s = & mut ctx . accounts ;",
+      "s . studio . owner = s . owner . key () ;",
+      "s . studio . limit = limit ;",
+      "s . studio . mode = Idle ;",
+      "s . panel_a . studio = s . studio . key () ;",
+      "s . panel_a . tag = 1 ;",
+      "s . panel_b . studio = s . studio . key () ;",
+      "s . panel_b . tag = 2 ;",
+      "s . log . studio = s . studio . key () ;",
+      "s . log . tag = 9 ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx056",
+    "name": "mix",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Mix >",
+      "steps: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts ;",
+      "for i in 0 .. steps",
+      "{",
+      "s . panel_a . hue = s . panel_a . hue . checked_add (3 + (i % 5)) . unwrap_or (u32 :: MAX) ;",
+      "s . panel_b . hue = s . panel_b . hue . checked_add (5 + (i % 7)) . unwrap_or (u32 :: MAX) ;",
+      "let delta = ((s . panel_a . hue as u64 + s . panel_b . hue as u64) / 16) as u32 ;",
+      "s . log . strokes = s . log . strokes . saturating_add (delta) ;",
+      "}",
+      "let total = s . panel_a . hue as u64 + s . panel_b . hue as u64 ;",
+      "if total > s . studio . limit as u64",
+      "{",
+      "s . studio . mode = Seal ;",
+      "s . log . flags = s . log . flags . saturating_add (2) ;",
+      "s . panel_a . hue = s . panel_a . hue / 2 + 7 ;",
+      "s . panel_b . hue = s . panel_b . hue / 2 + 9 ;",
+      "msg ! (\"sealed: flags+2, both panels damped\") ;",
+      "} else",
+      "{",
+      "s . studio . mode = Blend ;",
+      "s . log . strokes = s . log . strokes . saturating_add (11) ;",
+      "s . panel_a . hue ^= 0x00FF_00FF ;",
+      "s . panel_b . hue = s . panel_b . hue . saturating_add (13) ;",
+      "msg ! (\"blend: strokes+11, hue xor/boost\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitStudio",
     "node_type": "struct",
     "fields": [
       {
-        "name": "first",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "studio",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Studio >"
       },
       {
-        "name": "second",
+        "name": "panel_a",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 4)]",
+        "field_type": "Account < 'info , Panel >"
+      },
+      {
+        "name": "panel_b",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 4)]",
+        "field_type": "Account < 'info , Panel >"
+      },
+      {
+        "name": "log",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 8 + 4)]",
+        "field_type": "Account < 'info , MixLog >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Mix",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "studio",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Studio >"
+      },
+      {
+        "name": "panel_a",
+        "attribute": "# [account (mut , has_one = studio , constraint = panel_a . tag != panel_b . tag @ PsErr :: Dup)]",
+        "field_type": "Account < 'info , Panel >"
+      },
+      {
+        "name": "panel_b",
+        "attribute": "# [account (mut , has_one = studio , constraint = panel_b . tag != log . tag @ PsErr :: Dup)]",
+        "field_type": "Account < 'info , Panel >"
+      },
+      {
+        "name": "log",
+        "attribute": "# [account (mut , has_one = studio)]",
+        "field_type": "Account < 'info , MixLog >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Studio",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "limit",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "mode",
+        "attribute": null,
+        "field_type": "StudioMode"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Panel",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "studio",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "tag",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "hue",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MixLog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "studio",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "tag",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "strokes",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "flags",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

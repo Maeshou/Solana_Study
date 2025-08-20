@@ -1,33 +1,68 @@
 [
   {
-    "name": "initialize_audit_log",
+    "name": "init_session_pipe",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Initialize089 >",
-      "param: u64"
+      "ctx: Context < InitSessionPipe >",
+      "steps: u8"
     ],
     "attributes": [],
     "body": [
-      "let mut data = AuditLogData :: try_from_slice (& ctx . accounts . data_account . data . borrow ()) ? ;",
-      "data . value = param ;",
-      "data . serialize (& mut * ctx . accounts . data_account . data . borrow_mut ()) ? ;",
+      "let p = & mut ctx . accounts . pipe ;",
+      "p . steps = steps ;",
+      "p . completed = 0 ;",
+      "p . error_count = 0 ;",
+      "let mut i = 0u8 ;",
+      "while i < steps / 2",
+      "{",
+      "p . completed = p . completed . saturating_add (1) ;",
+      "i += 1 ;",
+      "}",
       "Ok (())"
     ]
   },
   {
-    "name": "Initialize089",
+    "name": "advance_step",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AdvanceStep >",
+      "success: bool"
+    ],
+    "attributes": [],
+    "body": [
+      "let p = & mut ctx . accounts . pipe ;",
+      "if success",
+      "{",
+      "if p . completed < p . steps",
+      "{",
+      "p . completed = p . completed . saturating_add (1) ;",
+      "} } else",
+      "{",
+      "p . error_count = p . error_count . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitSessionPipe",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "pipe",
+        "attribute": "# [account (init , payer = user , space = 8 + 1 + 1 + 1)]",
+        "field_type": "Account < 'info , SessionPipelineData >"
       },
       {
-        "name": "authority",
-        "attribute": null,
+        "name": "user",
+        "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -35,13 +70,37 @@
     "body": null
   },
   {
-    "name": "AuditLogData",
+    "name": "AdvanceStep",
     "node_type": "struct",
     "fields": [
       {
-        "name": "value",
+        "name": "pipe",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , SessionPipelineData >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SessionPipelineData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "steps",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "u8"
+      },
+      {
+        "name": "completed",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "error_count",
+        "attribute": null,
+        "field_type": "u8"
       }
     ],
     "inputs": null,

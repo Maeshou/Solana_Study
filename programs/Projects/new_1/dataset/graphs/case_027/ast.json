@@ -1,0 +1,91 @@
+[
+  {
+    "name": "convert_to_points",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ConvertCtx >",
+      "point_rate: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 保有中の NFT 枚数に応じたポイントを累積更新します。\"]",
+      "# [doc = \" - `point_rate`: 1 枚あたりの付与ポイント\"]",
+      "# [doc = \" （署名チェック omitted intentionally）\"]"
+    ],
+    "body": [
+      "let count = ctx . accounts . hold_acc . amount ;",
+      "let minted = count . checked_mul (point_rate) . unwrap () ;",
+      "let data = & mut ctx . accounts . point_data ;",
+      "data . total = data . total . checked_add (minted) . unwrap () ;",
+      "data . last_earned = ctx . accounts . clock . unix_timestamp ;"
+    ]
+  },
+  {
+    "name": "ConvertCtx",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "fee_payer",
+        "attribute": "# [doc = \" トランザクション手数料支払い用（署名必須）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 利用者アカウント（署名チェックを省略）\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "hold_acc",
+        "attribute": "# [doc = \" 保有枚数を参照する TokenAccount\"] # [account (constraint = hold_acc . owner == * user . key , constraint = hold_acc . mint == nft_mint . key ())]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "nft_mint",
+        "attribute": "# [doc = \" 対象 NFT の Mint\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "point_data",
+        "attribute": "# [doc = \" ポイントデータを保持する PDA\"] # [account (init_if_needed , payer = fee_payer , seeds = [b\"points\" , user . key () . as_ref ()] , bump , space = 8 + 8 + 8)]",
+        "field_type": "Account < 'info , PointAccount >"
+      },
+      {
+        "name": "clock",
+        "attribute": "# [doc = \" Unix 時刻取得用\"]",
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "rent",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Rent >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PointAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "total",
+        "attribute": "# [doc = \" 累積ポイント\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "last_earned",
+        "attribute": "# [doc = \" 最終更新時刻\"]",
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

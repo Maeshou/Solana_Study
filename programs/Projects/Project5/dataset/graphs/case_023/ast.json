@@ -1,33 +1,182 @@
 [
   {
-    "name": "close_margin_position",
+    "name": "init_stable",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx023 >"
+      "ctx: Context < InitStable >",
+      "capacity: u32"
     ],
     "attributes": [],
     "body": [
-      "let a = & ctx . accounts . first ;",
-      "let b = & ctx . accounts . second ;",
-      "msg ! (\"Account A: {}\" , a . key ()) ;",
-      "msg ! (\"Account B: {}\" , b . key ()) ;",
+      "ctx . accounts . stable . keeper = ctx . accounts . keeper . key () ;",
+      "ctx . accounts . stable . capacity = capacity ;",
+      "ctx . accounts . stable . state = StallState :: Training ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx023",
+    "name": "train_mount",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < TrainMount >",
+      "laps: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "assert_ne ! (ctx . accounts . stable . key () , ctx . accounts . log . key () , \"stable/log must differ\") ;",
+      "for _ in 0 .. laps",
+      "{",
+      "ctx . accounts . mount . stamina = ctx . accounts . mount . stamina . saturating_add (6) ;",
+      "ctx . accounts . mount . grade = ctx . accounts . mount . grade . saturating_add (1) ;",
+      "ctx . accounts . log . sessions = ctx . accounts . log . sessions . saturating_add (2) ;",
+      "}",
+      "if ctx . accounts . mount . stamina > ctx . accounts . stable . capacity",
+      "{",
+      "ctx . accounts . stable . state = StallState :: Rest ;",
+      "ctx . accounts . log . score = ctx . accounts . log . score . saturating_add (15) ;",
+      "ctx . accounts . mount . grade = ctx . accounts . mount . grade . saturating_add (2) ;",
+      "msg ! (\"stamina beyond capacity: switch to Rest, record high score\") ;",
+      "} else",
+      "{",
+      "ctx . accounts . stable . state = StallState :: Training ;",
+      "ctx . accounts . log . score = ctx . accounts . log . score . saturating_add (4) ;",
+      "ctx . accounts . mount . stamina = ctx . accounts . mount . stamina . saturating_add (3) ;",
+      "msg ! (\"continue training: add score & stamina\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitStable",
     "node_type": "struct",
     "fields": [
       {
-        "name": "first",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "stable",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Stable >"
       },
       {
-        "name": "second",
+        "name": "mount",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Mount >"
+      },
+      {
+        "name": "log",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4 + 8 , seeds = [b\"log\" , keeper . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , TrainLog >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "keeper",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TrainMount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "stable",
+        "attribute": "# [account (mut , has_one = keeper)]",
+        "field_type": "Account < 'info , Stable >"
+      },
+      {
+        "name": "mount",
+        "attribute": "# [account (mut , constraint = stable . key () != mount . key () , error = StableErr :: Dup)]",
+        "field_type": "Account < 'info , Mount >"
+      },
+      {
+        "name": "log",
+        "attribute": "# [account (mut , seeds = [b\"log\" , keeper . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , TrainLog >"
+      },
+      {
+        "name": "keeper",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Stable",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "keeper",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "capacity",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "state",
+        "attribute": null,
+        "field_type": "StallState"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Mount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "rider",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "stamina",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "grade",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TrainLog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "sessions",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "score",
+        "attribute": null,
+        "field_type": "u64"
       }
     ],
     "inputs": null,

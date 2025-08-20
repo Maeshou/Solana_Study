@@ -1,0 +1,227 @@
+[
+  {
+    "name": "init_lending_pool",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitLendingPool >"
+    ],
+    "attributes": [],
+    "body": [
+      "let pool = & mut ctx . accounts . lending_pool ;",
+      "pool . manager = ctx . accounts . manager . key () ;",
+      "pool . total_deposits = 0 ;",
+      "pool . total_borrows = 0 ;",
+      "pool . interest_rate = 8 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "create_deposit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateDeposit >",
+      "amount: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let deposit = & mut ctx . accounts . deposit_account ;",
+      "deposit . pool = ctx . accounts . lending_pool . key () ;",
+      "deposit . depositor = ctx . accounts . depositor . key () ;",
+      "deposit . amount = amount ;",
+      "deposit . interest_earned = 0 ;",
+      "deposit . last_update = Clock :: get () ? . unix_timestamp ;",
+      "let pool = & mut ctx . accounts . lending_pool ;",
+      "pool . total_deposits = pool . total_deposits . checked_add (amount) . unwrap_or (u64 :: MAX) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "vulnerable_liquidation",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < VulnerableLiquidation >"
+    ],
+    "attributes": [],
+    "body": [
+      "let pool = & mut ctx . accounts . lending_pool ;",
+      "let borrower_info = & ctx . accounts . borrower_position ;",
+      "let liquidator_info = & ctx . accounts . liquidator_position ;",
+      "let borrower_data = borrower_info . try_borrow_data () ? ;",
+      "let liquidator_data = liquidator_info . try_borrow_data () ? ;",
+      "if borrower_data . len () >= 40 && liquidator_data . len () >= 40",
+      "{",
+      "let borrow_amount = u64 :: from_le_bytes ([borrower_data [32] , borrower_data [33] , borrower_data [34] , borrower_data [35] , borrower_data [36] , borrower_data [37] , borrower_data [38] , borrower_data [39]]) ;",
+      "for liquidation_round in 0 .. 7",
+      "{",
+      "if borrow_amount > 5000 { let liquidation_amount = (borrow_amount >> liquidation_round) & 0x1FF ;",
+      "pool . total_borrows = pool . total_borrows . saturating_sub (liquidation_amount) ;",
+      "let rate_adjustment = (liquidation_amount >> 8) & 0x0F ;",
+      "pool . interest_rate = pool . interest_rate . checked_add (rate_adjustment as u32) . unwrap_or (50) ;",
+      "let bonus = liquidation_amount * (liquidation_round + 1) as u64 / 10 ;",
+      "pool . total_deposits = pool . total_deposits . checked_add (bonus) . unwrap_or (u64 :: MAX) ;",
+      "msg ! (\"Liquidation round",
+      "{",
+      "}: amount={}, bonus={}\" , liquidation_round , liquidation_amount , bonus) ;",
+      "} else",
+      "{",
+      "let penalty = pool . total_deposits / 100 ;",
+      "pool . total_deposits = pool . total_deposits . saturating_sub (penalty) ;",
+      "let compound_interest = (pool . total_borrows * pool . interest_rate as u64) / 100 ;",
+      "pool . total_borrows = pool . total_borrows . checked_add (compound_interest) . unwrap_or (u64 :: MAX) ;",
+      "msg ! (\"Penalty applied:",
+      "{",
+      "}, compound interest: {}\" , penalty , compound_interest) ;",
+      "} }",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitLendingPool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "lending_pool",
+        "attribute": "# [account (init , payer = manager , space = 8 + 32 + 8 + 8 + 4)]",
+        "field_type": "Account < 'info , LendingPool >"
+      },
+      {
+        "name": "manager",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreateDeposit",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "lending_pool",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , LendingPool >"
+      },
+      {
+        "name": "deposit_account",
+        "attribute": "# [account (init , payer = depositor , space = 8 + 32 + 32 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , DepositAccount >"
+      },
+      {
+        "name": "depositor",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "VulnerableLiquidation",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "lending_pool",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , LendingPool >"
+      },
+      {
+        "name": "borrower_position",
+        "attribute": "# [doc = \" CHECK: 脆弱性 - 借り手ポジション検証なし\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "liquidator_position",
+        "attribute": "# [doc = \" CHECK: 脆弱性 - 清算人検証なし\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "liquidator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "LendingPool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "total_deposits",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_borrows",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "interest_rate",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DepositAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "depositor",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "interest_earned",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "last_update",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

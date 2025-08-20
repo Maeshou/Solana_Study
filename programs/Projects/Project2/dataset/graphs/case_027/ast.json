@@ -1,17 +1,87 @@
 [
   {
-    "name": "TransferNftCtxrajp",
+    "name": "initialize_escrow",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeEscrow >",
+      "amount: u64",
+      "expected_amount: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "require ! (ctx . accounts . initializer_deposit_token_account . owner == & token :: ID , ErrorCode :: InvalidInitializerTokenOwner) ;",
+      "require ! (ctx . accounts . escrow_account . owner == & token :: ID , ErrorCode :: InvalidEscrowTokenOwner) ;",
+      "let escrow_info = ctx . accounts . escrow_state . to_account_info () ;",
+      "require ! (escrow_info . owner == ctx . program_id , ErrorCode :: InvalidEscrowStateOwner) ;",
+      "let escrow_state = & mut ctx . accounts . escrow_state ;",
+      "escrow_state . initializer = ctx . accounts . initializer . key () ;",
+      "escrow_state . initializer_deposit_token_account = ctx . accounts . initializer_deposit_token_account . key () ;",
+      "escrow_state . initializer_receive_token_account = ctx . accounts . initializer_receive_token_account . key () ;",
+      "escrow_state . initializer_amount = amount ;",
+      "escrow_state . taker_amount = expected_amount ;",
+      "let transfer_instruction = Transfer { from : ctx . accounts . initializer_deposit_token_account . to_account_info () , to : ctx . accounts . escrow_account . to_account_info () , authority : ctx . accounts . initializer . to_account_info () , } ;",
+      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , transfer_instruction ,) ;",
+      "token :: transfer (cpi_ctx , amount)"
+    ]
+  },
+  {
+    "name": "exchange",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Exchange >"
+    ],
+    "attributes": [],
+    "body": [
+      "let escrow_state_info = ctx . accounts . escrow_state . to_account_info () ;",
+      "require ! (escrow_state_info . owner == ctx . program_id , ErrorCode :: InvalidEscrowStateOwner) ;",
+      "require ! (ctx . accounts . taker_deposit_token_account . owner == & token :: ID , ErrorCode :: InvalidTakerTokenOwner) ;",
+      "require ! (ctx . accounts . taker_receive_token_account . owner == & token :: ID , ErrorCode :: InvalidTakerReceiveTokenOwner) ;",
+      "let escrow_state = & ctx . accounts . escrow_state ;",
+      "let transfer_to_initializer = Transfer { from : ctx . accounts . taker_deposit_token_account . to_account_info () , to : ctx . accounts . initializer_receive_token_account . to_account_info () , authority : ctx . accounts . taker . to_account_info () , } ;",
+      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , transfer_to_initializer ,) ;",
+      "token :: transfer (cpi_ctx , escrow_state . taker_amount) ? ;",
+      "let seeds = & [b\"escrow\" , escrow_state . initializer . as_ref () , & [ctx . accounts . escrow_state . bump] ,] ;",
+      "let signer = & [& seeds [..]] ;",
+      "let transfer_to_taker = Transfer { from : ctx . accounts . escrow_account . to_account_info () , to : ctx . accounts . taker_receive_token_account . to_account_info () , authority : ctx . accounts . escrow_state . to_account_info () , } ;",
+      "let cpi_ctx = CpiContext :: new_with_signer (ctx . accounts . token_program . to_account_info () , transfer_to_taker , signer ,) ;",
+      "token :: transfer (cpi_ctx , escrow_state . initializer_amount)"
+    ]
+  },
+  {
+    "name": "InitializeEscrow",
     "node_type": "struct",
     "fields": [
       {
-        "name": "owner_record",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
+        "name": "escrow_state",
+        "attribute": "# [account (init , payer = initializer , space = 8 + 32 + 32 + 32 + 8 + 8 + 1 , seeds = [b\"escrow\" , initializer . key () . as_ref ()] , bump , constraint = escrow_state . to_account_info () . owner == program_id)]",
+        "field_type": "Account < 'info , EscrowState >"
       },
       {
-        "name": "recipient",
+        "name": "initializer_deposit_token_account",
+        "attribute": "# [account (mut , constraint = initializer_deposit_token_account . owner == & token :: ID)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "initializer_receive_token_account",
+        "attribute": "# [account (constraint = initializer_receive_token_account . owner == & token :: ID)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "escrow_account",
+        "attribute": "# [account (mut , constraint = escrow_account . owner == & token :: ID)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "initializer",
         "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
       },
       {
         "name": "system_program",
@@ -24,13 +94,43 @@
     "body": null
   },
   {
-    "name": "DataAccount",
+    "name": "Exchange",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data",
+        "name": "escrow_state",
+        "attribute": "# [account (mut , constraint = escrow_state . to_account_info () . owner == program_id)]",
+        "field_type": "Account < 'info , EscrowState >"
+      },
+      {
+        "name": "taker_deposit_token_account",
+        "attribute": "# [account (mut , constraint = taker_deposit_token_account . owner == & token :: ID)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "taker_receive_token_account",
+        "attribute": "# [account (mut , constraint = taker_receive_token_account . owner == & token :: ID)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "initializer_receive_token_account",
+        "attribute": "# [account (mut , constraint = initializer_receive_token_account . owner == & token :: ID)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "escrow_account",
+        "attribute": "# [account (mut , constraint = escrow_account . owner == & token :: ID)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "taker",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
       }
     ],
     "inputs": null,
@@ -38,20 +138,42 @@
     "body": null
   },
   {
-    "name": "transfer_nft",
-    "node_type": "function",
-    "fields": null,
-    "inputs": [
-      "ctx: Context < TransferNftCtxrajp >",
-      "amount: u64"
+    "name": "EscrowState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "initializer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "initializer_deposit_token_account",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "initializer_receive_token_account",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "initializer_amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "taker_amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
     ],
-    "attributes": [],
-    "body": [
-      "let acct = & mut ctx . accounts . owner_record ;",
-      "assert ! (ctx . accounts . owner_record . data > 0) ;",
-      "acct . data -= amount ;",
-      "msg ! (\"Executed transfer_nft logic\") ;",
-      "Ok (())"
-    ]
+    "inputs": null,
+    "attributes": null,
+    "body": null
   }
 ]

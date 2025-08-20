@@ -1,0 +1,419 @@
+[
+  {
+    "name": "init_machine",
+    "inputs": [
+      "ctx: Context < InitMachine >",
+      "jackpot_bps: u16",
+      "pity_increment: u8"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let machine = & mut ctx . accounts . machine ;"
+      },
+      {
+        "id": 2,
+        "label": "machine . owner_key = ctx . accounts . owner . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "machine . jackpot_bps = jackpot_bps . min (1000) . max (50) ;"
+      },
+      {
+        "id": 4,
+        "label": "machine . pity_counter = pity_increment . max (1) ;"
+      },
+      {
+        "id": 5,
+        "label": "machine . roll_count = (pity_increment as u64) . saturating_add (2) ;"
+      },
+      {
+        "id": 6,
+        "label": "machine . jackpot_hits = 2 ;"
+      },
+      {
+        "id": 7,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: machine"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: machine"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: machine"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: machine"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: machine"
+      },
+      {
+        "from": 1,
+        "to": 6,
+        "label": "data_dep: machine"
+      }
+    ]
+  },
+  {
+    "name": "act_roll",
+    "inputs": [
+      "ctx: Context < ActRoll >",
+      "ticket_cost: u64",
+      "entropy_seed: u64"
+    ],
+    "nodes": [
+      {
+        "id": 8,
+        "label": "Entry"
+      },
+      {
+        "id": 9,
+        "label": "let machine = & mut ctx . accounts . machine ;"
+      },
+      {
+        "id": 10,
+        "label": "token :: burn (ctx . accounts . burn_ctx () , ticket_cost . max (1)) ? ;"
+      },
+      {
+        "id": 11,
+        "label": "let mut weighted_score = 0u64 ;"
+      },
+      {
+        "id": 12,
+        "label": "let mut bit_index = 0u8 ;"
+      },
+      {
+        "id": 13,
+        "label": "while bit_index < 12 { let bit = (entropy_seed >> bit_index) & 1 ; let weight = (12 - bit_index as u64) ; weighted_score = weighted_score . saturating_add (bit . saturating_mul (weight)) ; bit_index = bit_index . saturating_add (1) ; }"
+      },
+      {
+        "id": 14,
+        "label": "let bit = (entropy_seed >> bit_index) & 1 ;"
+      },
+      {
+        "id": 15,
+        "label": "let weight = (12 - bit_index as u64) ;"
+      },
+      {
+        "id": 16,
+        "label": "weighted_score = weighted_score . saturating_add (bit . saturating_mul (weight)) ;"
+      },
+      {
+        "id": 17,
+        "label": "bit_index = bit_index . saturating_add (1) ;"
+      },
+      {
+        "id": 18,
+        "label": "if machine . pity_counter >= 8 { weighted_score = weighted_score . saturating_add (10) ; }"
+      },
+      {
+        "id": 19,
+        "label": "weighted_score = weighted_score . saturating_add (10) ;"
+      },
+      {
+        "id": 20,
+        "label": "let threshold = (machine . jackpot_bps as u64) . saturating_div (6) . max (4) ;"
+      },
+      {
+        "id": 21,
+        "label": "let win_flag = weighted_score > threshold ;"
+      },
+      {
+        "id": 22,
+        "label": "if win_flag { let prize_units = ticket_cost . saturating_mul (15) ; token :: mint_to (ctx . accounts . mint_ctx () , prize_units) ? ; machine . jackpot_hits = machine . jackpot_hits . saturating_add (1) ; machine . pity_counter = 1 ; } else { let consolation = ticket_cost . saturating_div (6) . max (1) ; token :: mint_to (ctx . accounts . mint_ctx () , consolation) ? ; machine . pity_counter = machine . pity_counter . saturating_add (1) ; }"
+      },
+      {
+        "id": 23,
+        "label": "let prize_units = ticket_cost . saturating_mul (15) ;"
+      },
+      {
+        "id": 24,
+        "label": "token :: mint_to (ctx . accounts . mint_ctx () , prize_units) ? ;"
+      },
+      {
+        "id": 25,
+        "label": "machine . jackpot_hits = machine . jackpot_hits . saturating_add (1) ;"
+      },
+      {
+        "id": 26,
+        "label": "machine . pity_counter = 1 ;"
+      },
+      {
+        "id": 27,
+        "label": "let consolation = ticket_cost . saturating_div (6) . max (1) ;"
+      },
+      {
+        "id": 28,
+        "label": "token :: mint_to (ctx . accounts . mint_ctx () , consolation) ? ;"
+      },
+      {
+        "id": 29,
+        "label": "machine . pity_counter = machine . pity_counter . saturating_add (1) ;"
+      },
+      {
+        "id": 30,
+        "label": "machine . roll_count = machine . roll_count . saturating_add (1) ;"
+      },
+      {
+        "id": 31,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 9,
+        "to": 9,
+        "label": "def: machine"
+      },
+      {
+        "from": 11,
+        "to": 11,
+        "label": "def: weighted_score"
+      },
+      {
+        "from": 12,
+        "to": 12,
+        "label": "def: bit_index"
+      },
+      {
+        "from": 12,
+        "to": 13,
+        "label": "data_dep: bit_index"
+      },
+      {
+        "from": 12,
+        "to": 13,
+        "label": "data_dep: bit_index"
+      },
+      {
+        "from": 12,
+        "to": 13,
+        "label": "data_dep: bit_index"
+      },
+      {
+        "from": 11,
+        "to": 13,
+        "label": "data_dep: weighted_score"
+      },
+      {
+        "from": 11,
+        "to": 13,
+        "label": "data_dep: weighted_score"
+      },
+      {
+        "from": 12,
+        "to": 13,
+        "label": "data_dep: bit_index"
+      },
+      {
+        "from": 12,
+        "to": 13,
+        "label": "data_dep: bit_index"
+      },
+      {
+        "from": 14,
+        "to": 14,
+        "label": "def: bit"
+      },
+      {
+        "from": 12,
+        "to": 14,
+        "label": "data_dep: bit_index"
+      },
+      {
+        "from": 15,
+        "to": 15,
+        "label": "def: weight"
+      },
+      {
+        "from": 12,
+        "to": 15,
+        "label": "data_dep: bit_index"
+      },
+      {
+        "from": 11,
+        "to": 16,
+        "label": "data_dep: weighted_score"
+      },
+      {
+        "from": 11,
+        "to": 16,
+        "label": "data_dep: weighted_score"
+      },
+      {
+        "from": 14,
+        "to": 16,
+        "label": "data_dep: bit"
+      },
+      {
+        "from": 15,
+        "to": 16,
+        "label": "data_dep: weight"
+      },
+      {
+        "from": 12,
+        "to": 17,
+        "label": "data_dep: bit_index"
+      },
+      {
+        "from": 12,
+        "to": 17,
+        "label": "data_dep: bit_index"
+      },
+      {
+        "from": 9,
+        "to": 18,
+        "label": "data_dep: machine"
+      },
+      {
+        "from": 11,
+        "to": 18,
+        "label": "data_dep: weighted_score"
+      },
+      {
+        "from": 11,
+        "to": 18,
+        "label": "data_dep: weighted_score"
+      },
+      {
+        "from": 11,
+        "to": 19,
+        "label": "data_dep: weighted_score"
+      },
+      {
+        "from": 11,
+        "to": 19,
+        "label": "data_dep: weighted_score"
+      },
+      {
+        "from": 20,
+        "to": 20,
+        "label": "def: threshold"
+      },
+      {
+        "from": 9,
+        "to": 20,
+        "label": "data_dep: machine"
+      },
+      {
+        "from": 21,
+        "to": 21,
+        "label": "def: win_flag"
+      },
+      {
+        "from": 11,
+        "to": 21,
+        "label": "data_dep: weighted_score"
+      },
+      {
+        "from": 20,
+        "to": 21,
+        "label": "data_dep: threshold"
+      },
+      {
+        "from": 21,
+        "to": 22,
+        "label": "data_dep: win_flag"
+      },
+      {
+        "from": 9,
+        "to": 22,
+        "label": "data_dep: machine"
+      },
+      {
+        "from": 9,
+        "to": 22,
+        "label": "data_dep: machine"
+      },
+      {
+        "from": 9,
+        "to": 22,
+        "label": "data_dep: machine"
+      },
+      {
+        "from": 9,
+        "to": 22,
+        "label": "data_dep: machine"
+      },
+      {
+        "from": 9,
+        "to": 22,
+        "label": "data_dep: machine"
+      },
+      {
+        "from": 23,
+        "to": 23,
+        "label": "def: prize_units"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "data_dep: prize_units"
+      },
+      {
+        "from": 9,
+        "to": 25,
+        "label": "data_dep: machine"
+      },
+      {
+        "from": 9,
+        "to": 25,
+        "label": "data_dep: machine"
+      },
+      {
+        "from": 9,
+        "to": 26,
+        "label": "data_dep: machine"
+      },
+      {
+        "from": 27,
+        "to": 27,
+        "label": "def: consolation"
+      },
+      {
+        "from": 27,
+        "to": 28,
+        "label": "data_dep: consolation"
+      },
+      {
+        "from": 9,
+        "to": 29,
+        "label": "data_dep: machine"
+      },
+      {
+        "from": 9,
+        "to": 29,
+        "label": "data_dep: machine"
+      },
+      {
+        "from": 9,
+        "to": 30,
+        "label": "data_dep: machine"
+      },
+      {
+        "from": 9,
+        "to": 30,
+        "label": "data_dep: machine"
+      }
+    ]
+  }
+]

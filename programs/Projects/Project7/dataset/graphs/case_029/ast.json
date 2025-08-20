@@ -1,0 +1,166 @@
+[
+  {
+    "name": "init_market",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitMarket >",
+      "fee_bps: u16",
+      "max_settlement: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let market = & mut ctx . accounts . market ;",
+      "market . operator_key = ctx . accounts . operator . key () ;",
+      "market . fee_bps = fee_bps . min (2000) . max (50) ;",
+      "market . settlement_cap = max_settlement . max (10) ;",
+      "market . completed_orders = 4 ;",
+      "market . total_volume = max_settlement . saturating_div (2) . max (6) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_settle",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActSettle >",
+      "price_per_unit: u64",
+      "total_quantity: u64",
+      "basket_parts: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let market = & mut ctx . accounts . market ;",
+      "let mut remaining_qty = total_quantity . max (1) ;",
+      "let parts = basket_parts . max (1) ;",
+      "let mut part_index = 0u8 ;",
+      "while part_index < parts",
+      "{",
+      "let slice_qty = remaining_qty . saturating_div ((parts - part_index) . max (1) as u64) . max (1) ;",
+      "let gross = slice_qty . saturating_mul (price_per_unit) ;",
+      "if gross > market . settlement_cap",
+      "{",
+      "return Err (MktErr :: OverCap . into ()) ;",
+      "} let fee_total = gross . saturating_mul (market . fee_bps as u64) / 10_000 ;",
+      "let fee_half = fee_total . saturating_div (2) ;",
+      "let payout_to_seller = gross . saturating_sub (fee_total) ;",
+      "token :: transfer (ctx . accounts . buyer_to_seller () , payout_to_seller) ? ;",
+      "token :: transfer (ctx . accounts . buyer_to_fee_primary () , fee_half) ? ;",
+      "token :: transfer (ctx . accounts . buyer_to_fee_secondary () , fee_total . saturating_sub (fee_half)) ? ;",
+      "market . total_volume = market . total_volume . saturating_add (gross) ;",
+      "remaining_qty = remaining_qty . saturating_sub (slice_qty) ;",
+      "part_index = part_index . saturating_add (1) ;",
+      "}",
+      "market . completed_orders = market . completed_orders . saturating_add (1) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitMarket",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "market",
+        "attribute": "# [account (init , payer = operator , space = 8 + 32 + 2 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , MarketState >"
+      },
+      {
+        "name": "operator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActSettle",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "market",
+        "attribute": "# [account (mut , has_one = operator_key)]",
+        "field_type": "Account < 'info , MarketState >"
+      },
+      {
+        "name": "operator_key",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "buyer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "buyer_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "seller_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "fee_primary_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "fee_secondary_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MarketState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "operator_key",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "fee_bps",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "settlement_cap",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "completed_orders",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_volume",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

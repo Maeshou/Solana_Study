@@ -1,0 +1,175 @@
+[
+  {
+    "name": "initialize_escrow",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeEscrow >",
+      "amount: u64",
+      "deadline: i64",
+      "bump: u8"
+    ],
+    "attributes": [
+      "# [doc = \" エスクローアカウントの初期化と資金デポジット\"]"
+    ],
+    "body": [
+      "let escrow = & mut ctx . accounts . escrow ;",
+      "escrow . buyer = * ctx . accounts . buyer . key ;",
+      "escrow . seller = * ctx . accounts . seller . key ;",
+      "escrow . amount = amount ;",
+      "escrow . deadline = deadline ;",
+      "escrow . bump = bump ;",
+      "let buyer_lamports = ctx . accounts . buyer . to_account_info () . lamports () ;",
+      "require ! (buyer_lamports >= amount , ErrorCode :: InsufficientFunds) ;",
+      "* * ctx . accounts . buyer . to_account_info () . try_borrow_mut_lamports () ? = buyer_lamports . checked_sub (amount) . ok_or (ErrorCode :: Overflow) ? ;",
+      "* * ctx . accounts . escrow . to_account_info () . try_borrow_mut_lamports () ? = ctx . accounts . escrow . to_account_info () . lamports () . checked_add (amount) . ok_or (ErrorCode :: Overflow) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "release_funds",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ReleaseFunds >"
+    ],
+    "attributes": [
+      "# [doc = \" Seller に資金リリース（デッドライン前でも可）\"]"
+    ],
+    "body": [
+      "let escrow = & ctx . accounts . escrow ;",
+      "require ! (escrow . seller == * ctx . accounts . seller . key , ErrorCode :: Unauthorized) ;",
+      "let pot = ctx . accounts . escrow . to_account_info () . lamports () ;",
+      "* * ctx . accounts . escrow . to_account_info () . try_borrow_mut_lamports () ? = pot . checked_sub (escrow . amount) . ok_or (ErrorCode :: InsufficientFunds) ? ;",
+      "* * ctx . accounts . seller . to_account_info () . try_borrow_mut_lamports () ? = ctx . accounts . seller . to_account_info () . lamports () . checked_add (escrow . amount) . ok_or (ErrorCode :: Overflow) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "refund",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Refund >"
+    ],
+    "attributes": [
+      "# [doc = \" Buyer に資金返却（デッドライン超過後）\"]"
+    ],
+    "body": [
+      "let escrow = & ctx . accounts . escrow ;",
+      "let now = Clock :: get () ? . unix_timestamp ;",
+      "require ! (now >= escrow . deadline , ErrorCode :: TooEarly) ;",
+      "require ! (escrow . buyer == * ctx . accounts . buyer . key , ErrorCode :: Unauthorized) ;",
+      "let pot = ctx . accounts . escrow . to_account_info () . lamports () ;",
+      "* * ctx . accounts . escrow . to_account_info () . try_borrow_mut_lamports () ? = pot . checked_sub (escrow . amount) . ok_or (ErrorCode :: InsufficientFunds) ? ;",
+      "* * ctx . accounts . buyer . to_account_info () . try_borrow_mut_lamports () ? = ctx . accounts . buyer . to_account_info () . lamports () . checked_add (escrow . amount) . ok_or (ErrorCode :: Overflow) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializeEscrow",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "escrow",
+        "attribute": "# [account (init , seeds = [b\"escrow\" , buyer . key () . as_ref () , seller . key () . as_ref ()] , bump = bump , payer = buyer , space = 8 + 32 + 32 + 8 + 8 + 1 ,)]",
+        "field_type": "Account < 'info , Escrow >"
+      },
+      {
+        "name": "buyer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "seller",
+        "attribute": "# [doc = \" CHECK: リリース用\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "rent",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Rent >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ReleaseFunds",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "escrow",
+        "attribute": "# [account (mut , seeds = [b\"escrow\" , escrow . buyer . as_ref () , escrow . seller . as_ref ()] , bump = escrow . bump ,)]",
+        "field_type": "Account < 'info , Escrow >"
+      },
+      {
+        "name": "seller",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Refund",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "escrow",
+        "attribute": "# [account (mut , seeds = [b\"escrow\" , escrow . buyer . as_ref () , escrow . seller . as_ref ()] , bump = escrow . bump ,)]",
+        "field_type": "Account < 'info , Escrow >"
+      },
+      {
+        "name": "buyer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Escrow",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "buyer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "seller",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "deadline",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

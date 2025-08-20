@@ -1,0 +1,148 @@
+[
+  {
+    "name": "initialize_user",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeUser >"
+    ],
+    "attributes": [
+      "# [doc = \" ユーザーごとの ReferralAccount を初回のみ初期化\"]"
+    ],
+    "body": [
+      "let acct = & mut ctx . accounts . referral ;",
+      "acct . owner = ctx . accounts . user . key () ;",
+      "acct . referrals = 0 ;",
+      "acct . rewards = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "refer_user",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ReferUser >"
+    ],
+    "attributes": [
+      "# [doc = \" 紹介者(referrer) が新規ユーザー(referee)を紹介して報酬を獲得\"]"
+    ],
+    "body": [
+      "let referrer = & mut ctx . accounts . referrer ;",
+      "let referee = & mut ctx . accounts . referee ;",
+      "referrer . referrals = referrer . referrals . saturating_add (1) ;",
+      "referrer . rewards = referrer . rewards . saturating_add (100) ;",
+      "referee . rewards = referee . rewards . saturating_add (50) ;",
+      "msg ! (\"Referrer {:?}: referrals={}, rewards={}\" , referrer . owner , referrer . referrals , referrer . rewards) ;",
+      "msg ! (\"Referee  {:?}: rewards={}\" , referee . owner , referee . rewards) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "view_referral",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ViewReferral >"
+    ],
+    "attributes": [
+      "# [doc = \" 自分の紹介情報をログ出力\"]"
+    ],
+    "body": [
+      "let acct = & ctx . accounts . referral ;",
+      "msg ! (\"User {:?}: referrals={}, rewards={}\" , acct . owner , acct . referrals , acct . rewards) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializeUser",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "referral",
+        "attribute": "# [doc = \" 初回のみ PDA を init\"] # [account (init , payer = user , space = 8 + 32 + 8 + 8 , seeds = [b\"ref\" , user . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , ReferralAccount >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ReferUser",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "referrer",
+        "attribute": "# [doc = \" 紹介者アカウント\"] # [account (mut , seeds = [b\"ref\" , referrer . key () . as_ref ()] , bump , has_one = owner)]",
+        "field_type": "Account < 'info , ReferralAccount >"
+      },
+      {
+        "name": "referee",
+        "attribute": "# [doc = \" 被紹介者アカウント\"] # [account (mut , seeds = [b\"ref\" , referee . key () . as_ref ()] , bump , has_one = owner)]",
+        "field_type": "Account < 'info , ReferralAccount >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 紹介者自身が署名\"] # [account (address = referrer . owner , has_one = owner)]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ViewReferral",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "referral",
+        "attribute": "# [account (seeds = [b\"ref\" , user . key () . as_ref ()] , bump , has_one = owner)]",
+        "field_type": "Account < 'info , ReferralAccount >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ReferralAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" アカウント所有者\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "referrals",
+        "attribute": "# [doc = \" 紹介回数\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "rewards",
+        "attribute": "# [doc = \" 獲得報酬ポイント\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

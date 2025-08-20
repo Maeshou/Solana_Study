@@ -1,0 +1,251 @@
+[
+  {
+    "name": "init_foundry",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitFoundry >",
+      "name: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let f = & mut ctx . accounts . foundry ;",
+      "f . owner = ctx . accounts . master . key () ;",
+      "f . name = name ;",
+      "f . batch = 0 ;",
+      "f . mix = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_emblem",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitEmblem >",
+      "role: EmblemRole"
+    ],
+    "attributes": [],
+    "body": [
+      "let e = & mut ctx . accounts . emblem ;",
+      "e . foundry = ctx . accounts . foundry . key () ;",
+      "e . role = role ;",
+      "e . quality = 0 ;",
+      "e . hist = [0 ; 8] ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "forge",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Forge >",
+      "salt: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let f = & mut ctx . accounts . foundry ;",
+      "let s = & mut ctx . accounts . smith ;",
+      "let a = & mut ctx . accounts . appraiser ;",
+      "let l = & mut ctx . accounts . ledger ;",
+      "let mut h = salt ^ (f . batch as u64) ;",
+      "for i in 0 .. 8",
+      "{",
+      "h = h . rotate_left (9) ^ 0x9E3779B97F4A7C15u64 ;",
+      "s . hist [i] = s . hist [i] . saturating_add (((h >> (i * 5)) & 0xFF) as u32) ;",
+      "f . mix = f . mix ^ ((h as u32) & 0xFFFF) ;",
+      "}",
+      "if s . role == Smith",
+      "{",
+      "s . quality = s . quality . saturating_add (((h & 0xFFFF) as u32) + 7) ;",
+      "f . batch = f . batch . saturating_add (1) ;",
+      "l . lines = l . lines . saturating_add (1) ;",
+      "l . last = l . last . wrapping_add (h . rotate_left (7)) ;",
+      "msg ! (\"Smith path: forged new emblem\") ;",
+      "} else",
+      "{",
+      "a . quality = a . quality . saturating_add ((((h >> 3) & 0x7FFF) as u32) + 5) ;",
+      "f . mix = f . mix . rotate_right (3) ^ ((h as u32) & 0xFFFF) ;",
+      "l . lines = l . lines . saturating_add (2) ;",
+      "l . last = l . last ^ h . rotate_right (11) ;",
+      "msg ! (\"Non-smith path: appraiser evaluated\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitFoundry",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "foundry",
+        "attribute": "# [account (init , payer = master , space = 8 + Foundry :: MAX)]",
+        "field_type": "Account < 'info , Foundry >"
+      },
+      {
+        "name": "master",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitEmblem",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "foundry",
+        "attribute": "# [account (mut , has_one = owner , owner = crate :: ID)]",
+        "field_type": "Account < 'info , Foundry >"
+      },
+      {
+        "name": "emblem",
+        "attribute": "# [account (init , payer = user , space = 8 + EmblemCard :: MAX)]",
+        "field_type": "Account < 'info , EmblemCard >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "program_id_alias",
+        "attribute": "# [doc = \" 明示的なプログラムID固定（多層フェンスの一部）\"] # [account (address = crate :: ID)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Forge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "foundry",
+        "attribute": "# [account (mut , has_one = owner , owner = crate :: ID)]",
+        "field_type": "Account < 'info , Foundry >"
+      },
+      {
+        "name": "ledger",
+        "attribute": "# [account (mut , has_one = foundry , owner = crate :: ID)]",
+        "field_type": "Account < 'info , ForgeLedger >"
+      },
+      {
+        "name": "smith",
+        "attribute": "# [account (mut , has_one = foundry , owner = crate :: ID)]",
+        "field_type": "Account < 'info , EmblemCard >"
+      },
+      {
+        "name": "appraiser",
+        "attribute": "# [account (mut , has_one = foundry , owner = crate :: ID , constraint = smith . role != appraiser . role @ ErrCode :: CosplayBlocked)]",
+        "field_type": "Account < 'info , EmblemCard >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Foundry",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "batch",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "mix",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EmblemCard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "foundry",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "role",
+        "attribute": null,
+        "field_type": "EmblemRole"
+      },
+      {
+        "name": "quality",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "hist",
+        "attribute": null,
+        "field_type": "[u32 ; 8]"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ForgeLedger",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "foundry",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "last",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "lines",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

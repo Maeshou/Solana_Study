@@ -1,33 +1,53 @@
 [
   {
-    "name": "initialize_liquidation_account",
+    "name": "init_escrow",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Initialize042 >",
-      "param: u64"
+      "ctx: Context < InitEscrow >",
+      "amount: u64"
     ],
     "attributes": [],
     "body": [
-      "let mut data = LiquidationAccountData :: try_from_slice (& ctx . accounts . data_account . data . borrow ()) ? ;",
-      "data . value = param ;",
-      "data . serialize (& mut * ctx . accounts . data_account . data . borrow_mut ()) ? ;",
+      "let esc = & mut ctx . accounts . escrow ;",
+      "esc . initializer = ctx . accounts . initializer . key () ;",
+      "esc . amount = amount ;",
+      "esc . active = true ;",
+      "let history = & mut ctx . accounts . release_history ;",
+      "history . entries = Vec :: new () ;",
+      "let fees = & mut ctx . accounts . fee_account ;",
+      "fees . collected = 0 ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Initialize042",
+    "name": "InitEscrow",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "escrow",
+        "attribute": "# [account (init , payer = initializer , space = 8 + 32 + 8 + 1)]",
+        "field_type": "Account < 'info , EscrowData >"
       },
       {
-        "name": "authority",
-        "attribute": null,
+        "name": "release_history",
+        "attribute": "# [account (init , payer = initializer , space = 8 + 4 + (16 * 8))]",
+        "field_type": "Account < 'info , ReleaseHistoryData >"
+      },
+      {
+        "name": "fee_account",
+        "attribute": "# [account (init , payer = initializer , space = 8 + 8)]",
+        "field_type": "Account < 'info , FeeAccountData >"
+      },
+      {
+        "name": "initializer",
+        "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -35,11 +55,49 @@
     "body": null
   },
   {
-    "name": "LiquidationAccountData",
+    "name": "EscrowData",
     "node_type": "struct",
     "fields": [
       {
-        "name": "value",
+        "name": "initializer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "active",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ReleaseHistoryData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "entries",
+        "attribute": null,
+        "field_type": "Vec < (i64 , u64) >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "FeeAccountData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "collected",
         "attribute": null,
         "field_type": "u64"
       }

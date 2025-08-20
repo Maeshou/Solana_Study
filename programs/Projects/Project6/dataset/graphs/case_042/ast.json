@@ -1,0 +1,275 @@
+[
+  {
+    "name": "init_forge",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitForge >"
+    ],
+    "attributes": [],
+    "body": [
+      "let forge = & mut ctx . accounts . forge ;",
+      "forge . master = ctx . accounts . master . key () ;",
+      "forge . total_enhancements = 0 ;",
+      "forge . success_rate = 75 ;",
+      "forge . operational = true ;",
+      "forge . last_maintenance = Clock :: get () ? . unix_timestamp ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_equipment",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitEquipment >",
+      "eq_type: EquipmentType",
+      "base_power: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let equipment = & mut ctx . accounts . equipment ;",
+      "equipment . forge = ctx . accounts . forge . key () ;",
+      "equipment . owner = ctx . accounts . owner . key () ;",
+      "equipment . eq_type = eq_type ;",
+      "equipment . enhancement_level = 0 ;",
+      "equipment . base_power = base_power ;",
+      "equipment . durability = 100 ;",
+      "equipment . enchanted = false ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "enhance_equipment_batch",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < EnhanceEquipment >"
+    ],
+    "attributes": [],
+    "body": [
+      "let primary = & mut ctx . accounts . primary_equipment ;",
+      "let catalyst = & mut ctx . accounts . catalyst_equipment ;",
+      "let forge = & mut ctx . accounts . forge ;",
+      "while primary . enhancement_level < 10 && catalyst . durability > 0",
+      "{",
+      "if primary . base_power > catalyst . base_power",
+      "{",
+      "let current_level = primary . enhancement_level ;",
+      "primary . enhancement_level = current_level . checked_add (1) . unwrap_or (255) ;",
+      "let power_bonus = sqrt_newton (primary . base_power as u64) as u32 ;",
+      "primary . base_power = primary . base_power . checked_add (power_bonus) . unwrap_or (u32 :: MAX) ;",
+      "primary . durability = if primary . durability > 5",
+      "{",
+      "primary . durability - 5 } else { 0 } ;",
+      "forge . total_enhancements = forge . total_enhancements . checked_add (1) . unwrap_or (u64 :: MAX) ;",
+      "msg ! (\"Primary enhanced to level:",
+      "{",
+      "}\" , primary . enhancement_level) ;",
+      "} else",
+      "{",
+      "let absorption = (catalyst . base_power >> 2) & 0xFF ;",
+      "catalyst . base_power = if catalyst . base_power > absorption",
+      "{",
+      "catalyst . base_power - absorption } else { 0 } ;",
+      "catalyst . durability = if catalyst . durability > 10",
+      "{",
+      "catalyst . durability - 10 } else { 0 } ;",
+      "primary . enchanted = ! primary . enchanted ;",
+      "forge . success_rate = ((forge . success_rate as u64 * 95) / 100) . min (100) as u8 ;",
+      "msg ! (\"Catalyst power absorbed:",
+      "{",
+      "}\" , absorption) ;",
+      "} if catalyst . durability == 0",
+      "{",
+      "break ;",
+      "}",
+      "}",
+      "forge . last_maintenance = Clock :: get () ? . unix_timestamp ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "sqrt_newton",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "n: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "if n == 0",
+      "{",
+      "return 0 ;",
+      "}",
+      "let mut x = n ;",
+      "let mut y = (x + 1) / 2 ;",
+      "while y < x",
+      "{",
+      "x = y ;",
+      "y = (x + n / x) / 2 ;",
+      "}",
+      "x"
+    ]
+  },
+  {
+    "name": "InitForge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "forge",
+        "attribute": "# [account (init , payer = master , space = 8 + 32 + 8 + 1 + 1 + 8)]",
+        "field_type": "Account < 'info , Forge >"
+      },
+      {
+        "name": "master",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitEquipment",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "forge",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Forge >"
+      },
+      {
+        "name": "equipment",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 32 + 1 + 1 + 4 + 1 + 1)]",
+        "field_type": "Account < 'info , Equipment >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EnhanceEquipment",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "forge",
+        "attribute": "# [account (mut , has_one = master)]",
+        "field_type": "Account < 'info , Forge >"
+      },
+      {
+        "name": "primary_equipment",
+        "attribute": "# [account (mut , has_one = forge , constraint = primary_equipment . eq_type != catalyst_equipment . eq_type @ EnhanceError :: CosplayBlocked , owner = crate :: ID)]",
+        "field_type": "Account < 'info , Equipment >"
+      },
+      {
+        "name": "catalyst_equipment",
+        "attribute": "# [account (mut , has_one = forge , owner = crate :: ID)]",
+        "field_type": "Account < 'info , Equipment >"
+      },
+      {
+        "name": "master",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Forge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "master",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "total_enhancements",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "success_rate",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "operational",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "last_maintenance",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Equipment",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "forge",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "eq_type",
+        "attribute": null,
+        "field_type": "EquipmentType"
+      },
+      {
+        "name": "enhancement_level",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "base_power",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "durability",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "enchanted",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

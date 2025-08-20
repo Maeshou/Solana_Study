@@ -1,0 +1,250 @@
+[
+  {
+    "name": "init_federation",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitFederation >",
+      "founding_era: u64",
+      "member_slots: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let federation = & mut ctx . accounts . federation_core ;",
+      "federation . founding_era = founding_era . rotate_left (8) ;",
+      "federation . max_members = member_slots . checked_add (100) . unwrap_or (u32 :: MAX) ;",
+      "federation . current_members = 0 ;",
+      "federation . federation_status = FederationStatus :: Forming ;",
+      "msg ! (\"Galactic Federation established in era {} with {} member slots.\" , federation . founding_era , federation . max_members) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_member",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitMember >",
+      "member_id: u64",
+      "security_clearance: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let member_profile = & mut ctx . accounts . member_profile ;",
+      "member_profile . parent_federation = ctx . accounts . federation_core . key () ;",
+      "member_profile . member_id = member_id ^ 0xF0F0F0F0F0F0F0F0 ;",
+      "member_profile . security_clearance = security_clearance . checked_add (10) . unwrap_or (u8 :: MAX) ;",
+      "member_profile . is_active = true ;",
+      "member_profile . contribution_score = 0 ;",
+      "msg ! (\"New member {} joined with clearance {}.\" , member_profile . member_id , member_profile . security_clearance) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "process_task_assignments",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ProcessTaskAssignments >",
+      "task_difficulty: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let federation = & mut ctx . accounts . federation_core ;",
+      "let commander_profile = & mut ctx . accounts . commander_profile ;",
+      "let field_agent_profile = & mut ctx . accounts . field_agent_profile ;",
+      "let mut total_score_added = 0u64 ;",
+      "for i in 0 .. 15",
+      "{",
+      "if commander_profile . is_active",
+      "{",
+      "let score_gain = (task_difficulty as u64) . checked_add (i as u64) . unwrap_or (u64 :: MAX) ;",
+      "commander_profile . contribution_score = commander_profile . contribution_score . checked_add (score_gain) . unwrap_or (u64 :: MAX) ;",
+      "federation . current_members = federation . current_members . checked_add (1) . unwrap_or (u32 :: MAX) ;",
+      "federation . founding_era = federation . founding_era . checked_add (100) . unwrap_or (u64 :: MAX) ;",
+      "total_score_added = total_score_added . checked_add (score_gain) . unwrap_or (u64 :: MAX) ;",
+      "msg ! (\"Commander task processed, score increased by",
+      "{",
+      "}.\" , score_gain) ;",
+      "} else",
+      "{",
+      "let reactivation_cost = (task_difficulty as u64) . checked_mul (2) . unwrap_or (u64 :: MAX) ;",
+      "commander_profile . is_active = true ;",
+      "commander_profile . contribution_score = commander_profile . contribution_score . checked_sub (reactivation_cost) . unwrap_or (0) ;",
+      "federation . current_members = federation . current_members . checked_add (1) . unwrap_or (u32 :: MAX) ;",
+      "federation . founding_era = federation . founding_era . checked_add (50) . unwrap_or (u64 :: MAX) ;",
+      "msg ! (\"Commander reactivated at a cost of",
+      "{",
+      "} points.\" , reactivation_cost) ;",
+      "} if field_agent_profile . is_active",
+      "{",
+      "let score_gain = (task_difficulty as u64) . checked_mul (i as u64) . unwrap_or (0) ;",
+      "field_agent_profile . contribution_score = field_agent_profile . contribution_score . checked_add (score_gain) . unwrap_or (u64 :: MAX) ;",
+      "federation . current_members = federation . current_members . checked_add (1) . unwrap_or (u32 :: MAX) ;",
+      "federation . founding_era = federation . founding_era . checked_add (120) . unwrap_or (u64 :: MAX) ;",
+      "total_score_added = total_score_added . checked_add (score_gain) . unwrap_or (u64 :: MAX) ;",
+      "msg ! (\"Field Agent task processed, score increased by",
+      "{",
+      "}.\" , score_gain) ;",
+      "} else",
+      "{",
+      "let reactivation_cost = (task_difficulty as u64) . checked_mul (3) . unwrap_or (u64 :: MAX) ;",
+      "field_agent_profile . is_active = true ;",
+      "field_agent_profile . contribution_score = field_agent_profile . contribution_score . checked_sub (reactivation_cost) . unwrap_or (0) ;",
+      "federation . current_members = federation . current_members . checked_add (1) . unwrap_or (u32 :: MAX) ;",
+      "federation . founding_era = federation . founding_era . checked_add (60) . unwrap_or (u64 :: MAX) ;",
+      "msg ! (\"Field Agent reactivated at a cost of",
+      "{",
+      "} points.\" , reactivation_cost) ;",
+      "}",
+      "}",
+      "msg ! (\"Total contribution score added this round: {}\" , total_score_added) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitFederation",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "federation_core",
+        "attribute": "# [account (init , payer = signer , space = 8 + 8 + 4 + 4 + 4)]",
+        "field_type": "Account < 'info , FederationCore >"
+      },
+      {
+        "name": "signer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitMember",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "member_profile",
+        "attribute": "# [account (init , payer = signer , space = 8 + 32 + 8 + 1 + 1 + 8)]",
+        "field_type": "Account < 'info , MemberProfile >"
+      },
+      {
+        "name": "federation_core",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , FederationCore >"
+      },
+      {
+        "name": "signer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ProcessTaskAssignments",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "federation_core",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , FederationCore >"
+      },
+      {
+        "name": "commander_profile",
+        "attribute": "# [account (mut , has_one = parent_federation)]",
+        "field_type": "Account < 'info , MemberProfile >"
+      },
+      {
+        "name": "field_agent_profile",
+        "attribute": "# [account (mut , has_one = parent_federation)]",
+        "field_type": "Account < 'info , MemberProfile >"
+      },
+      {
+        "name": "signer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "FederationCore",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "founding_era",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "max_members",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "current_members",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "federation_status",
+        "attribute": null,
+        "field_type": "FederationStatus"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MemberProfile",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent_federation",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "member_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "security_clearance",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "is_active",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "contribution_score",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

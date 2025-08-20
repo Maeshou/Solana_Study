@@ -1,15 +1,69 @@
 [
   {
-    "name": "ThawAccountCtxnxzu",
+    "name": "create_proposal",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateProposal >",
+      "title: String",
+      "description: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let governance_info = ctx . accounts . governance . to_account_info () ;",
+      "require ! (governance_info . owner == ctx . program_id , ErrorCode :: InvalidGovernanceOwner) ;",
+      "let proposal_info = ctx . accounts . proposal . to_account_info () ;",
+      "require ! (proposal_info . owner == ctx . program_id , ErrorCode :: InvalidProposalOwner) ;",
+      "let proposal = & mut ctx . accounts . proposal ;",
+      "proposal . governance = ctx . accounts . governance . key () ;",
+      "proposal . proposer = ctx . accounts . proposer . key () ;",
+      "proposal . title = title ;",
+      "proposal . description = description ;",
+      "proposal . votes_for = 0 ;",
+      "proposal . votes_against = 0 ;",
+      "proposal . created_at = Clock :: get () ? . unix_timestamp ;",
+      "proposal . is_active = true ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "vote",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Vote >",
+      "vote_type: VoteType"
+    ],
+    "attributes": [],
+    "body": [
+      "require ! (ctx . accounts . proposal . to_account_info () . owner == ctx . program_id , ErrorCode :: InvalidProposalOwner) ;",
+      "require ! (ctx . accounts . vote_record . to_account_info () . owner == ctx . program_id , ErrorCode :: InvalidVoteRecordOwner) ;",
+      "let proposal = & mut ctx . accounts . proposal ;",
+      "require ! (proposal . is_active , ErrorCode :: ProposalNotActive) ;",
+      "let vote_record = & mut ctx . accounts . vote_record ;",
+      "vote_record . voter = ctx . accounts . voter . key () ;",
+      "vote_record . proposal = ctx . accounts . proposal . key () ;",
+      "vote_record . vote_type = vote_type . clone () ;",
+      "match vote_type { VoteType :: For => proposal . votes_for += 1 , VoteType :: Against => proposal . votes_against += 1 , }",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CreateProposal",
     "node_type": "struct",
     "fields": [
       {
-        "name": "account",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
+        "name": "governance",
+        "attribute": "# [account (constraint = governance . to_account_info () . owner == program_id)]",
+        "field_type": "Account < 'info , Governance >"
       },
       {
-        "name": "authority",
+        "name": "proposal",
+        "attribute": "# [account (init , payer = proposer , space = 8 + 32 + 32 + 4 + title . len () + 4 + description . len () + 8 + 8 + 8 + 1 , constraint = proposal . to_account_info () . owner == program_id)]",
+        "field_type": "Account < 'info , Proposal >"
+      },
+      {
+        "name": "proposer",
         "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
       },
@@ -24,11 +78,45 @@
     "body": null
   },
   {
-    "name": "DataAccount",
+    "name": "Vote",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data",
+        "name": "proposal",
+        "attribute": "# [account (mut , constraint = proposal . to_account_info () . owner == program_id)]",
+        "field_type": "Account < 'info , Proposal >"
+      },
+      {
+        "name": "vote_record",
+        "attribute": "# [account (init , payer = voter , space = 8 + 32 + 32 + 1 , seeds = [b\"vote\" , proposal . key () . as_ref () , voter . key () . as_ref ()] , bump , constraint = vote_record . to_account_info () . owner == program_id)]",
+        "field_type": "Account < 'info , VoteRecord >"
+      },
+      {
+        "name": "voter",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Governance",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "proposal_count",
         "attribute": null,
         "field_type": "u64"
       }
@@ -38,19 +126,76 @@
     "body": null
   },
   {
-    "name": "thaw_account",
-    "node_type": "function",
-    "fields": null,
-    "inputs": [
-      "ctx: Context < ThawAccountCtxnxzu >",
-      "amount: u64"
+    "name": "Proposal",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "governance",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "proposer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "title",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "description",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "votes_for",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "votes_against",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "created_at",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "is_active",
+        "attribute": null,
+        "field_type": "bool"
+      }
     ],
-    "attributes": [],
-    "body": [
-      "let acct = & mut ctx . accounts . account ;",
-      "* * ctx . accounts . account . to_account_info () . try_borrow_mut_lamports () ? += amount ;",
-      "msg ! (\"Executed thaw_account logic\") ;",
-      "Ok (())"
-    ]
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "VoteRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "voter",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "proposal",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "vote_type",
+        "attribute": null,
+        "field_type": "VoteType"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
   }
 ]

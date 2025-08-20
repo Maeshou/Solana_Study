@@ -1,0 +1,159 @@
+[
+  {
+    "name": "Attendance",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "attendees",
+        "attribute": null,
+        "field_type": "Vec < Pubkey >"
+      },
+      {
+        "name": "threshold",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "closed",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "last_update_ts",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "initialize_attendance",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeAttendance >",
+      "threshold: u8"
+    ],
+    "attributes": [
+      "# [doc = \" 出席トラッカー初期化：thresholdだけ設定し、残りはデフォルト\"]"
+    ],
+    "body": [
+      "let atd = & mut ctx . accounts . attendance ;",
+      "let now = ctx . accounts . clock . unix_timestamp ;",
+      "* atd = Attendance { bump : * ctx . bumps . get (\"attendance\") . unwrap () , threshold , last_update_ts : now , .. Default :: default () } ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "check_in",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyAttendance >"
+    ],
+    "attributes": [
+      "# [doc = \" チェックイン：まだクローズしていなければ参加を記録し、閾値到達で自動クローズ\"]"
+    ],
+    "body": [
+      "let atd = & mut ctx . accounts . attendance ;",
+      "let now = ctx . accounts . clock . unix_timestamp ;",
+      "if ! atd . closed",
+      "{",
+      "atd . attendees . push (ctx . accounts . user . key ()) ;",
+      "if atd . attendees . len () as u8 >= atd . threshold",
+      "{",
+      "atd . closed = true ;",
+      "}",
+      "}",
+      "atd . last_update_ts = now ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "reopen",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyAttendance >"
+    ],
+    "attributes": [
+      "# [doc = \" 再オープン：閉鎖を解除し、時刻を更新\"]"
+    ],
+    "body": [
+      "let atd = & mut ctx . accounts . attendance ;",
+      "atd . closed = false ;",
+      "atd . last_update_ts = ctx . accounts . clock . unix_timestamp ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializeAttendance",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "attendance",
+        "attribute": "# [account (init_zeroed , payer = authority , seeds = [b\"attendance\" , authority . key () . as_ref ()] , bump , space = 8 + 1 + (4 + 10 * 32) + 1 + 1 + 8)]",
+        "field_type": "Account < 'info , Attendance >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [doc = \" 管理者（署名必須）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": "# [doc = \" 時刻取得用\"]",
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ModifyAttendance",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "attendance",
+        "attribute": "# [account (mut , seeds = [b\"attendance\" , authority . key () . as_ref ()] , bump = attendance . bump ,)]",
+        "field_type": "Account < 'info , Attendance >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [doc = \" チェックイン／再オープンを行うユーザー（署名必須）\"] # [account (signer)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" チェックイン対象のユーザー（キーのみ使用）\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": "# [doc = \" 時刻取得用\"]",
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

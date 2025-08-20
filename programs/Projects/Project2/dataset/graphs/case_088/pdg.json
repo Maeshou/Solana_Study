@@ -1,9 +1,9 @@
 [
   {
-    "name": "close_position",
+    "name": "init_ref",
     "inputs": [
-      "ctx: Context < ClosePositionCtxdoyw >",
-      "amount: u64"
+      "ctx: Context < InitRef >",
+      "rate_bps: u16"
     ],
     "nodes": [
       {
@@ -12,18 +12,22 @@
       },
       {
         "id": 1,
-        "label": "let acct = & mut ctx . accounts . position ;"
+        "label": "let cfg = & mut ctx . accounts . config ;"
       },
       {
         "id": 2,
-        "label": "acct . data = acct . data . checked_add (amount) . unwrap () ;"
+        "label": "cfg . rate = rate_bps ;"
       },
       {
         "id": 3,
-        "label": "msg ! (\"Executed close_position logic\") ;"
+        "label": "cfg . counts = std :: collections :: BTreeMap :: new () ;"
       },
       {
         "id": 4,
+        "label": "emit ! (ReferralInitialized { rate_bps }) ;"
+      },
+      {
+        "id": 5,
         "label": "Ok (())"
       }
     ],
@@ -31,17 +35,114 @@
       {
         "from": 1,
         "to": 1,
-        "label": "def: acct"
+        "label": "def: cfg"
       },
       {
         "from": 1,
         "to": 2,
-        "label": "data_dep: acct"
+        "label": "data_dep: cfg"
       },
       {
         "from": 1,
-        "to": 2,
-        "label": "data_dep: acct"
+        "to": 3,
+        "label": "data_dep: cfg"
+      }
+    ]
+  },
+  {
+    "name": "refer",
+    "inputs": [
+      "ctx: Context < Refer >",
+      "amount: u64"
+    ],
+    "nodes": [
+      {
+        "id": 6,
+        "label": "Entry"
+      },
+      {
+        "id": 7,
+        "label": "let cfg = & mut ctx . accounts . config ;"
+      },
+      {
+        "id": 8,
+        "label": "let referrer = ctx . accounts . referrer . key () ;"
+      },
+      {
+        "id": 9,
+        "label": "let entry = cfg . counts . entry (referrer) . or_insert (0) ;"
+      },
+      {
+        "id": 10,
+        "label": "* entry = entry . checked_add (amount) . unwrap () ;"
+      },
+      {
+        "id": 11,
+        "label": "let reward = amount * cfg . rate as u64 / 10_000 ;"
+      },
+      {
+        "id": 12,
+        "label": "* * ctx . accounts . referrer . to_account_info () . lamports . borrow_mut () += reward ;"
+      },
+      {
+        "id": 13,
+        "label": "emit ! (Referred { referrer , amount , reward }) ;"
+      },
+      {
+        "id": 14,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 7,
+        "to": 7,
+        "label": "def: cfg"
+      },
+      {
+        "from": 8,
+        "to": 8,
+        "label": "def: referrer"
+      },
+      {
+        "from": 9,
+        "to": 9,
+        "label": "def: entry"
+      },
+      {
+        "from": 7,
+        "to": 9,
+        "label": "data_dep: cfg"
+      },
+      {
+        "from": 8,
+        "to": 9,
+        "label": "data_dep: referrer"
+      },
+      {
+        "from": 9,
+        "to": 10,
+        "label": "data_dep: entry"
+      },
+      {
+        "from": 9,
+        "to": 10,
+        "label": "data_dep: entry"
+      },
+      {
+        "from": 11,
+        "to": 11,
+        "label": "def: reward"
+      },
+      {
+        "from": 7,
+        "to": 11,
+        "label": "data_dep: cfg"
+      },
+      {
+        "from": 11,
+        "to": 12,
+        "label": "data_dep: reward"
       }
     ]
   }

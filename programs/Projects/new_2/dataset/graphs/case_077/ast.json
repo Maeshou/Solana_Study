@@ -1,0 +1,60 @@
+[
+  {
+    "name": "draw_nft",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < DrawNft >",
+      "user_seed: u64"
+    ],
+    "attributes": [
+      "# [doc = \" ガチャプールからランダムに NFT を引く  \"]",
+      "# [doc = \" （`gacha_pool_account` の owner チェックを一切行っていないため、  \"]",
+      "# [doc = \"  攻撃者が他人のプールアカウントを指定してレア NFT を独占入手できます）\"]"
+    ],
+    "body": [
+      "let pool_info = & ctx . accounts . gacha_pool_account . to_account_info () ;",
+      "let pool_data = & pool_info . data . borrow () ;",
+      "if pool_data . len () < 8",
+      "{",
+      "return err ! (ErrorCode :: DataTooShort) ;",
+      "}",
+      "let n = u64 :: from_le_bytes (pool_data [0 .. 8] . try_into () . unwrap ()) as usize ;",
+      "let keys_start = 8 ;",
+      "let keys_end = 8 + 32 * n ;",
+      "let rar_start = keys_end ;",
+      "let rar_end = rar_start + n ;",
+      "if pool_data . len () < rar_end",
+      "{",
+      "return err ! (ErrorCode :: DataTooShort) ;",
+      "}",
+      "let key_bytes = & pool_data [keys_start .. keys_end] ;",
+      "let rarity = & pool_data [rar_start .. rar_end] ;",
+      "let slot = Clock :: get () ? . slot as u64 ;",
+      "let idx = ((user_seed ^ slot) as usize) % n ;",
+      "let chosen_key = Pubkey :: new (& key_bytes [idx * 32 .. idx * 32 + 32]) ;",
+      "let chosen_rarity = rarity [idx] ;",
+      "msg ! (\"Gacha draw: user_seed={} slot={} idx={} rarity={}\" , user_seed , slot , idx , chosen_rarity) ;",
+      "Ok (chosen_key)"
+    ]
+  },
+  {
+    "name": "DrawNft",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "gacha_pool_account",
+        "attribute": "# [doc = \" CHECK: owner == program_id の検証を一切行っていない AccountInfo\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" ガチャを引くユーザー（署名のみ検証）\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

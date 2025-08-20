@@ -1,0 +1,241 @@
+[
+  {
+    "name": "init_player",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitPlayer >",
+      "initial_level: u32",
+      "initial_xp: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let player = & mut ctx . accounts . player ;",
+      "player . owner = ctx . accounts . owner . key () ;",
+      "player . level = initial_level ;",
+      "player . xp = initial_xp ;",
+      "player . energy = 100 ;",
+      "player . max_energy = 100 ;",
+      "player . is_active = true ;",
+      "msg ! (\"Player {} initialized with level {}\" , player . owner , player . level) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_session",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitSession >",
+      "session_id: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let session = & mut ctx . accounts . session ;",
+      "session . player = ctx . accounts . player . key () ;",
+      "session . session_id = session_id ;",
+      "session . xp_gained = 0 ;",
+      "session . energy_consumed = 0 ;",
+      "session . is_finished = false ;",
+      "msg ! (\"New session {} started for player {}\" , session . session_id , session . player) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "progress_in_session",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ProgressInSession >",
+      "actions: Vec < u8 >"
+    ],
+    "attributes": [],
+    "body": [
+      "let player = & mut ctx . accounts . player ;",
+      "let session = & mut ctx . accounts . session ;",
+      "if session . is_finished",
+      "{",
+      "return Err (ErrorCode :: SessionFinished . into ()) ;",
+      "}",
+      "let mut total_xp_gained : u64 = 0 ;",
+      "let mut total_energy_cost : u8 = 0 ;",
+      "let max_actions = 20 ;",
+      "for & action_type in actions . iter () . take (max_actions)",
+      "{",
+      "let energy_cost = if action_type == 1",
+      "{",
+      "5 } else { 10 } ;",
+      "if player . energy < energy_cost",
+      "{",
+      "player . is_active = false ;",
+      "session . is_finished = true ;",
+      "msg ! (\"Not enough energy. Session terminated.\") ;",
+      "break ;",
+      "} else",
+      "{",
+      "let xp_gain = if action_type == 1 { 20 } else { 50 } ;",
+      "player . xp = player . xp . saturating_add (xp_gain as u64) ;",
+      "player . energy = player . energy . saturating_sub (energy_cost) ;",
+      "total_xp_gained += xp_gain as u64 ;",
+      "total_energy_cost += energy_cost ;",
+      "let xp_to_next_level = player . level * 1000 ;",
+      "if player . xp >= xp_to_next_level as u64",
+      "{",
+      "player . level = player . level . saturating_add (1) ;",
+      "player . xp = player . xp . saturating_sub (xp_to_next_level as u64) ;",
+      "player . max_energy = player . max_energy . saturating_add (10) ;",
+      "msg ! (\"Player leveled up to",
+      "{",
+      "}!\" , player . level) ;",
+      "} }",
+      "}",
+      "msg ! (\"Session {} processed. Gained {} XP, consumed {} energy.\" , session . session_id , total_xp_gained , total_energy_cost) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitPlayer",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "player",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 4 + 8 + 1 + 1 + 1)]",
+        "field_type": "Account < 'info , PlayerStats >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitSession",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "player",
+        "attribute": "# [account (mut , has_one = player)]",
+        "field_type": "Account < 'info , PlayerStats >"
+      },
+      {
+        "name": "session",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 8 + 1 + 1)]",
+        "field_type": "Account < 'info , GameSession >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ProgressInSession",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "player",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , PlayerStats >"
+      },
+      {
+        "name": "session",
+        "attribute": "# [account (mut , has_one = player)]",
+        "field_type": "Account < 'info , GameSession >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PlayerStats",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "level",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "xp",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "energy",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "max_energy",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "is_active",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GameSession",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "player",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "session_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "xp_gained",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "energy_consumed",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "is_finished",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

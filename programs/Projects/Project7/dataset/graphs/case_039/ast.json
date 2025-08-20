@@ -1,0 +1,152 @@
+[
+  {
+    "name": "init_station",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitStation >",
+      "required_power: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let station_state = & mut ctx . accounts . station_state ;",
+      "station_state . owner = ctx . accounts . owner . key () ;",
+      "station_state . required_power = if required_power < 1 { 1 } else { required_power } ;",
+      "station_state . progress_points = 5 ;",
+      "station_state . materials_burned = 7 ;",
+      "station_state . cooldown_counter = 2 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_craft",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActCraft >",
+      "provided_power: u32",
+      "base_cost: u64",
+      "layer_count: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let station_state = & mut ctx . accounts . station_state ;",
+      "let mut total_cost : u64 = if base_cost < 1 { 1 } else { base_cost } ;",
+      "let mut layer_cursor : u8 = 0 ;",
+      "while layer_cursor < layer_count",
+      "{",
+      "total_cost = total_cost + total_cost / 6 + 1 ;",
+      "layer_cursor = layer_cursor + 1 ;",
+      "}",
+      "if station_state . cooldown_counter > 0",
+      "{",
+      "station_state . cooldown_counter = station_state . cooldown_counter - 1 ;",
+      "}",
+      "if provided_power < station_state . required_power",
+      "{",
+      "station_state . cooldown_counter = station_state . cooldown_counter + 2 ;",
+      "return Err (CraftErr :: PowerLow . into ()) ;",
+      "}",
+      "token :: burn (ctx . accounts . burn_ctx () , total_cost) ? ;",
+      "station_state . materials_burned = station_state . materials_burned + total_cost ;",
+      "station_state . progress_points = station_state . progress_points + (total_cost / 5 + 1) ;",
+      "if station_state . progress_points > station_state . materials_burned / 3",
+      "{",
+      "station_state . cooldown_counter = station_state . cooldown_counter + 1 ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitStation",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "station_state",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 4 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , StationState >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActCraft",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "station_state",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , StationState >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "material_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "material_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "StationState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "required_power",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "progress_points",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "materials_burned",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "cooldown_counter",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

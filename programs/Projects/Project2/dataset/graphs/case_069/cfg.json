@@ -1,6 +1,6 @@
 [
   {
-    "name": "initialize_tournament",
+    "name": "create_subscription_plan",
     "nodes": [
       {
         "id": 0,
@@ -8,22 +8,26 @@
       },
       {
         "id": 1,
-        "label": "let acct = & mut ctx . accounts . tournament ;"
+        "label": "let plan = & mut ctx . accounts . plan ;"
       },
       {
         "id": 2,
-        "label": "assert ! (ctx . accounts . tournament . data > 0) ;"
+        "label": "plan . provider = ctx . accounts . provider . key () ;"
       },
       {
         "id": 3,
-        "label": "acct . data -= amount ;"
+        "label": "plan . price = price ;"
       },
       {
         "id": 4,
-        "label": "msg ! (\"Executed initialize_tournament logic\") ;"
+        "label": "plan . interval = interval ;"
       },
       {
         "id": 5,
+        "label": "plan . active_subscriptions = 0 ;"
+      },
+      {
+        "id": 6,
         "label": "Ok (())"
       }
     ],
@@ -51,7 +55,232 @@
       {
         "from": 4,
         "to": 5,
-        "label": "call"
+        "label": "next"
+      },
+      {
+        "from": 5,
+        "to": 6,
+        "label": "next"
+      }
+    ]
+  },
+  {
+    "name": "subscribe",
+    "nodes": [
+      {
+        "id": 7,
+        "label": "Entry"
+      },
+      {
+        "id": 8,
+        "label": "let plan = & ctx . accounts . plan ;"
+      },
+      {
+        "id": 9,
+        "label": "let subscription = & mut ctx . accounts . subscription ;"
+      },
+      {
+        "id": 10,
+        "label": "subscription . subscriber = ctx . accounts . subscriber . key () ;"
+      },
+      {
+        "id": 11,
+        "label": "subscription . plan = plan . key () ;"
+      },
+      {
+        "id": 12,
+        "label": "subscription . start_time = Clock :: get () ? . unix_timestamp ;"
+      },
+      {
+        "id": 13,
+        "label": "subscription . next_payment = Clock :: get () ? . unix_timestamp + plan . interval ;"
+      },
+      {
+        "id": 14,
+        "label": "subscription . is_active = true ;"
+      },
+      {
+        "id": 15,
+        "label": "let cpi_accounts = anchor_spl :: token :: Transfer { from : ctx . accounts . subscriber_token_account . to_account_info () , to : ctx . accounts . provider_token_account . to_account_info () , authority : ctx . accounts . subscriber . to_account_info () , } ;"
+      },
+      {
+        "id": 16,
+        "label": "let cpi_program = ctx . accounts . token_program . to_account_info () ;"
+      },
+      {
+        "id": 17,
+        "label": "let cpi_ctx = CpiContext :: new (cpi_program , cpi_accounts) ;"
+      },
+      {
+        "id": 18,
+        "label": "anchor_spl :: token :: transfer (cpi_ctx , plan . price) ? ;"
+      },
+      {
+        "id": 19,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 7,
+        "to": 8,
+        "label": "next"
+      },
+      {
+        "from": 8,
+        "to": 9,
+        "label": "next"
+      },
+      {
+        "from": 9,
+        "to": 10,
+        "label": "next"
+      },
+      {
+        "from": 10,
+        "to": 11,
+        "label": "next"
+      },
+      {
+        "from": 11,
+        "to": 12,
+        "label": "next"
+      },
+      {
+        "from": 12,
+        "to": 13,
+        "label": "next"
+      },
+      {
+        "from": 13,
+        "to": 14,
+        "label": "next"
+      },
+      {
+        "from": 14,
+        "to": 15,
+        "label": "next"
+      },
+      {
+        "from": 15,
+        "to": 16,
+        "label": "next"
+      },
+      {
+        "from": 16,
+        "to": 17,
+        "label": "next"
+      },
+      {
+        "from": 17,
+        "to": 18,
+        "label": "next"
+      },
+      {
+        "from": 18,
+        "to": 19,
+        "label": "next"
+      }
+    ]
+  },
+  {
+    "name": "process_payment",
+    "nodes": [
+      {
+        "id": 20,
+        "label": "Entry"
+      },
+      {
+        "id": 21,
+        "label": "let plan = & ctx . accounts . plan ;"
+      },
+      {
+        "id": 22,
+        "label": "let subscription = & mut ctx . accounts . subscription ;"
+      },
+      {
+        "id": 23,
+        "label": "require ! (subscription . is_active , SubscriptionError :: InactiveSubscription) ;"
+      },
+      {
+        "id": 24,
+        "label": "require ! (Clock :: get () ?. unix_timestamp >= subscription . next_payment , SubscriptionError :: PaymentNotDue) ;"
+      },
+      {
+        "id": 25,
+        "label": "let cpi_accounts = anchor_spl :: token :: Transfer { from : ctx . accounts . subscriber_token_account . to_account_info () , to : ctx . accounts . provider_token_account . to_account_info () , authority : ctx . accounts . subscriber . to_account_info () , } ;"
+      },
+      {
+        "id": 26,
+        "label": "let cpi_program = ctx . accounts . token_program . to_account_info () ;"
+      },
+      {
+        "id": 27,
+        "label": "let cpi_ctx = CpiContext :: new (cpi_program , cpi_accounts) ;"
+      },
+      {
+        "id": 28,
+        "label": "anchor_spl :: token :: transfer (cpi_ctx , plan . price) ? ;"
+      },
+      {
+        "id": 29,
+        "label": "subscription . next_payment = Clock :: get () ? . unix_timestamp + plan . interval ;"
+      },
+      {
+        "id": 30,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 20,
+        "to": 21,
+        "label": "next"
+      },
+      {
+        "from": 21,
+        "to": 22,
+        "label": "next"
+      },
+      {
+        "from": 22,
+        "to": 23,
+        "label": "next"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "next"
+      },
+      {
+        "from": 24,
+        "to": 25,
+        "label": "next"
+      },
+      {
+        "from": 25,
+        "to": 26,
+        "label": "next"
+      },
+      {
+        "from": 26,
+        "to": 27,
+        "label": "next"
+      },
+      {
+        "from": 27,
+        "to": 28,
+        "label": "next"
+      },
+      {
+        "from": 28,
+        "to": 29,
+        "label": "next"
+      },
+      {
+        "from": 29,
+        "to": 30,
+        "label": "next"
       }
     ]
   }

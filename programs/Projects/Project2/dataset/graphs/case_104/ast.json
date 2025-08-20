@@ -1,0 +1,180 @@
+[
+  {
+    "name": "initialize_vesting",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeVesting >",
+      "release_timestamp: i64",
+      "total_amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" ベスティングアカウントの初期化\"]",
+      "# [doc = \" └ トークンをベネフィシャリー→Vault PDA に必ず預託する\"]"
+    ],
+    "body": [
+      "let vest = & mut ctx . accounts . vesting ;",
+      "vest . beneficiary = ctx . accounts . beneficiary . key () ;",
+      "vest . vault_mint = ctx . accounts . vault_mint . key () ;",
+      "vest . release_time = release_timestamp ;",
+      "vest . remaining = total_amount ;",
+      "vest . bump = * ctx . bumps . get (\"vesting\") . unwrap () ;",
+      "let cpi_accounts = Transfer { from : ctx . accounts . beneficiary_token_account . to_account_info () , to : ctx . accounts . vault_token_account . to_account_info () , authority : ctx . accounts . beneficiary . to_account_info () , } ;",
+      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts ,) ;",
+      "transfer (cpi_ctx , total_amount) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "claim",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ClaimVesting >"
+    ],
+    "attributes": [
+      "# [doc = \" トークン請求\"]",
+      "# [doc = \" └ Release 時刻を超えていれば、PDA Vault→Dest に確実に移動\"]"
+    ],
+    "body": [
+      "let vest = & mut ctx . accounts . vesting ;",
+      "let now = Clock :: get () ? . unix_timestamp ;",
+      "require ! (now >= vest . release_time , ErrorCode :: TooEarly) ;",
+      "let amount = vest . remaining ;",
+      "vest . remaining = 0 ;",
+      "let seeds = & [b\"vesting\" . as_ref () , vest . beneficiary . as_ref () , vest . vault_mint . as_ref () , & [vest . bump] ,] ;",
+      "let signer = & [& seeds [..]] ;",
+      "let cpi_accounts = Transfer { from : ctx . accounts . vault_token_account . to_account_info () , to : ctx . accounts . dest_token_account . to_account_info () , authority : ctx . accounts . vesting . to_account_info () , } ;",
+      "let cpi_ctx = CpiContext :: new_with_signer (ctx . accounts . token_program . to_account_info () , cpi_accounts , signer ,) ;",
+      "transfer (cpi_ctx , amount) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializeVesting",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vesting",
+        "attribute": "# [doc = \" ベスティング情報を保持する PDA\"] # [account (init , payer = beneficiary , seeds = [b\"vesting\" , beneficiary . key () . as_ref () , vault_mint . key () . as_ref ()] , bump , space = 8 + 32 + 32 + 8 + 8 + 1)]",
+        "field_type": "Account < 'info , VestingAccount >"
+      },
+      {
+        "name": "beneficiary_token_account",
+        "attribute": "# [doc = \" ベネフィシャリーのトークン預託元\"] # [account (mut , constraint = beneficiary_token_account . owner == * beneficiary . key , constraint = beneficiary_token_account . mint == vault_mint . key ())]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "vault_token_account",
+        "attribute": "# [doc = \" Vault 用 TokenAccount（PDA、authority＝vesting）\"] # [account (mut , seeds = [b\"vault\" , vesting . key () . as_ref ()] , bump , constraint = vault_token_account . owner == vesting . key () , constraint = vault_token_account . mint == vault_mint . key ())]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "beneficiary",
+        "attribute": "# [doc = \" 請求権者（署名者）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "vault_mint",
+        "attribute": "# [doc = \" 扱うトークンのミント\"]",
+        "field_type": "Account < 'info , anchor_spl :: token :: Mint >"
+      },
+      {
+        "name": "token_program",
+        "attribute": "# [doc = \" CPI 呼び出し先を固定\"] # [account (address = token :: ID)]",
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "rent",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Rent >"
+      },
+      {
+        "name": "clock",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Clock >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ClaimVesting",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vesting",
+        "attribute": "# [doc = \" 既存の vesting PDA（has_one で beneficiary==署名者 を担保）\"] # [account (mut , has_one = beneficiary , seeds = [b\"vesting\" , beneficiary . key () . as_ref () , vault_mint . key () . as_ref ()] , bump = vesting . bump)]",
+        "field_type": "Account < 'info , VestingAccount >"
+      },
+      {
+        "name": "vault_token_account",
+        "attribute": "# [doc = \" Vault PDA の TokenAccount（PDA／authority＝vesting／mintチェック）\"] # [account (mut , seeds = [b\"vault\" , vesting . key () . as_ref ()] , bump = vesting . bump , constraint = vault_token_account . owner == vesting . key () , constraint = vault_token_account . mint == vesting . vault_mint)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "dest_token_account",
+        "attribute": "# [doc = \" 受取先 TokenAccount（署名者が所有、mintチェック）\"] # [account (mut , constraint = dest_token_account . owner == * beneficiary . key , constraint = dest_token_account . mint == vesting . vault_mint)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "beneficiary",
+        "attribute": "# [doc = \" 実際に請求するユーザー（署名者）\"]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "vault_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , anchor_spl :: token :: Mint >"
+      },
+      {
+        "name": "token_program",
+        "attribute": "# [account (address = token :: ID)]",
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "VestingAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "beneficiary",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "vault_mint",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "release_time",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "remaining",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

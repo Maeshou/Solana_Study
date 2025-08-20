@@ -1,0 +1,226 @@
+[
+  {
+    "name": "initialize_recipe",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeRecipe >",
+      "recipe_id: u64",
+      "name: String",
+      "description: String"
+    ],
+    "attributes": [
+      "# [doc = \" レシピ作成：ID と名前・説明を受け取り、最小限のフィールドを設定\"]"
+    ],
+    "body": [
+      "let recipe = & mut ctx . accounts . recipe ;",
+      "recipe . owner = ctx . accounts . user . key () ;",
+      "recipe . bump = * ctx . bumps . get (\"recipe\") . unwrap () ;",
+      "recipe . recipe_id = recipe_id ;",
+      "recipe . name = name ;",
+      "recipe . description = description ;",
+      "let now = ctx . accounts . clock . unix_timestamp ;",
+      "recipe . times_cooked = 0 ;",
+      "recipe . total_rating = 0 ;",
+      "recipe . rating_count = 0 ;",
+      "recipe . average_rating = 0 ;",
+      "recipe . archived = false ;",
+      "recipe . last_updated_ts = now ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "cook_recipe",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyRecipe >"
+    ],
+    "attributes": [
+      "# [doc = \" 調理回数登録：`times_cooked` をインクリメントし、タイムスタンプを更新\"]"
+    ],
+    "body": [
+      "let r = & mut ctx . accounts . recipe ;",
+      "r . times_cooked = r . times_cooked . wrapping_add (1) ;",
+      "r . last_updated_ts = ctx . accounts . clock . unix_timestamp ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "submit_rating",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyRecipe >",
+      "rating: u8"
+    ],
+    "attributes": [
+      "# [doc = \" 評価投稿：合計評価・件数を更新し、平均を再計算、タイムスタンプも更新\"]"
+    ],
+    "body": [
+      "let r = & mut ctx . accounts . recipe ;",
+      "r . total_rating = r . total_rating . wrapping_add (rating as u64) ;",
+      "r . rating_count = r . rating_count . wrapping_add (1) ;",
+      "r . average_rating = (r . total_rating / r . rating_count) as u8 ;",
+      "r . last_updated_ts = ctx . accounts . clock . unix_timestamp ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "rename_recipe",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyRecipe >",
+      "new_name: String"
+    ],
+    "attributes": [
+      "# [doc = \" レシピ名変更：`name` を更新し、タイムスタンプを更新\"]"
+    ],
+    "body": [
+      "let r = & mut ctx . accounts . recipe ;",
+      "r . name = new_name ;",
+      "r . last_updated_ts = ctx . accounts . clock . unix_timestamp ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "toggle_archive",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyRecipe >"
+    ],
+    "attributes": [
+      "# [doc = \" アーカイブ切り替え：`archived` をトグルし、タイムスタンプを更新\"]"
+    ],
+    "body": [
+      "let r = & mut ctx . accounts . recipe ;",
+      "r . archived = ! r . archived ;",
+      "r . last_updated_ts = ctx . accounts . clock . unix_timestamp ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializeRecipe",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "recipe",
+        "attribute": "# [doc = \" ゼロクリア済み → 必要フィールドだけ設定\"] # [account (init_zeroed , payer = user , seeds = [b\"recipe\" , user . key () . as_ref () , & recipe_id . to_le_bytes ()] , bump , space = 8 + 32 + 1 + 8 + 4 + 100 + 4 + 200 + 8 + 8 + 8 + 1 + 1 + 8)]",
+        "field_type": "Account < 'info , Recipe >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" レシピ作成者（署名必須）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": "# [doc = \" 時刻取得用\"]",
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ModifyRecipe",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "recipe",
+        "attribute": "# [doc = \" 既存の Recipe（PDA 検証 + オーナーチェック）\"] # [account (mut , seeds = [b\"recipe\" , owner . key () . as_ref () , & recipe . recipe_id . to_le_bytes ()] , bump = recipe . bump , has_one = owner)]",
+        "field_type": "Account < 'info , Recipe >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" レシピ所有者（署名必須）\"] # [account (signer)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": "# [doc = \" 時刻取得用\"]",
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Recipe",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "recipe_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "description",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "times_cooked",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_rating",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "rating_count",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "average_rating",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "archived",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "last_updated_ts",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

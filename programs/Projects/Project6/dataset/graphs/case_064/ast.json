@@ -1,0 +1,249 @@
+[
+  {
+    "name": "init_warehouse",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitWarehouse >",
+      "code: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let w = & mut ctx . accounts . warehouse ;",
+      "w . owner = ctx . accounts . owner . key () ;",
+      "w . code = code ;",
+      "w . items = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "create_slots",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateSlots >",
+      "input_kind: SlotType",
+      "output_kind: SlotType"
+    ],
+    "attributes": [],
+    "body": [
+      "let w = & mut ctx . accounts . warehouse ;",
+      "let a = & mut ctx . accounts . input_slot ;",
+      "a . warehouse = w . key () ;",
+      "a . kind = input_kind ;",
+      "a . count = 0 ;",
+      "let b = & mut ctx . accounts . output_slot ;",
+      "b . warehouse = w . key () ;",
+      "b . kind = output_kind ;",
+      "b . count = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "move_items",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < MoveItems >",
+      "batches: Vec < u16 >"
+    ],
+    "attributes": [],
+    "body": [
+      "let w = & mut ctx . accounts . warehouse ;",
+      "let input = & mut ctx . accounts . input_slot ;",
+      "let output = & mut ctx . accounts . output_slot ;",
+      "let rec = & mut ctx . accounts . record ;",
+      "let mut moved : u32 = 0 ;",
+      "let mut entropy : u16 = 0 ;",
+      "for b in batches",
+      "{",
+      "let cap = b . min (1000) ;",
+      "moved = moved . saturating_add (cap as u32) ;",
+      "entropy ^= (cap << 1) | (cap >> 1) ;",
+      "}",
+      "if input . kind == Inlet",
+      "{",
+      "let take = moved . min (input . count as u32) ;",
+      "input . count = input . count . saturating_sub (take as u16) ;",
+      "output . count = output . count . saturating_add ((take as u16) . min (2000)) ;",
+      "w . items = w . items . saturating_add (take) ;",
+      "msg ! (\"Inlet path: moved=",
+      "{",
+      "}, in.count={}, out.count={}\" , moved , input . count , output . count) ;",
+      "} else",
+      "{",
+      "let give = moved . min (2000) ;",
+      "input . count = input . count . saturating_add (give as u16) ;",
+      "output . count = output . count . saturating_sub (give . min (output . count as u32) as u16) ;",
+      "w . items = w . items . saturating_add (give) ;",
+      "msg ! (\"Outlet path: moved=",
+      "{",
+      "}, in.count={}, out.count={}\" , moved , input . count , output . count) ;",
+      "}",
+      "let mut x = (w . items as u128) . max (1) ;",
+      "let mut i = 0 ;",
+      "while i < 3",
+      "{",
+      "x = (x + (w . items as u128 / x)) . max (1) / 2 ;",
+      "i += 1 ;",
+      "}",
+      "rec . warehouse = w . key () ;",
+      "rec . heat = (x as u32) . saturating_add (entropy as u32) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitWarehouse",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "warehouse",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 4 + 4)]",
+        "field_type": "Account < 'info , Warehouse >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreateSlots",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "warehouse",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Warehouse >"
+      },
+      {
+        "name": "input_slot",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 2)]",
+        "field_type": "Account < 'info , SlotCard >"
+      },
+      {
+        "name": "output_slot",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 2)]",
+        "field_type": "Account < 'info , SlotCard >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MoveItems",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "warehouse",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Warehouse >"
+      },
+      {
+        "name": "record",
+        "attribute": "# [account (mut , has_one = warehouse)]",
+        "field_type": "Account < 'info , Record >"
+      },
+      {
+        "name": "input_slot",
+        "attribute": "# [account (mut , has_one = warehouse , constraint = input_slot . kind != output_slot . kind @ ErrCode :: CosplayBlocked)]",
+        "field_type": "Account < 'info , SlotCard >"
+      },
+      {
+        "name": "output_slot",
+        "attribute": "# [account (mut , has_one = warehouse)]",
+        "field_type": "Account < 'info , SlotCard >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Warehouse",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "code",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "items",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SlotCard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "warehouse",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "kind",
+        "attribute": null,
+        "field_type": "SlotType"
+      },
+      {
+        "name": "count",
+        "attribute": null,
+        "field_type": "u16"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Record",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "warehouse",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "heat",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

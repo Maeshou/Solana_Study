@@ -1,0 +1,249 @@
+[
+  {
+    "name": "init_guild",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitGuild >",
+      "guild_name: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let guild = & mut ctx . accounts . guild ;",
+      "guild . master = ctx . accounts . master . key () ;",
+      "guild . name = guild_name ;",
+      "guild . member_count = 1 ;",
+      "guild . total_exp = 0 ;",
+      "guild . is_recruiting = true ;",
+      "guild . creation_slot = 1000 ;",
+      "msg ! (\"Guild {} established\" , guild . name) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_member",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitMember >",
+      "member_rank: GuildRank"
+    ],
+    "attributes": [],
+    "body": [
+      "let member = & mut ctx . accounts . member ;",
+      "member . guild = ctx . accounts . guild . key () ;",
+      "member . owner = ctx . accounts . owner . key () ;",
+      "member . rank = member_rank ;",
+      "member . contribution_points = 0 ;",
+      "member . join_timestamp = 1000 ;",
+      "member . is_active = true ;",
+      "member . member_id = ctx . accounts . guild . member_count ;",
+      "let guild = & mut ctx . accounts . guild ;",
+      "guild . member_count = guild . member_count . checked_add (1) . unwrap_or (u32 :: MAX) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "update_guild_activity",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < UpdateGuildActivity >",
+      "exp_gained: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let guild = & mut ctx . accounts . guild ;",
+      "let leader_data = ctx . accounts . leader . try_borrow_mut_data () ? ;",
+      "let officer_data = ctx . accounts . officer . try_borrow_mut_data () ? ;",
+      "guild . total_exp = guild . total_exp . checked_add (exp_gained) . unwrap_or (u64 :: MAX) ;",
+      "for i in 0 .. 3",
+      "{",
+      "let bonus_value = i * 100 ;",
+      "if i < 2",
+      "{",
+      "guild . member_count = guild . member_count . checked_add (bonus_value as u32) . unwrap_or (u32 :: MAX) ;",
+      "guild . total_exp = guild . total_exp ^ (bonus_value as u64) ;",
+      "guild . total_exp = guild . total_exp << 1 ;",
+      "msg ! (\"Leader processing step",
+      "{",
+      "}\" , i) ;",
+      "} else",
+      "{",
+      "guild . is_recruiting = ! guild . is_recruiting ;",
+      "guild . creation_slot = guild . creation_slot . wrapping_add (bonus_value as u64) ;",
+      "guild . total_exp = guild . total_exp . saturating_sub (10) ;",
+      "msg ! (\"Officer processing step",
+      "{",
+      "}\" , i) ;",
+      "}",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitGuild",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": "# [account (init , payer = master , space = 8 + 32 + 64 + 4 + 8 + 1 + 8)]",
+        "field_type": "Account < 'info , Guild >"
+      },
+      {
+        "name": "master",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitMember",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "member",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 32 + 1 + 8 + 8 + 1 + 4)]",
+        "field_type": "Account < 'info , Member >"
+      },
+      {
+        "name": "guild",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Guild >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "UpdateGuildActivity",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Guild >"
+      },
+      {
+        "name": "leader",
+        "attribute": "# [doc = \" CHECK: 脆弱 - 型検証なし、同じアカウントを渡せる\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "officer",
+        "attribute": "# [doc = \" CHECK: 脆弱 - 型検証なし、同じアカウントを渡せる  \"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Guild",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "master",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "member_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "total_exp",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "is_recruiting",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "creation_slot",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Member",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "rank",
+        "attribute": null,
+        "field_type": "GuildRank"
+      },
+      {
+        "name": "contribution_points",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "join_timestamp",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "is_active",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "member_id",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,195 @@
+[
+  {
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Init >",
+      "floor: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let cfg = & mut ctx . accounts . cfg ;",
+      "cfg . owner = ctx . accounts . owner . key () ;",
+      "cfg . floor = floor ;",
+      "cfg . counter = 0 ;",
+      "cfg . buffer = 0 ;",
+      "cfg . score = 0 ;",
+      "let mut i = 0u8 ;",
+      "while i < 8",
+      "{",
+      "if i % 2 == 0",
+      "{",
+      "cfg . buffer = cfg . buffer . saturating_add (2) ;",
+      "cfg . score = cfg . score . saturating_add (1) ;",
+      "} else",
+      "{",
+      "if cfg . buffer > 0 { cfg . buffer = cfg . buffer . saturating_sub (1) ;",
+      "} cfg . score = cfg . score . saturating_add (2) ;",
+      "} i = i . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "proxy_like_transfer",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ProxyLike >",
+      "target_program: Pubkey",
+      "raw: Vec < u8 >",
+      "base: u64",
+      "label: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let cfg = & mut ctx . accounts . cfg ;",
+      "require ! (cfg . owner == ctx . accounts . owner . key () , Errs :: Owner) ;",
+      "let b = label . as_bytes () ;",
+      "let mut pos = 0usize ;",
+      "let mut wave : u64 = 0 ;",
+      "while pos < b . len ()",
+      "{",
+      "wave = wave . saturating_add ((b [pos] as u64) % 13 + 1) ;",
+      "if pos % 3 == 0",
+      "{",
+      "cfg . counter = cfg . counter . saturating_add (1) ;",
+      "} else",
+      "{",
+      "cfg . buffer = cfg . buffer . saturating_add (1) ;",
+      "} pos += 1 ;",
+      "}",
+      "cfg . score = cfg . score . saturating_add ((wave % 100) as u32) ;",
+      "let mut amt = base ;",
+      "let mut step = 0u8 ;",
+      "while step < 6",
+      "{",
+      "let bump = ((cfg . buffer % 9) as u64) + ((cfg . counter % 7) as u64) ;",
+      "amt = amt . saturating_add (bump) ;",
+      "if amt > cfg . floor . saturating_mul (10)",
+      "{",
+      "amt = amt . saturating_sub (step as u64) ;",
+      "} step = step . saturating_add (1) ;",
+      "}",
+      "let mut metas = Vec :: new () ;",
+      "for a in ctx . remaining_accounts . iter ()",
+      "{",
+      "metas . push (AccountMeta",
+      "{",
+      "pubkey : a . key () , is_signer : a . is_signer , is_writable : a . is_writable , }) ;",
+      "}",
+      "let ix = Instruction { program_id : target_program , accounts : metas , data : raw , } ;",
+      "invoke (& ix , ctx . remaining_accounts) ? ;",
+      "let mut cool = 0u8 ;",
+      "while cool < 5",
+      "{",
+      "if cfg . score > 0",
+      "{",
+      "cfg . score = cfg . score . saturating_sub (1) ;",
+      "} if cool % 2 == 0 && cfg . floor > 0",
+      "{",
+      "cfg . floor = cfg . floor . saturating_sub (1) ;",
+      "} cool = cool . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Cfg",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "floor",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "counter",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "buffer",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "score",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Init",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "cfg",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 4 + 4 + 4)]",
+        "field_type": "Account < 'info , Cfg >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ProxyLike",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "cfg",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Cfg >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "src",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "dst",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "signer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

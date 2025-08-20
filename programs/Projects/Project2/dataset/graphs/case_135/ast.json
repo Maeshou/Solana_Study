@@ -1,0 +1,155 @@
+[
+  {
+    "name": "initialize_vault",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeVault >"
+    ],
+    "attributes": [
+      "# [doc = \" Vault を初期化：指定ミントとオーナーを設定\"]"
+    ],
+    "body": [
+      "let vault = & mut ctx . accounts . vault ;",
+      "vault . owner = ctx . accounts . owner . key () ;",
+      "vault . mint = ctx . accounts . mint . key () ;",
+      "vault . total_deposits = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "deposit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Deposit >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" トークンをデポジット：  \"]",
+      "# [doc = \" - `user_ata` は `associated_token::…` 属性でミントとオーナーを検証  \"]",
+      "# [doc = \" - Transfer CPI で入金  \"]",
+      "# [doc = \" - 累計を更新  \"]"
+    ],
+    "body": [
+      "let cpi_accounts = Transfer { from : ctx . accounts . user_ata . to_account_info () , to : ctx . accounts . vault_ata . to_account_info () , authority : ctx . accounts . owner . to_account_info () , } ;",
+      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
+      "anchor_spl :: token :: transfer (cpi_ctx , amount) ? ;",
+      "let vault = & mut ctx . accounts . vault ;",
+      "vault . total_deposits = vault . total_deposits . wrapping_add (amount) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Vault",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "mint",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "total_deposits",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitializeVault",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": "# [doc = \" Vault データ\"] # [account (init , payer = owner , space = 8 + 32 + 32 + 8)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "mint",
+        "attribute": "# [doc = \" 扱うトークンの Mint\"]",
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "vault_ata",
+        "attribute": "# [doc = \" Vault 用アソシエイテッドトークンアカウント（自動生成）\"] # [account (init , payer = owner , associated_token :: mint = mint , associated_token :: authority = vault ,)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "associated_token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , anchor_spl :: associated_token :: AssociatedToken >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "rent",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Rent >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Deposit",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": "# [doc = \" 既存 Vault データ\"] # [account (mut , has_one = owner , has_one = mint)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 入金者の署名\"] # [account (signer)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "mint",
+        "attribute": "# [doc = \" 扱うトークンの Mint（一致チェック）\"]",
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "user_ata",
+        "attribute": "# [doc = \" 入金者のアソシエイテッドトークンアカウント\"] # [doc = \" - mint が `vault.mint` と一致  \"] # [doc = \" - authority が `owner` と一致  \"] # [account (mut , token :: mint = vault . mint , token :: authority = owner ,)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "vault_ata",
+        "attribute": "# [doc = \" Vault 用アソシエイテッドトークンアカウント\"] # [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

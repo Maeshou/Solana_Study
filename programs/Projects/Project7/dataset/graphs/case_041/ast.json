@@ -1,0 +1,162 @@
+[
+  {
+    "name": "init_pass",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitPass >",
+      "daily_cap: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let pass_state = & mut ctx . accounts . pass_state ;",
+      "pass_state . admin = ctx . accounts . admin . key () ;",
+      "pass_state . daily_cap = if daily_cap < 5 { 5 } else { daily_cap } ;",
+      "pass_state . level = 3 ;",
+      "pass_state . charged_units = daily_cap / 3 + 2 ;",
+      "pass_state . streak_days = 5 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_charge",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActCharge >",
+      "base_units: u64",
+      "add_days: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let pass_state = & mut ctx . accounts . pass_state ;",
+      "let mut days_to_apply : u16 = add_days ;",
+      "if pass_state . streak_days as u16 + days_to_apply > 30",
+      "{",
+      "let overflow = pass_state . streak_days as u16 + days_to_apply - 30 ;",
+      "if days_to_apply >= overflow",
+      "{",
+      "days_to_apply = days_to_apply - overflow ;",
+      "} else",
+      "{",
+      "days_to_apply = 0 ;",
+      "}",
+      "}",
+      "pass_state . streak_days = pass_state . streak_days + days_to_apply as u64 ;",
+      "let triangular_value : u64 = (pass_state . streak_days * (pass_state . streak_days + 1)) / 2 ;",
+      "let mut grant_units : u64 = base_units + triangular_value / 20 + 1 ;",
+      "if pass_state . level % 5 == 0",
+      "{",
+      "grant_units = grant_units + 2 ;",
+      "}",
+      "if pass_state . level % 10 == 0",
+      "{",
+      "grant_units = grant_units + 3 ;",
+      "}",
+      "if pass_state . level % 15 == 0",
+      "{",
+      "grant_units = grant_units + 4 ;",
+      "}",
+      "if grant_units > pass_state . daily_cap",
+      "{",
+      "grant_units = pass_state . daily_cap ;",
+      "pass_state . level = pass_state . level + 1 ;",
+      "}",
+      "token :: mint_to (ctx . accounts . mint_ctx () , grant_units) ? ;",
+      "pass_state . charged_units = pass_state . charged_units + grant_units ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitPass",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pass_state",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 8 + 4 + 8 + 8)]",
+        "field_type": "Account < 'info , PassState >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActCharge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pass_state",
+        "attribute": "# [account (mut , has_one = admin)]",
+        "field_type": "Account < 'info , PassState >"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "pass_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "user_pass_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PassState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "daily_cap",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "level",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "charged_units",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "streak_days",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

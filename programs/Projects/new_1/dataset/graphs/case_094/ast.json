@@ -1,0 +1,137 @@
+[
+  {
+    "name": "init_challenge",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitChallenge >"
+    ],
+    "attributes": [
+      "# [doc = \" 1. チャレンジ初期化：ended フラグだけリセット、participants は clear() で “空” に  \"]",
+      "# [doc = \"    ⚠\\u{fe0f} initializer の署名チェックなしで誰でも初期化可能\"]"
+    ],
+    "body": [
+      "let state = & mut ctx . accounts . state ;",
+      "state . ended = false ;",
+      "state . participants . clear () ;",
+      "msg ! (\"Challenge initialized at {}\" , Clock :: get () . unwrap () . unix_timestamp) ;"
+    ]
+  },
+  {
+    "name": "join_challenge",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < JoinChallenge >",
+      "participant: Pubkey"
+    ],
+    "attributes": [
+      "# [doc = \" 2. 参加登録：participants ベクタに Pubkey を追加  \"]",
+      "# [doc = \"    ⚠\\u{fe0f} participant の署名チェックも所有者チェックもなしで誰でも誰を追加できる脆弱性あり\"]"
+    ],
+    "body": [
+      "let state = & mut ctx . accounts . state ;",
+      "state . participants . push (participant) ;",
+      "msg ! (\"{} joined the challenge\" , participant) ;"
+    ]
+  },
+  {
+    "name": "finalize_challenge",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < FinalizeChallenge >"
+    ],
+    "attributes": [
+      "# [doc = \" 3. 結果確定：ended を true に、参加リストは clear() でリセット  \"]",
+      "# [doc = \"    ⚠\\u{fe0f} 誰でも呼び出せてリストをクリアできる脆弱性あり\"]"
+    ],
+    "body": [
+      "let state = & mut ctx . accounts . state ;",
+      "state . ended = true ;",
+      "state . participants . clear () ;",
+      "msg ! (\"Challenge finalized\") ;"
+    ]
+  },
+  {
+    "name": "ChallengeState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "participants",
+        "attribute": "# [doc = \" 参加者リスト\"]",
+        "field_type": "Vec < Pubkey >"
+      },
+      {
+        "name": "ended",
+        "attribute": "# [doc = \" 終了フラグ\"]",
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitChallenge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "state",
+        "attribute": "# [doc = \" チャレンジ状態を保持するアカウント\"] # [account (init , payer = payer , space = 8 + (4 + 32 * 200) + 1)]",
+        "field_type": "Account < 'info , ChallengeState >"
+      },
+      {
+        "name": "initializer",
+        "attribute": "# [doc = \" CHECK: 署名チェックを行わない初期化者\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "JoinChallenge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "state",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , ChallengeState >"
+      },
+      {
+        "name": "participant",
+        "attribute": "# [doc = \" CHECK: 署名検証なしで参加者を指定\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "FinalizeChallenge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "state",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , ChallengeState >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

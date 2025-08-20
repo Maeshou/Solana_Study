@@ -1,9 +1,11 @@
 [
   {
-    "name": "init_pool",
+    "name": "create_service",
     "inputs": [
-      "ctx: Context < InitPoolCtxbvdv >",
-      "amount: u64"
+      "ctx: Context < CreateService >",
+      "name: String",
+      "monthly_price: u64",
+      "features: Vec < String >"
     ],
     "nodes": [
       {
@@ -12,22 +14,38 @@
       },
       {
         "id": 1,
-        "label": "let acct = & mut ctx . accounts . pool_account ;"
+        "label": "let service = & mut ctx . accounts . service ;"
       },
       {
         "id": 2,
-        "label": "for _ in 0 .. amount { acct . data += 1 ; }"
+        "label": "service . provider = ctx . accounts . provider . key () ;"
       },
       {
         "id": 3,
-        "label": "acct . data += 1 ;"
+        "label": "service . name = name ;"
       },
       {
         "id": 4,
-        "label": "msg ! (\"Executed init_pool logic\") ;"
+        "label": "service . monthly_price = monthly_price ;"
       },
       {
         "id": 5,
+        "label": "service . features = features ;"
+      },
+      {
+        "id": 6,
+        "label": "service . is_active = true ;"
+      },
+      {
+        "id": 7,
+        "label": "service . subscriber_count = 0 ;"
+      },
+      {
+        "id": 8,
+        "label": "service . bump = * ctx . bumps . get (\"service\") . unwrap () ;"
+      },
+      {
+        "id": 9,
         "label": "Ok (())"
       }
     ],
@@ -35,17 +53,439 @@
       {
         "from": 1,
         "to": 1,
-        "label": "def: acct"
+        "label": "def: service"
       },
       {
         "from": 1,
         "to": 2,
-        "label": "data_dep: acct"
+        "label": "data_dep: service"
       },
       {
         "from": 1,
         "to": 3,
-        "label": "data_dep: acct"
+        "label": "data_dep: service"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 1,
+        "to": 6,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 1,
+        "to": 7,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 1,
+        "to": 8,
+        "label": "data_dep: service"
+      }
+    ]
+  },
+  {
+    "name": "subscribe",
+    "inputs": [
+      "ctx: Context < Subscribe >",
+      "plan_duration: u8"
+    ],
+    "nodes": [
+      {
+        "id": 10,
+        "label": "Entry"
+      },
+      {
+        "id": 11,
+        "label": "let service = & mut ctx . accounts . service ;"
+      },
+      {
+        "id": 12,
+        "label": "let subscription = & mut ctx . accounts . subscription ;"
+      },
+      {
+        "id": 13,
+        "label": "require ! (service . is_active , SubscriptionError :: ServiceNotActive) ;"
+      },
+      {
+        "id": 14,
+        "label": "require ! (plan_duration > 0 && plan_duration <= 12 , SubscriptionError :: InvalidDuration) ;"
+      },
+      {
+        "id": 15,
+        "label": "let current_time = Clock :: get () ? . unix_timestamp ;"
+      },
+      {
+        "id": 16,
+        "label": "subscription . service = service . key () ;"
+      },
+      {
+        "id": 17,
+        "label": "subscription . subscriber = ctx . accounts . subscriber . key () ;"
+      },
+      {
+        "id": 18,
+        "label": "subscription . start_date = current_time ;"
+      },
+      {
+        "id": 19,
+        "label": "subscription . end_date = current_time + (plan_duration as i64 * 30 * 24 * 60 * 60) ;"
+      },
+      {
+        "id": 20,
+        "label": "subscription . monthly_price = service . monthly_price ;"
+      },
+      {
+        "id": 21,
+        "label": "subscription . is_active = true ;"
+      },
+      {
+        "id": 22,
+        "label": "subscription . auto_renew = false ;"
+      },
+      {
+        "id": 23,
+        "label": "subscription . bump = * ctx . bumps . get (\"subscription\") . unwrap () ;"
+      },
+      {
+        "id": 24,
+        "label": "service . subscriber_count += 1 ;"
+      },
+      {
+        "id": 25,
+        "label": "let total_cost = service . monthly_price * plan_duration as u64 ;"
+      },
+      {
+        "id": 26,
+        "label": "* * ctx . accounts . subscriber . lamports . borrow_mut () -= total_cost ;"
+      },
+      {
+        "id": 27,
+        "label": "* * ctx . accounts . provider . lamports . borrow_mut () += total_cost ;"
+      },
+      {
+        "id": 28,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 11,
+        "to": 11,
+        "label": "def: service"
+      },
+      {
+        "from": 12,
+        "to": 12,
+        "label": "def: subscription"
+      },
+      {
+        "from": 15,
+        "to": 15,
+        "label": "def: current_time"
+      },
+      {
+        "from": 12,
+        "to": 16,
+        "label": "data_dep: subscription"
+      },
+      {
+        "from": 11,
+        "to": 16,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 12,
+        "to": 17,
+        "label": "data_dep: subscription"
+      },
+      {
+        "from": 12,
+        "to": 18,
+        "label": "data_dep: subscription"
+      },
+      {
+        "from": 15,
+        "to": 18,
+        "label": "data_dep: current_time"
+      },
+      {
+        "from": 12,
+        "to": 19,
+        "label": "data_dep: subscription"
+      },
+      {
+        "from": 15,
+        "to": 19,
+        "label": "data_dep: current_time"
+      },
+      {
+        "from": 12,
+        "to": 20,
+        "label": "data_dep: subscription"
+      },
+      {
+        "from": 11,
+        "to": 20,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 12,
+        "to": 21,
+        "label": "data_dep: subscription"
+      },
+      {
+        "from": 12,
+        "to": 22,
+        "label": "data_dep: subscription"
+      },
+      {
+        "from": 12,
+        "to": 23,
+        "label": "data_dep: subscription"
+      },
+      {
+        "from": 11,
+        "to": 24,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 25,
+        "to": 25,
+        "label": "def: total_cost"
+      },
+      {
+        "from": 11,
+        "to": 25,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 25,
+        "to": 26,
+        "label": "data_dep: total_cost"
+      },
+      {
+        "from": 25,
+        "to": 27,
+        "label": "data_dep: total_cost"
+      }
+    ]
+  },
+  {
+    "name": "renew_subscription",
+    "inputs": [
+      "ctx: Context < RenewSubscription >",
+      "plan_duration: u8"
+    ],
+    "nodes": [
+      {
+        "id": 29,
+        "label": "Entry"
+      },
+      {
+        "id": 30,
+        "label": "let subscription = & mut ctx . accounts . subscription ;"
+      },
+      {
+        "id": 31,
+        "label": "let service = & ctx . accounts . service ;"
+      },
+      {
+        "id": 32,
+        "label": "require ! (subscription . is_active , SubscriptionError :: SubscriptionNotActive) ;"
+      },
+      {
+        "id": 33,
+        "label": "require ! (plan_duration > 0 && plan_duration <= 12 , SubscriptionError :: InvalidDuration) ;"
+      },
+      {
+        "id": 34,
+        "label": "let current_time = Clock :: get () ? . unix_timestamp ;"
+      },
+      {
+        "id": 35,
+        "label": "let new_end_date = if current_time > subscription . end_date { current_time + (plan_duration as i64 * 30 * 24 * 60 * 60) } else { subscription . end_date + (plan_duration as i64 * 30 * 24 * 60 * 60) } ;"
+      },
+      {
+        "id": 36,
+        "label": "current_time + (plan_duration as i64 * 30 * 24 * 60 * 60)"
+      },
+      {
+        "id": 37,
+        "label": "subscription . end_date + (plan_duration as i64 * 30 * 24 * 60 * 60)"
+      },
+      {
+        "id": 38,
+        "label": "subscription . end_date = new_end_date ;"
+      },
+      {
+        "id": 39,
+        "label": "let total_cost = service . monthly_price * plan_duration as u64 ;"
+      },
+      {
+        "id": 40,
+        "label": "* * ctx . accounts . subscriber . lamports . borrow_mut () -= total_cost ;"
+      },
+      {
+        "id": 41,
+        "label": "* * ctx . accounts . provider . lamports . borrow_mut () += total_cost ;"
+      },
+      {
+        "id": 42,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 30,
+        "to": 30,
+        "label": "def: subscription"
+      },
+      {
+        "from": 31,
+        "to": 31,
+        "label": "def: service"
+      },
+      {
+        "from": 34,
+        "to": 34,
+        "label": "def: current_time"
+      },
+      {
+        "from": 35,
+        "to": 35,
+        "label": "def: new_end_date"
+      },
+      {
+        "from": 34,
+        "to": 35,
+        "label": "data_dep: current_time"
+      },
+      {
+        "from": 30,
+        "to": 35,
+        "label": "data_dep: subscription"
+      },
+      {
+        "from": 34,
+        "to": 35,
+        "label": "data_dep: current_time"
+      },
+      {
+        "from": 30,
+        "to": 35,
+        "label": "data_dep: subscription"
+      },
+      {
+        "from": 34,
+        "to": 36,
+        "label": "data_dep: current_time"
+      },
+      {
+        "from": 30,
+        "to": 37,
+        "label": "data_dep: subscription"
+      },
+      {
+        "from": 30,
+        "to": 38,
+        "label": "data_dep: subscription"
+      },
+      {
+        "from": 35,
+        "to": 38,
+        "label": "data_dep: new_end_date"
+      },
+      {
+        "from": 39,
+        "to": 39,
+        "label": "def: total_cost"
+      },
+      {
+        "from": 31,
+        "to": 39,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 39,
+        "to": 40,
+        "label": "data_dep: total_cost"
+      },
+      {
+        "from": 39,
+        "to": 41,
+        "label": "data_dep: total_cost"
+      }
+    ]
+  },
+  {
+    "name": "cancel_subscription",
+    "inputs": [
+      "ctx: Context < CancelSubscription >"
+    ],
+    "nodes": [
+      {
+        "id": 43,
+        "label": "Entry"
+      },
+      {
+        "id": 44,
+        "label": "let subscription = & mut ctx . accounts . subscription ;"
+      },
+      {
+        "id": 45,
+        "label": "let service = & mut ctx . accounts . service ;"
+      },
+      {
+        "id": 46,
+        "label": "subscription . is_active = false ;"
+      },
+      {
+        "id": 47,
+        "label": "subscription . auto_renew = false ;"
+      },
+      {
+        "id": 48,
+        "label": "service . subscriber_count -= 1 ;"
+      },
+      {
+        "id": 49,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 44,
+        "to": 44,
+        "label": "def: subscription"
+      },
+      {
+        "from": 45,
+        "to": 45,
+        "label": "def: service"
+      },
+      {
+        "from": 44,
+        "to": 46,
+        "label": "data_dep: subscription"
+      },
+      {
+        "from": 44,
+        "to": 47,
+        "label": "data_dep: subscription"
+      },
+      {
+        "from": 45,
+        "to": 48,
+        "label": "data_dep: service"
       }
     ]
   }

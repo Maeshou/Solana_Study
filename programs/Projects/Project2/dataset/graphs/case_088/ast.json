@@ -1,15 +1,56 @@
 [
   {
-    "name": "ClosePositionCtxdoyw",
+    "name": "init_ref",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitRef >",
+      "rate_bps: u16"
+    ],
+    "attributes": [
+      "# [doc = \" 初期化：報酬率を設定\"]"
+    ],
+    "body": [
+      "let cfg = & mut ctx . accounts . config ;",
+      "cfg . rate = rate_bps ;",
+      "cfg . counts = std :: collections :: BTreeMap :: new () ;",
+      "emit ! (ReferralInitialized { rate_bps }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "refer",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Refer >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" リファラル登録＆報酬計算\"]"
+    ],
+    "body": [
+      "let cfg = & mut ctx . accounts . config ;",
+      "let referrer = ctx . accounts . referrer . key () ;",
+      "let entry = cfg . counts . entry (referrer) . or_insert (0) ;",
+      "* entry = entry . checked_add (amount) . unwrap () ;",
+      "let reward = amount * cfg . rate as u64 / 10_000 ;",
+      "* * ctx . accounts . referrer . to_account_info () . lamports . borrow_mut () += reward ;",
+      "emit ! (Referred { referrer , amount , reward }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitRef",
     "node_type": "struct",
     "fields": [
       {
-        "name": "position",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
+        "name": "config",
+        "attribute": "# [account (init , payer = payer , space = 8 + 2 + 4 + (32 + 8) * 10)]",
+        "field_type": "Account < 'info , ReferralConfig >"
       },
       {
-        "name": "trader",
+        "name": "payer",
         "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
       },
@@ -24,13 +65,18 @@
     "body": null
   },
   {
-    "name": "DataAccount",
+    "name": "Refer",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data",
+        "name": "config",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , ReferralConfig >"
+      },
+      {
+        "name": "referrer",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "Signer < 'info >"
       }
     ],
     "inputs": null,
@@ -38,19 +84,60 @@
     "body": null
   },
   {
-    "name": "close_position",
-    "node_type": "function",
-    "fields": null,
-    "inputs": [
-      "ctx: Context < ClosePositionCtxdoyw >",
-      "amount: u64"
+    "name": "ReferralConfig",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "rate",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "counts",
+        "attribute": null,
+        "field_type": "std :: collections :: BTreeMap < Pubkey , u64 >"
+      }
     ],
-    "attributes": [],
-    "body": [
-      "let acct = & mut ctx . accounts . position ;",
-      "acct . data = acct . data . checked_add (amount) . unwrap () ;",
-      "msg ! (\"Executed close_position logic\") ;",
-      "Ok (())"
-    ]
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ReferralInitialized",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "rate_bps",
+        "attribute": null,
+        "field_type": "u16"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Referred",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "referrer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "reward",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
   }
 ]

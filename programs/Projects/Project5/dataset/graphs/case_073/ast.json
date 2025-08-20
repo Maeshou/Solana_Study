@@ -1,43 +1,232 @@
 [
   {
-    "name": "close_metadata",
+    "name": "init_circuit",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx073 >",
-      "amount: u64"
+      "ctx: Context < InitCircuit >",
+      "seed: u32"
     ],
     "attributes": [],
     "body": [
-      "let cpi_accounts = Transfer { from : ctx . accounts . from_token . to_account_info () , to : ctx . accounts . to_token . to_account_info () , authority : ctx . accounts . authority . to_account_info () , } ;",
-      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
-      "token :: transfer (cpi_ctx , amount) ? ;",
+      "let c = & mut ctx . accounts . circuit ;",
+      "c . owner = ctx . accounts . owner . key () ;",
+      "c . limit = 500 + (seed % 300) ;",
+      "c . state = Grid ;",
+      "let mut a0 = 3u32 ;",
+      "let mut a1 = 5u32 ;",
+      "for _ in 0 .. (seed % 5)",
+      "{",
+      "let t = a0 + a1 ;",
+      "a0 = a1 ;",
+      "a1 = t . max (1) ;",
+      "}",
+      "let a = & mut ctx . accounts . car_a ;",
+      "let b = & mut ctx . accounts . car_b ;",
+      "let p = & mut ctx . accounts . pit ;",
+      "a . parent = c . key () ;",
+      "a . lane = (seed & 7) as u8 ;",
+      "a . points = a1 + 13 ;",
+      "b . parent = c . key () ;",
+      "b . lane = ((seed >> 2) & 7) as u8 ;",
+      "b . points = a0 + 17 ;",
+      "p . parent = c . key () ;",
+      "p . pit = 7 ;",
+      "p . count = 0 ;",
+      "p . hash = seed as u64 ^ 0xDEAD_BEEF ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx073",
+    "name": "lap",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < LapRun >",
+      "k: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let c = & mut ctx . accounts . circuit ;",
+      "let a = & mut ctx . accounts . car_a ;",
+      "let b = & mut ctx . accounts . car_b ;",
+      "let p = & mut ctx . accounts . pit ;",
+      "for i in 0 .. k",
+      "{",
+      "let z = ((a . points ^ b . points) as u64) . wrapping_mul (11400714819323198485) ;",
+      "a . points = a . points . checked_add (((z & 31) as u32) + 2) . unwrap_or (u32 :: MAX) ;",
+      "b . points = b . points . saturating_add ((((z >> 5) & 31) as u32) + 3) ;",
+      "p . count = p . count . saturating_add (1) ;",
+      "p . hash ^= z . rotate_left ((i % 13) as u32) ;",
+      "}",
+      "let total = a . points + b . points ;",
+      "if total > c . limit",
+      "{",
+      "c . state = Park ;",
+      "a . lane ^= 1 ;",
+      "b . lane = b . lane . saturating_add (1) ;",
+      "p . count = p . count . saturating_add (7) ;",
+      "msg ! (\"park: lane tweaks, count+7\") ;",
+      "} else",
+      "{",
+      "c . state = Lap ;",
+      "a . points = a . points . saturating_add (11) ;",
+      "b . points = b . points / 2 + 9 ;",
+      "p . hash ^= 0x0F0F_F0F0 ;",
+      "msg ! (\"lap: points adjust, hash flip\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitCircuit",
     "node_type": "struct",
     "fields": [
       {
-        "name": "from_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "circuit",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Circuit >"
       },
       {
-        "name": "to_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "car_a",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Car >"
       },
       {
-        "name": "authority",
+        "name": "car_b",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Car >"
+      },
+      {
+        "name": "pit",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 8 + 8)]",
+        "field_type": "Account < 'info , PitTape >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "owner",
         "attribute": null,
         "field_type": "Signer < 'info >"
       },
       {
-        "name": "token_program",
+        "name": "system_program",
         "attribute": null,
-        "field_type": "Program < 'info , Token >"
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "LapRun",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "circuit",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Circuit >"
+      },
+      {
+        "name": "car_a",
+        "attribute": "# [account (mut , has_one = circuit , constraint = car_a . lane != car_b . lane @ DriftErr :: Dup)]",
+        "field_type": "Account < 'info , Car >"
+      },
+      {
+        "name": "car_b",
+        "attribute": "# [account (mut , has_one = circuit , constraint = car_b . lane != pit . pit @ DriftErr :: Dup)]",
+        "field_type": "Account < 'info , Car >"
+      },
+      {
+        "name": "pit",
+        "attribute": "# [account (mut , has_one = circuit)]",
+        "field_type": "Account < 'info , PitTape >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Circuit",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "limit",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "state",
+        "attribute": null,
+        "field_type": "Race"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Car",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "lane",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "points",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PitTape",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "pit",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "count",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "hash",
+        "attribute": null,
+        "field_type": "u64"
       }
     ],
     "inputs": null,

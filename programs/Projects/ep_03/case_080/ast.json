@@ -1,0 +1,146 @@
+[
+  {
+    "name": "send_mail",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyMailbox >",
+      "message_id: u64",
+      "content: String"
+    ],
+    "attributes": [
+      "# [doc = \" 新しいメッセージをボックスに送信するが、\"]",
+      "# [doc = \" mailbox_account.owner と ctx.accounts.user.key() の一致検証がない\"]"
+    ],
+    "body": [
+      "let mailbox = & mut ctx . accounts . mailbox ;",
+      "add_message (mailbox , message_id , content) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "delete_mail",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyMailbox >",
+      "message_id: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 指定のメッセージをボックスから削除するが、\"]",
+      "# [doc = \" mailbox_account.owner と ctx.accounts.user.key() の一致検証がない\"]"
+    ],
+    "body": [
+      "let mailbox = & mut ctx . accounts . mailbox ;",
+      "remove_message (mailbox , message_id) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "add_message",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "mailbox: & mut MailboxAccount",
+      "message_id: u64",
+      "content: String"
+    ],
+    "attributes": [
+      "# [doc = \" メッセージを追加し、カウンタと未読リストを更新するヘルパー\"]"
+    ],
+    "body": [
+      "mailbox . message_ids . push (message_id) ;",
+      "mailbox . contents . push (content) ;",
+      "mailbox . unread_count = mailbox . unread_count . checked_add (1) . unwrap () ;",
+      "mailbox . total_received = mailbox . total_received . checked_add (1) . unwrap () ;"
+    ]
+  },
+  {
+    "name": "remove_message",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "mailbox: & mut MailboxAccount",
+      "message_id: u64"
+    ],
+    "attributes": [
+      "# [doc = \" メッセージを削除し、カウンタと未読リストを更新するヘルパー\"]"
+    ],
+    "body": [
+      "if let Some (pos) = mailbox . message_ids . iter () . position (| & id | id == message_id)",
+      "{",
+      "mailbox . message_ids . remove (pos) ;",
+      "mailbox . contents . remove (pos) ;",
+      "mailbox . delete_count = mailbox . delete_count . checked_add (1) . unwrap () ;",
+      "if mailbox . unread_ids . iter () . any (| & id | id == message_id)",
+      "{",
+      "mailbox . unread_count = mailbox . unread_count . checked_sub (1) . unwrap () ;",
+      "mailbox . unread_ids . retain (| & id | id != message_id) ;",
+      "}",
+      "}"
+    ]
+  },
+  {
+    "name": "ModifyMailbox",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "mailbox",
+        "attribute": "# [account (mut)] # [doc = \" 本来は `#[account(has_one = owner)]` を指定して所有者照合を行うべき\"]",
+        "field_type": "Account < 'info , MailboxAccount >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 操作をリクエストするユーザー（署名者）\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MailboxAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 本来このボックスを所有するべきユーザーの Pubkey\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "message_ids",
+        "attribute": "# [doc = \" 受信したメッセージの ID 一覧\"]",
+        "field_type": "Vec < u64 >"
+      },
+      {
+        "name": "contents",
+        "attribute": "# [doc = \" 各メッセージの本文\"]",
+        "field_type": "Vec < String >"
+      },
+      {
+        "name": "unread_ids",
+        "attribute": "# [doc = \" 未読メッセージの ID 一覧\"]",
+        "field_type": "Vec < u64 >"
+      },
+      {
+        "name": "unread_count",
+        "attribute": "# [doc = \" 未読メッセージ数\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "total_received",
+        "attribute": "# [doc = \" これまでに受信したメッセージの総数\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "delete_count",
+        "attribute": "# [doc = \" これまでに削除したメッセージの総数\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

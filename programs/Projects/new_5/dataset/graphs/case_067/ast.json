@@ -1,0 +1,225 @@
+[
+  {
+    "name": "create_system",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateSystem >",
+      "system_id: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let system = & mut ctx . accounts . system ;",
+      "system . manager = ctx . accounts . manager . key () ;",
+      "system . system_id = system_id ;",
+      "system . vehicle_count = 0 ;",
+      "system . is_operational = TrafficSystemStatus :: Operational ;",
+      "msg ! (\"Traffic management system {} created.\" , system . system_id) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "register_vehicle",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RegisterVehicle >",
+      "vehicle_id: u32",
+      "route_code: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let vehicle = & mut ctx . accounts . vehicle ;",
+      "let system = & mut ctx . accounts . system ;",
+      "if matches ! (system . is_operational , TrafficSystemStatus :: Operational)",
+      "{",
+      "vehicle . is_active = true ;",
+      "if route_code == 1",
+      "{",
+      "vehicle . current_route = Route :: City ;",
+      "} else",
+      "{",
+      "vehicle . current_route = Route :: Highway ;",
+      "} system . vehicle_count = system . vehicle_count . saturating_add (1) ;",
+      "msg ! (\"Vehicle",
+      "{",
+      "} registered and assigned a route.\" , vehicle . vehicle_id) ;",
+      "} else",
+      "{",
+      "vehicle . is_active = false ;",
+      "vehicle . current_route = Route :: City ;",
+      "msg ! (\"System is not operational. Vehicle",
+      "{",
+      "} registered as inactive.\" , vehicle . vehicle_id) ;",
+      "}",
+      "vehicle . system = system . key () ;",
+      "vehicle . vehicle_id = vehicle_id ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "update_routes",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < UpdateRoutes >",
+      "new_route_code: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let vehicle1 = & mut ctx . accounts . vehicle1 ;",
+      "let vehicle2 = & mut ctx . accounts . vehicle2 ;",
+      "if matches ! (vehicle1 . is_active , true) && matches ! (vehicle2 . is_active , true)",
+      "{",
+      "if new_route_code == 1",
+      "{",
+      "vehicle1 . current_route = Route :: City ;",
+      "vehicle2 . current_route = Route :: City ;",
+      "} else",
+      "{",
+      "vehicle1 . current_route = Route :: Highway ;",
+      "vehicle2 . current_route = Route :: Highway ;",
+      "} msg ! (\"Routes updated for both vehicles.\") ;",
+      "} else",
+      "{",
+      "msg ! (\"One or both vehicles are inactive.\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CreateSystem",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "system",
+        "attribute": "# [account (init , payer = manager , space = 8 + 32 + 8 + 4 + 1)]",
+        "field_type": "Account < 'info , TrafficSystem >"
+      },
+      {
+        "name": "manager",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RegisterVehicle",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "system",
+        "attribute": "# [account (mut , has_one = system)]",
+        "field_type": "Account < 'info , TrafficSystem >"
+      },
+      {
+        "name": "vehicle",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 4 + 1 + 1)]",
+        "field_type": "Account < 'info , Vehicle >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "UpdateRoutes",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "system",
+        "attribute": "# [account (mut , has_one = system)]",
+        "field_type": "Account < 'info , TrafficSystem >"
+      },
+      {
+        "name": "vehicle1",
+        "attribute": "# [account (mut , has_one = system)]",
+        "field_type": "Account < 'info , Vehicle >"
+      },
+      {
+        "name": "vehicle2",
+        "attribute": "# [account (mut , has_one = system)]",
+        "field_type": "Account < 'info , Vehicle >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TrafficSystem",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "system_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "vehicle_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "is_operational",
+        "attribute": null,
+        "field_type": "TrafficSystemStatus"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Vehicle",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "system",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "vehicle_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "is_active",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "current_route",
+        "attribute": null,
+        "field_type": "Route"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

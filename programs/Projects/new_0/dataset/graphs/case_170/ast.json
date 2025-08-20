@@ -1,0 +1,211 @@
+[
+  {
+    "name": "initialize_auction",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeAuction >",
+      "auction_id: u64",
+      "item: String",
+      "duration_secs: i64"
+    ],
+    "attributes": [
+      "# [doc = \" オークション初期化：主要フィールドだけセットし、残りはDefaultで\"]"
+    ],
+    "body": [
+      "let auction = & mut ctx . accounts . auction ;",
+      "let now = ctx . accounts . clock . unix_timestamp ;",
+      "* auction = Auction { owner : ctx . accounts . seller . key () , bump : * ctx . bumps . get (\"auction\") . unwrap () , auction_id , item , end_ts : now + duration_secs , last_action_ts : now , .. Default :: default () } ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "place_bid",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PlaceBid >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 入札：期限切れ判定と、最高入札額更新を独立して処理\"]"
+    ],
+    "body": [
+      "let auction = & mut ctx . accounts . auction ;",
+      "let now = ctx . accounts . clock . unix_timestamp ;",
+      "if now >= auction . end_ts",
+      "{",
+      "auction . closed = true ;",
+      "}",
+      "if ! auction . closed && amount > auction . highest_bid",
+      "{",
+      "auction . highest_bid = amount ;",
+      "auction . highest_bidder = ctx . accounts . bidder . key () ;",
+      "}",
+      "auction . last_action_ts = now ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "finalize_auction",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < FinalizeAuction >"
+    ],
+    "attributes": [
+      "# [doc = \" オークション終了処理：期限到来で閉鎖\"]"
+    ],
+    "body": [
+      "let auction = & mut ctx . accounts . auction ;",
+      "let now = ctx . accounts . clock . unix_timestamp ;",
+      "if ! auction . closed && now >= auction . end_ts",
+      "{",
+      "auction . closed = true ;",
+      "auction . last_action_ts = now ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializeAuction",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "auction",
+        "attribute": "# [doc = \" ゼロクリア後、Defaultで初期化可能に\"] # [account (init_zeroed , payer = seller , seeds = [b\"auction\" , seller . key () . as_ref () , & auction_id . to_le_bytes ()] , bump , space = 8 + 32 + 1 + 8 + 4 + 64 + 8 + 8 + 32 + 1 + 8)]",
+        "field_type": "Account < 'info , Auction >"
+      },
+      {
+        "name": "seller",
+        "attribute": "# [doc = \" 出品者（署名必須）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": "# [doc = \" 時刻取得用\"]",
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PlaceBid",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "auction",
+        "attribute": "# [account (mut , seeds = [b\"auction\" , auction . owner . as_ref () , & auction . auction_id . to_le_bytes ()] , bump = auction . bump ,)]",
+        "field_type": "Account < 'info , Auction >"
+      },
+      {
+        "name": "bidder",
+        "attribute": "# [doc = \" 入札者（署名必須）\"] # [account (signer)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "FinalizeAuction",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "auction",
+        "attribute": "# [account (mut , seeds = [b\"auction\" , owner . key () . as_ref () , & auction . auction_id . to_le_bytes ()] , bump = auction . bump , has_one = owner)]",
+        "field_type": "Account < 'info , Auction >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 出品者（署名必須）\"] # [account (signer)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Auction",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "auction_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "item",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "end_ts",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "highest_bid",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "highest_bidder",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "closed",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "last_action_ts",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

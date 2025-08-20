@@ -1,40 +1,231 @@
 [
   {
-    "name": "execute_escrow",
+    "name": "init_barn",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx009 >",
-      "amount: u64"
+      "ctx: Context < InitBarn >",
+      "gene_cap: u64"
     ],
     "attributes": [],
     "body": [
-      "let src = & mut ctx . accounts . account_src ;",
-      "let dst = & mut ctx . accounts . account_dst ;",
-      "let before = * * src . to_account_info () . try_borrow_lamports () ? ;",
-      "* * src . to_account_info () . try_borrow_mut_lamports () ? = before . saturating_sub (amount) ;",
-      "* * dst . to_account_info () . try_borrow_mut_lamports () ? += amount ;",
+      "let barn = & mut ctx . accounts . barn ;",
+      "barn . keeper = ctx . accounts . keeper . key () ;",
+      "barn . gene_cap = gene_cap ;",
+      "barn . active = true ;",
+      "let lab = & mut ctx . accounts . gene_lab ;",
+      "lab . rolls = 0 ;",
+      "lab . power = 0 ;",
+      "lab . bump = * ctx . bumps . get (\"gene_lab\") . unwrap () ;",
+      "let pol = & mut ctx . accounts . policy ;",
+      "pol . min_mix = 10 ;",
+      "pol . max_mix = 200 ;",
+      "pol . strict = true ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx009",
+    "name": "breed_attempt",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < BreedAttempt >",
+      "eggs: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "require_keys_neq ! (ctx . accounts . parent_a . key () , ctx . accounts . parent_b . key () , BreedErr :: Same) ;",
+      "require_keys_neq ! (ctx . accounts . parent_a . key () , ctx . accounts . gene_lab . key () , BreedErr :: Same) ;",
+      "require_keys_neq ! (ctx . accounts . parent_b . key () , ctx . accounts . gene_lab . key () , BreedErr :: Same) ;",
+      "let mut done = 0u32 ;",
+      "while done < eggs",
+      "{",
+      "ctx . accounts . parent_a . mutation = ctx . accounts . parent_a . mutation . saturating_add (1) ;",
+      "ctx . accounts . parent_b . mutation = ctx . accounts . parent_b . mutation . saturating_add (2) ;",
+      "ctx . accounts . gene_lab . rolls = ctx . accounts . gene_lab . rolls . saturating_add (1) ;",
+      "done += 1 ;",
+      "}",
+      "if (ctx . accounts . parent_a . mutation + ctx . accounts . parent_b . mutation) as u64 > ctx . accounts . barn . gene_cap",
+      "{",
+      "ctx . accounts . barn . active = false ;",
+      "ctx . accounts . policy . strict = true ;",
+      "ctx . accounts . gene_lab . power = ctx . accounts . gene_lab . power . saturating_add (5) ;",
+      "msg ! (\"cap exceeded;",
+      "lab power boosted, barn paused\") ;",
+      "} else",
+      "{",
+      "ctx . accounts . barn . active = true ;",
+      "ctx . accounts . policy . strict = false ;",
+      "ctx . accounts . gene_lab . power = ctx . accounts . gene_lab . power . saturating_add (1) ;",
+      "msg ! (\"within cap;",
+      "breeding continues, lab warmed\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitBarn",
     "node_type": "struct",
     "fields": [
       {
-        "name": "account_src",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "barn",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 8 + 1)]",
+        "field_type": "Account < 'info , Barn >"
       },
       {
-        "name": "account_dst",
+        "name": "gene_lab",
+        "attribute": "# [account (init , payer = payer , space = 8 + 8 + 8 + 1 , seeds = [b\"lab\" , payer . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , GeneLab >"
+      },
+      {
+        "name": "policy",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4 + 4 + 1)]",
+        "field_type": "Account < 'info , BreedPolicy >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "keeper",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
       },
       {
         "name": "system_program",
         "attribute": null,
         "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BreedAttempt",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "barn",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Barn >"
+      },
+      {
+        "name": "parent_a",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , BeastCard >"
+      },
+      {
+        "name": "parent_b",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , BeastCard >"
+      },
+      {
+        "name": "gene_lab",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , GeneLab >"
+      },
+      {
+        "name": "policy",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , BreedPolicy >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Barn",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "keeper",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "gene_cap",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "active",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BeastCard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "dna",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "tier",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "mutation",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GeneLab",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "rolls",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "power",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BreedPolicy",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "min_mix",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "max_mix",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "strict",
+        "attribute": null,
+        "field_type": "bool"
       }
     ],
     "inputs": null,

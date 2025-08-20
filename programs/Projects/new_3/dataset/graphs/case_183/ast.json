@@ -1,0 +1,193 @@
+[
+  {
+    "name": "JobPosting",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "organizer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "title",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "applicants",
+        "attribute": null,
+        "field_type": "Vec < Pubkey >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ApplicationRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "candidate",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "posting",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "resume",
+        "attribute": null,
+        "field_type": "String"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreatePosting",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "posting",
+        "attribute": "# [account (init , payer = organizer , space = 8 + 32 + 4 + 64 + 4 + (32 * 20))]",
+        "field_type": "Account < 'info , JobPosting >"
+      },
+      {
+        "name": "organizer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SubmitApplication",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "posting",
+        "attribute": "# [doc = \" JobPosting.organizer == organizer.key() は検証される\"] # [account (mut , has_one = organizer)]",
+        "field_type": "Account < 'info , JobPosting >"
+      },
+      {
+        "name": "record",
+        "attribute": "# [doc = \" ApplicationRecord.posting ⇔ posting.key() の検証がない\"] # [account (init , payer = candidate , space = 8 + 32 + 32 + 4 + 256)]",
+        "field_type": "Account < 'info , ApplicationRecord >"
+      },
+      {
+        "name": "organizer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "candidate",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "WithdrawApplications",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "posting",
+        "attribute": "# [doc = \" JobPosting.organizer == organizer.key() は検証される\"] # [account (mut , has_one = organizer)]",
+        "field_type": "Account < 'info , JobPosting >"
+      },
+      {
+        "name": "record",
+        "attribute": "# [doc = \" ApplicationRecord.candidate == candidate.key() は検証される\"] # [account (mut , has_one = candidate)]",
+        "field_type": "Account < 'info , ApplicationRecord >"
+      },
+      {
+        "name": "organizer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "candidate",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "create_posting",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreatePosting >",
+      "title: String"
+    ],
+    "attributes": [
+      "# [doc = \" 求人を作成\"]"
+    ],
+    "body": [
+      "let jp = & mut ctx . accounts . posting ;",
+      "jp . organizer = ctx . accounts . organizer . key () ;",
+      "jp . title = title ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "submit_application",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SubmitApplication >",
+      "resume: String"
+    ],
+    "attributes": [
+      "# [doc = \" 応募を提出\"]"
+    ],
+    "body": [
+      "let jp = & mut ctx . accounts . posting ;",
+      "let ar = & mut ctx . accounts . record ;",
+      "ar . candidate = ctx . accounts . candidate . key () ;",
+      "ar . posting = jp . key () ;",
+      "ar . resume = resume ;",
+      "jp . applicants . push (ar . candidate) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "withdraw_applications",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < WithdrawApplications >"
+    ],
+    "attributes": [
+      "# [doc = \" 応募を取り下げ（一覧から除外）\"]"
+    ],
+    "body": [
+      "let jp = & mut ctx . accounts . posting ;",
+      "let ar = & ctx . accounts . record ;",
+      "jp . applicants . retain (| & pk | pk != ar . candidate) ;",
+      "Ok (())"
+    ]
+  }
+]

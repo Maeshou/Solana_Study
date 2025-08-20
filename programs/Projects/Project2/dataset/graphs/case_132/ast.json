@@ -1,0 +1,171 @@
+[
+  {
+    "name": "create_cart",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateCart >"
+    ],
+    "attributes": [
+      "# [doc = \" ショッピングカートの初期化\"]"
+    ],
+    "body": [
+      "let cart = & mut ctx . accounts . cart ;",
+      "cart . owner = ctx . accounts . user . key () ;",
+      "cart . items = Vec :: new () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "add_item",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyCart >",
+      "item: Pubkey"
+    ],
+    "attributes": [
+      "# [doc = \" カートにアイテムを追加\"]"
+    ],
+    "body": [
+      "let cart = & mut ctx . accounts . cart ;",
+      "let user = ctx . accounts . user . key () ;",
+      "if cart . owner == user",
+      "{",
+      "if cart . items . len () < MAX_ITEMS",
+      "{",
+      "let mut found = false ;",
+      "for entry in cart . items . iter ()",
+      "{",
+      "if entry . item == item { found = true ;",
+      "break ;",
+      "} } if ! found",
+      "{",
+      "cart . items . push (CartItem { item , quantity : 1 }) ;",
+      "return Ok (()) ;",
+      "} else",
+      "{",
+      "return Err (ErrorCode :: ItemAlreadyInCart . into ()) ;",
+      "} } else",
+      "{",
+      "return Err (ErrorCode :: CartFull . into ()) ;",
+      "}",
+      "}",
+      "Err (ErrorCode :: Unauthorized . into ())"
+    ]
+  },
+  {
+    "name": "remove_item",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyCart >",
+      "item: Pubkey"
+    ],
+    "attributes": [
+      "# [doc = \" カートからアイテムを削除\"]"
+    ],
+    "body": [
+      "let cart = & mut ctx . accounts . cart ;",
+      "let user = ctx . accounts . user . key () ;",
+      "if cart . owner == user",
+      "{",
+      "let mut found = false ;",
+      "for entry in cart . items . iter ()",
+      "{",
+      "if entry . item == item { found = true ;",
+      "break ;",
+      "} } if found",
+      "{",
+      "cart . items . retain (| c | c . item != item) ;",
+      "return Ok (()) ;",
+      "} else",
+      "{",
+      "return Err (ErrorCode :: ItemNotFound . into ()) ;",
+      "}",
+      "}",
+      "Err (ErrorCode :: Unauthorized . into ())"
+    ]
+  },
+  {
+    "name": "CreateCart",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "cart",
+        "attribute": "# [doc = \" init 制約で同一アカウント再初期化を防止\"] # [account (init , payer = user , space = 8 + 32 + 4 + (MAX_ITEMS * (32 + 4)))]",
+        "field_type": "Account < 'info , ShoppingCart >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ModifyCart",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "cart",
+        "attribute": "# [doc = \" 型チェック＆Owner Check\"] # [account (mut)]",
+        "field_type": "Account < 'info , ShoppingCart >"
+      },
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ShoppingCart",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "items",
+        "attribute": null,
+        "field_type": "Vec < CartItem >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CartItem",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "item",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "quantity",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

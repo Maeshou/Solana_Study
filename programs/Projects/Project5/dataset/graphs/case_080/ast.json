@@ -1,33 +1,231 @@
 [
   {
-    "name": "init_options",
+    "name": "init_dungeon",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx080 >"
+      "ctx: Context < InitDungeon >",
+      "n: u32"
     ],
     "attributes": [],
     "body": [
-      "let a = & ctx . accounts . first ;",
-      "let b = & ctx . accounts . second ;",
-      "msg ! (\"Account A: {}\" , a . key ()) ;",
-      "msg ! (\"Account B: {}\" , b . key ()) ;",
+      "let d = & mut ctx . accounts . dungeon ;",
+      "d . owner = ctx . accounts . warden . key () ;",
+      "d . threshold = n * 9 + 200 ;",
+      "d . state = Locked ;",
+      "let a = & mut ctx . accounts . key_a ;",
+      "let b = & mut ctx . accounts . key_b ;",
+      "let c = & mut ctx . accounts . chest ;",
+      "let t = n . saturating_mul (n + 1) / 2 ;",
+      "a . dungeon = d . key () ;",
+      "a . ring = (n & 7) as u8 ;",
+      "a . keys = (t % 97) + 7 ;",
+      "b . dungeon = d . key () ;",
+      "b . ring = ((n >> 2) & 7) as u8 ;",
+      "b . keys = (t . rotate_left (3) % 83) + 11 ;",
+      "c . dungeon = d . key () ;",
+      "c . ring = 9 ;",
+      "c . score = (t as u64) & 0xFFFF ;",
+      "c . code = n ^ 0x2468 ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx080",
+    "name": "solve",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Solve >",
+      "steps: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let d = & mut ctx . accounts . dungeon ;",
+      "let a = & mut ctx . accounts . key_a ;",
+      "let b = & mut ctx . accounts . key_b ;",
+      "let c = & mut ctx . accounts . chest ;",
+      "for i in 0 .. steps",
+      "{",
+      "let mut x = (a . keys as u64) + 17 ;",
+      "let mut y = (b . keys as u64) + 11 ;",
+      "while y != 0",
+      "{",
+      "let r = x % y ;",
+      "x = y ;",
+      "y = r ;",
+      "} let g = (x as u32) . max (1) ;",
+      "a . keys = a . keys . checked_add (g % 13) . unwrap_or (u32 :: MAX) ;",
+      "b . keys = b . keys . saturating_add ((g % 7) + 1) ;",
+      "c . code ^= ((a . keys ^ b . keys) as u32) . rotate_left ((i % 7) as u32) ;",
+      "}",
+      "let sum = a . keys + b . keys ;",
+      "if sum > d . threshold",
+      "{",
+      "d . state = Open ;",
+      "a . ring ^= 1 ;",
+      "b . ring = b . ring . saturating_add (1) ;",
+      "c . score = c . score . saturating_add ((sum as u64) & 63) ;",
+      "msg ! (\"open: ring tweak & score+\") ;",
+      "} else",
+      "{",
+      "d . state = Reset ;",
+      "a . keys = a . keys . saturating_add (7) ;",
+      "b . keys = b . keys / 2 + 9 ;",
+      "c . code ^= 0x0F0F_F0F0 ;",
+      "msg ! (\"reset: key adjust & code flip\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitDungeon",
     "node_type": "struct",
     "fields": [
       {
-        "name": "first",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "dungeon",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Dungeon >"
       },
       {
-        "name": "second",
+        "name": "key_a",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Keyring >"
+      },
+      {
+        "name": "key_b",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Keyring >"
+      },
+      {
+        "name": "chest",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 8 + 4)]",
+        "field_type": "Account < 'info , Chest >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "warden",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Solve",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "dungeon",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Dungeon >"
+      },
+      {
+        "name": "key_a",
+        "attribute": "# [account (mut , has_one = dungeon , constraint = key_a . ring != key_b . ring @ PuzzErr :: Dup)]",
+        "field_type": "Account < 'info , Keyring >"
+      },
+      {
+        "name": "key_b",
+        "attribute": "# [account (mut , has_one = dungeon , constraint = key_b . ring != chest . ring @ PuzzErr :: Dup)]",
+        "field_type": "Account < 'info , Keyring >"
+      },
+      {
+        "name": "chest",
+        "attribute": "# [account (mut , has_one = dungeon)]",
+        "field_type": "Account < 'info , Chest >"
+      },
+      {
+        "name": "warden",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Dungeon",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "threshold",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "state",
+        "attribute": null,
+        "field_type": "DoorState"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Keyring",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "dungeon",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "ring",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "keys",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Chest",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "dungeon",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "ring",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "score",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "code",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

@@ -1,0 +1,79 @@
+[
+  {
+    "name": "StakeState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "staker",
+        "attribute": null,
+        "field_type": "[u8 ; 32]"
+      },
+      {
+        "name": "amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "reward_rate",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "last_ts",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "compound_reward",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CompoundReward >",
+      "current_ts: u64"
+    ],
+    "attributes": [
+      "# [doc = \" ステーク報酬を複利で再ステークする  \"]",
+      "# [doc = \" (`stake_account` の owner チェックを一切行っていないため、  \"]",
+      "# [doc = \"  攻撃者が他人のステーク状態を指定して  \"]",
+      "# [doc = \"  好きなだけ報酬を上乗せできる脆弱性があります)\"]"
+    ],
+    "body": [
+      "let buf = & mut ctx . accounts . stake_account . data . borrow_mut () ;",
+      "if buf . len () < std :: mem :: size_of :: < StakeState > ()",
+      "{",
+      "return err ! (ErrorCode :: DataTooShort) ;",
+      "}",
+      "let state : & mut StakeState = bytemuck :: from_bytes_mut (& mut buf [.. std :: mem :: size_of :: < StakeState > ()]) ;",
+      "let elapsed = current_ts . wrapping_sub (state . last_ts) ;",
+      "let reward = (state . amount as u128) . wrapping_mul (state . reward_rate as u128) . wrapping_mul (elapsed as u128) / 1_000_000u128 ;",
+      "state . amount = (state . amount as u128 + reward) as u64 ;",
+      "state . last_ts = current_ts ;",
+      "msg ! (\"Compound: new stake {} (＋{}), time={} by {}\" , state . amount , reward , current_ts , ctx . accounts . staker . key ()) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CompoundReward",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "stake_account",
+        "attribute": "# [doc = \" CHECK: owner チェックをしていない AccountInfo\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "staker",
+        "attribute": "# [doc = \" ステーク所有者の署名のみ検証\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

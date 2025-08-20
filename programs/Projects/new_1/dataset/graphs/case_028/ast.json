@@ -1,0 +1,91 @@
+[
+  {
+    "name": "claim_airdrop",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ClaimAirdrop >",
+      "amount_per_nft: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 保有中の NFT 枚数に応じたエアドロップを請求し、\"]",
+      "# [doc = \" ユーザーごとの累積を更新します。\"]",
+      "# [doc = \" 署名チェックを user: AccountInfo のまま省略しています。\"]"
+    ],
+    "body": [
+      "let count = ctx . accounts . hold_acc . amount ;",
+      "let to_drop = count . checked_mul (amount_per_nft) . unwrap () ;",
+      "let data = & mut ctx . accounts . airdrop_data ;",
+      "data . total_airdropped = data . total_airdropped . checked_add (to_drop) . unwrap () ;",
+      "data . last_claim_time = ctx . accounts . clock . unix_timestamp ;"
+    ]
+  },
+  {
+    "name": "ClaimAirdrop",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "fee_payer",
+        "attribute": "# [doc = \" トランザクション手数料支払い用（署名必須）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" エアドロップ請求ユーザー（署名チェック omitted intentionally）\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "hold_acc",
+        "attribute": "# [doc = \" 保有枚数を参照する TokenAccount\"] # [account (constraint = hold_acc . owner == * user . key , constraint = hold_acc . mint == nft_mint . key ())]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "nft_mint",
+        "attribute": "# [doc = \" 対象 NFT Mint\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "airdrop_data",
+        "attribute": "# [doc = \" エアドロップ累積データを保持する PDA\"] # [account (init_if_needed , payer = fee_payer , space = 8 + 8 + 8 , seeds = [b\"airdrop\" , user . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , AirdropData >"
+      },
+      {
+        "name": "clock",
+        "attribute": "# [doc = \" Unix 時刻取得用\"]",
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "rent",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Rent >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AirdropData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "total_airdropped",
+        "attribute": "# [doc = \" 累積エアドロップ量\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "last_claim_time",
+        "attribute": "# [doc = \" 最終請求時刻\"]",
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

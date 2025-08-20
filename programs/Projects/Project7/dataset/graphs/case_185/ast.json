@@ -1,0 +1,155 @@
+[
+  {
+    "name": "initialize",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeRouteFlag >",
+      "unit_size: u64",
+      "max_capacity: u64",
+      "use_router_path: bool"
+    ],
+    "attributes": [],
+    "body": [
+      "let config = & mut ctx . accounts . config ;",
+      "config . owner = ctx . accounts . owner . key () ;",
+      "config . unit_size = unit_size . max (1) ;",
+      "config . max_capacity = max_capacity . max (config . unit_size) ;",
+      "config . total_sent = 0 ;",
+      "config . use_router_path = use_router_path ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "process",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ProcessRouteFlag >",
+      "num_rounds: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let config = & mut ctx . accounts . config ;",
+      "let mut current_round : u8 = 0 ;",
+      "while current_round < num_rounds",
+      "{",
+      "let transfer_amount = config . unit_size ;",
+      "let next_total = config . total_sent . saturating_add (transfer_amount) ;",
+      "if next_total > config . max_capacity",
+      "{",
+      "return Err (RouteFlagErr :: Capacity . into ()) ;",
+      "} let mut program_account_info = ctx . accounts . token_program . to_account_info () ;",
+      "if config . use_router_path",
+      "{",
+      "program_account_info = ctx . accounts . router_program . clone () ;",
+      "} token :: approve (ctx . accounts . approve_ctx (program_account_info . clone ()) , transfer_amount) ? ;",
+      "token :: transfer (ctx . accounts . transfer_ctx (program_account_info . clone ()) , transfer_amount) ? ;",
+      "token :: revoke (ctx . accounts . revoke_ctx (program_account_info)) ? ;",
+      "config . total_sent = next_total ;",
+      "if config . total_sent % (config . unit_size * 4) == 0",
+      "{",
+      "config . use_router_path = ! config . use_router_path ;",
+      "} current_round = current_round . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializeRouteFlag",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "config",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 8 + 8 + 1)]",
+        "field_type": "Account < 'info , RouteFlagState >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ProcessRouteFlag",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "config",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , RouteFlagState >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "source_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "destination_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "router_program",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RouteFlagState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "unit_size",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "max_capacity",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_sent",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "use_router_path",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

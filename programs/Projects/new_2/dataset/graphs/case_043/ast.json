@@ -1,0 +1,191 @@
+[
+  {
+    "name": "strict_add",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < StrictCtx >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" パターンA：has_one + signer で完全検証し直接加算\"]"
+    ],
+    "body": [
+      "let acct = & mut ctx . accounts . secured_vault . to_account_info () ;",
+      "let before = * * acct . try_borrow_lamports () ? ;",
+      "* * acct . try_borrow_mut_lamports () ? = before + amount ;",
+      "msg ! (\"strict_add 完了\") ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "repeat_add",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RepeatCtx >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" パターンB：署名のみ検証、単一ループで加算（owner チェックなし）\"]"
+    ],
+    "body": [
+      "for _ in 0 .. 1",
+      "{",
+      "let acct = & mut ctx . accounts . raw_vault ;",
+      "let before = * * acct . try_borrow_lamports () ? ;",
+      "* * acct . try_borrow_mut_lamports () ? = before + amount ;",
+      "}",
+      "msg ! (\"repeat_add 完了\") ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "conditional_add",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ConditionalCtx >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" パターンC：シンプルな if で手動オーナーチェック（署名不要）\"]"
+    ],
+    "body": [
+      "if ctx . accounts . vault . owner == ctx . accounts . user . key ()",
+      "{",
+      "let acct = & mut ctx . accounts . vault . to_account_info () ;",
+      "let before = * * acct . try_borrow_lamports () ? ;",
+      "* * acct . try_borrow_mut_lamports () ? = before + amount ;",
+      "}",
+      "msg ! (\"conditional_add 完了\") ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "batch_add",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < BatchCtx >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" パターンD：remaining_accounts 全件をループでまとめて更新\"]"
+    ],
+    "body": [
+      "for acct in & ctx . remaining_accounts",
+      "{",
+      "let before = acct . lamports () ;",
+      "* * acct . try_borrow_mut_lamports () ? = before + amount ;",
+      "}",
+      "msg ! (\"batch_add 完了\") ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "StrictCtx",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "secured_vault",
+        "attribute": "# [account (mut , has_one = authority)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RepeatCtx",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "raw_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "signer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ConditionalCtx",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BatchCtx",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Vault",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

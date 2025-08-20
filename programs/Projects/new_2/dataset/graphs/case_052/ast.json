@@ -1,0 +1,160 @@
+[
+  {
+    "name": "ListingInfo",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "price",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "seller",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "expires",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "create_listing",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateListing >",
+      "price: u64",
+      "duration_secs: i64"
+    ],
+    "attributes": [
+      "# [doc = \" 新規出品を作成する  \"]",
+      "# [doc = \" （`listing_account` のオーナーチェックをせずにBorshで直接シリアライズ）\"]"
+    ],
+    "body": [
+      "let mut data = ctx . accounts . listing_account . data . borrow_mut () ;",
+      "let listing = ListingInfo { price , seller : ctx . accounts . seller . key () , expires : Clock :: get () ? . unix_timestamp + duration_secs , } ;",
+      "listing . serialize (& mut & mut data [..]) ? ;",
+      "msg ! (\"Created listing {}: price={} by {} until {}\" , ctx . accounts . listing_account . key () , price , ctx . accounts . seller . key () , listing . expires) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "extend_listing",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ExtendListing >",
+      "extra_secs: i64"
+    ],
+    "attributes": [
+      "# [doc = \" 出品期限を延長する  \"]",
+      "# [doc = \" （ownerチェックなしのまま、データをデシリアライズ→更新→再シリアライズ）\"]"
+    ],
+    "body": [
+      "let mut data = ctx . accounts . listing_account . data . borrow_mut () ;",
+      "let mut info = ListingInfo :: try_from_slice (& data) ? ;",
+      "info . expires = info . expires . saturating_add (extra_secs) ;",
+      "info . serialize (& mut & mut data [..]) ? ;",
+      "msg ! (\"Extended listing {}: new expires at {}\" , ctx . accounts . listing_account . key () , info . expires) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "finalize_sale",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < FinalizeSale >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" lamports をセラーに送金し、出品情報をクリアする  \"]",
+      "# [doc = \" （ownerチェックを省略、TokenAccount ではなく AccountInfo で受け取る）\"]"
+    ],
+    "body": [
+      "let cpi_accounts = Transfer { from : ctx . accounts . escrow_token_account . to_account_info () , to : ctx . accounts . seller_token_account . to_account_info () , authority : ctx . accounts . escrow_authority . to_account_info () , } ;",
+      "transfer (CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) , amount ,) ? ;",
+      "ctx . accounts . listing_account . data . borrow_mut () . fill (0) ;",
+      "msg ! (\"Finalized sale for {}: transferred {} tokens\" , ctx . accounts . listing_account . key () , amount) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CreateListing",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "listing_account",
+        "attribute": "# [doc = \" CHECK: owner == program_id の検証を全く行っていない\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "seller",
+        "attribute": "# [doc = \" 出品者署名のみ検証\"]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Clock >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ExtendListing",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "listing_account",
+        "attribute": "# [doc = \" CHECK: owner == program_id の検証を省略\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "FinalizeSale",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "escrow_token_account",
+        "attribute": "# [doc = \" CHECK: Escrow用TokenAccountかどうか検証していない\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "seller_token_account",
+        "attribute": "# [doc = \" CHECK: Seller用TokenAccountかどうか検証していない\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "escrow_authority",
+        "attribute": "# [doc = \" CHECK: Authorityの署名のみ検証\"]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "listing_account",
+        "attribute": "# [doc = \" CHECK: owner == program_id チェックを行わない AccountInfo\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

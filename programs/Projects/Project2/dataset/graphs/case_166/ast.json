@@ -1,0 +1,174 @@
+[
+  {
+    "name": "initialize_feedback",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeFeedback >"
+    ],
+    "attributes": [
+      "# [doc = \" フィードバック管理アカウント初期化  \"]"
+    ],
+    "body": [
+      "let feedback = & mut ctx . accounts . feedback ;",
+      "feedback . owner = ctx . accounts . user . key () ;",
+      "feedback . bump = * ctx . bumps . get (\"feedback\") . unwrap () ;",
+      "feedback . last_feedback_ts = ctx . accounts . clock . unix_timestamp ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "submit_feedback",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyFeedback >",
+      "rating: u8"
+    ],
+    "attributes": [
+      "# [doc = \" フィードバック投稿：評価を加算し、平均評価とタイムスタンプを更新  \"]"
+    ],
+    "body": [
+      "let f = & mut ctx . accounts . feedback ;",
+      "f . feedback_count = f . feedback_count . wrapping_add (1) ;",
+      "f . total_rating = f . total_rating . wrapping_add (rating as u64) ;",
+      "f . average_rating = (f . total_rating / f . feedback_count) as u8 ;",
+      "f . last_feedback_ts = ctx . accounts . clock . unix_timestamp ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "reset_feedback",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyFeedback >"
+    ],
+    "attributes": [
+      "# [doc = \" フィードバックリセット：カウント・合計・平均をクリアし、時刻を更新  \"]"
+    ],
+    "body": [
+      "let f = & mut ctx . accounts . feedback ;",
+      "f . feedback_count = 0 ;",
+      "f . total_rating = 0 ;",
+      "f . average_rating = 0 ;",
+      "f . last_feedback_ts = ctx . accounts . clock . unix_timestamp ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "transfer_ownership",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyFeedback >",
+      "new_owner: Pubkey"
+    ],
+    "attributes": [
+      "# [doc = \" 所有権移転：新しいオーナーを設定し、時刻を更新  \"]"
+    ],
+    "body": [
+      "let f = & mut ctx . accounts . feedback ;",
+      "f . owner = new_owner ;",
+      "f . last_feedback_ts = ctx . accounts . clock . unix_timestamp ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializeFeedback",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "feedback",
+        "attribute": "# [doc = \" ゼロで初期化後、必要なフィールドだけ設定する\"] # [account (init_zeroed , payer = user , seeds = [b\"feedback\" , user . key () . as_ref () , & feedback_id . to_le_bytes ()] , bump , space = 8 + 32 + 1 + 8 + 8 + 1 + 8)]",
+        "field_type": "Account < 'info , Feedback >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" プログラム利用者（初期オーナー）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": "# [doc = \" 時刻取得用\"]",
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ModifyFeedback",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "feedback",
+        "attribute": "# [doc = \" 既存の Feedback（PDA 検証 + has_one = owner）\"] # [account (mut , seeds = [b\"feedback\" , owner . key () . as_ref () , & feedback . feedback_count . to_le_bytes ()] , bump = feedback . bump , has_one = owner)]",
+        "field_type": "Account < 'info , Feedback >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" Feedback 所有者（署名必須）\"] # [account (signer)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": "# [doc = \" 時刻取得用\"]",
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Feedback",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "feedback_count",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_rating",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "average_rating",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "last_feedback_ts",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

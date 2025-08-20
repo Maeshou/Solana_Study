@@ -1,0 +1,187 @@
+[
+  {
+    "name": "Announcement",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "author",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "message",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "acknowledgers",
+        "attribute": null,
+        "field_type": "Vec < Pubkey >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AckRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "announcement",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "note",
+        "attribute": null,
+        "field_type": "String"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreateAnnouncement",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "announcement",
+        "attribute": "# [account (init , payer = author , space = 8 + 32 + 4 + 256 + 4 + (32 * 100))]",
+        "field_type": "Account < 'info , Announcement >"
+      },
+      {
+        "name": "author",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MarkRead",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "announcement",
+        "attribute": "# [doc = \" Announcement.author == author.key() は検証される\"] # [account (mut , has_one = author)]",
+        "field_type": "Account < 'info , Announcement >"
+      },
+      {
+        "name": "record",
+        "attribute": "# [doc = \" AckRecord.announcement ⇔ announcement.key() の検証がないため、\"] # [doc = \" 偽のレコードで既読処理をすり抜け可能\"] # [account (init , payer = user , space = 8 + 32 + 32 + 4 + 128)]",
+        "field_type": "Account < 'info , AckRecord >"
+      },
+      {
+        "name": "author",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ClearReads",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "record",
+        "attribute": "# [doc = \" AckRecord.user == user.key() は検証される\"] # [account (mut , has_one = user)]",
+        "field_type": "Account < 'info , AckRecord >"
+      },
+      {
+        "name": "announcement",
+        "attribute": "# [doc = \" Announcement.key() ⇔ record.announcement の検証がないため、\"] # [doc = \" 任意のレコードで別のお知らせの既読一覧をクリア可能\"] # [account (mut)]",
+        "field_type": "Account < 'info , Announcement >"
+      },
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "create_announcement",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateAnnouncement >",
+      "message: String"
+    ],
+    "attributes": [
+      "# [doc = \" お知らせを作成\"]"
+    ],
+    "body": [
+      "let a = & mut ctx . accounts . announcement ;",
+      "a . author = ctx . accounts . author . key () ;",
+      "a . message = message ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "mark_read",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < MarkRead >",
+      "note: String"
+    ],
+    "attributes": [
+      "# [doc = \" 既読をマーク（記録＋一覧追加）\"]"
+    ],
+    "body": [
+      "let a = & mut ctx . accounts . announcement ;",
+      "let r = & mut ctx . accounts . record ;",
+      "r . user = ctx . accounts . user . key () ;",
+      "r . announcement = a . key () ;",
+      "r . note = note ;",
+      "a . acknowledgers . push (r . user) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "clear_reads",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ClearReads >"
+    ],
+    "attributes": [
+      "# [doc = \" 既読一覧をクリア （最後に追加されたユーザーを除去）\"]"
+    ],
+    "body": [
+      "let a = & mut ctx . accounts . announcement ;",
+      "a . acknowledgers . pop () ;",
+      "Ok (())"
+    ]
+  }
+]

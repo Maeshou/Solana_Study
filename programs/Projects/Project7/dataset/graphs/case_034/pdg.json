@@ -1,0 +1,378 @@
+[
+  {
+    "name": "init_board",
+    "inputs": [
+      "ctx: Context < InitBoard >",
+      "daily_max: u64",
+      "weekly_basis: u64"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let board = & mut ctx . accounts . board ;"
+      },
+      {
+        "id": 2,
+        "label": "board . owner_key = ctx . accounts . owner . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "board . daily_max = daily_max . max (9) ;"
+      },
+      {
+        "id": 4,
+        "label": "board . issued_today = weekly_basis . saturating_div (6) . max (3) ;"
+      },
+      {
+        "id": 5,
+        "label": "board . weekly_basis = weekly_basis . max (12) ;"
+      },
+      {
+        "id": 6,
+        "label": "board . current_streak = 3 ;"
+      },
+      {
+        "id": 7,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: board"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: board"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: board"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: board"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: board"
+      },
+      {
+        "from": 1,
+        "to": 6,
+        "label": "data_dep: board"
+      }
+    ]
+  },
+  {
+    "name": "act_claim",
+    "inputs": [
+      "ctx: Context < ActClaim >",
+      "completed_tasks: u8",
+      "proof_units: u64"
+    ],
+    "nodes": [
+      {
+        "id": 8,
+        "label": "Entry"
+      },
+      {
+        "id": 9,
+        "label": "let board = & mut ctx . accounts . board ;"
+      },
+      {
+        "id": 10,
+        "label": "token :: burn (ctx . accounts . burn_ctx () , proof_units . max (1)) ? ;"
+      },
+      {
+        "id": 11,
+        "label": "let mut grant_units = board . weekly_basis . saturating_div (25) . max (1) ;"
+      },
+      {
+        "id": 12,
+        "label": "let mut task_cursor = 0u8 ;"
+      },
+      {
+        "id": 13,
+        "label": "while task_cursor < completed_tasks { grant_units = grant_units . saturating_add ((task_cursor as u64 % 4) . saturating_add (1)) ; task_cursor = task_cursor . saturating_add (1) ; }"
+      },
+      {
+        "id": 14,
+        "label": "grant_units = grant_units . saturating_add ((task_cursor as u64 % 4) . saturating_add (1)) ;"
+      },
+      {
+        "id": 15,
+        "label": "task_cursor = task_cursor . saturating_add (1) ;"
+      },
+      {
+        "id": 16,
+        "label": "if board . current_streak % 7 == 0 { grant_units = grant_units . saturating_add (3) ; }"
+      },
+      {
+        "id": 17,
+        "label": "grant_units = grant_units . saturating_add (3) ;"
+      },
+      {
+        "id": 18,
+        "label": "let next_total = board . issued_today . saturating_add (grant_units) ;"
+      },
+      {
+        "id": 19,
+        "label": "if next_total > board . daily_max { let overflow = next_total . saturating_sub (board . daily_max) ; board . weekly_basis = board . weekly_basis . saturating_add (overflow) ; board . current_streak = 1 ; return Err (QuestErr :: DailyCap . into ()) ; }"
+      },
+      {
+        "id": 20,
+        "label": "let overflow = next_total . saturating_sub (board . daily_max) ;"
+      },
+      {
+        "id": 21,
+        "label": "board . weekly_basis = board . weekly_basis . saturating_add (overflow) ;"
+      },
+      {
+        "id": 22,
+        "label": "board . current_streak = 1 ;"
+      },
+      {
+        "id": 23,
+        "label": "return Err (QuestErr :: DailyCap . into ()) ;"
+      },
+      {
+        "id": 24,
+        "label": "token :: mint_to (ctx . accounts . mint_ctx () , grant_units) ? ;"
+      },
+      {
+        "id": 25,
+        "label": "board . issued_today = next_total ;"
+      },
+      {
+        "id": 26,
+        "label": "board . current_streak = board . current_streak . saturating_add (1) ;"
+      },
+      {
+        "id": 27,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 9,
+        "to": 9,
+        "label": "def: board"
+      },
+      {
+        "from": 11,
+        "to": 11,
+        "label": "def: grant_units"
+      },
+      {
+        "from": 9,
+        "to": 11,
+        "label": "data_dep: board"
+      },
+      {
+        "from": 12,
+        "to": 12,
+        "label": "def: task_cursor"
+      },
+      {
+        "from": 12,
+        "to": 13,
+        "label": "data_dep: task_cursor"
+      },
+      {
+        "from": 11,
+        "to": 13,
+        "label": "data_dep: grant_units"
+      },
+      {
+        "from": 11,
+        "to": 13,
+        "label": "data_dep: grant_units"
+      },
+      {
+        "from": 12,
+        "to": 13,
+        "label": "data_dep: task_cursor"
+      },
+      {
+        "from": 12,
+        "to": 13,
+        "label": "data_dep: task_cursor"
+      },
+      {
+        "from": 12,
+        "to": 13,
+        "label": "data_dep: task_cursor"
+      },
+      {
+        "from": 11,
+        "to": 14,
+        "label": "data_dep: grant_units"
+      },
+      {
+        "from": 11,
+        "to": 14,
+        "label": "data_dep: grant_units"
+      },
+      {
+        "from": 12,
+        "to": 14,
+        "label": "data_dep: task_cursor"
+      },
+      {
+        "from": 12,
+        "to": 15,
+        "label": "data_dep: task_cursor"
+      },
+      {
+        "from": 12,
+        "to": 15,
+        "label": "data_dep: task_cursor"
+      },
+      {
+        "from": 9,
+        "to": 16,
+        "label": "data_dep: board"
+      },
+      {
+        "from": 11,
+        "to": 16,
+        "label": "data_dep: grant_units"
+      },
+      {
+        "from": 11,
+        "to": 16,
+        "label": "data_dep: grant_units"
+      },
+      {
+        "from": 11,
+        "to": 17,
+        "label": "data_dep: grant_units"
+      },
+      {
+        "from": 11,
+        "to": 17,
+        "label": "data_dep: grant_units"
+      },
+      {
+        "from": 18,
+        "to": 18,
+        "label": "def: next_total"
+      },
+      {
+        "from": 9,
+        "to": 18,
+        "label": "data_dep: board"
+      },
+      {
+        "from": 11,
+        "to": 18,
+        "label": "data_dep: grant_units"
+      },
+      {
+        "from": 18,
+        "to": 19,
+        "label": "data_dep: next_total"
+      },
+      {
+        "from": 9,
+        "to": 19,
+        "label": "data_dep: board"
+      },
+      {
+        "from": 18,
+        "to": 19,
+        "label": "data_dep: next_total"
+      },
+      {
+        "from": 9,
+        "to": 19,
+        "label": "data_dep: board"
+      },
+      {
+        "from": 9,
+        "to": 19,
+        "label": "data_dep: board"
+      },
+      {
+        "from": 9,
+        "to": 19,
+        "label": "data_dep: board"
+      },
+      {
+        "from": 9,
+        "to": 19,
+        "label": "data_dep: board"
+      },
+      {
+        "from": 20,
+        "to": 20,
+        "label": "def: overflow"
+      },
+      {
+        "from": 18,
+        "to": 20,
+        "label": "data_dep: next_total"
+      },
+      {
+        "from": 9,
+        "to": 20,
+        "label": "data_dep: board"
+      },
+      {
+        "from": 9,
+        "to": 21,
+        "label": "data_dep: board"
+      },
+      {
+        "from": 9,
+        "to": 21,
+        "label": "data_dep: board"
+      },
+      {
+        "from": 20,
+        "to": 21,
+        "label": "data_dep: overflow"
+      },
+      {
+        "from": 9,
+        "to": 22,
+        "label": "data_dep: board"
+      },
+      {
+        "from": 11,
+        "to": 24,
+        "label": "data_dep: grant_units"
+      },
+      {
+        "from": 9,
+        "to": 25,
+        "label": "data_dep: board"
+      },
+      {
+        "from": 18,
+        "to": 25,
+        "label": "data_dep: next_total"
+      },
+      {
+        "from": 9,
+        "to": 26,
+        "label": "data_dep: board"
+      },
+      {
+        "from": 9,
+        "to": 26,
+        "label": "data_dep: board"
+      }
+    ]
+  }
+]

@@ -1,0 +1,157 @@
+[
+  {
+    "name": "initialize_vault",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeVault >",
+      "lock_time: i64"
+    ],
+    "attributes": [
+      "# [doc = \" Vault（PDA）の初期化。lock_time は UNIX タイムスタンプ\"]"
+    ],
+    "body": [
+      "let vault = & mut ctx . accounts . vault ;",
+      "vault . authority = ctx . accounts . authority . key () ;",
+      "vault . lock_time = lock_time ;",
+      "vault . balance = 0 ;",
+      "vault . bump = * ctx . bumps . get (\"vault\") . unwrap () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "deposit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyVault >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 入金：authority が署名し、自分の Vault にのみ入金可能\"]"
+    ],
+    "body": [
+      "let authority_ai = ctx . accounts . authority . to_account_info () ;",
+      "let vault_ai = ctx . accounts . vault . to_account_info () ;",
+      "require ! (** authority_ai . lamports . borrow () >= amount , ErrorCode :: InsufficientFunds) ;",
+      "* * authority_ai . try_borrow_mut_lamports () ? -= amount ;",
+      "* * vault_ai . try_borrow_mut_lamports () ? += amount ;",
+      "let vault = & mut ctx . accounts . vault ;",
+      "vault . balance = vault . balance . checked_add (amount) . ok_or (ErrorCode :: Overflow) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "withdraw",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Withdraw >"
+    ],
+    "attributes": [
+      "# [doc = \" 引き出し：lock_time を過ぎると、自動で Vault を閉じて全 Lamports を authority に返却\"]"
+    ],
+    "body": [
+      "let vault = & ctx . accounts . vault ;",
+      "let now = ctx . accounts . clock . unix_timestamp ;",
+      "require ! (now >= vault . lock_time , ErrorCode :: TooEarly) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializeVault",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": "# [doc = \" PDA：[\\\"vault\\\", authority], bump付き、同一シードでは再初期化不可\"] # [account (init , seeds = [b\"vault\" , authority . key () . as_ref ()] , bump , payer = authority , space = 8 + 32 + 8 + 8 + 1)]",
+        "field_type": "Account < 'info , VaultAccount >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [doc = \" 操作権限を持つユーザー（Signer）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ModifyVault",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": "# [doc = \" has_one で authority チェック、seeds+bump で PDA を固定\"] # [account (mut , seeds = [b\"vault\" , authority . key () . as_ref ()] , bump = vault . bump , has_one = authority)]",
+        "field_type": "Account < 'info , VaultAccount >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [doc = \" 実際に署名したユーザー\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Withdraw",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": "# [doc = \" withdraw すると同時にアカウントを閉じ、Lamports を authority に返却\"] # [account (mut , seeds = [b\"vault\" , authority . key () . as_ref ()] , bump = vault . bump , has_one = authority , close = authority)]",
+        "field_type": "Account < 'info , VaultAccount >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [doc = \" 実際に署名したユーザー\"]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": "# [doc = \" 現在の UNIX タイムスタンプ\"]",
+        "field_type": "Sysvar < 'info , Clock >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "VaultAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "authority",
+        "attribute": "# [doc = \" この Vault を操作できるユーザー\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "lock_time",
+        "attribute": "# [doc = \" 引き出し可能になる UNIX タイムスタンプ\"]",
+        "field_type": "i64"
+      },
+      {
+        "name": "balance",
+        "attribute": "# [doc = \" 入金合計 Lamports\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "bump",
+        "attribute": "# [doc = \" PDA 用 bump\"]",
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

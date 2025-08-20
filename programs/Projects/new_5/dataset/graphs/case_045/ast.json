@@ -1,0 +1,249 @@
+[
+  {
+    "name": "create_network",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateNetwork >",
+      "network_id: u64",
+      "name: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let network = & mut ctx . accounts . social_network ;",
+      "network . founder = ctx . accounts . founder . key () ;",
+      "network . network_id = network_id ;",
+      "network . name = name ;",
+      "network . user_count = 0 ;",
+      "network . network_status = NetworkStatus :: Public ;",
+      "network . last_post_timestamp = Clock :: get () ? . unix_timestamp ;",
+      "msg ! (\"Social Network '{}' created. Status is Public.\" , network . name) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "create_user_profile",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateUserProfile >",
+      "user_id: u64",
+      "username: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let user_profile = & mut ctx . accounts . user_profile ;",
+      "let network = & mut ctx . accounts . social_network ;",
+      "if network . network_status != NetworkStatus :: Public",
+      "{",
+      "return Err (error ! (SocialNetworkError :: NetworkUnavailable)) ;",
+      "}",
+      "user_profile . network = network . key () ;",
+      "user_profile . user_id = user_id ;",
+      "user_profile . owner = ctx . accounts . owner . key () ;",
+      "user_profile . username = username ;",
+      "user_profile . followers = 0 ;",
+      "user_profile . posts_count = 0 ;",
+      "user_profile . profile_status = ProfileStatus :: Active ;",
+      "network . user_count = network . user_count . saturating_add (1) ;",
+      "msg ! (\"User profile '{}' created. Status is Active.\" , user_profile . username) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "interact_with_posts",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InteractWithPosts >",
+      "engagement_score: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let poster_profile = & mut ctx . accounts . poster_profile ;",
+      "let target_profile = & mut ctx . accounts . target_profile ;",
+      "if poster_profile . profile_status != ProfileStatus :: Active || target_profile . profile_status != ProfileStatus :: Active",
+      "{",
+      "return Err (error ! (SocialNetworkError :: ProfileInactive)) ;",
+      "}",
+      "let mut loop_counter = 0 ;",
+      "let bonus_points = engagement_score / 10 ;",
+      "while loop_counter < 3",
+      "{",
+      "poster_profile . posts_count = poster_profile . posts_count . saturating_add (1) ;",
+      "poster_profile . followers = poster_profile . followers . saturating_add (bonus_points) ;",
+      "target_profile . followers = target_profile . followers . saturating_add (1) ;",
+      "msg ! (\"Interaction processed. Poster posts count:",
+      "{",
+      "}, Target followers: {}.\" , poster_profile . posts_count , target_profile . followers) ;",
+      "loop_counter += 1 ;",
+      "}",
+      "if poster_profile . followers > 1000",
+      "{",
+      "poster_profile . posts_count = poster_profile . posts_count . saturating_add (10) ;",
+      "msg ! (\"Poster reached 1000 followers, gaining 10 bonus posts.\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CreateNetwork",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "social_network",
+        "attribute": "# [account (init , payer = founder , space = 8 + 32 + 8 + 32 + 4 + 4 + 8)]",
+        "field_type": "Account < 'info , SocialNetwork >"
+      },
+      {
+        "name": "founder",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreateUserProfile",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "social_network",
+        "attribute": "# [account (mut , has_one = network)]",
+        "field_type": "Account < 'info , SocialNetwork >"
+      },
+      {
+        "name": "user_profile",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 32 + 32 + 4 + 4 + 1)]",
+        "field_type": "Account < 'info , UserProfile >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InteractWithPosts",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "social_network",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , SocialNetwork >"
+      },
+      {
+        "name": "poster_profile",
+        "attribute": "# [account (mut , has_one = network)]",
+        "field_type": "Account < 'info , UserProfile >"
+      },
+      {
+        "name": "target_profile",
+        "attribute": "# [account (mut , has_one = network)]",
+        "field_type": "Account < 'info , UserProfile >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SocialNetwork",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "founder",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "network_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "user_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "network_status",
+        "attribute": null,
+        "field_type": "NetworkStatus"
+      },
+      {
+        "name": "last_post_timestamp",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "UserProfile",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "network",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "user_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "username",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "followers",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "posts_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "profile_status",
+        "attribute": null,
+        "field_type": "ProfileStatus"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

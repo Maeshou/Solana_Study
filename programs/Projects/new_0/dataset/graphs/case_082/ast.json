@@ -1,0 +1,170 @@
+[
+  {
+    "name": "initialize_jar",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeJar >"
+    ],
+    "attributes": [
+      "# [doc = \" クリエイターだけが呼べるジャー口座を初期化\"]"
+    ],
+    "body": [
+      "let jar = & mut ctx . accounts . jar ;",
+      "jar . creator = ctx . accounts . creator . key () ;",
+      "jar . total_tips = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "tip",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Tip >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" どなたでも署名を伴ってチップを送れる（amountは1以上）\"]"
+    ],
+    "body": [
+      "require ! (ctx . accounts . tip_payer . is_signer , ErrorCode :: Unauthorized) ;",
+      "require ! (amount > 0 , ErrorCode :: InvalidAmount) ;",
+      "let jar = & mut ctx . accounts . jar ;",
+      "jar . total_tips = jar . total_tips . checked_add (amount) . unwrap () ;",
+      "msg ! (\"❤ {} tipped {} units. New total: {}\" , ctx . accounts . tip_payer . key () , amount , jar . total_tips) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "withdraw",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Withdraw >"
+    ],
+    "attributes": [
+      "# [doc = \" クリエイターだけが全部引き出せる\"]"
+    ],
+    "body": [
+      "require ! (ctx . accounts . creator . is_signer , ErrorCode :: Unauthorized) ;",
+      "let jar = & mut ctx . accounts . jar ;",
+      "require ! (jar . total_tips > 0 , ErrorCode :: NoTipsLeft) ;",
+      "let to_send = jar . total_tips ;",
+      "jar . total_tips = 0 ;",
+      "msg ! (\"💰 {} withdrew {} units\" , ctx . accounts . creator . key () , to_send) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "view_balance",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ViewBalance >"
+    ],
+    "attributes": [
+      "# [doc = \" 現在のジャー残高を見るだけ\"]"
+    ],
+    "body": [
+      "let jar = & ctx . accounts . jar ;",
+      "msg ! (\"TipJar for {} has {} units\" , jar . creator , jar . total_tips) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializeJar",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "jar",
+        "attribute": "# [doc = \" 初回だけ PDA を init\"] # [account (init , payer = creator , space = 8 + 32 + 8 , seeds = [b\"jar\" , creator . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , TipJarAccount >"
+      },
+      {
+        "name": "creator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Tip",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "jar",
+        "attribute": "# [doc = \" PDA とクリエイターは関係ないが jar 自体を更新\"] # [account (mut , seeds = [b\"jar\" , jar . creator . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , TipJarAccount >"
+      },
+      {
+        "name": "tip_payer",
+        "attribute": "# [doc = \" チップを払う人\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Withdraw",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "jar",
+        "attribute": "# [doc = \" PDA のクリエイター署名を確認\"] # [account (mut , seeds = [b\"jar\" , creator . key () . as_ref ()] , bump , has_one = creator)]",
+        "field_type": "Account < 'info , TipJarAccount >"
+      },
+      {
+        "name": "creator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ViewBalance",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "jar",
+        "attribute": "# [doc = \" どなたでも残高を見られる\"] # [account (seeds = [b\"jar\" , jar . creator . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , TipJarAccount >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TipJarAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "creator",
+        "attribute": "# [doc = \" チップ受取人\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "total_tips",
+        "attribute": "# [doc = \" 累計チップ量\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

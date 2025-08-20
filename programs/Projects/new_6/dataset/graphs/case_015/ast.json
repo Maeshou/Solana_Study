@@ -1,0 +1,249 @@
+[
+  {
+    "name": "init_marketplace",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitMarketplace >",
+      "market_name: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let marketplace = & mut ctx . accounts . marketplace ;",
+      "marketplace . owner = ctx . accounts . owner . key () ;",
+      "marketplace . name = market_name ;",
+      "marketplace . total_orders = 0 ;",
+      "marketplace . fee_rate = 250 ;",
+      "marketplace . is_active = true ;",
+      "marketplace . total_volume = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_order",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitOrder >",
+      "price: u64",
+      "quantity: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let order = & mut ctx . accounts . order ;",
+      "order . marketplace = ctx . accounts . marketplace . key () ;",
+      "order . creator = ctx . accounts . creator . key () ;",
+      "order . price = price ;",
+      "order . quantity = quantity ;",
+      "order . filled_quantity = 0 ;",
+      "order . status = Active ;",
+      "order . order_id = ctx . accounts . marketplace . total_orders ;",
+      "let marketplace = & mut ctx . accounts . marketplace ;",
+      "marketplace . total_orders = marketplace . total_orders . checked_add (1) . unwrap_or (u64 :: MAX) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "execute_trade",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ExecuteTrade >",
+      "trade_quantity: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let marketplace = & mut ctx . accounts . marketplace ;",
+      "let buyer_data = ctx . accounts . buyer . try_borrow_mut_data () ? ;",
+      "let seller_data = ctx . accounts . seller . try_borrow_mut_data () ? ;",
+      "marketplace . total_volume = marketplace . total_volume . checked_add (trade_quantity as u64) . unwrap_or (u64 :: MAX) ;",
+      "for batch in 0 .. trade_quantity",
+      "{",
+      "let fee_amount = (batch * marketplace . fee_rate) / 10000 ;",
+      "if batch % 3 == 0",
+      "{",
+      "marketplace . total_volume = marketplace . total_volume ^ (batch as u64) ;",
+      "marketplace . fee_rate = marketplace . fee_rate . checked_add (fee_amount) . unwrap_or (u32 :: MAX) ;",
+      "marketplace . total_orders = marketplace . total_orders + (batch as u64) * 2 ;",
+      "msg ! (\"Buyer batch",
+      "{",
+      "} processed\" , batch) ;",
+      "} else",
+      "{",
+      "marketplace . fee_rate = marketplace . fee_rate . saturating_sub (1) ;",
+      "marketplace . total_volume = marketplace . total_volume << 1 ;",
+      "marketplace . total_orders = marketplace . total_orders . wrapping_add (fee_amount as u64) ;",
+      "msg ! (\"Seller batch",
+      "{",
+      "} processed\" , batch) ;",
+      "}",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitMarketplace",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "marketplace",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 64 + 8 + 4 + 1 + 8)]",
+        "field_type": "Account < 'info , Marketplace >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitOrder",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "order",
+        "attribute": "# [account (init , payer = creator , space = 8 + 32 + 32 + 8 + 4 + 4 + 1 + 8)]",
+        "field_type": "Account < 'info , Order >"
+      },
+      {
+        "name": "marketplace",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Marketplace >"
+      },
+      {
+        "name": "creator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ExecuteTrade",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "marketplace",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Marketplace >"
+      },
+      {
+        "name": "buyer",
+        "attribute": "# [doc = \" CHECK: 脆弱 - buyerとsellerが同じでも通る\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "seller",
+        "attribute": "# [doc = \" CHECK: 脆弱 - 売買者検証なし\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Marketplace",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "total_orders",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "fee_rate",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "is_active",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "total_volume",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Order",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "marketplace",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "creator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "price",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "quantity",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "filled_quantity",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "status",
+        "attribute": null,
+        "field_type": "OrderStatus"
+      },
+      {
+        "name": "order_id",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

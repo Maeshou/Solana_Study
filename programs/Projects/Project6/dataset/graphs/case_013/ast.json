@@ -1,0 +1,149 @@
+[
+  {
+    "name": "list_item",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ListItem >",
+      "price: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let order = & mut ctx . accounts . order ;",
+      "order . seller = ctx . accounts . seller . key () ;",
+      "order . mint = ctx . accounts . item_mint . key () ;",
+      "order . price = price ;",
+      "order . is_listed = true ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "purchase_item",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PurchaseItem >"
+    ],
+    "attributes": [],
+    "body": [
+      "let order = & mut ctx . accounts . order ;",
+      "let buyer_token_account = & mut ctx . accounts . buyer_token_account ;",
+      "let cpi_program = ctx . accounts . token_program . to_account_info () ;",
+      "let cpi_accounts = token :: Transfer { from : buyer_token_account . to_account_info () , to : ctx . accounts . seller_token_account . to_account_info () , authority : ctx . accounts . buyer . to_account_info () , } ;",
+      "let cpi_ctx = CpiContext :: new (cpi_program , cpi_accounts) ;",
+      "token :: transfer (cpi_ctx , order . price) ? ;",
+      "order . is_listed = false ;",
+      "let base_price = 100u64 ;",
+      "let mut x = base_price ;",
+      "for _ in 0 .. 3",
+      "{",
+      "x = (x + base_price . checked_div (x) . unwrap_or (1)) / 2 ;",
+      "}",
+      "if order . price > 1000",
+      "{",
+      "msg ! (\"High-value item purchased.\") ;",
+      "} else",
+      "{",
+      "msg ! (\"Standard purchase.\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "ListItem",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "order",
+        "attribute": "# [account (init , payer = seller , space = 8 + 32 + 32 + 8 + 1 , owner = crate :: ID ,)]",
+        "field_type": "Account < 'info , Order >"
+      },
+      {
+        "name": "seller",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "item_mint",
+        "attribute": "# [account (owner = token :: ID)]",
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PurchaseItem",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "order",
+        "attribute": "# [account (mut , constraint = buyer . key () != seller_token_account . owner @ ErrorCode :: CosplayBlocked ,)]",
+        "field_type": "Account < 'info , Order >"
+      },
+      {
+        "name": "buyer_token_account",
+        "attribute": "# [account (mut , owner = token :: ID , constraint = buyer_token_account . mint == order . mint @ ErrorCode :: MintMismatch)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "seller_token_account",
+        "attribute": "# [account (mut , owner = token :: ID , constraint = seller_token_account . mint == order . mint @ ErrorCode :: MintMismatch)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "buyer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "seller",
+        "attribute": "# [account (mut , address = order . seller @ ErrorCode :: CosplayBlocked)]",
+        "field_type": "Account < 'info , Pubkey >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Order",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "seller",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "mint",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "price",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "is_listed",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

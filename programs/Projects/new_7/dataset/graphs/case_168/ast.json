@@ -1,0 +1,120 @@
+[
+  {
+    "name": "craft",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Craft >",
+      "seed: u64",
+      "reward: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "if seed % 3 == 1",
+      "{",
+      "ctx . accounts . state . quality = 2 ;",
+      "}",
+      "if seed % 4 == 2",
+      "{",
+      "ctx . accounts . state . rolls = ctx . accounts . state . rolls . wrapping_add (1) ;",
+      "}",
+      "let fixed_ix = Instruction { program_id : FIXED_LOG_ID , accounts : vec ! [AccountMeta :: new (ctx . accounts . log_slot . key () , false) , AccountMeta :: new_readonly (ctx . accounts . crafter . key () , false) ,] , data : seed . to_le_bytes () . to_vec () , } ;",
+      "invoke (& fixed_ix , & [ctx . accounts . log_marker . to_account_info () , ctx . accounts . log_slot . to_account_info () , ctx . accounts . crafter . to_account_info () ,]) ? ;",
+      "let mut prog = ctx . accounts . external_hint . to_account_info () ;",
+      "if ! ctx . remaining_accounts . is_empty ()",
+      "{",
+      "prog = ctx . remaining_accounts [0] . clone () ;",
+      "ctx . accounts . state . paths = ctx . accounts . state . paths . saturating_add (1) ;",
+      "}",
+      "let dyn_ix = Instruction { program_id : * prog . key , accounts : vec ! [AccountMeta :: new (ctx . accounts . external_board . key () , false) , AccountMeta :: new_readonly (ctx . accounts . crafter . key () , false) ,] , data : reward . to_le_bytes () . to_vec () , } ;",
+      "invoke (& dyn_ix , & [prog , ctx . accounts . external_board . to_account_info () , ctx . accounts . crafter . to_account_info () ,]) ? ;",
+      "let t = Transfer { from : ctx . accounts . pool . to_account_info () , to : ctx . accounts . crafter_token . to_account_info () , authority : ctx . accounts . pool_authority . to_account_info () , } ;",
+      "let tctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , t) ;",
+      "token :: transfer (tctx , reward) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Craft",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "state",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , CraftState >"
+      },
+      {
+        "name": "log_slot",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "crafter",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "log_marker",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "external_board",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "external_hint",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "pool",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "crafter_token",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "pool_authority",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CraftState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "quality",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "rolls",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "paths",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

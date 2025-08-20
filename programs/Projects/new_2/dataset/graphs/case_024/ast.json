@@ -1,0 +1,52 @@
+[
+  {
+    "name": "stake_nft",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < StakeNft >",
+      "start_ts: u64",
+      "unlock_ts: u64"
+    ],
+    "attributes": [
+      "# [doc = \" NFTメタデータにステーク情報を書き込む  \"]",
+      "# [doc = \" （owner == program_id のチェックを行っていないため、任意アカウントを操作可能）\"]",
+      "# [doc = \" - `start_ts` と `unlock_ts` はクライアント側から渡され、そのまま信頼して使用している\"]"
+    ],
+    "body": [
+      "let acct_info = & mut ctx . accounts . nft_meta . to_account_info () ;",
+      "let data = & mut acct_info . data . borrow_mut () ;",
+      "const REQUIRED_LEN : usize = 1 + 8 + 32 + 8 ;",
+      "if data . len () < REQUIRED_LEN",
+      "{",
+      "return err ! (ErrorCode :: DataTooShort) ;",
+      "}",
+      "let mut cursor = Cursor :: new (& mut data [.. REQUIRED_LEN]) ;",
+      "cursor . write_u8 (1) ? ;",
+      "cursor . write_u64 :: < LittleEndian > (start_ts) ? ;",
+      "cursor . write_all (& ctx . accounts . user . key () . to_bytes ()) ? ;",
+      "cursor . write_u64 :: < LittleEndian > (unlock_ts) ? ;",
+      "msg ! (\"Staked NFT {} by {} (start={}, unlock={})\" , acct_info . key () , ctx . accounts . user . key () , start_ts , unlock_ts) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "StakeNft",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "nft_meta",
+        "attribute": "# [doc = \" CHECK: owner フィールドの検証を一切行っていない AccountInfo<'info>\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 呼び出し元が署名者であることのみ検証\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

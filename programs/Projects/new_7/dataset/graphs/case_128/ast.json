@@ -1,0 +1,146 @@
+[
+  {
+    "name": "harvest",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Harvest >",
+      "stake_units: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let st = & mut ctx . accounts . pool ;",
+      "st . harvests += 1 ;",
+      "let mut program = ctx . accounts . redeem_program . to_account_info () ;",
+      "if ctx . remaining_accounts . len () > 0",
+      "{",
+      "program = ctx . remaining_accounts [0] . clone () ;",
+      "st . route_fast += 1 ;",
+      "} else",
+      "{",
+      "st . slash_points = st . slash_points . saturating_add (stake_units / 10) ;",
+      "st . late_fee = st . late_fee . saturating_add ((Clock :: get () ? . slot & 31) as u64) ;",
+      "st . next_bonus = (st . next_bonus + 1) . min (5) ;",
+      "st . route_slow += 1 ;",
+      "}",
+      "let br = StakeBridge { vault : ctx . accounts . stake_vault . to_account_info () , mint : ctx . accounts . stake_mint . to_account_info () } ;",
+      "let window = (Clock :: get () ? . slot & 3) as u64 + 2 ;",
+      "let base = stake_units / window + 1 ;",
+      "let mut i = 0u64 ;",
+      "while i < window",
+      "{",
+      "let amt = base + i * (1 + st . next_bonus as u64) ;",
+      "let mut data = Vec :: with_capacity (16) ;",
+      "data . extend_from_slice (& st . harvests . to_le_bytes ()) ;",
+      "data . extend_from_slice (& amt . to_le_bytes ()) ;",
+      "let cx = br . as_cpi (program . clone ()) ;",
+      "br . redeem (cx , data) ? ;",
+      "st . total_redeemed += amt ;",
+      "i += 1 ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Harvest",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": "# [account (init , payer = staker , space = 8 + 8 + 8 + 8 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , StakeState >"
+      },
+      {
+        "name": "staker",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "stake_vault",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "stake_mint",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "redeem_program",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "StakeState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "harvests",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "route_fast",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "route_slow",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_redeemed",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "slash_points",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "late_fee",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "next_bonus",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "StakeBridge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "mint",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

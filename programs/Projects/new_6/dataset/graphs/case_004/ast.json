@@ -1,0 +1,229 @@
+[
+  {
+    "name": "init_auction_house",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitAuctionHouse >"
+    ],
+    "attributes": [],
+    "body": [
+      "let house = & mut ctx . accounts . auction_house ;",
+      "house . operator = ctx . accounts . operator . key () ;",
+      "house . total_auctions = 0 ;",
+      "house . commission_rate = 10 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "create_auction",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateAuction >",
+      "starting_price: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let auction = & mut ctx . accounts . auction ;",
+      "auction . house = ctx . accounts . auction_house . key () ;",
+      "auction . seller = ctx . accounts . seller . key () ;",
+      "auction . starting_price = starting_price ;",
+      "auction . current_bid = starting_price ;",
+      "auction . highest_bidder = Pubkey :: default () ;",
+      "auction . active = true ;",
+      "let house = & mut ctx . accounts . auction_house ;",
+      "house . total_auctions = house . total_auctions . checked_add (1) . unwrap_or (u64 :: MAX) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "vulnerable_bid",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < VulnerableBid >"
+    ],
+    "attributes": [],
+    "body": [
+      "let house = & mut ctx . accounts . auction_house ;",
+      "let auction_info = & ctx . accounts . auction_account ;",
+      "let bidder_info = & ctx . accounts . bidder_account ;",
+      "let auction_data = auction_info . try_borrow_mut_data () ? ;",
+      "if auction_data . len () >= 80",
+      "{",
+      "let mut current_bid_bytes = [0u8 ;",
+      "8] ;",
+      "current_bid_bytes . copy_from_slice (& auction_data [72 .. 80]) ;",
+      "let mut current_bid = u64 :: from_le_bytes (current_bid_bytes) ;",
+      "for bid_round in 0 .. 6",
+      "{",
+      "if current_bid < 10000 { let bid_increment = (bid_round + 1) as u64 * 100 ;",
+      "current_bid = current_bid . checked_add (bid_increment) . unwrap_or (u64 :: MAX) ;",
+      "let new_bid_bytes = current_bid . to_le_bytes () ;",
+      "auction_data [72 .. 80] . copy_from_slice (& new_bid_bytes) ;",
+      "house . commission_rate = (house . commission_rate + bid_round as u32) . min (25) ;",
+      "msg ! (\"Bid round",
+      "{",
+      "}: new bid = {}\" , bid_round , current_bid) ;",
+      "} else",
+      "{",
+      "let commission = current_bid / 10 ;",
+      "house . total_auctions = house . total_auctions . checked_add (commission) . unwrap_or (u64 :: MAX) ;",
+      "current_bid = (current_bid >> 1) | 0x8000_0000_0000_0000 ;",
+      "let adjusted_bytes = current_bid . to_le_bytes () ;",
+      "auction_data [72 .. 80] . copy_from_slice (& adjusted_bytes) ;",
+      "msg ! (\"Commission collected:",
+      "{",
+      "}\" , commission) ;",
+      "} }",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitAuctionHouse",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "auction_house",
+        "attribute": "# [account (init , payer = operator , space = 8 + 32 + 8 + 4)]",
+        "field_type": "Account < 'info , AuctionHouse >"
+      },
+      {
+        "name": "operator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreateAuction",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "auction_house",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , AuctionHouse >"
+      },
+      {
+        "name": "auction",
+        "attribute": "# [account (init , payer = seller , space = 8 + 32 + 32 + 8 + 8 + 32 + 1)]",
+        "field_type": "Account < 'info , Auction >"
+      },
+      {
+        "name": "seller",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "VulnerableBid",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "auction_house",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , AuctionHouse >"
+      },
+      {
+        "name": "auction_account",
+        "attribute": "# [doc = \" CHECK: 脆弱性 - 型検証なしのAccountInfo\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "bidder_account",
+        "attribute": "# [doc = \" CHECK: 脆弱性 - 入札者検証なし\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "bidder",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AuctionHouse",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "total_auctions",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "commission_rate",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Auction",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "house",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "seller",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "starting_price",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "current_bid",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "highest_bidder",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "active",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

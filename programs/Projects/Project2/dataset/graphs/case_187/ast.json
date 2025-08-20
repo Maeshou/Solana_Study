@@ -1,0 +1,184 @@
+[
+  {
+    "name": "SessionManager",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "",
+        "attribute": null,
+        "field_type": "Vec < (Pubkey , i64) >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "initialize",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Initialize >"
+    ],
+    "attributes": [
+      "# [doc = \" 初期化：内部 Vec は空、bump のみ設定\"]"
+    ],
+    "body": [
+      "let bump = * ctx . bumps . get (\"manager\") . unwrap () ;",
+      "ctx . accounts . manager . 0 = bump ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "start_session",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Modify >",
+      "user: Pubkey",
+      "expires_ts: i64"
+    ],
+    "attributes": [
+      "# [doc = \" セッション開始：件数制限チェック＋expires_ts で追加\"]"
+    ],
+    "body": [
+      "let list = & mut ctx . accounts . manager . 1 ;",
+      "if list . len () >= MAX_SESSIONS",
+      "{",
+      "return err ! (ErrorCode :: MaxSessionsReached) ;",
+      "}",
+      "list . push ((user , expires_ts)) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "validate_session",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Modify >",
+      "user: Pubkey"
+    ],
+    "attributes": [
+      "# [doc = \" セッション検証：期限切れでなければログ出力\"]"
+    ],
+    "body": [
+      "let list = & ctx . accounts . manager . 1 ;",
+      "let now = ctx . accounts . clock . unix_timestamp ;",
+      "for & (u , exp) in list . iter ()",
+      "{",
+      "if u == user",
+      "{",
+      "if exp >= now { msg ! (\"Session for {} is valid\" , u) ;",
+      "} else",
+      "{",
+      "msg ! (\"Session for {} has expired\" , u) ;",
+      "} }",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "purge_expired",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Modify >"
+    ],
+    "attributes": [
+      "# [doc = \" 期限切れセッションの一括消去\"]"
+    ],
+    "body": [
+      "let now = ctx . accounts . clock . unix_timestamp ;",
+      "ctx . accounts . manager . 1 . retain (| & (_ , exp) | { if exp >= now { true } else { false } }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "count_active",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Modify >"
+    ],
+    "attributes": [
+      "# [doc = \" アクティブセッション数をログ出力\"]"
+    ],
+    "body": [
+      "let now = ctx . accounts . clock . unix_timestamp ;",
+      "let mut cnt = 0u64 ;",
+      "for & (_ , exp) in ctx . accounts . manager . 1 . iter ()",
+      "{",
+      "if exp >= now",
+      "{",
+      "cnt = cnt . wrapping_add (1) ;",
+      "}",
+      "}",
+      "msg ! (\"Active sessions: {}\" , cnt) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Initialize",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "manager",
+        "attribute": "# [account (init_zeroed , payer = authority , seeds = [b\"manager\" , authority . key () . as_ref ()] , bump , space = 8 + 1 + 4 + 32 * (32 + 8))]",
+        "field_type": "Account < 'info , SessionManager >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Modify",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "manager",
+        "attribute": "# [account (mut , seeds = [b\"manager\" , authority . key () . as_ref ()] , bump = manager . 0)]",
+        "field_type": "Account < 'info , SessionManager >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (signer)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

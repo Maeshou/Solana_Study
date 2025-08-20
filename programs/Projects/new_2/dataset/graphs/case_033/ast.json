@@ -1,0 +1,66 @@
+[
+  {
+    "name": "distribute_sale",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < DistributeSale >"
+    ],
+    "attributes": [
+      "# [doc = \" NFTの売上金を「販売者」と「ロイヤリティ受取先」に配分する  \"]",
+      "# [doc = \" （`sale_account` の owner チェックを行っていないため、  \"]",
+      "# [doc = \"  攻撃者が任意のアカウントを渡して売上内訳を改ざんできる脆弱性あり）\"]"
+    ],
+    "body": [
+      "let raw = ctx . accounts . sale_account . data . borrow () ;",
+      "let (bps_bin , rest) = raw . split_at (2) ;",
+      "let (price_bin , _) = rest . split_at (8) ;",
+      "let bps = u16 :: from_le_bytes (bps_bin . try_into () . unwrap ()) ;",
+      "let sale_price = u64 :: from_le_bytes (price_bin . try_into () . unwrap ()) ;",
+      "let royalty_amt = sale_price . saturating_mul (bps as u64) / 10_000 ;",
+      "let seller_amt = sale_price . saturating_sub (royalty_amt) ;",
+      "let funds_acc = & mut ctx . accounts . sales_funds . to_account_info () ;",
+      "let seller_acc = & mut ctx . accounts . seller . to_account_info () ;",
+      "let royalty_acc = & mut ctx . accounts . royalty . to_account_info () ;",
+      "* * funds_acc . lamports . borrow_mut () -= sale_price ;",
+      "* * seller_acc . lamports . borrow_mut () += seller_amt ;",
+      "* * royalty_acc . lamports . borrow_mut () += royalty_amt ;",
+      "msg ! (\"Sale distributed → seller: {} lamports, royalty: {} lamports (bps={})\" , seller_amt , royalty_amt , bps) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "DistributeSale",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "sale_account",
+        "attribute": "# [doc = \" CHECK: owner == program_id の検証を一切行っていない生の AccountInfo\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "sales_funds",
+        "attribute": "# [doc = \" 売上金プール（lamports が引き出される）\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "seller",
+        "attribute": "# [doc = \" NFT販売者の受取先アカウント\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "royalty",
+        "attribute": "# [doc = \" ロイヤリティ受取先アカウント\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "initiator",
+        "attribute": "# [doc = \" 呼び出し元が署名していることのみ検証\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

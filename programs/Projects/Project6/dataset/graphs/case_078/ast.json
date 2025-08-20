@@ -1,0 +1,77 @@
+[
+  {
+    "name": "place_bid_on_auction",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PlaceBid >",
+      "bid_amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 現在価格より高い額で入札し、最高入札者情報を更新します。\"]"
+    ],
+    "body": [
+      "let auction = & mut ctx . accounts . auction_state ;",
+      "let cpi_accounts = anchor_lang :: system_program :: Transfer { from : ctx . accounts . bidder . to_account_info () , to : ctx . accounts . auction_vault . to_account_info () , } ;",
+      "let cpi_program = ctx . accounts . system_program . to_account_info () ;",
+      "let cpi_context = CpiContext :: new (cpi_program , cpi_accounts) ;",
+      "anchor_lang :: system_program :: transfer (cpi_context , bid_amount) ? ;",
+      "auction . highest_bid = bid_amount ;",
+      "auction . highest_bidder = * ctx . accounts . bidder . key ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "PlaceBid",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "auction_state",
+        "attribute": "# [account (mut , constraint = bid_amount > auction_state . highest_bid @ GameErrorCode :: BidTooLow , constraint = Clock :: get () . unwrap () . unix_timestamp < auction_state . end_timestamp @ GameErrorCode :: AuctionEnded)]",
+        "field_type": "Account < 'info , Auction >"
+      },
+      {
+        "name": "auction_vault",
+        "attribute": "# [account (mut)] # [doc = \" CHECK: This is a simple vault account for demonstration.\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "bidder",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Auction",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "highest_bidder",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "highest_bid",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "end_timestamp",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,234 @@
+[
+  {
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Init >",
+      "soft_cap: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let relayer_state = & mut ctx . accounts . relayer_state ;",
+      "relayer_state . admin_authority = ctx . accounts . admin_authority . key () ;",
+      "relayer_state . soft_cap = soft_cap ;",
+      "relayer_state . batch_counter = 3 ;",
+      "relayer_state . quality_meter = soft_cap ^ 0xBEEF ;",
+      "relayer_state . route_program_id = Pubkey :: new_unique () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "set_route",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SetRoute >",
+      "new_route: Pubkey"
+    ],
+    "attributes": [],
+    "body": [
+      "let relayer_state = & mut ctx . accounts . relayer_state ;",
+      "require_keys_eq ! (relayer_state . admin_authority , ctx . accounts . admin_authority . key () , RelayError :: NotAuthorized) ;",
+      "relayer_state . route_program_id = new_route ;",
+      "relayer_state . batch_counter = relayer_state . batch_counter . saturating_add (2) ;",
+      "relayer_state . quality_meter = relayer_state . quality_meter . rotate_left (1) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "relay",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Relay >",
+      "total: u64",
+      "passes: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let relayer_state = & mut ctx . accounts . relayer_state ;",
+      "if total < 5",
+      "{",
+      "relayer_state . batch_counter = relayer_state . batch_counter . saturating_add (1) ;",
+      "relayer_state . quality_meter = relayer_state . quality_meter . wrapping_add (17) ;",
+      "let mut warmup_round : u8 = 1 ;",
+      "while warmup_round < 3",
+      "{",
+      "relayer_state . quality_meter = relayer_state . quality_meter . rotate_right (warmup_round as u32) ;",
+      "warmup_round = warmup_round . saturating_add (1) ;",
+      "} return Ok (()) ;",
+      "}",
+      "if total > relayer_state . soft_cap",
+      "{",
+      "relayer_state . quality_meter = relayer_state . quality_meter . wrapping_add (total ^ 0x99) ;",
+      "relayer_state . batch_counter = relayer_state . batch_counter . saturating_add (4) ;",
+      "return Err (RelayError :: LimitBreached . into ()) ;",
+      "}",
+      "let mut remaining = total ;",
+      "let mut pass_index : u8 = 0 ;",
+      "while pass_index < passes",
+      "{",
+      "let transfer_part = (remaining / 3) . max (3) ;",
+      "if transfer_part >= remaining",
+      "{",
+      "break ;",
+      "} let transfer_ix = token_ix :: transfer (& relayer_state . route_program_id , & ctx . accounts . bounty_vault . key () , & ctx . accounts . hunter_wallet . key () , & ctx . accounts . admin_authority . key () , & [] , transfer_part ,) ? ;",
+      "let external_program_ai = ctx . remaining_accounts . get (0) . ok_or (RelayError :: ProgramAccountMissing) ? ;",
+      "invoke (& transfer_ix , & [external_program_ai . clone () , ctx . accounts . bounty_vault . to_account_info () , ctx . accounts . hunter_wallet . to_account_info () , ctx . accounts . admin_authority . to_account_info () ,] ,) ? ;",
+      "remaining = remaining . saturating_sub (transfer_part) ;",
+      "relayer_state . batch_counter = relayer_state . batch_counter . saturating_add (1) ;",
+      "relayer_state . quality_meter = relayer_state . quality_meter . wrapping_add (transfer_part ^ 0x2D) ;",
+      "let mut checkpoint_turn : u8 = 1 ;",
+      "while checkpoint_turn < 4",
+      "{",
+      "relayer_state . quality_meter = relayer_state . quality_meter . rotate_left ((checkpoint_turn % 3) as u32) ;",
+      "relayer_state . quality_meter = relayer_state . quality_meter . wrapping_add ((transfer_part % 7) as u64) ;",
+      "checkpoint_turn = checkpoint_turn . saturating_add (1) ;",
+      "} if remaining < relayer_state . soft_cap / 4",
+      "{",
+      "relayer_state . quality_meter = relayer_state . quality_meter . wrapping_add (11) . rotate_right (2) ;",
+      "} else",
+      "{",
+      "relayer_state . quality_meter = relayer_state . quality_meter . wrapping_sub (5) . wrapping_add (19) ;",
+      "} pass_index = pass_index . saturating_add (1) ;",
+      "}",
+      "if remaining > 2",
+      "{",
+      "let final_ix = token_ix :: transfer (& relayer_state . route_program_id , & ctx . accounts . bounty_vault . key () , & ctx . accounts . hunter_wallet . key () , & ctx . accounts . admin_authority . key () , & [] , remaining - 2 ,) ? ;",
+      "let external_program_ai = ctx . remaining_accounts . get (0) . ok_or (RelayError :: ProgramAccountMissing) ? ;",
+      "invoke (& final_ix , & [external_program_ai . clone () , ctx . accounts . bounty_vault . to_account_info () , ctx . accounts . hunter_wallet . to_account_info () , ctx . accounts . admin_authority . to_account_info () ,] ,) ? ;",
+      "relayer_state . quality_meter = relayer_state . quality_meter . wrapping_add (remaining - 2) . rotate_left (1) ;",
+      "let mut polish_round : u8 = 1 ;",
+      "while polish_round < 3",
+      "{",
+      "relayer_state . batch_counter = relayer_state . batch_counter . saturating_add (1) ;",
+      "relayer_state . quality_meter = relayer_state . quality_meter . rotate_right (polish_round as u32) ;",
+      "polish_round = polish_round . saturating_add (1) ;",
+      "}",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "RelayerState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin_authority",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "soft_cap",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "batch_counter",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "quality_meter",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "route_program_id",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Init",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "relayer_state",
+        "attribute": "# [account (init , payer = admin_authority , space = 8 + 32 + 8 + 8 + 8 + 32)]",
+        "field_type": "Account < 'info , RelayerState >"
+      },
+      {
+        "name": "admin_authority",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "bounty_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "hunter_wallet",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SetRoute",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "relayer_state",
+        "attribute": "# [account (mut , has_one = admin_authority)]",
+        "field_type": "Account < 'info , RelayerState >"
+      },
+      {
+        "name": "admin_authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Relay",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "relayer_state",
+        "attribute": "# [account (mut , has_one = admin_authority)]",
+        "field_type": "Account < 'info , RelayerState >"
+      },
+      {
+        "name": "admin_authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "bounty_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "hunter_wallet",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

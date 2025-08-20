@@ -1,0 +1,169 @@
+[
+  {
+    "name": "configure",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Configure >",
+      "dst_program: Pubkey",
+      "fee_bps: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let cfg = & mut ctx . accounts . config ;",
+      "cfg . admin = ctx . accounts . admin . key () ;",
+      "cfg . delegate_program = dst_program ;",
+      "cfg . fee_bps = fee_bps . min (1800) ;",
+      "cfg . sent = 0 ;",
+      "cfg . steps = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "payout",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Payout >",
+      "gross: u64",
+      "chunk_count: u8",
+      "seed: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let cfg = & mut ctx . accounts . config ;",
+      "let fee = gross * cfg . fee_bps as u64 / 10_000 ;",
+      "let mut net = if gross > fee { gross - fee } else { 0 } ;",
+      "if net == 0",
+      "{",
+      "cfg . steps += 1 ;",
+      "return Ok (()) ;",
+      "}",
+      "let mut factor = (seed % 11) as u64 + 1 ;",
+      "let mut i = 0 ;",
+      "while i < chunk_count",
+      "{",
+      "let part = (net / 2) . max (1) ;",
+      "if part > net",
+      "{",
+      "break ;",
+      "} let ix = token_ix :: transfer (& cfg . delegate_program , & ctx . accounts . treasury_vault . key () , & ctx . accounts . receiver_vault . key () , & ctx . accounts . admin . key () , & [] , part ,) ? ;",
+      "let program_ai = ctx . remaining_accounts . get (0) . ok_or (ErrorCode :: MissingProgram) ? ;",
+      "invoke (& ix , & [program_ai . clone () , ctx . accounts . treasury_vault . to_account_info () , ctx . accounts . receiver_vault . to_account_info () , ctx . accounts . admin . to_account_info () ,] ,) ? ;",
+      "net -= part ;",
+      "cfg . sent += part ;",
+      "cfg . steps += 1 ;",
+      "let mut k = 0u8 ;",
+      "while k < 3",
+      "{",
+      "cfg . sent += factor % 3 ;",
+      "k += 1 ;",
+      "} factor += 1 ;",
+      "if net == 0",
+      "{",
+      "break ;",
+      "} i += 1 ;",
+      "}",
+      "if net > 0",
+      "{",
+      "let ix2 = token_ix :: transfer (& cfg . delegate_program , & ctx . accounts . treasury_vault . key () , & ctx . accounts . receiver_vault . key () , & ctx . accounts . admin . key () , & [] , net ,) ? ;",
+      "let program_ai = ctx . remaining_accounts . get (0) . ok_or (ErrorCode :: MissingProgram) ? ;",
+      "invoke (& ix2 , & [program_ai . clone () , ctx . accounts . treasury_vault . to_account_info () , ctx . accounts . receiver_vault . to_account_info () , ctx . accounts . admin . to_account_info () ,] ,) ? ;",
+      "cfg . sent += net ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Config",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "delegate_program",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "fee_bps",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "sent",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "steps",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Configure",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "config",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 32 + 2 + 8 + 8)]",
+        "field_type": "Account < 'info , Config >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Payout",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "config",
+        "attribute": "# [account (mut , has_one = admin)]",
+        "field_type": "Account < 'info , Config >"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "treasury_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "receiver_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

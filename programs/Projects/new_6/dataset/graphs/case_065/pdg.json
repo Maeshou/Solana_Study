@@ -1,0 +1,812 @@
+[
+  {
+    "name": "init_guild",
+    "inputs": [
+      "ctx: Context < InitGuild >",
+      "name: String",
+      "max_members: u32"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let g = & mut ctx . accounts . guild ;"
+      },
+      {
+        "id": 2,
+        "label": "g . name = name ;"
+      },
+      {
+        "id": 3,
+        "label": "g . creator = ctx . accounts . creator . key () ;"
+      },
+      {
+        "id": 4,
+        "label": "g . max_members = max_members ;"
+      },
+      {
+        "id": 5,
+        "label": "g . member_count = 0 ;"
+      },
+      {
+        "id": 6,
+        "label": "g . total_funds = 0 ;"
+      },
+      {
+        "id": 7,
+        "label": "g . rank_points = 0 ;"
+      },
+      {
+        "id": 8,
+        "label": "g . last_ops = vec ! [] ;"
+      },
+      {
+        "id": 9,
+        "label": "g . threshold = 10_000 ;"
+      },
+      {
+        "id": 10,
+        "label": "g . penalty_pool = 0 ;"
+      },
+      {
+        "id": 11,
+        "label": "g . version = 1 ;"
+      },
+      {
+        "id": 12,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: g"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 1,
+        "to": 6,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 1,
+        "to": 7,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 1,
+        "to": 8,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 1,
+        "to": 9,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 1,
+        "to": 10,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 1,
+        "to": 11,
+        "label": "data_dep: g"
+      }
+    ]
+  },
+  {
+    "name": "act_contribute_and_reweight",
+    "inputs": [
+      "ctx: Context < ContribAndReweight >",
+      "amount: u64",
+      "memo: String",
+      "wave: u8"
+    ],
+    "nodes": [
+      {
+        "id": 13,
+        "label": "Entry"
+      },
+      {
+        "id": 14,
+        "label": "let g = & mut ctx . accounts . guild ;"
+      },
+      {
+        "id": 15,
+        "label": "let p = & mut ctx . accounts . member_like ;"
+      },
+      {
+        "id": 16,
+        "label": "let actor = & ctx . accounts . actor ;"
+      },
+      {
+        "id": 17,
+        "label": "let ts = Clock :: get () ? . unix_timestamp ;"
+      },
+      {
+        "id": 18,
+        "label": "g . last_ops . push (format ! (\"t={} m={} a={}\" , ts , memo , amount)) ;"
+      },
+      {
+        "id": 19,
+        "label": "if g . last_ops . len () > 24 { g . last_ops . remove (0) ; }"
+      },
+      {
+        "id": 20,
+        "label": "g . last_ops . remove (0) ;"
+      },
+      {
+        "id": 21,
+        "label": "let mut credit = amount ;"
+      },
+      {
+        "id": 22,
+        "label": "if amount > g . threshold { credit = credit . saturating_add (amount / 20) ; p . flags ^= 0b0001 ; g . penalty_pool = g . penalty_pool . saturating_add (3) ; }"
+      },
+      {
+        "id": 23,
+        "label": "credit = credit . saturating_add (amount / 20) ;"
+      },
+      {
+        "id": 24,
+        "label": "p . flags ^= 0b0001 ;"
+      },
+      {
+        "id": 25,
+        "label": "g . penalty_pool = g . penalty_pool . saturating_add (3) ;"
+      },
+      {
+        "id": 26,
+        "label": "if wave % 2 == 0 { credit = credit . rotate_left ((wave % 8) as u32) ; g . version = g . version . wrapping_add (1) ; }"
+      },
+      {
+        "id": 27,
+        "label": "credit = credit . rotate_left ((wave % 8) as u32) ;"
+      },
+      {
+        "id": 28,
+        "label": "g . version = g . version . wrapping_add (1) ;"
+      },
+      {
+        "id": 29,
+        "label": "g . total_funds = g . total_funds . saturating_add (credit) ;"
+      },
+      {
+        "id": 30,
+        "label": "let idx = (wave % 5) as usize ;"
+      },
+      {
+        "id": 31,
+        "label": "if p . badges . len () <= idx { p . badges . resize (idx + 1 , 0) ; }"
+      },
+      {
+        "id": 32,
+        "label": "p . badges . resize (idx + 1 , 0) ;"
+      },
+      {
+        "id": 33,
+        "label": "let mix = ((amount as u32) ^ ((ts as u32) << (idx as u32 & 3))) & 0xFFFF ;"
+      },
+      {
+        "id": 34,
+        "label": "p . badges [idx] = p . badges [idx] . wrapping_add ((mix % 251) as u16) ;"
+      },
+      {
+        "id": 35,
+        "label": "if p . badges [idx] & 0b1 != 0 { p . reputation = p . reputation . saturating_add (2) ; p . flags ^= 0b0010 ; }"
+      },
+      {
+        "id": 36,
+        "label": "p . reputation = p . reputation . saturating_add (2) ;"
+      },
+      {
+        "id": 37,
+        "label": "p . flags ^= 0b0010 ;"
+      },
+      {
+        "id": 38,
+        "label": "if p . reputation > 200 { p . reputation = p . reputation . rotate_right (1) ; g . rank_points = g . rank_points . saturating_add ((p . reputation % 17) as u32) ; }"
+      },
+      {
+        "id": 39,
+        "label": "p . reputation = p . reputation . rotate_right (1) ;"
+      },
+      {
+        "id": 40,
+        "label": "g . rank_points = g . rank_points . saturating_add ((p . reputation % 17) as u32) ;"
+      },
+      {
+        "id": 41,
+        "label": "p . notes . push (format ! (\"{}:{}:{}\" , wave , amount , memo)) ;"
+      },
+      {
+        "id": 42,
+        "label": "if p . notes . len () > 12 { p . notes . reverse () ; p . notes . truncate (10) ; p . notes . sort () ; }"
+      },
+      {
+        "id": 43,
+        "label": "p . notes . reverse () ;"
+      },
+      {
+        "id": 44,
+        "label": "p . notes . truncate (10) ;"
+      },
+      {
+        "id": 45,
+        "label": "p . notes . sort () ;"
+      },
+      {
+        "id": 46,
+        "label": "if g . total_funds > 1_000_000 { let mut decay = 0u64 ; for i in 0 .. p . badges . len () { p . badges [i] = p . badges [i] . reverse_bits () ; decay = decay . saturating_add ((p . badges [i] as u64) & 7) ; } g . total_funds = g . total_funds . saturating_sub (decay) ; g . penalty_pool = g . penalty_pool . saturating_add ((decay % 29) as u64) ; }"
+      },
+      {
+        "id": 47,
+        "label": "let mut decay = 0u64 ;"
+      },
+      {
+        "id": 48,
+        "label": "for i in 0 .. p . badges . len () { p . badges [i] = p . badges [i] . reverse_bits () ; decay = decay . saturating_add ((p . badges [i] as u64) & 7) ; }"
+      },
+      {
+        "id": 49,
+        "label": "p . badges [i] = p . badges [i] . reverse_bits () ;"
+      },
+      {
+        "id": 50,
+        "label": "decay = decay . saturating_add ((p . badges [i] as u64) & 7) ;"
+      },
+      {
+        "id": 51,
+        "label": "g . total_funds = g . total_funds . saturating_sub (decay) ;"
+      },
+      {
+        "id": 52,
+        "label": "g . penalty_pool = g . penalty_pool . saturating_add ((decay % 29) as u64) ;"
+      },
+      {
+        "id": 53,
+        "label": "g . creator = actor . key () ;"
+      },
+      {
+        "id": 54,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 14,
+        "to": 14,
+        "label": "def: g"
+      },
+      {
+        "from": 15,
+        "to": 15,
+        "label": "def: p"
+      },
+      {
+        "from": 16,
+        "to": 16,
+        "label": "def: actor"
+      },
+      {
+        "from": 17,
+        "to": 17,
+        "label": "def: ts"
+      },
+      {
+        "from": 14,
+        "to": 18,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 14,
+        "to": 19,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 14,
+        "to": 19,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 14,
+        "to": 20,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 21,
+        "to": 21,
+        "label": "def: credit"
+      },
+      {
+        "from": 14,
+        "to": 22,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 21,
+        "to": 22,
+        "label": "data_dep: credit"
+      },
+      {
+        "from": 21,
+        "to": 22,
+        "label": "data_dep: credit"
+      },
+      {
+        "from": 15,
+        "to": 22,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 14,
+        "to": 22,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 14,
+        "to": 22,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 21,
+        "to": 23,
+        "label": "data_dep: credit"
+      },
+      {
+        "from": 21,
+        "to": 23,
+        "label": "data_dep: credit"
+      },
+      {
+        "from": 15,
+        "to": 24,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 14,
+        "to": 25,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 14,
+        "to": 25,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 21,
+        "to": 26,
+        "label": "data_dep: credit"
+      },
+      {
+        "from": 21,
+        "to": 26,
+        "label": "data_dep: credit"
+      },
+      {
+        "from": 14,
+        "to": 26,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 14,
+        "to": 26,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 21,
+        "to": 27,
+        "label": "data_dep: credit"
+      },
+      {
+        "from": 21,
+        "to": 27,
+        "label": "data_dep: credit"
+      },
+      {
+        "from": 14,
+        "to": 28,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 14,
+        "to": 28,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 14,
+        "to": 29,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 14,
+        "to": 29,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 21,
+        "to": 29,
+        "label": "data_dep: credit"
+      },
+      {
+        "from": 30,
+        "to": 30,
+        "label": "def: idx"
+      },
+      {
+        "from": 15,
+        "to": 31,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 30,
+        "to": 31,
+        "label": "data_dep: idx"
+      },
+      {
+        "from": 15,
+        "to": 31,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 30,
+        "to": 31,
+        "label": "data_dep: idx"
+      },
+      {
+        "from": 15,
+        "to": 32,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 30,
+        "to": 32,
+        "label": "data_dep: idx"
+      },
+      {
+        "from": 33,
+        "to": 33,
+        "label": "def: mix"
+      },
+      {
+        "from": 17,
+        "to": 33,
+        "label": "data_dep: ts"
+      },
+      {
+        "from": 30,
+        "to": 33,
+        "label": "data_dep: idx"
+      },
+      {
+        "from": 15,
+        "to": 34,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 30,
+        "to": 34,
+        "label": "data_dep: idx"
+      },
+      {
+        "from": 15,
+        "to": 34,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 30,
+        "to": 34,
+        "label": "data_dep: idx"
+      },
+      {
+        "from": 33,
+        "to": 34,
+        "label": "data_dep: mix"
+      },
+      {
+        "from": 15,
+        "to": 35,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 30,
+        "to": 35,
+        "label": "data_dep: idx"
+      },
+      {
+        "from": 15,
+        "to": 35,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 15,
+        "to": 35,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 15,
+        "to": 35,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 15,
+        "to": 36,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 15,
+        "to": 36,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 15,
+        "to": 37,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 15,
+        "to": 38,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 15,
+        "to": 38,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 15,
+        "to": 38,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 14,
+        "to": 38,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 14,
+        "to": 38,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 15,
+        "to": 38,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 15,
+        "to": 39,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 15,
+        "to": 39,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 14,
+        "to": 40,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 14,
+        "to": 40,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 15,
+        "to": 40,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 15,
+        "to": 41,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 15,
+        "to": 42,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 15,
+        "to": 42,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 15,
+        "to": 42,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 15,
+        "to": 42,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 15,
+        "to": 43,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 15,
+        "to": 44,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 15,
+        "to": 45,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 14,
+        "to": 46,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 15,
+        "to": 46,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 15,
+        "to": 46,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 15,
+        "to": 46,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 15,
+        "to": 46,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 14,
+        "to": 46,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 14,
+        "to": 46,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 14,
+        "to": 46,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 14,
+        "to": 46,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 47,
+        "to": 47,
+        "label": "def: decay"
+      },
+      {
+        "from": 15,
+        "to": 48,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 15,
+        "to": 48,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 15,
+        "to": 48,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 47,
+        "to": 48,
+        "label": "data_dep: decay"
+      },
+      {
+        "from": 47,
+        "to": 48,
+        "label": "data_dep: decay"
+      },
+      {
+        "from": 15,
+        "to": 48,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 15,
+        "to": 49,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 15,
+        "to": 49,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 47,
+        "to": 50,
+        "label": "data_dep: decay"
+      },
+      {
+        "from": 47,
+        "to": 50,
+        "label": "data_dep: decay"
+      },
+      {
+        "from": 15,
+        "to": 50,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 14,
+        "to": 51,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 14,
+        "to": 51,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 47,
+        "to": 51,
+        "label": "data_dep: decay"
+      },
+      {
+        "from": 14,
+        "to": 52,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 14,
+        "to": 52,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 47,
+        "to": 52,
+        "label": "data_dep: decay"
+      },
+      {
+        "from": 14,
+        "to": 53,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 16,
+        "to": 53,
+        "label": "data_dep: actor"
+      }
+    ]
+  }
+]

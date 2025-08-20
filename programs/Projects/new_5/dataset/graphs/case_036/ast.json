@@ -1,0 +1,228 @@
+[
+  {
+    "name": "init_team",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitTeam >",
+      "team_id: u32",
+      "name: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let team = & mut ctx . accounts . team ;",
+      "team . captain = ctx . accounts . captain . key () ;",
+      "team . team_id = team_id ;",
+      "team . name = name ;",
+      "team . member_count = 0 ;",
+      "team . is_active = true ;",
+      "msg ! (\"Team '{}' initialized.\" , team . name) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_member",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitMember >",
+      "member_id: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let member = & mut ctx . accounts . member ;",
+      "let team = & mut ctx . accounts . team ;",
+      "member . team = team . key () ;",
+      "member . member_id = member_id ;",
+      "member . player = ctx . accounts . player . key () ;",
+      "member . status = MemberStatus :: Active ;",
+      "member . last_login = Clock :: get () ? . unix_timestamp ;",
+      "team . member_count = team . member_count . saturating_add (1) ;",
+      "msg ! (\"Member {} joined team {}.\" , member . member_id , team . name) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "update_member_status",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < UpdateMemberStatus >"
+    ],
+    "attributes": [],
+    "body": [
+      "let member_a = & mut ctx . accounts . member_a ;",
+      "let member_b = & mut ctx . accounts . member_b ;",
+      "let current_time = Clock :: get () ? . unix_timestamp ;",
+      "let mut loop_count = 0 ;",
+      "while loop_count < 3",
+      "{",
+      "if current_time - member_a . last_login > 86400",
+      "{",
+      "member_a . status = MemberStatus :: Inactive ;",
+      "member_a . last_login = current_time ;",
+      "msg ! (\"Member A status changed to Inactive.\") ;",
+      "} else",
+      "{",
+      "member_a . last_login = current_time ;",
+      "msg ! (\"Member A last login updated.\") ;",
+      "} if current_time - member_b . last_login > 86400 * 2",
+      "{",
+      "member_b . status = MemberStatus :: Kicked ;",
+      "member_b . last_login = current_time ;",
+      "msg ! (\"Member B status changed to Kicked.\") ;",
+      "} else",
+      "{",
+      "member_b . last_login = current_time ;",
+      "msg ! (\"Member B last login updated.\") ;",
+      "} loop_count += 1 ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitTeam",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "team",
+        "attribute": "# [account (init , payer = captain , space = 8 + 32 + 4 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Team >"
+      },
+      {
+        "name": "captain",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitMember",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "team",
+        "attribute": "# [account (mut , has_one = team)]",
+        "field_type": "Account < 'info , Team >"
+      },
+      {
+        "name": "member",
+        "attribute": "# [account (init , payer = player , space = 8 + 32 + 8 + 32 + 1 + 8)]",
+        "field_type": "Account < 'info , TeamMember >"
+      },
+      {
+        "name": "player",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "UpdateMemberStatus",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "team",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Team >"
+      },
+      {
+        "name": "member_a",
+        "attribute": "# [account (mut , has_one = team)]",
+        "field_type": "Account < 'info , TeamMember >"
+      },
+      {
+        "name": "member_b",
+        "attribute": "# [account (mut , has_one = team)]",
+        "field_type": "Account < 'info , TeamMember >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Team",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "captain",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "team_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "member_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "is_active",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TeamMember",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "team",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "member_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "player",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "status",
+        "attribute": null,
+        "field_type": "MemberStatus"
+      },
+      {
+        "name": "last_login",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

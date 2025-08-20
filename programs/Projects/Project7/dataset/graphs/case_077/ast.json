@@ -1,0 +1,204 @@
+[
+  {
+    "name": "init_plan",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitPlan >",
+      "daily_cap_input: u64",
+      "base_point_input: u64",
+      "mult_bps_input: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let plan = & mut ctx . accounts . plan ;",
+      "plan . operator = ctx . accounts . operator . key () ;",
+      "plan . daily_cap = daily_cap_input ;",
+      "if plan . daily_cap < 20",
+      "{",
+      "plan . daily_cap = 20 ;",
+      "}",
+      "plan . base_point = base_point_input ;",
+      "if plan . base_point < 1",
+      "{",
+      "plan . base_point = 1 ;",
+      "}",
+      "plan . multiplier_bps = clamp_u16 (mult_bps_input , 0 , 3000) ;",
+      "plan . issued_today = 0 ;",
+      "plan . streak_days = 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_award",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActAward >",
+      "steps: u64",
+      "streak_flag: bool"
+    ],
+    "attributes": [],
+    "body": [
+      "let plan = & mut ctx . accounts . plan ;",
+      "let mut scaled = plan . base_point ;",
+      "let mut walked = steps ;",
+      "while walked >= 1000",
+      "{",
+      "scaled = scaled + 1 + (walked % 3000) / 1000 ;",
+      "if walked >= 1000",
+      "{",
+      "walked = walked - 1000 ;",
+      "} else",
+      "{",
+      "walked = 0 ;",
+      "}",
+      "}",
+      "let mut bps = plan . multiplier_bps as u64 ;",
+      "if streak_flag",
+      "{",
+      "bps = bps + 150 ;",
+      "}",
+      "if plan . streak_days % 7 == 0",
+      "{",
+      "bps = bps + 200 ;",
+      "}",
+      "let boosted = scaled + (scaled * bps / 10_000) ;",
+      "let projected = plan . issued_today + boosted ;",
+      "if projected > plan . daily_cap",
+      "{",
+      "let rest = plan . daily_cap - plan . issued_today ;",
+      "if rest > 0",
+      "{",
+      "token :: mint_to (ctx . accounts . mint_ctx () , rest) ? ;",
+      "} plan . issued_today = plan . daily_cap ;",
+      "plan . streak_days = 1 ;",
+      "return Err (FitErr :: DailyCap . into ()) ;",
+      "}",
+      "token :: mint_to (ctx . accounts . mint_ctx () , boosted) ? ;",
+      "plan . issued_today = projected ;",
+      "plan . streak_days = plan . streak_days + 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitPlan",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "plan",
+        "attribute": "# [account (init , payer = operator , space = 8 + 32 + 8 + 8 + 2 + 8 + 8)]",
+        "field_type": "Account < 'info , FitnessPlan >"
+      },
+      {
+        "name": "operator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActAward",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "plan",
+        "attribute": "# [account (mut , has_one = operator)]",
+        "field_type": "Account < 'info , FitnessPlan >"
+      },
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "point_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "user_point_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "FitnessPlan",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "daily_cap",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "base_point",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "multiplier_bps",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "issued_today",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "streak_days",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "clamp_u16",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "v: u16",
+      "lo: u16",
+      "hi: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut o = v ;",
+      "if o < lo",
+      "{",
+      "o = lo ;",
+      "}",
+      "if o > hi",
+      "{",
+      "o = hi ;",
+      "}",
+      "o"
+    ]
+  }
+]

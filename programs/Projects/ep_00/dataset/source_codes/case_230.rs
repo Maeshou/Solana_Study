@@ -1,0 +1,45 @@
+// Secure Case 230: 多様化された安全コード
+use anchor_lang::prelude::*;
+declare_id!("SecID230XXXXXXXXXXXXXXXXXXXXXXXX");
+
+#[program]
+pub mod case_230 {
+    pub fn perform_insurance(ctx: Context<Accounts230>, amount: u64) -> Result<()> {
+        let vault = &ctx.accounts.vault_data;
+        require_keys_eq(vault.owner, ctx.accounts.owner.key(), Error230::InvalidOwner);
+        
+        let src = ctx.accounts.src_acc.to_account_info();
+        let dst = ctx.accounts.dst_acc.to_account_info();
+        let src_bal = **src.lamports.borrow();
+        let half = src_bal / 2;
+        **src.try_borrow_mut_lamports()? = src_bal - half;
+        **dst.try_borrow_mut_lamports()? += half;
+        
+        Ok(())
+    }
+}
+
+#[derive(Accounts)]
+pub struct Accounts230<'info> {
+    #[account(mut, has_one = owner)]
+    pub vault_data: Account<'info, DataStruct230>,
+    #[account(mut)]
+    pub account: AccountInfo<'info>,
+    #[account(mut)]
+    pub src_acc: AccountInfo<'info>,
+    #[account(mut)]
+    pub dst_acc: AccountInfo<'info>,
+    #[account(signer)]
+    pub owner: Signer<'info>,
+}
+
+#[account]
+pub struct DataStruct230 {
+    pub owner: Pubkey,
+}
+
+#[error_code]
+pub enum Error230 {
+    #[msg("Invalid owner")]
+    InvalidOwner,
+}

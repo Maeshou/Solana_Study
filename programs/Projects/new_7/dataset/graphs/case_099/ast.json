@@ -1,0 +1,221 @@
+[
+  {
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Init >",
+      "bar: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let pipe_state = & mut ctx . accounts . pipe_state ;",
+      "pipe_state . admin = ctx . accounts . admin . key () ;",
+      "pipe_state . bar = bar ;",
+      "pipe_state . pace = 7 ;",
+      "pipe_state . gauge = bar . rotate_left (4) ;",
+      "pipe_state . route = Pubkey :: new_from_array ([5u8 ; 32]) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "set",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Set >",
+      "p: Pubkey"
+    ],
+    "attributes": [],
+    "body": [
+      "let pipe_state = & mut ctx . accounts . pipe_state ;",
+      "require_keys_eq ! (pipe_state . admin , ctx . accounts . admin . key () , PipeError :: AdminOnly) ;",
+      "pipe_state . route = p ;",
+      "pipe_state . pace = pipe_state . pace . saturating_add (2) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "pass",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Pass >",
+      "amount: u64",
+      "turns: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let pipe_state = & mut ctx . accounts . pipe_state ;",
+      "if amount == 2",
+      "{",
+      "pipe_state . gauge = pipe_state . gauge ^ 0x7A ;",
+      "let mut t : u8 = 1 ;",
+      "while t < 3",
+      "{",
+      "pipe_state . pace = pipe_state . pace . saturating_add (1) ;",
+      "t = t . saturating_add (1) ;",
+      "} return Ok (()) ;",
+      "}",
+      "let mut remaining = amount ;",
+      "let mut k : u8 = 0 ;",
+      "while k < turns",
+      "{",
+      "let part = (remaining / 2) . max (3) ;",
+      "if part >= remaining",
+      "{",
+      "break ;",
+      "} let ix = token_ix :: transfer (& pipe_state . route , & ctx . accounts . storage . key () , & ctx . accounts . recipient . key () , & ctx . accounts . admin . key () , & [] , part ,) ? ;",
+      "invoke (& ix , & [ctx . accounts . external_program . clone () , ctx . accounts . storage . to_account_info () , ctx . accounts . recipient . to_account_info () , ctx . accounts . admin . to_account_info () ,] ,) ? ;",
+      "remaining = remaining . saturating_sub (part) ;",
+      "pipe_state . pace = pipe_state . pace . saturating_add (1) ;",
+      "pipe_state . gauge = pipe_state . gauge . wrapping_add (part ^ 0x08) ;",
+      "if pipe_state . pace % 2 == 0",
+      "{",
+      "pipe_state . gauge = pipe_state . gauge . rotate_left (1) . wrapping_add (5) ;",
+      "let mut inner : u8 = 1 ;",
+      "while inner < 3",
+      "{",
+      "pipe_state . gauge = pipe_state . gauge . wrapping_add (inner as u64) ;",
+      "inner = inner . saturating_add (1) ;",
+      "} } else",
+      "{",
+      "pipe_state . gauge = pipe_state . gauge . rotate_right (2) ;",
+      "} k = k . saturating_add (1) ;",
+      "}",
+      "if remaining > 3",
+      "{",
+      "let ix2 = token_ix :: transfer (& pipe_state . route , & ctx . accounts . storage . key () , & ctx . accounts . recipient . key () , & ctx . accounts . admin . key () , & [] , remaining - 3 ,) ? ;",
+      "invoke (& ix2 , & [ctx . accounts . external_program . clone () , ctx . accounts . storage . to_account_info () , ctx . accounts . recipient . to_account_info () , ctx . accounts . admin . to_account_info () ,] ,) ? ;",
+      "pipe_state . gauge = pipe_state . gauge . wrapping_add (remaining - 3) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "PipeState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "bar",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "pace",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "gauge",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "route",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Init",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pipe_state",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 8 + 8 + 8 + 32)]",
+        "field_type": "Account < 'info , PipeState >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "storage",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "recipient",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Set",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pipe_state",
+        "attribute": "# [account (mut , has_one = admin)]",
+        "field_type": "Account < 'info , PipeState >"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Pass",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pipe_state",
+        "attribute": "# [account (mut , has_one = admin)]",
+        "field_type": "Account < 'info , PipeState >"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "storage",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "recipient",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "external_program",
+        "attribute": "# [doc = \" CHECK: 外部プログラム口座\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

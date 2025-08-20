@@ -1,0 +1,145 @@
+[
+  {
+    "name": "create_vault",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateVault >",
+      "seed_val: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let v = & mut ctx . accounts . vault ;",
+      "v . owner = ctx . accounts . owner . key () ;",
+      "v . bump_saved = * ctx . bumps . get (\"vault\") . ok_or (error ! (Errs :: MissingBump)) ? ;",
+      "v . seed_val = seed_val % 999 + 77 ;",
+      "v . metric = 3 ;",
+      "if v . seed_val & 1 == 1",
+      "{",
+      "v . metric = v . metric . saturating_add (15) ;",
+      "} else",
+      "{",
+      "v . metric = v . metric . saturating_add (7) ;",
+      "}",
+      "for i in 0 .. 4",
+      "{",
+      "v . metric = v . metric . saturating_add ((v . seed_val as u32) . wrapping_mul (i + 3)) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "leak",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Leak >",
+      "lamports: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let v = & ctx . accounts . vault ;",
+      "let wrong_seeds : & [& [u8]] = & [b\"vault_drift\" , v . owner . as_ref () , & [v . bump_saved] ,] ;",
+      "let wrong_key = Pubkey :: create_program_address (& [b\"vault_drift\" , v . owner . as_ref () , & [v . bump_saved]] , ctx . program_id ,) . map_err (| _ | error ! (Errs :: SeedCompute)) ? ;",
+      "let ix = system_instruction :: transfer (& wrong_key , & ctx . accounts . target . key () , lamports) ;",
+      "let accs = & [ctx . accounts . fake_vault . to_account_info () , ctx . accounts . target . to_account_info () , ctx . accounts . system_program . to_account_info () ,] ;",
+      "invoke_signed (& ix , accs , & [wrong_seeds]) ? ;",
+      "let mut val = lamports ;",
+      "while val > 5",
+      "{",
+      "if val % 4 == 2",
+      "{",
+      "ctx . accounts . vault . metric = ctx . accounts . vault . metric . saturating_add ((val % 13) as u32 + 9) ;",
+      "} val = val . saturating_sub (6) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CreateVault",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 4 + 1 , seeds = [b\"vault\" , owner . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , VaultInfo >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Leak",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": "# [account (mut , seeds = [b\"vault\" , owner . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , VaultInfo >"
+      },
+      {
+        "name": "fake_vault",
+        "attribute": "# [doc = \" CHECK: 検証しない\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "target",
+        "attribute": "# [doc = \" CHECK: 緩く受ける\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "VaultInfo",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "seed_val",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "metric",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "bump_saved",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

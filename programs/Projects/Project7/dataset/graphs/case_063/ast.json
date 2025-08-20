@@ -1,0 +1,166 @@
+[
+  {
+    "name": "init_plan",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitPlan >",
+      "daily_cap_input: u64",
+      "base_charge_input: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let plan = & mut ctx . accounts . plan ;",
+      "plan . owner = ctx . accounts . owner . key () ;",
+      "plan . daily_cap = daily_cap_input ;",
+      "if plan . daily_cap < 5",
+      "{",
+      "plan . daily_cap = 5 ;",
+      "}",
+      "plan . base_charge = base_charge_input ;",
+      "if plan . base_charge < 1",
+      "{",
+      "plan . base_charge = 1 ;",
+      "}",
+      "plan . issued_today = 1 ;",
+      "plan . progress_score = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_charge",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActCharge >",
+      "sessions: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let plan = & mut ctx . accounts . plan ;",
+      "let mut add = 0u64 ;",
+      "let mut s : u8 = 0 ;",
+      "while s < sessions",
+      "{",
+      "add = add + ((s as u64 % 4) + 1) ;",
+      "s = s + 1 ;",
+      "}",
+      "plan . progress_score = plan . progress_score + add ;",
+      "let mut grant = plan . base_charge ;",
+      "if plan . progress_score >= 20",
+      "{",
+      "grant = grant + grant / 5 ;",
+      "}",
+      "if plan . progress_score >= 40",
+      "{",
+      "grant = grant + grant / 4 ;",
+      "}",
+      "let next = plan . issued_today + grant ;",
+      "if next > plan . daily_cap",
+      "{",
+      "let rest = plan . daily_cap - plan . issued_today ;",
+      "if rest > 0",
+      "{",
+      "token :: mint_to (ctx . accounts . mint_ctx () , rest) ? ;",
+      "} plan . issued_today = plan . daily_cap ;",
+      "plan . progress_score = 0 ;",
+      "return Err (PlanErr :: DailyMax . into ()) ;",
+      "}",
+      "token :: mint_to (ctx . accounts . mint_ctx () , grant) ? ;",
+      "plan . issued_today = next ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitPlan",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "plan",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , PlanStateX >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActCharge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "plan",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , PlanStateX >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "credit_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "user_credit_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PlanStateX",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "daily_cap",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "base_charge",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "issued_today",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "progress_score",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

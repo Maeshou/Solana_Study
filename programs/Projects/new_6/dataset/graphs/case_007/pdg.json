@@ -1,0 +1,770 @@
+[
+  {
+    "name": "init_loyalty_program",
+    "inputs": [
+      "ctx: Context < InitLoyaltyProgram >"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let program = & mut ctx . accounts . loyalty_program ;"
+      },
+      {
+        "id": 2,
+        "label": "program . operator = ctx . accounts . operator . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "program . total_members = 0 ;"
+      },
+      {
+        "id": 4,
+        "label": "program . points_issued = 0 ;"
+      },
+      {
+        "id": 5,
+        "label": "program . tier_multiplier = 100 ;"
+      },
+      {
+        "id": 6,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: program"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: program"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: program"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: program"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: program"
+      }
+    ]
+  },
+  {
+    "name": "register_member",
+    "inputs": [
+      "ctx: Context < RegisterMember >"
+    ],
+    "nodes": [
+      {
+        "id": 7,
+        "label": "Entry"
+      },
+      {
+        "id": 8,
+        "label": "let member = & mut ctx . accounts . member_account ;"
+      },
+      {
+        "id": 9,
+        "label": "member . program = ctx . accounts . loyalty_program . key () ;"
+      },
+      {
+        "id": 10,
+        "label": "member . owner = ctx . accounts . owner . key () ;"
+      },
+      {
+        "id": 11,
+        "label": "member . points_balance = 0 ;"
+      },
+      {
+        "id": 12,
+        "label": "member . tier_level = 1 ;"
+      },
+      {
+        "id": 13,
+        "label": "member . last_activity = Clock :: get () ? . unix_timestamp ;"
+      },
+      {
+        "id": 14,
+        "label": "let program = & mut ctx . accounts . loyalty_program ;"
+      },
+      {
+        "id": 15,
+        "label": "program . total_members = program . total_members . checked_add (1) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 16,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 8,
+        "to": 8,
+        "label": "def: member"
+      },
+      {
+        "from": 8,
+        "to": 9,
+        "label": "data_dep: member"
+      },
+      {
+        "from": 8,
+        "to": 10,
+        "label": "data_dep: member"
+      },
+      {
+        "from": 8,
+        "to": 11,
+        "label": "data_dep: member"
+      },
+      {
+        "from": 8,
+        "to": 12,
+        "label": "data_dep: member"
+      },
+      {
+        "from": 8,
+        "to": 13,
+        "label": "data_dep: member"
+      },
+      {
+        "from": 14,
+        "to": 14,
+        "label": "def: program"
+      },
+      {
+        "from": 14,
+        "to": 15,
+        "label": "data_dep: program"
+      },
+      {
+        "from": 14,
+        "to": 15,
+        "label": "data_dep: program"
+      }
+    ]
+  },
+  {
+    "name": "vulnerable_points_transfer",
+    "inputs": [
+      "ctx: Context < VulnerableTransfer >"
+    ],
+    "nodes": [
+      {
+        "id": 17,
+        "label": "Entry"
+      },
+      {
+        "id": 18,
+        "label": "let program = & mut ctx . accounts . loyalty_program ;"
+      },
+      {
+        "id": 19,
+        "label": "assert_ne ! (ctx . accounts . from_member . key () , ctx . accounts . to_member . key ()) ;"
+      },
+      {
+        "id": 20,
+        "label": "let from_data = ctx . accounts . from_member . try_borrow_mut_data () ? ;"
+      },
+      {
+        "id": 21,
+        "label": "let to_data = ctx . accounts . to_member . try_borrow_mut_data () ? ;"
+      },
+      {
+        "id": 22,
+        "label": "if from_data . len () >= 48 && to_data . len () >= 48 { let mut from_points_bytes = [0u8 ; 8] ; from_points_bytes . copy_from_slice (& from_data [40 .. 48]) ; let mut from_points = u64 :: from_le_bytes (from_points_bytes) ; let mut to_points_bytes = [0u8 ; 8] ; to_points_bytes . copy_from_slice (& to_data [40 .. 48]) ; let mut to_points = u64 :: from_le_bytes (to_points_bytes) ; for transfer_round in 0 .. 5 { if from_points > 100 { let transfer_amount = (from_points >> transfer_round) & 0x3F ; from_points = from_points . saturating_sub (transfer_amount) ; to_points = to_points . checked_add (transfer_amount * 2) . unwrap_or (u64 :: MAX) ; program . tier_multiplier = program . tier_multiplier . checked_add (transfer_round as u32 * 5) . unwrap_or (500) ; program . points_issued = program . points_issued . checked_add (transfer_amount) . unwrap_or (u64 :: MAX) ; msg ! (\"Transfer round {}: amount={}, bonus applied\" , transfer_round , transfer_amount) ; } else { let tier_bonus = (program . tier_multiplier as u64 * to_points) / 100 ; to_points = to_points . checked_add (tier_bonus) . unwrap_or (u64 :: MAX) ; program . points_issued = program . points_issued . checked_add (tier_bonus * 3) . unwrap_or (u64 :: MAX) ; program . total_members = program . total_members . checked_add (transfer_round as u64) . unwrap_or (u64 :: MAX) ; msg ! (\"Tier bonus applied: {}\" , tier_bonus) ; } } let new_from_bytes = from_points . to_le_bytes () ; from_data [40 .. 48] . copy_from_slice (& new_from_bytes) ; let new_to_bytes = to_points . to_le_bytes () ; to_data [40 .. 48] . copy_from_slice (& new_to_bytes) ; }"
+      },
+      {
+        "id": 23,
+        "label": "let mut from_points_bytes = [0u8 ; 8] ;"
+      },
+      {
+        "id": 24,
+        "label": "from_points_bytes . copy_from_slice (& from_data [40 .. 48]) ;"
+      },
+      {
+        "id": 25,
+        "label": "let mut from_points = u64 :: from_le_bytes (from_points_bytes) ;"
+      },
+      {
+        "id": 26,
+        "label": "let mut to_points_bytes = [0u8 ; 8] ;"
+      },
+      {
+        "id": 27,
+        "label": "to_points_bytes . copy_from_slice (& to_data [40 .. 48]) ;"
+      },
+      {
+        "id": 28,
+        "label": "let mut to_points = u64 :: from_le_bytes (to_points_bytes) ;"
+      },
+      {
+        "id": 29,
+        "label": "for transfer_round in 0 .. 5 { if from_points > 100 { let transfer_amount = (from_points >> transfer_round) & 0x3F ; from_points = from_points . saturating_sub (transfer_amount) ; to_points = to_points . checked_add (transfer_amount * 2) . unwrap_or (u64 :: MAX) ; program . tier_multiplier = program . tier_multiplier . checked_add (transfer_round as u32 * 5) . unwrap_or (500) ; program . points_issued = program . points_issued . checked_add (transfer_amount) . unwrap_or (u64 :: MAX) ; msg ! (\"Transfer round {}: amount={}, bonus applied\" , transfer_round , transfer_amount) ; } else { let tier_bonus = (program . tier_multiplier as u64 * to_points) / 100 ; to_points = to_points . checked_add (tier_bonus) . unwrap_or (u64 :: MAX) ; program . points_issued = program . points_issued . checked_add (tier_bonus * 3) . unwrap_or (u64 :: MAX) ; program . total_members = program . total_members . checked_add (transfer_round as u64) . unwrap_or (u64 :: MAX) ; msg ! (\"Tier bonus applied: {}\" , tier_bonus) ; } }"
+      },
+      {
+        "id": 30,
+        "label": "if from_points > 100 { let transfer_amount = (from_points >> transfer_round) & 0x3F ; from_points = from_points . saturating_sub (transfer_amount) ; to_points = to_points . checked_add (transfer_amount * 2) . unwrap_or (u64 :: MAX) ; program . tier_multiplier = program . tier_multiplier . checked_add (transfer_round as u32 * 5) . unwrap_or (500) ; program . points_issued = program . points_issued . checked_add (transfer_amount) . unwrap_or (u64 :: MAX) ; msg ! (\"Transfer round {}: amount={}, bonus applied\" , transfer_round , transfer_amount) ; } else { let tier_bonus = (program . tier_multiplier as u64 * to_points) / 100 ; to_points = to_points . checked_add (tier_bonus) . unwrap_or (u64 :: MAX) ; program . points_issued = program . points_issued . checked_add (tier_bonus * 3) . unwrap_or (u64 :: MAX) ; program . total_members = program . total_members . checked_add (transfer_round as u64) . unwrap_or (u64 :: MAX) ; msg ! (\"Tier bonus applied: {}\" , tier_bonus) ; }"
+      },
+      {
+        "id": 31,
+        "label": "let transfer_amount = (from_points >> transfer_round) & 0x3F ;"
+      },
+      {
+        "id": 32,
+        "label": "from_points = from_points . saturating_sub (transfer_amount) ;"
+      },
+      {
+        "id": 33,
+        "label": "to_points = to_points . checked_add (transfer_amount * 2) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 34,
+        "label": "program . tier_multiplier = program . tier_multiplier . checked_add (transfer_round as u32 * 5) . unwrap_or (500) ;"
+      },
+      {
+        "id": 35,
+        "label": "program . points_issued = program . points_issued . checked_add (transfer_amount) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 36,
+        "label": "msg ! (\"Transfer round {}: amount={}, bonus applied\" , transfer_round , transfer_amount) ;"
+      },
+      {
+        "id": 37,
+        "label": "let tier_bonus = (program . tier_multiplier as u64 * to_points) / 100 ;"
+      },
+      {
+        "id": 38,
+        "label": "to_points = to_points . checked_add (tier_bonus) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 39,
+        "label": "program . points_issued = program . points_issued . checked_add (tier_bonus * 3) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 40,
+        "label": "program . total_members = program . total_members . checked_add (transfer_round as u64) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 41,
+        "label": "msg ! (\"Tier bonus applied: {}\" , tier_bonus) ;"
+      },
+      {
+        "id": 42,
+        "label": "let new_from_bytes = from_points . to_le_bytes () ;"
+      },
+      {
+        "id": 43,
+        "label": "from_data [40 .. 48] . copy_from_slice (& new_from_bytes) ;"
+      },
+      {
+        "id": 44,
+        "label": "let new_to_bytes = to_points . to_le_bytes () ;"
+      },
+      {
+        "id": 45,
+        "label": "to_data [40 .. 48] . copy_from_slice (& new_to_bytes) ;"
+      },
+      {
+        "id": 46,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 18,
+        "to": 18,
+        "label": "def: program"
+      },
+      {
+        "from": 20,
+        "to": 20,
+        "label": "def: from_data"
+      },
+      {
+        "from": 21,
+        "to": 21,
+        "label": "def: to_data"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: from_data"
+      },
+      {
+        "from": 21,
+        "to": 22,
+        "label": "data_dep: to_data"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: from_data"
+      },
+      {
+        "from": 21,
+        "to": 22,
+        "label": "data_dep: to_data"
+      },
+      {
+        "from": 18,
+        "to": 22,
+        "label": "data_dep: program"
+      },
+      {
+        "from": 18,
+        "to": 22,
+        "label": "data_dep: program"
+      },
+      {
+        "from": 18,
+        "to": 22,
+        "label": "data_dep: program"
+      },
+      {
+        "from": 18,
+        "to": 22,
+        "label": "data_dep: program"
+      },
+      {
+        "from": 18,
+        "to": 22,
+        "label": "data_dep: program"
+      },
+      {
+        "from": 18,
+        "to": 22,
+        "label": "data_dep: program"
+      },
+      {
+        "from": 18,
+        "to": 22,
+        "label": "data_dep: program"
+      },
+      {
+        "from": 18,
+        "to": 22,
+        "label": "data_dep: program"
+      },
+      {
+        "from": 18,
+        "to": 22,
+        "label": "data_dep: program"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: from_data"
+      },
+      {
+        "from": 21,
+        "to": 22,
+        "label": "data_dep: to_data"
+      },
+      {
+        "from": 23,
+        "to": 23,
+        "label": "def: from_points_bytes"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "data_dep: from_points_bytes"
+      },
+      {
+        "from": 20,
+        "to": 24,
+        "label": "data_dep: from_data"
+      },
+      {
+        "from": 25,
+        "to": 25,
+        "label": "def: from_points"
+      },
+      {
+        "from": 23,
+        "to": 25,
+        "label": "data_dep: from_points_bytes"
+      },
+      {
+        "from": 26,
+        "to": 26,
+        "label": "def: to_points_bytes"
+      },
+      {
+        "from": 26,
+        "to": 27,
+        "label": "data_dep: to_points_bytes"
+      },
+      {
+        "from": 21,
+        "to": 27,
+        "label": "data_dep: to_data"
+      },
+      {
+        "from": 28,
+        "to": 28,
+        "label": "def: to_points"
+      },
+      {
+        "from": 26,
+        "to": 28,
+        "label": "data_dep: to_points_bytes"
+      },
+      {
+        "from": 25,
+        "to": 29,
+        "label": "data_dep: from_points"
+      },
+      {
+        "from": 25,
+        "to": 29,
+        "label": "data_dep: from_points"
+      },
+      {
+        "from": 25,
+        "to": 29,
+        "label": "data_dep: from_points"
+      },
+      {
+        "from": 25,
+        "to": 29,
+        "label": "data_dep: from_points"
+      },
+      {
+        "from": 28,
+        "to": 29,
+        "label": "data_dep: to_points"
+      },
+      {
+        "from": 28,
+        "to": 29,
+        "label": "data_dep: to_points"
+      },
+      {
+        "from": 18,
+        "to": 29,
+        "label": "data_dep: program"
+      },
+      {
+        "from": 18,
+        "to": 29,
+        "label": "data_dep: program"
+      },
+      {
+        "from": 18,
+        "to": 29,
+        "label": "data_dep: program"
+      },
+      {
+        "from": 18,
+        "to": 29,
+        "label": "data_dep: program"
+      },
+      {
+        "from": 18,
+        "to": 29,
+        "label": "data_dep: program"
+      },
+      {
+        "from": 28,
+        "to": 29,
+        "label": "data_dep: to_points"
+      },
+      {
+        "from": 28,
+        "to": 29,
+        "label": "data_dep: to_points"
+      },
+      {
+        "from": 28,
+        "to": 29,
+        "label": "data_dep: to_points"
+      },
+      {
+        "from": 18,
+        "to": 29,
+        "label": "data_dep: program"
+      },
+      {
+        "from": 18,
+        "to": 29,
+        "label": "data_dep: program"
+      },
+      {
+        "from": 18,
+        "to": 29,
+        "label": "data_dep: program"
+      },
+      {
+        "from": 18,
+        "to": 29,
+        "label": "data_dep: program"
+      },
+      {
+        "from": 25,
+        "to": 30,
+        "label": "data_dep: from_points"
+      },
+      {
+        "from": 25,
+        "to": 30,
+        "label": "data_dep: from_points"
+      },
+      {
+        "from": 25,
+        "to": 30,
+        "label": "data_dep: from_points"
+      },
+      {
+        "from": 25,
+        "to": 30,
+        "label": "data_dep: from_points"
+      },
+      {
+        "from": 28,
+        "to": 30,
+        "label": "data_dep: to_points"
+      },
+      {
+        "from": 28,
+        "to": 30,
+        "label": "data_dep: to_points"
+      },
+      {
+        "from": 18,
+        "to": 30,
+        "label": "data_dep: program"
+      },
+      {
+        "from": 18,
+        "to": 30,
+        "label": "data_dep: program"
+      },
+      {
+        "from": 18,
+        "to": 30,
+        "label": "data_dep: program"
+      },
+      {
+        "from": 18,
+        "to": 30,
+        "label": "data_dep: program"
+      },
+      {
+        "from": 18,
+        "to": 30,
+        "label": "data_dep: program"
+      },
+      {
+        "from": 28,
+        "to": 30,
+        "label": "data_dep: to_points"
+      },
+      {
+        "from": 28,
+        "to": 30,
+        "label": "data_dep: to_points"
+      },
+      {
+        "from": 28,
+        "to": 30,
+        "label": "data_dep: to_points"
+      },
+      {
+        "from": 18,
+        "to": 30,
+        "label": "data_dep: program"
+      },
+      {
+        "from": 18,
+        "to": 30,
+        "label": "data_dep: program"
+      },
+      {
+        "from": 18,
+        "to": 30,
+        "label": "data_dep: program"
+      },
+      {
+        "from": 18,
+        "to": 30,
+        "label": "data_dep: program"
+      },
+      {
+        "from": 31,
+        "to": 31,
+        "label": "def: transfer_amount"
+      },
+      {
+        "from": 25,
+        "to": 31,
+        "label": "data_dep: from_points"
+      },
+      {
+        "from": 25,
+        "to": 32,
+        "label": "data_dep: from_points"
+      },
+      {
+        "from": 25,
+        "to": 32,
+        "label": "data_dep: from_points"
+      },
+      {
+        "from": 31,
+        "to": 32,
+        "label": "data_dep: transfer_amount"
+      },
+      {
+        "from": 28,
+        "to": 33,
+        "label": "data_dep: to_points"
+      },
+      {
+        "from": 28,
+        "to": 33,
+        "label": "data_dep: to_points"
+      },
+      {
+        "from": 31,
+        "to": 33,
+        "label": "data_dep: transfer_amount"
+      },
+      {
+        "from": 18,
+        "to": 34,
+        "label": "data_dep: program"
+      },
+      {
+        "from": 18,
+        "to": 34,
+        "label": "data_dep: program"
+      },
+      {
+        "from": 18,
+        "to": 35,
+        "label": "data_dep: program"
+      },
+      {
+        "from": 18,
+        "to": 35,
+        "label": "data_dep: program"
+      },
+      {
+        "from": 31,
+        "to": 35,
+        "label": "data_dep: transfer_amount"
+      },
+      {
+        "from": 37,
+        "to": 37,
+        "label": "def: tier_bonus"
+      },
+      {
+        "from": 18,
+        "to": 37,
+        "label": "data_dep: program"
+      },
+      {
+        "from": 28,
+        "to": 37,
+        "label": "data_dep: to_points"
+      },
+      {
+        "from": 28,
+        "to": 38,
+        "label": "data_dep: to_points"
+      },
+      {
+        "from": 28,
+        "to": 38,
+        "label": "data_dep: to_points"
+      },
+      {
+        "from": 37,
+        "to": 38,
+        "label": "data_dep: tier_bonus"
+      },
+      {
+        "from": 18,
+        "to": 39,
+        "label": "data_dep: program"
+      },
+      {
+        "from": 18,
+        "to": 39,
+        "label": "data_dep: program"
+      },
+      {
+        "from": 37,
+        "to": 39,
+        "label": "data_dep: tier_bonus"
+      },
+      {
+        "from": 18,
+        "to": 40,
+        "label": "data_dep: program"
+      },
+      {
+        "from": 18,
+        "to": 40,
+        "label": "data_dep: program"
+      },
+      {
+        "from": 42,
+        "to": 42,
+        "label": "def: new_from_bytes"
+      },
+      {
+        "from": 25,
+        "to": 42,
+        "label": "data_dep: from_points"
+      },
+      {
+        "from": 20,
+        "to": 43,
+        "label": "data_dep: from_data"
+      },
+      {
+        "from": 42,
+        "to": 43,
+        "label": "data_dep: new_from_bytes"
+      },
+      {
+        "from": 44,
+        "to": 44,
+        "label": "def: new_to_bytes"
+      },
+      {
+        "from": 28,
+        "to": 44,
+        "label": "data_dep: to_points"
+      },
+      {
+        "from": 21,
+        "to": 45,
+        "label": "data_dep: to_data"
+      },
+      {
+        "from": 44,
+        "to": 45,
+        "label": "data_dep: new_to_bytes"
+      }
+    ]
+  }
+]

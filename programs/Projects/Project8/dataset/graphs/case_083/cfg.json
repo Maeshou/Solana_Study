@@ -1,0 +1,355 @@
+[
+  {
+    "name": "create_auction_listing",
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let auction_listing = & mut ctx . accounts . auction_listing ;"
+      },
+      {
+        "id": 2,
+        "label": "let current_time = Clock :: get () ? . unix_timestamp ;"
+      },
+      {
+        "id": 3,
+        "label": "auction_listing . seller = ctx . accounts . seller . key () ;"
+      },
+      {
+        "id": 4,
+        "label": "auction_listing . item_being_sold = item_details ;"
+      },
+      {
+        "id": 5,
+        "label": "auction_listing . starting_price = starting_price ;"
+      },
+      {
+        "id": 6,
+        "label": "auction_listing . current_highest_bid = starting_price ;"
+      },
+      {
+        "id": 7,
+        "label": "auction_listing . buyout_price = buyout_price ;"
+      },
+      {
+        "id": 8,
+        "label": "auction_listing . auction_start_time = current_time ;"
+      },
+      {
+        "id": 9,
+        "label": "auction_listing . auction_end_time = current_time + auction_duration as i64 ;"
+      },
+      {
+        "id": 10,
+        "label": "auction_listing . listing_creation_timestamp = current_time ;"
+      },
+      {
+        "id": 11,
+        "label": "require ! (starting_price >= 1000 , AuctionError :: StartingPriceTooLow) ;"
+      },
+      {
+        "id": 12,
+        "label": "require ! (auction_duration >= 3600 , AuctionError :: AuctionTooShort) ;"
+      },
+      {
+        "id": 13,
+        "label": "require ! (auction_duration <= 604800 , AuctionError :: AuctionTooLong) ;"
+      },
+      {
+        "id": 14,
+        "label": "let category_multiplier = match item_details . category { ItemCategory :: LegendaryWeapon => { auction_listing . minimum_bid_increment = starting_price / 20 ; auction_listing . featured_listing = true ; auction_listing . seller_reputation_requirement = 100 ; 300 } , ItemCategory :: RareArmor => { auction_listing . minimum_bid_increment = starting_price / 25 ; auction_listing . featured_listing = true ; auction_listing . seller_reputation_requirement = 75 ; 200 } , ItemCategory :: EpicAccessory => { auction_listing . minimum_bid_increment = starting_price / 30 ; auction_listing . featured_listing = false ; auction_listing . seller_reputation_requirement = 50 ; 250 } , ItemCategory :: CraftingMaterial => { auction_listing . minimum_bid_increment = starting_price / 50 ; auction_listing . featured_listing = false ; auction_listing . seller_reputation_requirement = 25 ; 100 } , ItemCategory :: ConsumableItem => { auction_listing . minimum_bid_increment = starting_price / 100 ; auction_listing . featured_listing = false ; auction_listing . seller_reputation_requirement = 10 ; 50 } , } ;"
+      },
+      {
+        "id": 15,
+        "label": "auction_listing . estimated_final_price = starting_price + (starting_price * category_multiplier / 100) ;"
+      },
+      {
+        "id": 16,
+        "label": "let mut bidding_history = Vec :: new () ;"
+      },
+      {
+        "id": 17,
+        "label": "bidding_history . push (BidRecord { bidder : ctx . accounts . seller . key () , bid_amount : starting_price , bid_timestamp : current_time , bid_type : BidType :: StartingPrice , automatic_bid : false , }) ;"
+      },
+      {
+        "id": 18,
+        "label": "auction_listing . bidding_history = bidding_history ;"
+      },
+      {
+        "id": 19,
+        "label": "auction_listing . total_bids_placed = 0 ;"
+      },
+      {
+        "id": 20,
+        "label": "auction_listing . unique_bidders = 0 ;"
+      },
+      {
+        "id": 21,
+        "label": "auction_listing . current_leader = None ;"
+      },
+      {
+        "id": 22,
+        "label": "auction_listing . reserve_price_met = starting_price >= item_details . reserve_price ;"
+      },
+      {
+        "id": 23,
+        "label": "let mut watchers_list = Vec :: new () ;"
+      },
+      {
+        "id": 24,
+        "label": "Loop Start"
+      },
+      {
+        "id": 25,
+        "label": "watchers_list . push (WatcherInfo { watcher_pubkey : None , watch_start_time : 0 , notification_preferences : NotificationPreferences { bid_outbid_alert : false , auction_ending_alert : false , price_threshold_alert : false , threshold_amount : 0 , } , }) ;"
+      },
+      {
+        "id": 26,
+        "label": "Loop End"
+      },
+      {
+        "id": 27,
+        "label": "auction_listing . watchers = watchers_list ;"
+      },
+      {
+        "id": 28,
+        "label": "let fee_structure = match item_details . estimated_value { value if value >= 100000 => { auction_listing . listing_fee = 500 ; auction_listing . success_fee_percentage = 250 ; auction_listing . premium_features_enabled = true ; FeeStructure :: Premium } , value if value >= 50000 => { auction_listing . listing_fee = 300 ; auction_listing . success_fee_percentage = 300 ; auction_listing . premium_features_enabled = true ; FeeStructure :: Standard } , value if value >= 10000 => { auction_listing . listing_fee = 150 ; auction_listing . success_fee_percentage = 400 ; auction_listing . premium_features_enabled = false ; FeeStructure :: Basic } , _ => { auction_listing . listing_fee = 50 ; auction_listing . success_fee_percentage = 500 ; auction_listing . premium_features_enabled = false ; FeeStructure :: Economy } , } ;"
+      },
+      {
+        "id": 29,
+        "label": "auction_listing . fee_structure = fee_structure ;"
+      },
+      {
+        "id": 30,
+        "label": "let mut promotional_boosts = Vec :: new () ;"
+      },
+      {
+        "id": 31,
+        "label": "match auction_listing . premium_features_enabled { true => { promotional_boosts . push (PromotionalBoost { boost_type : BoostType :: FeaturedPlacement , duration_hours : 24 , cost_paid : 200 , activation_time : current_time , }) ; promotional_boosts . push (PromotionalBoost { boost_type : BoostType :: HighlightListing , duration_hours : 48 , cost_paid : 150 , activation_time : current_time , }) ; promotional_boosts . push (PromotionalBoost { boost_type : BoostType :: CrossCategoryPromotion , duration_hours : 72 , cost_paid : 300 , activation_time : current_time , }) ; } , false => { promotional_boosts . push (PromotionalBoost { boost_type : BoostType :: BasicVisibility , duration_hours : 12 , cost_paid : 50 , activation_time : current_time , }) ; } }"
+      },
+      {
+        "id": 32,
+        "label": "auction_listing . promotional_boosts = promotional_boosts ;"
+      },
+      {
+        "id": 33,
+        "label": "auction_listing . auction_status = AuctionStatus :: Active ;"
+      },
+      {
+        "id": 34,
+        "label": "auction_listing . auto_extension_enabled = true ;"
+      },
+      {
+        "id": 35,
+        "label": "auction_listing . extension_time_minutes = 300 ;"
+      },
+      {
+        "id": 36,
+        "label": "auction_listing . snipe_protection_active = true ;"
+      },
+      {
+        "id": 37,
+        "label": "auction_listing . market_analytics = MarketAnalytics { category_average_price : item_details . estimated_value , recent_sales_comparison : Vec :: new () , price_trend_indicator : PriceTrend :: Stable , demand_level : DemandLevel :: Moderate , supply_scarcity_rating : 5 , } ;"
+      },
+      {
+        "id": 38,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 0,
+        "to": 1,
+        "label": "next"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "next"
+      },
+      {
+        "from": 2,
+        "to": 3,
+        "label": "next"
+      },
+      {
+        "from": 3,
+        "to": 4,
+        "label": "next"
+      },
+      {
+        "from": 4,
+        "to": 5,
+        "label": "next"
+      },
+      {
+        "from": 5,
+        "to": 6,
+        "label": "next"
+      },
+      {
+        "from": 6,
+        "to": 7,
+        "label": "next"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "next"
+      },
+      {
+        "from": 8,
+        "to": 9,
+        "label": "next"
+      },
+      {
+        "from": 9,
+        "to": 10,
+        "label": "next"
+      },
+      {
+        "from": 10,
+        "to": 11,
+        "label": "next"
+      },
+      {
+        "from": 11,
+        "to": 12,
+        "label": "next"
+      },
+      {
+        "from": 12,
+        "to": 13,
+        "label": "next"
+      },
+      {
+        "from": 13,
+        "to": 14,
+        "label": "next"
+      },
+      {
+        "from": 14,
+        "to": 15,
+        "label": "next"
+      },
+      {
+        "from": 15,
+        "to": 16,
+        "label": "next"
+      },
+      {
+        "from": 16,
+        "to": 17,
+        "label": "next"
+      },
+      {
+        "from": 17,
+        "to": 18,
+        "label": "next"
+      },
+      {
+        "from": 18,
+        "to": 19,
+        "label": "next"
+      },
+      {
+        "from": 19,
+        "to": 20,
+        "label": "next"
+      },
+      {
+        "from": 20,
+        "to": 21,
+        "label": "next"
+      },
+      {
+        "from": 21,
+        "to": 22,
+        "label": "next"
+      },
+      {
+        "from": 22,
+        "to": 23,
+        "label": "next"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "next"
+      },
+      {
+        "from": 24,
+        "to": 25,
+        "label": "next"
+      },
+      {
+        "from": 24,
+        "to": 26,
+        "label": "for"
+      },
+      {
+        "from": 26,
+        "to": 27,
+        "label": "next"
+      },
+      {
+        "from": 27,
+        "to": 28,
+        "label": "next"
+      },
+      {
+        "from": 28,
+        "to": 29,
+        "label": "next"
+      },
+      {
+        "from": 29,
+        "to": 30,
+        "label": "next"
+      },
+      {
+        "from": 30,
+        "to": 31,
+        "label": "next"
+      },
+      {
+        "from": 31,
+        "to": 32,
+        "label": "next"
+      },
+      {
+        "from": 32,
+        "to": 33,
+        "label": "next"
+      },
+      {
+        "from": 33,
+        "to": 34,
+        "label": "next"
+      },
+      {
+        "from": 34,
+        "to": 35,
+        "label": "next"
+      },
+      {
+        "from": 35,
+        "to": 36,
+        "label": "next"
+      },
+      {
+        "from": 36,
+        "to": 37,
+        "label": "next"
+      },
+      {
+        "from": 37,
+        "to": 38,
+        "label": "next"
+      }
+    ]
+  }
+]

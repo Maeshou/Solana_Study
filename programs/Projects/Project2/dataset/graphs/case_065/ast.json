@@ -1,15 +1,77 @@
 [
   {
-    "name": "ClaimRewardCtxsipx",
+    "name": "create_wallet",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateWallet >",
+      "threshold: u8",
+      "signers: Vec < Pubkey >"
+    ],
+    "attributes": [],
+    "body": [
+      "require ! (threshold > 0 && threshold as usize <= signers . len () , ErrorCode :: InvalidThreshold) ;",
+      "let wallet = & mut ctx . accounts . wallet ;",
+      "wallet . threshold = threshold ;",
+      "wallet . signers = signers ;",
+      "wallet . nonce = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "propose_transaction",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ProposeTransaction >",
+      "to: Pubkey",
+      "amount: u64",
+      "data: Vec < u8 >"
+    ],
+    "attributes": [],
+    "body": [
+      "let wallet = & mut ctx . accounts . wallet ;",
+      "let transaction = & mut ctx . accounts . transaction ;",
+      "transaction . to = to ;",
+      "transaction . amount = amount ;",
+      "transaction . data = data ;",
+      "transaction . executed = false ;",
+      "transaction . approvals = vec ! [false ; wallet . signers . len ()] ;",
+      "transaction . approval_count = 0 ;",
+      "wallet . nonce += 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "approve_transaction",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ApproveTransaction >"
+    ],
+    "attributes": [],
+    "body": [
+      "let wallet = & ctx . accounts . wallet ;",
+      "let transaction = & mut ctx . accounts . transaction ;",
+      "require ! (! transaction . executed , ErrorCode :: AlreadyExecuted) ;",
+      "let signer_index = wallet . signers . iter () . position (| & x | x == ctx . accounts . signer . key ()) . ok_or (ErrorCode :: NotASigner) ? ;",
+      "require ! (! transaction . approvals [signer_index] , ErrorCode :: AlreadyApproved) ;",
+      "transaction . approvals [signer_index] = true ;",
+      "transaction . approval_count += 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CreateWallet",
     "node_type": "struct",
     "fields": [
       {
-        "name": "lottery",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
+        "name": "wallet",
+        "attribute": "# [account (init , payer = creator , space = 8 + 500)]",
+        "field_type": "Account < 'info , MultiSigWallet >"
       },
       {
-        "name": "winner",
+        "name": "creator",
         "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
       },
@@ -24,11 +86,74 @@
     "body": null
   },
   {
-    "name": "DataAccount",
+    "name": "ProposeTransaction",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data",
+        "name": "wallet",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , MultiSigWallet >"
+      },
+      {
+        "name": "transaction",
+        "attribute": "# [account (init , payer = proposer , space = 8 + 1000 , seeds = [b\"transaction\" , wallet . key () . as_ref () , & wallet . nonce . to_le_bytes ()] , bump)]",
+        "field_type": "Account < 'info , Transaction >"
+      },
+      {
+        "name": "proposer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ApproveTransaction",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "wallet",
+        "attribute": null,
+        "field_type": "Account < 'info , MultiSigWallet >"
+      },
+      {
+        "name": "transaction",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Transaction >"
+      },
+      {
+        "name": "signer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MultiSigWallet",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "threshold",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "signers",
+        "attribute": null,
+        "field_type": "Vec < Pubkey >"
+      },
+      {
+        "name": "nonce",
         "attribute": null,
         "field_type": "u64"
       }
@@ -38,20 +163,42 @@
     "body": null
   },
   {
-    "name": "claim_reward",
-    "node_type": "function",
-    "fields": null,
-    "inputs": [
-      "ctx: Context < ClaimRewardCtxsipx >",
-      "amount: u64"
+    "name": "Transaction",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "to",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "data",
+        "attribute": null,
+        "field_type": "Vec < u8 >"
+      },
+      {
+        "name": "executed",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "approvals",
+        "attribute": null,
+        "field_type": "Vec < bool >"
+      },
+      {
+        "name": "approval_count",
+        "attribute": null,
+        "field_type": "u8"
+      }
     ],
-    "attributes": [],
-    "body": [
-      "let acct = & mut ctx . accounts . lottery ;",
-      "assert ! (ctx . accounts . lottery . data > 0) ;",
-      "acct . data -= amount ;",
-      "msg ! (\"Executed claim_reward logic\") ;",
-      "Ok (())"
-    ]
+    "inputs": null,
+    "attributes": null,
+    "body": null
   }
 ]

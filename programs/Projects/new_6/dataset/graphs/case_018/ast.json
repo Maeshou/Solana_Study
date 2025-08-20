@@ -1,0 +1,284 @@
+[
+  {
+    "name": "init_pool",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitPool >",
+      "interest_rate: u32",
+      "max_ltv: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let pool = & mut ctx . accounts . pool ;",
+      "pool . admin = ctx . accounts . admin . key () ;",
+      "pool . interest_rate = interest_rate ;",
+      "pool . max_ltv = max_ltv ;",
+      "pool . total_deposits = 0 ;",
+      "pool . total_borrows = 0 ;",
+      "pool . is_active = true ;",
+      "pool . created_at = Clock :: get () ? . unix_timestamp ;",
+      "msg ! (\"Lending pool initialized with {}% interest\" , interest_rate) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_position",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitPosition >",
+      "position_type: PositionType",
+      "initial_amount: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let position = & mut ctx . accounts . position ;",
+      "position . pool = ctx . accounts . pool . key () ;",
+      "position . owner = ctx . accounts . owner . key () ;",
+      "position . position_type = position_type ;",
+      "position . amount = initial_amount ;",
+      "position . last_updated = Clock :: get () ? . unix_timestamp ;",
+      "position . is_active = true ;",
+      "msg ! (\"Position created: {:?} with amount {}\" , position_type , initial_amount) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "process_lending_operations",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ProcessLendingOperations >",
+      "operation_count: u32",
+      "multiplier: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let pool = & mut ctx . accounts . pool ;",
+      "let mut current_ops = 0 ;",
+      "while current_ops < operation_count",
+      "{",
+      "if pool . is_active",
+      "{",
+      "pool . total_deposits = pool . total_deposits . checked_add (multiplier * (current_ops as u64 + 1)) . unwrap_or (u64 :: MAX) ;",
+      "let interest_earned = (pool . total_deposits * pool . interest_rate as u64) / 10000 ;",
+      "pool . total_borrows = pool . total_borrows . checked_add (interest_earned) . unwrap_or (u64 :: MAX) ;",
+      "let compound_factor = (current_ops ^ 0x5) << 1 ;",
+      "pool . total_deposits = pool . total_deposits . checked_add (compound_factor as u64) . unwrap_or (u64 :: MAX) ;",
+      "msg ! (\"Active lending operation",
+      "{",
+      "} processed\" , current_ops) ;",
+      "} else",
+      "{",
+      "pool . total_borrows = pool . total_borrows . saturating_sub (multiplier / 2) ;",
+      "let liquidation_penalty = (current_ops as u64) * 500 ;",
+      "pool . total_deposits = pool . total_deposits . saturating_sub (liquidation_penalty) ;",
+      "let sqrt_approx = integer_sqrt (pool . total_borrows) ;",
+      "pool . interest_rate = (sqrt_approx % 2000) as u32 + 100 ;",
+      "msg ! (\"Liquidation operation",
+      "{",
+      "} processed\" , current_ops) ;",
+      "} current_ops += 1 ;",
+      "}",
+      "for round in 0 .. 3",
+      "{",
+      "let rate_adjustment = (round * 50) + (multiplier % 100) as u32 ;",
+      "pool . interest_rate = pool . interest_rate . checked_add (rate_adjustment) . unwrap_or (10000) . min (10000) ;",
+      "pool . total_deposits = (pool . total_deposits * 99 + pool . total_borrows) / 100 ;",
+      "msg ! (\"Rate adjustment round",
+      "{",
+      "}: new rate {}%\" , round , pool . interest_rate) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "integer_sqrt",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "n: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "if n == 0",
+      "{",
+      "return 0 ;",
+      "}",
+      "let mut x = n ;",
+      "let mut y = (x + 1) / 2 ;",
+      "while y < x",
+      "{",
+      "x = y ;",
+      "y = (x + n / x) / 2 ;",
+      "}",
+      "x"
+    ]
+  },
+  {
+    "name": "InitPool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 4 + 4 + 8 + 8 + 1 + 8)]",
+        "field_type": "Account < 'info , LendingPool >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitPosition",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": null,
+        "field_type": "Account < 'info , LendingPool >"
+      },
+      {
+        "name": "position",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 32 + 1 + 8 + 8 + 1)]",
+        "field_type": "Account < 'info , Position >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ProcessLendingOperations",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , LendingPool >"
+      },
+      {
+        "name": "lender_account",
+        "attribute": "# [doc = \" CHECK: 貸し手アカウントの検証が不十分\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "borrower_account",
+        "attribute": "# [doc = \" CHECK: 借り手アカウントの検証が不十分  \"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "LendingPool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "interest_rate",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "max_ltv",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "total_deposits",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_borrows",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "is_active",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "created_at",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Position",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "position_type",
+        "attribute": null,
+        "field_type": "PositionType"
+      },
+      {
+        "name": "amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "last_updated",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "is_active",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

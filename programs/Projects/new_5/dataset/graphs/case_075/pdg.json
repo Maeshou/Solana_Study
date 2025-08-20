@@ -1,0 +1,990 @@
+[
+  {
+    "name": "init_citadel",
+    "inputs": [
+      "ctx: Context < InitCitadel >",
+      "core_id: u64",
+      "defense_level: u32"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let citadel = & mut ctx . accounts . citadel_core ;"
+      },
+      {
+        "id": 2,
+        "label": "citadel . core_id = core_id . checked_add (100000) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 3,
+        "label": "citadel . defense_level = defense_level . checked_sub (100) . unwrap_or (0) ;"
+      },
+      {
+        "id": 4,
+        "label": "citadel . resource_reserve = core_id . checked_mul (100) . unwrap_or (1) ;"
+      },
+      {
+        "id": 5,
+        "label": "citadel . citadel_state = CitadelState :: Peaceful ;"
+      },
+      {
+        "id": 6,
+        "label": "msg ! (\"Citadel core {} established with defense level {}.\" , citadel . core_id , citadel . defense_level) ;"
+      },
+      {
+        "id": 7,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: citadel"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: citadel"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: citadel"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: citadel"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: citadel"
+      }
+    ]
+  },
+  {
+    "name": "init_module",
+    "inputs": [
+      "ctx: Context < InitModule >",
+      "module_id: u32",
+      "module_type: u8"
+    ],
+    "nodes": [
+      {
+        "id": 8,
+        "label": "Entry"
+      },
+      {
+        "id": 9,
+        "label": "let module = & mut ctx . accounts . defense_module ;"
+      },
+      {
+        "id": 10,
+        "label": "module . parent_citadel = ctx . accounts . citadel_core . key () ;"
+      },
+      {
+        "id": 11,
+        "label": "module . module_id = module_id . checked_add (50) . unwrap_or (u32 :: MAX) ;"
+      },
+      {
+        "id": 12,
+        "label": "module . module_type = module_type . rotate_right (3) ;"
+      },
+      {
+        "id": 13,
+        "label": "module . is_online = (module_id % 2) != 0 ;"
+      },
+      {
+        "id": 14,
+        "label": "module . energy_consumption = module_id . checked_rem (100) . unwrap_or (1) ;"
+      },
+      {
+        "id": 15,
+        "label": "module . last_update_cycle = module_id . checked_rem (50) . unwrap_or (0) ;"
+      },
+      {
+        "id": 16,
+        "label": "msg ! (\"Module {} installed with type {}.\" , module . module_id , module . module_type) ;"
+      },
+      {
+        "id": 17,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 9,
+        "to": 9,
+        "label": "def: module"
+      },
+      {
+        "from": 9,
+        "to": 10,
+        "label": "data_dep: module"
+      },
+      {
+        "from": 9,
+        "to": 11,
+        "label": "data_dep: module"
+      },
+      {
+        "from": 9,
+        "to": 12,
+        "label": "data_dep: module"
+      },
+      {
+        "from": 9,
+        "to": 13,
+        "label": "data_dep: module"
+      },
+      {
+        "from": 9,
+        "to": 14,
+        "label": "data_dep: module"
+      },
+      {
+        "from": 9,
+        "to": 15,
+        "label": "data_dep: module"
+      }
+    ]
+  },
+  {
+    "name": "activate_modules",
+    "inputs": [
+      "ctx: Context < ActivateModules >",
+      "energy_injection: u32"
+    ],
+    "nodes": [
+      {
+        "id": 18,
+        "label": "Entry"
+      },
+      {
+        "id": 19,
+        "label": "let citadel = & mut ctx . accounts . citadel_core ;"
+      },
+      {
+        "id": 20,
+        "label": "let module_primary = & mut ctx . accounts . module_primary ;"
+      },
+      {
+        "id": 21,
+        "label": "let module_secondary = & mut ctx . accounts . module_secondary ;"
+      },
+      {
+        "id": 22,
+        "label": "let mut loop_counter = 0 ;"
+      },
+      {
+        "id": 23,
+        "label": "while loop_counter < 10 { if module_primary . is_online { let energy_use = energy_injection . checked_add (loop_counter) . unwrap_or (u32 :: MAX) ; citadel . resource_reserve = citadel . resource_reserve . checked_sub (energy_use as u64) . unwrap_or (0) ; module_primary . energy_consumption = module_primary . energy_consumption . checked_add (energy_use) . unwrap_or (u32 :: MAX) ; citadel . defense_level = citadel . defense_level . checked_add (energy_use) . unwrap_or (u32 :: MAX) ; module_primary . last_update_cycle = loop_counter ; msg ! (\"Primary module consumed {} energy, defense level increased.\" , energy_use) ; } else { let repair_cost = 1000u64 . checked_div (citadel . defense_level as u64) . unwrap_or (10) ; module_primary . is_online = (module_primary . module_type % 2) == 0 ; citadel . resource_reserve = citadel . resource_reserve . checked_sub (repair_cost) . unwrap_or (0) ; module_primary . energy_consumption = module_primary . energy_consumption . checked_div (2) . unwrap_or (0) ; module_primary . last_update_cycle = module_primary . last_update_cycle . checked_add (10) . unwrap_or (u32 :: MAX) ; msg ! (\"Primary module is brought back online at a cost of {}.\" , repair_cost) ; } if module_secondary . is_online { let energy_use = energy_injection . checked_mul (loop_counter . checked_add (1) . unwrap_or (1)) . unwrap_or (u32 :: MAX) ; citadel . resource_reserve = citadel . resource_reserve . checked_sub (energy_use as u64) . unwrap_or (0) ; module_secondary . energy_consumption = module_secondary . energy_consumption . checked_add (energy_use) . unwrap_or (u32 :: MAX) ; citadel . defense_level = citadel . defense_level . checked_add (energy_use) . unwrap_or (u32 :: MAX) ; module_secondary . last_update_cycle = loop_counter ; msg ! (\"Secondary module consumed {} energy, defense level increased.\" , energy_use) ; } else { let repair_cost = 2000u64 . checked_div (citadel . defense_level as u64) . unwrap_or (10) ; module_secondary . is_online = (module_secondary . module_type % 3) == 0 ; citadel . resource_reserve = citadel . resource_reserve . checked_sub (repair_cost) . unwrap_or (0) ; module_secondary . energy_consumption = module_secondary . energy_consumption . checked_div (3) . unwrap_or (0) ; module_secondary . last_update_cycle = module_secondary . last_update_cycle . checked_add (20) . unwrap_or (u32 :: MAX) ; msg ! (\"Secondary module is brought back online at a cost of {}.\" , repair_cost) ; } loop_counter = loop_counter . checked_add (1) . unwrap_or (u32 :: MAX) ; }"
+      },
+      {
+        "id": 24,
+        "label": "if module_primary . is_online { let energy_use = energy_injection . checked_add (loop_counter) . unwrap_or (u32 :: MAX) ; citadel . resource_reserve = citadel . resource_reserve . checked_sub (energy_use as u64) . unwrap_or (0) ; module_primary . energy_consumption = module_primary . energy_consumption . checked_add (energy_use) . unwrap_or (u32 :: MAX) ; citadel . defense_level = citadel . defense_level . checked_add (energy_use) . unwrap_or (u32 :: MAX) ; module_primary . last_update_cycle = loop_counter ; msg ! (\"Primary module consumed {} energy, defense level increased.\" , energy_use) ; } else { let repair_cost = 1000u64 . checked_div (citadel . defense_level as u64) . unwrap_or (10) ; module_primary . is_online = (module_primary . module_type % 2) == 0 ; citadel . resource_reserve = citadel . resource_reserve . checked_sub (repair_cost) . unwrap_or (0) ; module_primary . energy_consumption = module_primary . energy_consumption . checked_div (2) . unwrap_or (0) ; module_primary . last_update_cycle = module_primary . last_update_cycle . checked_add (10) . unwrap_or (u32 :: MAX) ; msg ! (\"Primary module is brought back online at a cost of {}.\" , repair_cost) ; }"
+      },
+      {
+        "id": 25,
+        "label": "let energy_use = energy_injection . checked_add (loop_counter) . unwrap_or (u32 :: MAX) ;"
+      },
+      {
+        "id": 26,
+        "label": "citadel . resource_reserve = citadel . resource_reserve . checked_sub (energy_use as u64) . unwrap_or (0) ;"
+      },
+      {
+        "id": 27,
+        "label": "module_primary . energy_consumption = module_primary . energy_consumption . checked_add (energy_use) . unwrap_or (u32 :: MAX) ;"
+      },
+      {
+        "id": 28,
+        "label": "citadel . defense_level = citadel . defense_level . checked_add (energy_use) . unwrap_or (u32 :: MAX) ;"
+      },
+      {
+        "id": 29,
+        "label": "module_primary . last_update_cycle = loop_counter ;"
+      },
+      {
+        "id": 30,
+        "label": "msg ! (\"Primary module consumed {} energy, defense level increased.\" , energy_use) ;"
+      },
+      {
+        "id": 31,
+        "label": "let repair_cost = 1000u64 . checked_div (citadel . defense_level as u64) . unwrap_or (10) ;"
+      },
+      {
+        "id": 32,
+        "label": "module_primary . is_online = (module_primary . module_type % 2) == 0 ;"
+      },
+      {
+        "id": 33,
+        "label": "citadel . resource_reserve = citadel . resource_reserve . checked_sub (repair_cost) . unwrap_or (0) ;"
+      },
+      {
+        "id": 34,
+        "label": "module_primary . energy_consumption = module_primary . energy_consumption . checked_div (2) . unwrap_or (0) ;"
+      },
+      {
+        "id": 35,
+        "label": "module_primary . last_update_cycle = module_primary . last_update_cycle . checked_add (10) . unwrap_or (u32 :: MAX) ;"
+      },
+      {
+        "id": 36,
+        "label": "msg ! (\"Primary module is brought back online at a cost of {}.\" , repair_cost) ;"
+      },
+      {
+        "id": 37,
+        "label": "if module_secondary . is_online { let energy_use = energy_injection . checked_mul (loop_counter . checked_add (1) . unwrap_or (1)) . unwrap_or (u32 :: MAX) ; citadel . resource_reserve = citadel . resource_reserve . checked_sub (energy_use as u64) . unwrap_or (0) ; module_secondary . energy_consumption = module_secondary . energy_consumption . checked_add (energy_use) . unwrap_or (u32 :: MAX) ; citadel . defense_level = citadel . defense_level . checked_add (energy_use) . unwrap_or (u32 :: MAX) ; module_secondary . last_update_cycle = loop_counter ; msg ! (\"Secondary module consumed {} energy, defense level increased.\" , energy_use) ; } else { let repair_cost = 2000u64 . checked_div (citadel . defense_level as u64) . unwrap_or (10) ; module_secondary . is_online = (module_secondary . module_type % 3) == 0 ; citadel . resource_reserve = citadel . resource_reserve . checked_sub (repair_cost) . unwrap_or (0) ; module_secondary . energy_consumption = module_secondary . energy_consumption . checked_div (3) . unwrap_or (0) ; module_secondary . last_update_cycle = module_secondary . last_update_cycle . checked_add (20) . unwrap_or (u32 :: MAX) ; msg ! (\"Secondary module is brought back online at a cost of {}.\" , repair_cost) ; }"
+      },
+      {
+        "id": 38,
+        "label": "let energy_use = energy_injection . checked_mul (loop_counter . checked_add (1) . unwrap_or (1)) . unwrap_or (u32 :: MAX) ;"
+      },
+      {
+        "id": 39,
+        "label": "citadel . resource_reserve = citadel . resource_reserve . checked_sub (energy_use as u64) . unwrap_or (0) ;"
+      },
+      {
+        "id": 40,
+        "label": "module_secondary . energy_consumption = module_secondary . energy_consumption . checked_add (energy_use) . unwrap_or (u32 :: MAX) ;"
+      },
+      {
+        "id": 41,
+        "label": "citadel . defense_level = citadel . defense_level . checked_add (energy_use) . unwrap_or (u32 :: MAX) ;"
+      },
+      {
+        "id": 42,
+        "label": "module_secondary . last_update_cycle = loop_counter ;"
+      },
+      {
+        "id": 43,
+        "label": "msg ! (\"Secondary module consumed {} energy, defense level increased.\" , energy_use) ;"
+      },
+      {
+        "id": 44,
+        "label": "let repair_cost = 2000u64 . checked_div (citadel . defense_level as u64) . unwrap_or (10) ;"
+      },
+      {
+        "id": 45,
+        "label": "module_secondary . is_online = (module_secondary . module_type % 3) == 0 ;"
+      },
+      {
+        "id": 46,
+        "label": "citadel . resource_reserve = citadel . resource_reserve . checked_sub (repair_cost) . unwrap_or (0) ;"
+      },
+      {
+        "id": 47,
+        "label": "module_secondary . energy_consumption = module_secondary . energy_consumption . checked_div (3) . unwrap_or (0) ;"
+      },
+      {
+        "id": 48,
+        "label": "module_secondary . last_update_cycle = module_secondary . last_update_cycle . checked_add (20) . unwrap_or (u32 :: MAX) ;"
+      },
+      {
+        "id": 49,
+        "label": "msg ! (\"Secondary module is brought back online at a cost of {}.\" , repair_cost) ;"
+      },
+      {
+        "id": 50,
+        "label": "loop_counter = loop_counter . checked_add (1) . unwrap_or (u32 :: MAX) ;"
+      },
+      {
+        "id": 51,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 19,
+        "to": 19,
+        "label": "def: citadel"
+      },
+      {
+        "from": 20,
+        "to": 20,
+        "label": "def: module_primary"
+      },
+      {
+        "from": 21,
+        "to": 21,
+        "label": "def: module_secondary"
+      },
+      {
+        "from": 22,
+        "to": 22,
+        "label": "def: loop_counter"
+      },
+      {
+        "from": 22,
+        "to": 23,
+        "label": "data_dep: loop_counter"
+      },
+      {
+        "from": 20,
+        "to": 23,
+        "label": "data_dep: module_primary"
+      },
+      {
+        "from": 22,
+        "to": 23,
+        "label": "data_dep: loop_counter"
+      },
+      {
+        "from": 19,
+        "to": 23,
+        "label": "data_dep: citadel"
+      },
+      {
+        "from": 19,
+        "to": 23,
+        "label": "data_dep: citadel"
+      },
+      {
+        "from": 20,
+        "to": 23,
+        "label": "data_dep: module_primary"
+      },
+      {
+        "from": 20,
+        "to": 23,
+        "label": "data_dep: module_primary"
+      },
+      {
+        "from": 19,
+        "to": 23,
+        "label": "data_dep: citadel"
+      },
+      {
+        "from": 19,
+        "to": 23,
+        "label": "data_dep: citadel"
+      },
+      {
+        "from": 20,
+        "to": 23,
+        "label": "data_dep: module_primary"
+      },
+      {
+        "from": 22,
+        "to": 23,
+        "label": "data_dep: loop_counter"
+      },
+      {
+        "from": 19,
+        "to": 23,
+        "label": "data_dep: citadel"
+      },
+      {
+        "from": 20,
+        "to": 23,
+        "label": "data_dep: module_primary"
+      },
+      {
+        "from": 20,
+        "to": 23,
+        "label": "data_dep: module_primary"
+      },
+      {
+        "from": 19,
+        "to": 23,
+        "label": "data_dep: citadel"
+      },
+      {
+        "from": 19,
+        "to": 23,
+        "label": "data_dep: citadel"
+      },
+      {
+        "from": 20,
+        "to": 23,
+        "label": "data_dep: module_primary"
+      },
+      {
+        "from": 20,
+        "to": 23,
+        "label": "data_dep: module_primary"
+      },
+      {
+        "from": 20,
+        "to": 23,
+        "label": "data_dep: module_primary"
+      },
+      {
+        "from": 20,
+        "to": 23,
+        "label": "data_dep: module_primary"
+      },
+      {
+        "from": 21,
+        "to": 23,
+        "label": "data_dep: module_secondary"
+      },
+      {
+        "from": 22,
+        "to": 23,
+        "label": "data_dep: loop_counter"
+      },
+      {
+        "from": 19,
+        "to": 23,
+        "label": "data_dep: citadel"
+      },
+      {
+        "from": 19,
+        "to": 23,
+        "label": "data_dep: citadel"
+      },
+      {
+        "from": 21,
+        "to": 23,
+        "label": "data_dep: module_secondary"
+      },
+      {
+        "from": 21,
+        "to": 23,
+        "label": "data_dep: module_secondary"
+      },
+      {
+        "from": 19,
+        "to": 23,
+        "label": "data_dep: citadel"
+      },
+      {
+        "from": 19,
+        "to": 23,
+        "label": "data_dep: citadel"
+      },
+      {
+        "from": 21,
+        "to": 23,
+        "label": "data_dep: module_secondary"
+      },
+      {
+        "from": 22,
+        "to": 23,
+        "label": "data_dep: loop_counter"
+      },
+      {
+        "from": 19,
+        "to": 23,
+        "label": "data_dep: citadel"
+      },
+      {
+        "from": 21,
+        "to": 23,
+        "label": "data_dep: module_secondary"
+      },
+      {
+        "from": 21,
+        "to": 23,
+        "label": "data_dep: module_secondary"
+      },
+      {
+        "from": 19,
+        "to": 23,
+        "label": "data_dep: citadel"
+      },
+      {
+        "from": 19,
+        "to": 23,
+        "label": "data_dep: citadel"
+      },
+      {
+        "from": 21,
+        "to": 23,
+        "label": "data_dep: module_secondary"
+      },
+      {
+        "from": 21,
+        "to": 23,
+        "label": "data_dep: module_secondary"
+      },
+      {
+        "from": 21,
+        "to": 23,
+        "label": "data_dep: module_secondary"
+      },
+      {
+        "from": 21,
+        "to": 23,
+        "label": "data_dep: module_secondary"
+      },
+      {
+        "from": 22,
+        "to": 23,
+        "label": "data_dep: loop_counter"
+      },
+      {
+        "from": 22,
+        "to": 23,
+        "label": "data_dep: loop_counter"
+      },
+      {
+        "from": 20,
+        "to": 24,
+        "label": "data_dep: module_primary"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: loop_counter"
+      },
+      {
+        "from": 19,
+        "to": 24,
+        "label": "data_dep: citadel"
+      },
+      {
+        "from": 19,
+        "to": 24,
+        "label": "data_dep: citadel"
+      },
+      {
+        "from": 20,
+        "to": 24,
+        "label": "data_dep: module_primary"
+      },
+      {
+        "from": 20,
+        "to": 24,
+        "label": "data_dep: module_primary"
+      },
+      {
+        "from": 19,
+        "to": 24,
+        "label": "data_dep: citadel"
+      },
+      {
+        "from": 19,
+        "to": 24,
+        "label": "data_dep: citadel"
+      },
+      {
+        "from": 20,
+        "to": 24,
+        "label": "data_dep: module_primary"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: loop_counter"
+      },
+      {
+        "from": 19,
+        "to": 24,
+        "label": "data_dep: citadel"
+      },
+      {
+        "from": 20,
+        "to": 24,
+        "label": "data_dep: module_primary"
+      },
+      {
+        "from": 20,
+        "to": 24,
+        "label": "data_dep: module_primary"
+      },
+      {
+        "from": 19,
+        "to": 24,
+        "label": "data_dep: citadel"
+      },
+      {
+        "from": 19,
+        "to": 24,
+        "label": "data_dep: citadel"
+      },
+      {
+        "from": 20,
+        "to": 24,
+        "label": "data_dep: module_primary"
+      },
+      {
+        "from": 20,
+        "to": 24,
+        "label": "data_dep: module_primary"
+      },
+      {
+        "from": 20,
+        "to": 24,
+        "label": "data_dep: module_primary"
+      },
+      {
+        "from": 20,
+        "to": 24,
+        "label": "data_dep: module_primary"
+      },
+      {
+        "from": 25,
+        "to": 25,
+        "label": "def: energy_use"
+      },
+      {
+        "from": 22,
+        "to": 25,
+        "label": "data_dep: loop_counter"
+      },
+      {
+        "from": 19,
+        "to": 26,
+        "label": "data_dep: citadel"
+      },
+      {
+        "from": 19,
+        "to": 26,
+        "label": "data_dep: citadel"
+      },
+      {
+        "from": 25,
+        "to": 26,
+        "label": "data_dep: energy_use"
+      },
+      {
+        "from": 20,
+        "to": 27,
+        "label": "data_dep: module_primary"
+      },
+      {
+        "from": 20,
+        "to": 27,
+        "label": "data_dep: module_primary"
+      },
+      {
+        "from": 25,
+        "to": 27,
+        "label": "data_dep: energy_use"
+      },
+      {
+        "from": 19,
+        "to": 28,
+        "label": "data_dep: citadel"
+      },
+      {
+        "from": 19,
+        "to": 28,
+        "label": "data_dep: citadel"
+      },
+      {
+        "from": 25,
+        "to": 28,
+        "label": "data_dep: energy_use"
+      },
+      {
+        "from": 20,
+        "to": 29,
+        "label": "data_dep: module_primary"
+      },
+      {
+        "from": 22,
+        "to": 29,
+        "label": "data_dep: loop_counter"
+      },
+      {
+        "from": 31,
+        "to": 31,
+        "label": "def: repair_cost"
+      },
+      {
+        "from": 19,
+        "to": 31,
+        "label": "data_dep: citadel"
+      },
+      {
+        "from": 20,
+        "to": 32,
+        "label": "data_dep: module_primary"
+      },
+      {
+        "from": 20,
+        "to": 32,
+        "label": "data_dep: module_primary"
+      },
+      {
+        "from": 19,
+        "to": 33,
+        "label": "data_dep: citadel"
+      },
+      {
+        "from": 19,
+        "to": 33,
+        "label": "data_dep: citadel"
+      },
+      {
+        "from": 31,
+        "to": 33,
+        "label": "data_dep: repair_cost"
+      },
+      {
+        "from": 20,
+        "to": 34,
+        "label": "data_dep: module_primary"
+      },
+      {
+        "from": 20,
+        "to": 34,
+        "label": "data_dep: module_primary"
+      },
+      {
+        "from": 20,
+        "to": 35,
+        "label": "data_dep: module_primary"
+      },
+      {
+        "from": 20,
+        "to": 35,
+        "label": "data_dep: module_primary"
+      },
+      {
+        "from": 21,
+        "to": 37,
+        "label": "data_dep: module_secondary"
+      },
+      {
+        "from": 22,
+        "to": 37,
+        "label": "data_dep: loop_counter"
+      },
+      {
+        "from": 19,
+        "to": 37,
+        "label": "data_dep: citadel"
+      },
+      {
+        "from": 19,
+        "to": 37,
+        "label": "data_dep: citadel"
+      },
+      {
+        "from": 25,
+        "to": 37,
+        "label": "data_dep: energy_use"
+      },
+      {
+        "from": 21,
+        "to": 37,
+        "label": "data_dep: module_secondary"
+      },
+      {
+        "from": 21,
+        "to": 37,
+        "label": "data_dep: module_secondary"
+      },
+      {
+        "from": 25,
+        "to": 37,
+        "label": "data_dep: energy_use"
+      },
+      {
+        "from": 19,
+        "to": 37,
+        "label": "data_dep: citadel"
+      },
+      {
+        "from": 19,
+        "to": 37,
+        "label": "data_dep: citadel"
+      },
+      {
+        "from": 25,
+        "to": 37,
+        "label": "data_dep: energy_use"
+      },
+      {
+        "from": 21,
+        "to": 37,
+        "label": "data_dep: module_secondary"
+      },
+      {
+        "from": 22,
+        "to": 37,
+        "label": "data_dep: loop_counter"
+      },
+      {
+        "from": 19,
+        "to": 37,
+        "label": "data_dep: citadel"
+      },
+      {
+        "from": 21,
+        "to": 37,
+        "label": "data_dep: module_secondary"
+      },
+      {
+        "from": 21,
+        "to": 37,
+        "label": "data_dep: module_secondary"
+      },
+      {
+        "from": 19,
+        "to": 37,
+        "label": "data_dep: citadel"
+      },
+      {
+        "from": 19,
+        "to": 37,
+        "label": "data_dep: citadel"
+      },
+      {
+        "from": 31,
+        "to": 37,
+        "label": "data_dep: repair_cost"
+      },
+      {
+        "from": 21,
+        "to": 37,
+        "label": "data_dep: module_secondary"
+      },
+      {
+        "from": 21,
+        "to": 37,
+        "label": "data_dep: module_secondary"
+      },
+      {
+        "from": 21,
+        "to": 37,
+        "label": "data_dep: module_secondary"
+      },
+      {
+        "from": 21,
+        "to": 37,
+        "label": "data_dep: module_secondary"
+      },
+      {
+        "from": 38,
+        "to": 38,
+        "label": "def: energy_use"
+      },
+      {
+        "from": 22,
+        "to": 38,
+        "label": "data_dep: loop_counter"
+      },
+      {
+        "from": 19,
+        "to": 39,
+        "label": "data_dep: citadel"
+      },
+      {
+        "from": 19,
+        "to": 39,
+        "label": "data_dep: citadel"
+      },
+      {
+        "from": 38,
+        "to": 39,
+        "label": "data_dep: energy_use"
+      },
+      {
+        "from": 21,
+        "to": 40,
+        "label": "data_dep: module_secondary"
+      },
+      {
+        "from": 21,
+        "to": 40,
+        "label": "data_dep: module_secondary"
+      },
+      {
+        "from": 38,
+        "to": 40,
+        "label": "data_dep: energy_use"
+      },
+      {
+        "from": 19,
+        "to": 41,
+        "label": "data_dep: citadel"
+      },
+      {
+        "from": 19,
+        "to": 41,
+        "label": "data_dep: citadel"
+      },
+      {
+        "from": 38,
+        "to": 41,
+        "label": "data_dep: energy_use"
+      },
+      {
+        "from": 21,
+        "to": 42,
+        "label": "data_dep: module_secondary"
+      },
+      {
+        "from": 22,
+        "to": 42,
+        "label": "data_dep: loop_counter"
+      },
+      {
+        "from": 44,
+        "to": 44,
+        "label": "def: repair_cost"
+      },
+      {
+        "from": 19,
+        "to": 44,
+        "label": "data_dep: citadel"
+      },
+      {
+        "from": 21,
+        "to": 45,
+        "label": "data_dep: module_secondary"
+      },
+      {
+        "from": 21,
+        "to": 45,
+        "label": "data_dep: module_secondary"
+      },
+      {
+        "from": 19,
+        "to": 46,
+        "label": "data_dep: citadel"
+      },
+      {
+        "from": 19,
+        "to": 46,
+        "label": "data_dep: citadel"
+      },
+      {
+        "from": 44,
+        "to": 46,
+        "label": "data_dep: repair_cost"
+      },
+      {
+        "from": 21,
+        "to": 47,
+        "label": "data_dep: module_secondary"
+      },
+      {
+        "from": 21,
+        "to": 47,
+        "label": "data_dep: module_secondary"
+      },
+      {
+        "from": 21,
+        "to": 48,
+        "label": "data_dep: module_secondary"
+      },
+      {
+        "from": 21,
+        "to": 48,
+        "label": "data_dep: module_secondary"
+      },
+      {
+        "from": 22,
+        "to": 50,
+        "label": "data_dep: loop_counter"
+      },
+      {
+        "from": 22,
+        "to": 50,
+        "label": "data_dep: loop_counter"
+      }
+    ]
+  }
+]

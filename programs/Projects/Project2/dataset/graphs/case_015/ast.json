@@ -1,17 +1,195 @@
 [
   {
-    "name": "StakeDepositCtxehfw",
+    "name": "create_job_posting",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateJobPosting >",
+      "title: String",
+      "description: String",
+      "budget: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let job_posting = & mut ctx . accounts . job_posting ;",
+      "job_posting . client = ctx . accounts . client . key () ;",
+      "job_posting . title = title ;",
+      "job_posting . description = description ;",
+      "job_posting . budget = budget ;",
+      "job_posting . is_open = true ;",
+      "job_posting . freelancer = None ;",
+      "job_posting . created_at = Clock :: get () ? . unix_timestamp ;",
+      "job_posting . bump = * ctx . bumps . get (\"job_posting\") . unwrap () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "submit_proposal",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SubmitProposal >",
+      "bid_amount: u64",
+      "proposal_text: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let job_posting = & ctx . accounts . job_posting ;",
+      "let proposal = & mut ctx . accounts . proposal ;",
+      "require ! (job_posting . is_open , FreelancerError :: JobNotOpen) ;",
+      "proposal . job_posting = job_posting . key () ;",
+      "proposal . freelancer = ctx . accounts . freelancer . key () ;",
+      "proposal . bid_amount = bid_amount ;",
+      "proposal . proposal_text = proposal_text ;",
+      "proposal . status = ProposalStatus :: Pending ;",
+      "proposal . submitted_at = Clock :: get () ? . unix_timestamp ;",
+      "proposal . bump = * ctx . bumps . get (\"proposal\") . unwrap () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "accept_proposal",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AcceptProposal >"
+    ],
+    "attributes": [],
+    "body": [
+      "let job_posting = & mut ctx . accounts . job_posting ;",
+      "let proposal = & mut ctx . accounts . proposal ;",
+      "require ! (job_posting . is_open , FreelancerError :: JobNotOpen) ;",
+      "require ! (matches ! (proposal . status , ProposalStatus :: Pending) , FreelancerError :: ProposalNotPending) ;",
+      "proposal . status = ProposalStatus :: Accepted ;",
+      "job_posting . freelancer = Some (proposal . freelancer) ;",
+      "job_posting . is_open = false ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "complete_job",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CompleteJob >"
+    ],
+    "attributes": [],
+    "body": [
+      "let job_posting = & mut ctx . accounts . job_posting ;",
+      "let proposal = & ctx . accounts . proposal ;",
+      "require ! (! job_posting . is_open , FreelancerError :: JobStillOpen) ;",
+      "require ! (matches ! (proposal . status , ProposalStatus :: Accepted) , FreelancerError :: ProposalNotAccepted) ;",
+      "* * ctx . accounts . client . lamports . borrow_mut () -= proposal . bid_amount ;",
+      "* * ctx . accounts . freelancer . lamports . borrow_mut () += proposal . bid_amount ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "JobPosting",
     "node_type": "struct",
     "fields": [
       {
-        "name": "stake_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
+        "name": "client",
+        "attribute": null,
+        "field_type": "Pubkey"
       },
       {
-        "name": "staker",
+        "name": "title",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "description",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "budget",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "is_open",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "freelancer",
+        "attribute": null,
+        "field_type": "Option < Pubkey >"
+      },
+      {
+        "name": "created_at",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Proposal",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "job_posting",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "freelancer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "bid_amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "proposal_text",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "status",
+        "attribute": null,
+        "field_type": "ProposalStatus"
+      },
+      {
+        "name": "submitted_at",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreateJobPosting",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "job_posting",
+        "attribute": "# [account (init , payer = client , space = 8 + 32 + 4 + title . len () + 4 + description . len () + 8 + 1 + 33 + 8 + 1 , seeds = [b\"job\" , client . key () . as_ref () , title . as_bytes ()] , bump)]",
+        "field_type": "Account < 'info , JobPosting >"
+      },
+      {
+        "name": "client",
         "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
+        "field_type": "Signer < 'info >"
       },
       {
         "name": "system_program",
@@ -24,13 +202,28 @@
     "body": null
   },
   {
-    "name": "DataAccount",
+    "name": "SubmitProposal",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data",
+        "name": "job_posting",
+        "attribute": "# [account (seeds = [b\"job\" , job_posting . client . as_ref () , job_posting . title . as_bytes ()] , bump = job_posting . bump)]",
+        "field_type": "Account < 'info , JobPosting >"
+      },
+      {
+        "name": "proposal",
+        "attribute": "# [account (init , payer = freelancer , space = 8 + 32 + 32 + 8 + 4 + proposal_text . len () + 32 + 8 + 1 , seeds = [b\"proposal\" , job_posting . key () . as_ref () , freelancer . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Proposal >"
+      },
+      {
+        "name": "freelancer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -38,20 +231,56 @@
     "body": null
   },
   {
-    "name": "stake_deposit",
-    "node_type": "function",
-    "fields": null,
-    "inputs": [
-      "ctx: Context < StakeDepositCtxehfw >",
-      "amount: u64"
+    "name": "AcceptProposal",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "job_posting",
+        "attribute": "# [account (mut , seeds = [b\"job\" , client . key () . as_ref () , job_posting . title . as_bytes ()] , bump = job_posting . bump , constraint = job_posting . client == client . key ())]",
+        "field_type": "Account < 'info , JobPosting >"
+      },
+      {
+        "name": "proposal",
+        "attribute": "# [account (mut , seeds = [b\"proposal\" , job_posting . key () . as_ref () , proposal . freelancer . as_ref ()] , bump = proposal . bump , constraint = proposal . job_posting == job_posting . key ())]",
+        "field_type": "Account < 'info , Proposal >"
+      },
+      {
+        "name": "client",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
     ],
-    "attributes": [],
-    "body": [
-      "let acct = & mut ctx . accounts . stake_account ;",
-      "assert ! (ctx . accounts . stake_account . data > 0) ;",
-      "acct . data -= amount ;",
-      "msg ! (\"Executed stake_deposit logic\") ;",
-      "Ok (())"
-    ]
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CompleteJob",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "job_posting",
+        "attribute": "# [account (seeds = [b\"job\" , client . key () . as_ref () , job_posting . title . as_bytes ()] , bump = job_posting . bump , constraint = job_posting . client == client . key ())]",
+        "field_type": "Account < 'info , JobPosting >"
+      },
+      {
+        "name": "proposal",
+        "attribute": "# [account (seeds = [b\"proposal\" , job_posting . key () . as_ref () , freelancer . key () . as_ref ()] , bump = proposal . bump , constraint = proposal . freelancer == freelancer . key ())]",
+        "field_type": "Account < 'info , Proposal >"
+      },
+      {
+        "name": "client",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "freelancer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
   }
 ]

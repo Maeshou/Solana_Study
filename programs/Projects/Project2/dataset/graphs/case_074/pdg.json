@@ -1,9 +1,9 @@
 [
   {
-    "name": "award_prize",
+    "name": "save",
     "inputs": [
-      "ctx: Context < AwardPrizeCtxmmto >",
-      "amount: u64"
+      "ctx: Context < Save >",
+      "val: u64"
     ],
     "nodes": [
       {
@@ -12,40 +12,101 @@
       },
       {
         "id": 1,
-        "label": "let acct = & mut ctx . accounts . tournament ;"
+        "label": "let (expected , _bump) = Pubkey :: find_program_address (& [b\"store\" , ctx . accounts . user . key . as_ref ()] , ctx . program_id ,) ;"
       },
       {
         "id": 2,
-        "label": "for _ in 0 .. amount { acct . data += 1 ; }"
+        "label": "require_keys_eq ! (ctx . accounts . storage . key , expected) ;"
       },
       {
         "id": 3,
-        "label": "acct . data += 1 ;"
+        "label": "let mut buf = ctx . accounts . storage . data . borrow_mut () ;"
       },
       {
         "id": 4,
-        "label": "msg ! (\"Executed award_prize logic\") ;"
+        "label": "buf [.. 8] . copy_from_slice (& val . to_le_bytes ()) ;"
       },
       {
         "id": 5,
+        "label": "msg ! (\"Written value: {}\" , val) ;"
+      },
+      {
+        "id": 6,
+        "label": "let read_val = u64 :: from_le_bytes (buf [.. 8] . try_into () . unwrap ()) ;"
+      },
+      {
+        "id": 7,
+        "label": "emit ! (DataStored { value : read_val }) ;"
+      },
+      {
+        "id": 8,
         "label": "Ok (())"
       }
     ],
     "edges": [
       {
-        "from": 1,
-        "to": 1,
-        "label": "def: acct"
-      },
-      {
-        "from": 1,
-        "to": 2,
-        "label": "data_dep: acct"
-      },
-      {
-        "from": 1,
+        "from": 3,
         "to": 3,
-        "label": "data_dep: acct"
+        "label": "def: buf"
+      },
+      {
+        "from": 3,
+        "to": 4,
+        "label": "data_dep: buf"
+      },
+      {
+        "from": 6,
+        "to": 6,
+        "label": "def: read_val"
+      },
+      {
+        "from": 3,
+        "to": 6,
+        "label": "data_dep: buf"
+      }
+    ]
+  },
+  {
+    "name": "clear",
+    "inputs": [
+      "ctx: Context < Save >"
+    ],
+    "nodes": [
+      {
+        "id": 9,
+        "label": "Entry"
+      },
+      {
+        "id": 10,
+        "label": "let mut buf = ctx . accounts . storage . data . borrow_mut () ;"
+      },
+      {
+        "id": 11,
+        "label": "for b in buf . iter_mut () { * b = 0 ; }"
+      },
+      {
+        "id": 12,
+        "label": "* b = 0 ;"
+      },
+      {
+        "id": 13,
+        "label": "emit ! (DataCleared { }) ;"
+      },
+      {
+        "id": 14,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 10,
+        "to": 10,
+        "label": "def: buf"
+      },
+      {
+        "from": 10,
+        "to": 11,
+        "label": "data_dep: buf"
       }
     ]
   }

@@ -1,0 +1,156 @@
+[
+  {
+    "name": "init_station",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitStation >",
+      "daily_cap: u64",
+      "base_grant: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let station = & mut ctx . accounts . station ;",
+      "station . admin = ctx . accounts . admin . key () ;",
+      "station . daily_cap = if daily_cap < 10 { 10 } else { daily_cap } ;",
+      "station . base_grant = if base_grant < 1 { 1 } else { base_grant } ;",
+      "station . issued_today = base_grant + 2 ;",
+      "station . streak_counter = 3 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_grant",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActGrant >",
+      "actions: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let station = & mut ctx . accounts . station ;",
+      "let mut bonus_units = 0u64 ;",
+      "let mut i : u8 = 0 ;",
+      "while i < actions",
+      "{",
+      "bonus_units = bonus_units + ((i as u64 % 4) + 1) ;",
+      "i = i + 1 ;",
+      "}",
+      "let mut grant = station . base_grant + bonus_units ;",
+      "if station . streak_counter % 3 == 0",
+      "{",
+      "grant = grant + 2 ;",
+      "}",
+      "if station . streak_counter % 5 == 0",
+      "{",
+      "grant = grant + 3 ;",
+      "}",
+      "let projected = station . issued_today + grant ;",
+      "if projected > station . daily_cap",
+      "{",
+      "let remaining = station . daily_cap - station . issued_today ;",
+      "token :: mint_to (ctx . accounts . mint_ctx () , remaining) ? ;",
+      "station . issued_today = station . daily_cap ;",
+      "station . streak_counter = 1 ;",
+      "return Err (BoosterErr :: DailyMax . into ()) ;",
+      "}",
+      "token :: mint_to (ctx . accounts . mint_ctx () , grant) ? ;",
+      "station . issued_today = projected ;",
+      "station . streak_counter = station . streak_counter + 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitStation",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "station",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 8 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , BoosterStation >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActGrant",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "station",
+        "attribute": "# [account (mut , has_one = admin)]",
+        "field_type": "Account < 'info , BoosterStation >"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "recipient_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BoosterStation",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "daily_cap",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "base_grant",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "issued_today",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "streak_counter",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

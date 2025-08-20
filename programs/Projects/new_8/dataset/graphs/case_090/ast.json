@@ -1,0 +1,162 @@
+[
+  {
+    "name": "init_ledger",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitLedger >",
+      "seed: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let rl = & mut ctx . accounts . ledger ;",
+      "rl . owner = ctx . accounts . captain . key () ;",
+      "rl . bump_hold = * ctx . bumps . get (\"ledger\") . ok_or (error ! (ERL :: NoBump)) ? ;",
+      "rl . score = seed . rotate_left (1) . wrapping_add (71) ;",
+      "rl . turns = 2 ;",
+      "if rl . score > 200",
+      "{",
+      "let mut a = rl . score . rotate_right (1) ;",
+      "for j in 1 .. 4",
+      "{",
+      "let q = (a ^ (j as u64 * 27)) . rotate_left (1) ;",
+      "a = a . wrapping_add (q) ;",
+      "rl . score = rl . score . wrapping_add (q) . wrapping_mul (2) . wrapping_add (11 + j as u64) ;",
+      "rl . turns = rl . turns . saturating_add (((rl . score % 29) as u32) + 4) ;",
+      "} } else",
+      "{",
+      "let mut t = 1u8 ;",
+      "let mut b = rl . score . rotate_left (1) ;",
+      "while t < 4",
+      "{",
+      "let z = (b ^ (t as u64 * 15)) . rotate_right (1) ;",
+      "b = b . wrapping_add (z) ;",
+      "rl . score = rl . score . wrapping_add (z) . wrapping_mul (3) . wrapping_add (9 + t as u64) ;",
+      "rl . turns = rl . turns . saturating_add (((rl . score % 27) as u32) + 5) ;",
+      "t = t . saturating_add (1) ;",
+      "}",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "pay_raid_share",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PayRaidShare >",
+      "raid_key: u64",
+      "bump_feed: u8",
+      "lamports: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let rl = & mut ctx . accounts . ledger ;",
+      "for p in 1 .. 3",
+      "{",
+      "rl . score = rl . score . wrapping_add ((rl . turns as u64) . wrapping_mul (p * 13)) . rotate_left (1) ;",
+      "rl . turns = rl . turns . saturating_add (((rl . score % 21) as u32) + 3) ;",
+      "}",
+      "let mut s = 1u8 ;",
+      "while s < 3",
+      "{",
+      "let add = (rl . score ^ (s as u64 * 19)) . rotate_left (1) ;",
+      "rl . score = rl . score . wrapping_add (add) . wrapping_mul (2) . wrapping_add (17 + s as u64) ;",
+      "rl . turns = rl . turns . saturating_add (((rl . score % 25) as u32) + 4) ;",
+      "s = s . saturating_add (1) ;",
+      "}",
+      "let seeds = & [b\"raid_share\" . as_ref () , rl . owner . as_ref () , & raid_key . to_le_bytes () , core :: slice :: from_ref (& bump_feed) ,] ;",
+      "let purse = Pubkey :: create_program_address (& [b\"raid_share\" , rl . owner . as_ref () , & raid_key . to_le_bytes () , & [bump_feed]] , ctx . program_id ,) . map_err (| _ | error ! (ERL :: SeedCompute)) ? ;",
+      "let ix = system_instruction :: transfer (& purse , & ctx . accounts . raider . key () , lamports) ;",
+      "invoke_signed (& ix , & [ctx . accounts . share_hint . to_account_info () , ctx . accounts . raider . to_account_info () , ctx . accounts . system_program . to_account_info () ,] , & [seeds] ,) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitLedger",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ledger",
+        "attribute": "# [account (init , payer = captain , space = 8 + 32 + 8 + 4 + 1 , seeds = [b\"ledger\" , captain . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , LedgerState >"
+      },
+      {
+        "name": "captain",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PayRaidShare",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ledger",
+        "attribute": "# [account (mut , seeds = [b\"ledger\" , captain . key () . as_ref ()] , bump = ledger . bump_hold)]",
+        "field_type": "Account < 'info , LedgerState >"
+      },
+      {
+        "name": "share_hint",
+        "attribute": "# [doc = \" CHECK\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "raider",
+        "attribute": "# [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "captain",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "LedgerState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "score",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "turns",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "bump_hold",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

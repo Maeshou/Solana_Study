@@ -1,0 +1,197 @@
+[
+  {
+    "name": "initialize_booster",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeBooster >",
+      "daily_limit: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let booster = & mut ctx . accounts . booster_state ;",
+      "booster . admin = ctx . accounts . admin . key () ;",
+      "booster . daily_limit = daily_limit ;",
+      "booster . current_day = Clock :: get () ? . unix_timestamp / 86400 ;",
+      "booster . redeem_token_mint = ctx . accounts . redeem_token_mint . key () ;",
+      "booster . redeem_token_amount = 100 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "redeem_energy",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RedeemEnergy >"
+    ],
+    "attributes": [],
+    "body": [
+      "let booster = & mut ctx . accounts . booster_state ;",
+      "let mut user_state = ctx . accounts . user_state . load_mut () ? ;",
+      "let current_day = Clock :: get () ? . unix_timestamp / 86400 ;",
+      "if user_state . last_redeem_day != current_day",
+      "{",
+      "user_state . redeems_today = 0 ;",
+      "user_state . last_redeem_day = current_day ;",
+      "}",
+      "if user_state . redeems_today >= booster . daily_limit",
+      "{",
+      "return Err (ErrorCode :: DailyLimitReached . into ()) ;",
+      "}",
+      "let mut remaining_boosts = booster . daily_limit - user_state . redeems_today ;",
+      "while remaining_boosts > 0",
+      "{",
+      "if user_state . redeems_today < booster . daily_limit",
+      "{",
+      "let cpi_accounts = MintTo { mint : ctx . accounts . redeem_token_mint . to_account_info () , to : ctx . accounts . user_token_account . to_account_info () , authority : ctx . accounts . admin . to_account_info () , } ;",
+      "let cpi_program = ctx . accounts . token_program . to_account_info () ;",
+      "let cpi_ctx = CpiContext :: new (cpi_program , cpi_accounts) ;",
+      "token :: mint_to (cpi_ctx , booster . redeem_token_amount) ? ;",
+      "user_state . redeems_today += 1 ;",
+      "remaining_boosts = 0 ;",
+      "} else",
+      "{",
+      "break ;",
+      "}",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializeBooster",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "booster_state",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 4 + 8 + 32 + 8)]",
+        "field_type": "Account < 'info , EnergyBoosterState >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "redeem_token_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RedeemEnergy",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "booster_state",
+        "attribute": "# [account (has_one = admin , has_one = redeem_token_mint)]",
+        "field_type": "Account < 'info , EnergyBoosterState >"
+      },
+      {
+        "name": "redeem_token_mint",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "user_token_account",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "user_state",
+        "attribute": "# [account (init_if_needed , payer = owner , space = 8 + 8 + 4 , seeds = [b\"user_energy\" , owner . key () . as_ref ()] , bump)]",
+        "field_type": "AccountLoader < 'info , UserEnergyState >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [doc = \" CHECK: Admin authority for minting, checked via booster_state\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "rent",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Rent >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EnergyBoosterState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "daily_limit",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "current_day",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "redeem_token_mint",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "redeem_token_amount",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "UserEnergyState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "last_redeem_day",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "redeems_today",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

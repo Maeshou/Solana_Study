@@ -1,0 +1,173 @@
+[
+  {
+    "name": "Role",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "creator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "assigned_count",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AssignmentRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "assignee",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "role",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "note",
+        "attribute": null,
+        "field_type": "String"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreateRole",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "role",
+        "attribute": "# [account (init , payer = creator , space = 8 + 32 + 4 + 32 + 8)]",
+        "field_type": "Account < 'info , Role >"
+      },
+      {
+        "name": "creator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AssignRole",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "role",
+        "attribute": "# [doc = \" Role.creator == creator.key() は検証される\"] # [account (mut , has_one = creator)]",
+        "field_type": "Account < 'info , Role >"
+      },
+      {
+        "name": "record",
+        "attribute": "# [doc = \" AssignmentRecord.role ⇔ role.key() の照合がないため、\"] # [doc = \" 任意の AssignmentRecord を渡して処理をすり抜けられる\"] # [account (init , payer = creator , space = 8 + 32 + 32 + 4 + 64)]",
+        "field_type": "Account < 'info , AssignmentRecord >"
+      },
+      {
+        "name": "creator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RevokeRole",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "record",
+        "attribute": "# [doc = \" AssignmentRecord.assignee == assignee.key() は検証される\"] # [account (mut , has_one = assignee)]",
+        "field_type": "Account < 'info , AssignmentRecord >"
+      },
+      {
+        "name": "role",
+        "attribute": "# [doc = \" role.key() ⇔ record.role の検証がないため、\"] # [doc = \" 偽物の AssignmentRecord で別の役割を解除できる\"] # [account (mut)]",
+        "field_type": "Account < 'info , Role >"
+      },
+      {
+        "name": "assignee",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "create_role",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateRole >",
+      "name: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let r = & mut ctx . accounts . role ;",
+      "r . creator = ctx . accounts . creator . key () ;",
+      "r . name = name ;",
+      "r . assigned_count = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "assign_role",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AssignRole >",
+      "assignee: Pubkey",
+      "note: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let r = & mut ctx . accounts . role ;",
+      "let rec = & mut ctx . accounts . record ;",
+      "rec . assignee = assignee ;",
+      "rec . role = r . key () ;",
+      "rec . note = note ;",
+      "r . assigned_count = r . assigned_count + 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "revoke_role",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RevokeRole >"
+    ],
+    "attributes": [],
+    "body": [
+      "let r = & mut ctx . accounts . role ;",
+      "let _ = r . assigned_count . checked_sub (1) ;",
+      "Ok (())"
+    ]
+  }
+]

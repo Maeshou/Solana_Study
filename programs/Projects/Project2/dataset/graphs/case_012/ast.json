@@ -1,17 +1,181 @@
 [
   {
-    "name": "BorrowCtxupii",
+    "name": "create_course",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateCourse >",
+      "title: String",
+      "description: String",
+      "price: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let course = & mut ctx . accounts . course ;",
+      "course . instructor = ctx . accounts . instructor . key () ;",
+      "course . title = title ;",
+      "course . description = description ;",
+      "course . price = price ;",
+      "course . student_count = 0 ;",
+      "course . is_published = false ;",
+      "course . bump = * ctx . bumps . get (\"course\") . unwrap () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "publish_course",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PublishCourse >"
+    ],
+    "attributes": [],
+    "body": [
+      "let course = & mut ctx . accounts . course ;",
+      "course . is_published = true ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "enroll_student",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < EnrollStudent >"
+    ],
+    "attributes": [],
+    "body": [
+      "let course = & mut ctx . accounts . course ;",
+      "let enrollment = & mut ctx . accounts . enrollment ;",
+      "require ! (course . is_published , EducationError :: CourseNotPublished) ;",
+      "enrollment . course = course . key () ;",
+      "enrollment . student = ctx . accounts . student . key () ;",
+      "enrollment . enrolled_at = Clock :: get () ? . unix_timestamp ;",
+      "enrollment . progress = 0 ;",
+      "enrollment . completed = false ;",
+      "enrollment . bump = * ctx . bumps . get (\"enrollment\") . unwrap () ;",
+      "course . student_count += 1 ;",
+      "* * ctx . accounts . student . lamports . borrow_mut () -= course . price ;",
+      "* * ctx . accounts . instructor . lamports . borrow_mut () += course . price ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "update_progress",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < UpdateProgress >",
+      "progress: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let enrollment = & mut ctx . accounts . enrollment ;",
+      "require ! (progress <= 100 , EducationError :: InvalidProgress) ;",
+      "enrollment . progress = progress ;",
+      "if progress == 100",
+      "{",
+      "enrollment . completed = true ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Course",
     "node_type": "struct",
     "fields": [
       {
-        "name": "reserve",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
+        "name": "instructor",
+        "attribute": null,
+        "field_type": "Pubkey"
       },
       {
-        "name": "borrower",
+        "name": "title",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "description",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "price",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "student_count",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "is_published",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Enrollment",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "course",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "student",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "enrolled_at",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "progress",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "completed",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreateCourse",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "course",
+        "attribute": "# [account (init , payer = instructor , space = 8 + 32 + 4 + title . len () + 4 + description . len () + 8 + 8 + 1 + 1 , seeds = [b\"course\" , instructor . key () . as_ref () , title . as_bytes ()] , bump)]",
+        "field_type": "Account < 'info , Course >"
+      },
+      {
+        "name": "instructor",
         "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
+        "field_type": "Signer < 'info >"
       },
       {
         "name": "system_program",
@@ -24,13 +188,18 @@
     "body": null
   },
   {
-    "name": "DataAccount",
+    "name": "PublishCourse",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data",
+        "name": "course",
+        "attribute": "# [account (mut , seeds = [b\"course\" , instructor . key () . as_ref () , course . title . as_bytes ()] , bump = course . bump , constraint = course . instructor == instructor . key ())]",
+        "field_type": "Account < 'info , Course >"
+      },
+      {
+        "name": "instructor",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "Signer < 'info >"
       }
     ],
     "inputs": null,
@@ -38,20 +207,56 @@
     "body": null
   },
   {
-    "name": "borrow",
-    "node_type": "function",
-    "fields": null,
-    "inputs": [
-      "ctx: Context < BorrowCtxupii >",
-      "amount: u64"
+    "name": "EnrollStudent",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "course",
+        "attribute": "# [account (mut , seeds = [b\"course\" , course . instructor . as_ref () , course . title . as_bytes ()] , bump = course . bump)]",
+        "field_type": "Account < 'info , Course >"
+      },
+      {
+        "name": "enrollment",
+        "attribute": "# [account (init , payer = student , space = 8 + 32 + 32 + 8 + 1 + 1 + 1 , seeds = [b\"enrollment\" , course . key () . as_ref () , student . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Enrollment >"
+      },
+      {
+        "name": "student",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "instructor",
+        "attribute": "# [doc = \" CHECK: Verified through course instructor field\"] # [account (mut , constraint = instructor . key () == course . instructor)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
     ],
-    "attributes": [],
-    "body": [
-      "let acct = & mut ctx . accounts . reserve ;",
-      "let temp = acct . data ;",
-      "acct . data = temp . checked_mul (2) . unwrap () ;",
-      "msg ! (\"Executed borrow logic\") ;",
-      "Ok (())"
-    ]
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "UpdateProgress",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "enrollment",
+        "attribute": "# [account (mut , seeds = [b\"enrollment\" , enrollment . course . as_ref () , student . key () . as_ref ()] , bump = enrollment . bump , constraint = enrollment . student == student . key ())]",
+        "field_type": "Account < 'info , Enrollment >"
+      },
+      {
+        "name": "student",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
   }
 ]

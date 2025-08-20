@@ -1,0 +1,182 @@
+[
+  {
+    "name": "init_manager",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitManager >"
+    ],
+    "attributes": [
+      "# [doc = \" マネージャーアカウントを初期化：ペナルティレコードリストを空で作成\"]"
+    ],
+    "body": [
+      "let mgr = & mut ctx . accounts . manager ;",
+      "mgr . records = Vec :: new () ;"
+    ]
+  },
+  {
+    "name": "penalize_account",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PenalizeAccount >",
+      "target: Pubkey",
+      "fine_amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" アカウントをペナルティ対象に追加：target に対する罰金額を設定\"]",
+      "# [doc = \" ⚠\\u{fe0f} 呼び出し元の署名チェック・権限チェックは一切行わない脆弱性あり\"]"
+    ],
+    "body": [
+      "let mgr = & mut ctx . accounts . manager ;",
+      "mgr . records . push (PenaltyRecord { user : target , fine : fine_amount , active : true , timestamp : Clock :: get () . unwrap () . unix_timestamp , }) ;",
+      "msg ! (\"Penalized {} with fine {}\" , target , fine_amount) ;"
+    ]
+  },
+  {
+    "name": "restore_account",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RestoreAccount >",
+      "target: Pubkey"
+    ],
+    "attributes": [
+      "# [doc = \" 罰金を支払ってアカウントを復活：payer から vault へ lamports を移動し、レコードを無効化\"]",
+      "# [doc = \" ⚠\\u{fe0f} payer の署名チェックも行われず、誰でも誰の罰金を支払える脆弱性あり\"]"
+    ],
+    "body": [
+      "let mgr = & mut ctx . accounts . manager ;",
+      "let vault = & ctx . accounts . vault . to_account_info () ;",
+      "let payer = & ctx . accounts . payer . to_account_info () ;",
+      "if let Some (rec) = mgr . records . iter_mut () . find (| r | r . user == target && r . active)",
+      "{",
+      "let amount = rec . fine ;",
+      "* * payer . lamports . borrow_mut () -= amount ;",
+      "* * vault . lamports . borrow_mut () += amount ;",
+      "rec . active = false ;",
+      "msg ! (\"Restored",
+      "{",
+      "} by paying fine {}\" , target , amount) ;",
+      "} else",
+      "{",
+      "msg ! (\"No active penalty found for {}\" , target) ;",
+      "}"
+    ]
+  },
+  {
+    "name": "Manager",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "records",
+        "attribute": "# [doc = \" ペナルティレコードのリスト\"]",
+        "field_type": "Vec < PenaltyRecord >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PenaltyRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "fine",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "active",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "timestamp",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitManager",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "manager",
+        "attribute": "# [account (init , payer = payer , space = 8 + (4 + (32 + 8 + 1 + 8) * 100))]",
+        "field_type": "Account < 'info , Manager >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PenalizeAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "manager",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Manager >"
+      },
+      {
+        "name": "target",
+        "attribute": "# [doc = \" CHECK: 権限検証なしでペナルティ対象を指定\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "extra_info",
+        "attribute": "# [doc = \" 任意の追加情報としての AccountInfo\"]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RestoreAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "manager",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Manager >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [doc = \" CHECK: どのアカウントでも payer になれる（署名チェックなし）\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "vault",
+        "attribute": "# [doc = \" CHECK: vault アカウント、署名チェックなし\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

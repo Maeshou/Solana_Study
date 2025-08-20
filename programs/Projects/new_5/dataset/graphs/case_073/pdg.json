@@ -1,0 +1,881 @@
+[
+  {
+    "name": "init_federation",
+    "inputs": [
+      "ctx: Context < InitFederation >",
+      "founding_era: u64",
+      "member_slots: u32"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let federation = & mut ctx . accounts . federation_core ;"
+      },
+      {
+        "id": 2,
+        "label": "federation . founding_era = founding_era . rotate_left (8) ;"
+      },
+      {
+        "id": 3,
+        "label": "federation . max_members = member_slots . checked_add (100) . unwrap_or (u32 :: MAX) ;"
+      },
+      {
+        "id": 4,
+        "label": "federation . current_members = founding_era . checked_rem (10) . unwrap_or (0) as u32 ;"
+      },
+      {
+        "id": 5,
+        "label": "federation . federation_status = FederationStatus :: Forming ;"
+      },
+      {
+        "id": 6,
+        "label": "msg ! (\"Galactic Federation established in era {} with {} member slots.\" , federation . founding_era , federation . max_members) ;"
+      },
+      {
+        "id": 7,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: federation"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: federation"
+      }
+    ]
+  },
+  {
+    "name": "init_member",
+    "inputs": [
+      "ctx: Context < InitMember >",
+      "member_id: u64",
+      "security_clearance: u8"
+    ],
+    "nodes": [
+      {
+        "id": 8,
+        "label": "Entry"
+      },
+      {
+        "id": 9,
+        "label": "let member_profile = & mut ctx . accounts . member_profile ;"
+      },
+      {
+        "id": 10,
+        "label": "member_profile . parent_federation = ctx . accounts . federation_core . key () ;"
+      },
+      {
+        "id": 11,
+        "label": "member_profile . member_id = member_id ^ 0xF0F0F0F0F0F0F0F0 ;"
+      },
+      {
+        "id": 12,
+        "label": "member_profile . security_clearance = security_clearance . checked_add (10) . unwrap_or (u8 :: MAX) ;"
+      },
+      {
+        "id": 13,
+        "label": "member_profile . is_active = (security_clearance % 2) == 1 ;"
+      },
+      {
+        "id": 14,
+        "label": "member_profile . contribution_score = member_id . checked_rem (1000) . unwrap_or (0) ;"
+      },
+      {
+        "id": 15,
+        "label": "msg ! (\"New member {} joined with clearance {}.\" , member_profile . member_id , member_profile . security_clearance) ;"
+      },
+      {
+        "id": 16,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 9,
+        "to": 9,
+        "label": "def: member_profile"
+      },
+      {
+        "from": 9,
+        "to": 10,
+        "label": "data_dep: member_profile"
+      },
+      {
+        "from": 9,
+        "to": 11,
+        "label": "data_dep: member_profile"
+      },
+      {
+        "from": 9,
+        "to": 12,
+        "label": "data_dep: member_profile"
+      },
+      {
+        "from": 9,
+        "to": 13,
+        "label": "data_dep: member_profile"
+      },
+      {
+        "from": 9,
+        "to": 14,
+        "label": "data_dep: member_profile"
+      }
+    ]
+  },
+  {
+    "name": "process_task_assignments",
+    "inputs": [
+      "ctx: Context < ProcessTaskAssignments >",
+      "task_difficulty: u32"
+    ],
+    "nodes": [
+      {
+        "id": 17,
+        "label": "Entry"
+      },
+      {
+        "id": 18,
+        "label": "let federation = & mut ctx . accounts . federation_core ;"
+      },
+      {
+        "id": 19,
+        "label": "let commander_profile = & mut ctx . accounts . commander_profile ;"
+      },
+      {
+        "id": 20,
+        "label": "let field_agent_profile = & mut ctx . accounts . field_agent_profile ;"
+      },
+      {
+        "id": 21,
+        "label": "let mut total_score_added = 0u64 ;"
+      },
+      {
+        "id": 22,
+        "label": "for i in 0 .. 15 { if commander_profile . is_active { let score_gain = (task_difficulty as u64) . checked_add (i as u64) . unwrap_or (u64 :: MAX) ; commander_profile . contribution_score = commander_profile . contribution_score . checked_add (score_gain) . unwrap_or (u64 :: MAX) ; federation . current_members = federation . current_members . checked_add (1) . unwrap_or (u32 :: MAX) ; federation . founding_era = federation . founding_era . checked_add (100) . unwrap_or (u64 :: MAX) ; total_score_added = total_score_added . checked_add (score_gain) . unwrap_or (u64 :: MAX) ; msg ! (\"Commander task processed, score increased by {}.\" , score_gain) ; } else { let reactivation_cost = (task_difficulty as u64) . checked_mul (2) . unwrap_or (u64 :: MAX) ; commander_profile . is_active = commander_profile . security_clearance > 50 ; commander_profile . contribution_score = commander_profile . contribution_score . checked_sub (reactivation_cost) . unwrap_or (0) ; federation . current_members = federation . current_members . checked_add (1) . unwrap_or (u32 :: MAX) ; federation . founding_era = federation . founding_era . checked_add (50) . unwrap_or (u64 :: MAX) ; msg ! (\"Commander reactivated at a cost of {} points.\" , reactivation_cost) ; } if field_agent_profile . is_active { let score_gain = (task_difficulty as u64) . checked_mul (i as u64) . unwrap_or (0) ; field_agent_profile . contribution_score = field_agent_profile . contribution_score . checked_add (score_gain) . unwrap_or (u64 :: MAX) ; federation . current_members = federation . current_members . checked_add (1) . unwrap_or (u32 :: MAX) ; federation . founding_era = federation . founding_era . checked_add (120) . unwrap_or (u64 :: MAX) ; total_score_added = total_score_added . checked_add (score_gain) . unwrap_or (u64 :: MAX) ; msg ! (\"Field Agent task processed, score increased by {}.\" , score_gain) ; } else { let reactivation_cost = (task_difficulty as u64) . checked_mul (3) . unwrap_or (u64 :: MAX) ; field_agent_profile . is_active = field_agent_profile . security_clearance > 60 ; field_agent_profile . contribution_score = field_agent_profile . contribution_score . checked_sub (reactivation_cost) . unwrap_or (0) ; federation . current_members = federation . current_members . checked_add (1) . unwrap_or (u32 :: MAX) ; federation . founding_era = federation . founding_era . checked_add (60) . unwrap_or (u64 :: MAX) ; msg ! (\"Field Agent reactivated at a cost of {} points.\" , reactivation_cost) ; } }"
+      },
+      {
+        "id": 23,
+        "label": "if commander_profile . is_active { let score_gain = (task_difficulty as u64) . checked_add (i as u64) . unwrap_or (u64 :: MAX) ; commander_profile . contribution_score = commander_profile . contribution_score . checked_add (score_gain) . unwrap_or (u64 :: MAX) ; federation . current_members = federation . current_members . checked_add (1) . unwrap_or (u32 :: MAX) ; federation . founding_era = federation . founding_era . checked_add (100) . unwrap_or (u64 :: MAX) ; total_score_added = total_score_added . checked_add (score_gain) . unwrap_or (u64 :: MAX) ; msg ! (\"Commander task processed, score increased by {}.\" , score_gain) ; } else { let reactivation_cost = (task_difficulty as u64) . checked_mul (2) . unwrap_or (u64 :: MAX) ; commander_profile . is_active = commander_profile . security_clearance > 50 ; commander_profile . contribution_score = commander_profile . contribution_score . checked_sub (reactivation_cost) . unwrap_or (0) ; federation . current_members = federation . current_members . checked_add (1) . unwrap_or (u32 :: MAX) ; federation . founding_era = federation . founding_era . checked_add (50) . unwrap_or (u64 :: MAX) ; msg ! (\"Commander reactivated at a cost of {} points.\" , reactivation_cost) ; }"
+      },
+      {
+        "id": 24,
+        "label": "let score_gain = (task_difficulty as u64) . checked_add (i as u64) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 25,
+        "label": "commander_profile . contribution_score = commander_profile . contribution_score . checked_add (score_gain) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 26,
+        "label": "federation . current_members = federation . current_members . checked_add (1) . unwrap_or (u32 :: MAX) ;"
+      },
+      {
+        "id": 27,
+        "label": "federation . founding_era = federation . founding_era . checked_add (100) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 28,
+        "label": "total_score_added = total_score_added . checked_add (score_gain) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 29,
+        "label": "msg ! (\"Commander task processed, score increased by {}.\" , score_gain) ;"
+      },
+      {
+        "id": 30,
+        "label": "let reactivation_cost = (task_difficulty as u64) . checked_mul (2) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 31,
+        "label": "commander_profile . is_active = commander_profile . security_clearance > 50 ;"
+      },
+      {
+        "id": 32,
+        "label": "commander_profile . contribution_score = commander_profile . contribution_score . checked_sub (reactivation_cost) . unwrap_or (0) ;"
+      },
+      {
+        "id": 33,
+        "label": "federation . current_members = federation . current_members . checked_add (1) . unwrap_or (u32 :: MAX) ;"
+      },
+      {
+        "id": 34,
+        "label": "federation . founding_era = federation . founding_era . checked_add (50) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 35,
+        "label": "msg ! (\"Commander reactivated at a cost of {} points.\" , reactivation_cost) ;"
+      },
+      {
+        "id": 36,
+        "label": "if field_agent_profile . is_active { let score_gain = (task_difficulty as u64) . checked_mul (i as u64) . unwrap_or (0) ; field_agent_profile . contribution_score = field_agent_profile . contribution_score . checked_add (score_gain) . unwrap_or (u64 :: MAX) ; federation . current_members = federation . current_members . checked_add (1) . unwrap_or (u32 :: MAX) ; federation . founding_era = federation . founding_era . checked_add (120) . unwrap_or (u64 :: MAX) ; total_score_added = total_score_added . checked_add (score_gain) . unwrap_or (u64 :: MAX) ; msg ! (\"Field Agent task processed, score increased by {}.\" , score_gain) ; } else { let reactivation_cost = (task_difficulty as u64) . checked_mul (3) . unwrap_or (u64 :: MAX) ; field_agent_profile . is_active = field_agent_profile . security_clearance > 60 ; field_agent_profile . contribution_score = field_agent_profile . contribution_score . checked_sub (reactivation_cost) . unwrap_or (0) ; federation . current_members = federation . current_members . checked_add (1) . unwrap_or (u32 :: MAX) ; federation . founding_era = federation . founding_era . checked_add (60) . unwrap_or (u64 :: MAX) ; msg ! (\"Field Agent reactivated at a cost of {} points.\" , reactivation_cost) ; }"
+      },
+      {
+        "id": 37,
+        "label": "let score_gain = (task_difficulty as u64) . checked_mul (i as u64) . unwrap_or (0) ;"
+      },
+      {
+        "id": 38,
+        "label": "field_agent_profile . contribution_score = field_agent_profile . contribution_score . checked_add (score_gain) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 39,
+        "label": "federation . current_members = federation . current_members . checked_add (1) . unwrap_or (u32 :: MAX) ;"
+      },
+      {
+        "id": 40,
+        "label": "federation . founding_era = federation . founding_era . checked_add (120) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 41,
+        "label": "total_score_added = total_score_added . checked_add (score_gain) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 42,
+        "label": "msg ! (\"Field Agent task processed, score increased by {}.\" , score_gain) ;"
+      },
+      {
+        "id": 43,
+        "label": "let reactivation_cost = (task_difficulty as u64) . checked_mul (3) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 44,
+        "label": "field_agent_profile . is_active = field_agent_profile . security_clearance > 60 ;"
+      },
+      {
+        "id": 45,
+        "label": "field_agent_profile . contribution_score = field_agent_profile . contribution_score . checked_sub (reactivation_cost) . unwrap_or (0) ;"
+      },
+      {
+        "id": 46,
+        "label": "federation . current_members = federation . current_members . checked_add (1) . unwrap_or (u32 :: MAX) ;"
+      },
+      {
+        "id": 47,
+        "label": "federation . founding_era = federation . founding_era . checked_add (60) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 48,
+        "label": "msg ! (\"Field Agent reactivated at a cost of {} points.\" , reactivation_cost) ;"
+      },
+      {
+        "id": 49,
+        "label": "msg ! (\"Total contribution score added this round: {}\" , total_score_added) ;"
+      },
+      {
+        "id": 50,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 18,
+        "to": 18,
+        "label": "def: federation"
+      },
+      {
+        "from": 19,
+        "to": 19,
+        "label": "def: commander_profile"
+      },
+      {
+        "from": 20,
+        "to": 20,
+        "label": "def: field_agent_profile"
+      },
+      {
+        "from": 21,
+        "to": 21,
+        "label": "def: total_score_added"
+      },
+      {
+        "from": 19,
+        "to": 22,
+        "label": "data_dep: commander_profile"
+      },
+      {
+        "from": 19,
+        "to": 22,
+        "label": "data_dep: commander_profile"
+      },
+      {
+        "from": 19,
+        "to": 22,
+        "label": "data_dep: commander_profile"
+      },
+      {
+        "from": 18,
+        "to": 22,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 18,
+        "to": 22,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 18,
+        "to": 22,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 18,
+        "to": 22,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 21,
+        "to": 22,
+        "label": "data_dep: total_score_added"
+      },
+      {
+        "from": 21,
+        "to": 22,
+        "label": "data_dep: total_score_added"
+      },
+      {
+        "from": 19,
+        "to": 22,
+        "label": "data_dep: commander_profile"
+      },
+      {
+        "from": 19,
+        "to": 22,
+        "label": "data_dep: commander_profile"
+      },
+      {
+        "from": 19,
+        "to": 22,
+        "label": "data_dep: commander_profile"
+      },
+      {
+        "from": 19,
+        "to": 22,
+        "label": "data_dep: commander_profile"
+      },
+      {
+        "from": 18,
+        "to": 22,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 18,
+        "to": 22,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 18,
+        "to": 22,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 18,
+        "to": 22,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: field_agent_profile"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: field_agent_profile"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: field_agent_profile"
+      },
+      {
+        "from": 18,
+        "to": 22,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 18,
+        "to": 22,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 18,
+        "to": 22,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 18,
+        "to": 22,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 21,
+        "to": 22,
+        "label": "data_dep: total_score_added"
+      },
+      {
+        "from": 21,
+        "to": 22,
+        "label": "data_dep: total_score_added"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: field_agent_profile"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: field_agent_profile"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: field_agent_profile"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: field_agent_profile"
+      },
+      {
+        "from": 18,
+        "to": 22,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 18,
+        "to": 22,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 18,
+        "to": 22,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 18,
+        "to": 22,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 19,
+        "to": 23,
+        "label": "data_dep: commander_profile"
+      },
+      {
+        "from": 19,
+        "to": 23,
+        "label": "data_dep: commander_profile"
+      },
+      {
+        "from": 19,
+        "to": 23,
+        "label": "data_dep: commander_profile"
+      },
+      {
+        "from": 18,
+        "to": 23,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 18,
+        "to": 23,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 18,
+        "to": 23,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 18,
+        "to": 23,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 21,
+        "to": 23,
+        "label": "data_dep: total_score_added"
+      },
+      {
+        "from": 21,
+        "to": 23,
+        "label": "data_dep: total_score_added"
+      },
+      {
+        "from": 19,
+        "to": 23,
+        "label": "data_dep: commander_profile"
+      },
+      {
+        "from": 19,
+        "to": 23,
+        "label": "data_dep: commander_profile"
+      },
+      {
+        "from": 19,
+        "to": 23,
+        "label": "data_dep: commander_profile"
+      },
+      {
+        "from": 19,
+        "to": 23,
+        "label": "data_dep: commander_profile"
+      },
+      {
+        "from": 18,
+        "to": 23,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 18,
+        "to": 23,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 18,
+        "to": 23,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 18,
+        "to": 23,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 24,
+        "to": 24,
+        "label": "def: score_gain"
+      },
+      {
+        "from": 19,
+        "to": 25,
+        "label": "data_dep: commander_profile"
+      },
+      {
+        "from": 19,
+        "to": 25,
+        "label": "data_dep: commander_profile"
+      },
+      {
+        "from": 24,
+        "to": 25,
+        "label": "data_dep: score_gain"
+      },
+      {
+        "from": 18,
+        "to": 26,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 18,
+        "to": 26,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 18,
+        "to": 27,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 18,
+        "to": 27,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 21,
+        "to": 28,
+        "label": "data_dep: total_score_added"
+      },
+      {
+        "from": 21,
+        "to": 28,
+        "label": "data_dep: total_score_added"
+      },
+      {
+        "from": 24,
+        "to": 28,
+        "label": "data_dep: score_gain"
+      },
+      {
+        "from": 30,
+        "to": 30,
+        "label": "def: reactivation_cost"
+      },
+      {
+        "from": 19,
+        "to": 31,
+        "label": "data_dep: commander_profile"
+      },
+      {
+        "from": 19,
+        "to": 31,
+        "label": "data_dep: commander_profile"
+      },
+      {
+        "from": 19,
+        "to": 32,
+        "label": "data_dep: commander_profile"
+      },
+      {
+        "from": 19,
+        "to": 32,
+        "label": "data_dep: commander_profile"
+      },
+      {
+        "from": 30,
+        "to": 32,
+        "label": "data_dep: reactivation_cost"
+      },
+      {
+        "from": 18,
+        "to": 33,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 18,
+        "to": 33,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 18,
+        "to": 34,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 18,
+        "to": 34,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 20,
+        "to": 36,
+        "label": "data_dep: field_agent_profile"
+      },
+      {
+        "from": 20,
+        "to": 36,
+        "label": "data_dep: field_agent_profile"
+      },
+      {
+        "from": 20,
+        "to": 36,
+        "label": "data_dep: field_agent_profile"
+      },
+      {
+        "from": 24,
+        "to": 36,
+        "label": "data_dep: score_gain"
+      },
+      {
+        "from": 18,
+        "to": 36,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 18,
+        "to": 36,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 18,
+        "to": 36,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 18,
+        "to": 36,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 21,
+        "to": 36,
+        "label": "data_dep: total_score_added"
+      },
+      {
+        "from": 21,
+        "to": 36,
+        "label": "data_dep: total_score_added"
+      },
+      {
+        "from": 24,
+        "to": 36,
+        "label": "data_dep: score_gain"
+      },
+      {
+        "from": 20,
+        "to": 36,
+        "label": "data_dep: field_agent_profile"
+      },
+      {
+        "from": 20,
+        "to": 36,
+        "label": "data_dep: field_agent_profile"
+      },
+      {
+        "from": 20,
+        "to": 36,
+        "label": "data_dep: field_agent_profile"
+      },
+      {
+        "from": 20,
+        "to": 36,
+        "label": "data_dep: field_agent_profile"
+      },
+      {
+        "from": 30,
+        "to": 36,
+        "label": "data_dep: reactivation_cost"
+      },
+      {
+        "from": 18,
+        "to": 36,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 18,
+        "to": 36,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 18,
+        "to": 36,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 18,
+        "to": 36,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 37,
+        "to": 37,
+        "label": "def: score_gain"
+      },
+      {
+        "from": 20,
+        "to": 38,
+        "label": "data_dep: field_agent_profile"
+      },
+      {
+        "from": 20,
+        "to": 38,
+        "label": "data_dep: field_agent_profile"
+      },
+      {
+        "from": 37,
+        "to": 38,
+        "label": "data_dep: score_gain"
+      },
+      {
+        "from": 18,
+        "to": 39,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 18,
+        "to": 39,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 18,
+        "to": 40,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 18,
+        "to": 40,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 21,
+        "to": 41,
+        "label": "data_dep: total_score_added"
+      },
+      {
+        "from": 21,
+        "to": 41,
+        "label": "data_dep: total_score_added"
+      },
+      {
+        "from": 37,
+        "to": 41,
+        "label": "data_dep: score_gain"
+      },
+      {
+        "from": 43,
+        "to": 43,
+        "label": "def: reactivation_cost"
+      },
+      {
+        "from": 20,
+        "to": 44,
+        "label": "data_dep: field_agent_profile"
+      },
+      {
+        "from": 20,
+        "to": 44,
+        "label": "data_dep: field_agent_profile"
+      },
+      {
+        "from": 20,
+        "to": 45,
+        "label": "data_dep: field_agent_profile"
+      },
+      {
+        "from": 20,
+        "to": 45,
+        "label": "data_dep: field_agent_profile"
+      },
+      {
+        "from": 43,
+        "to": 45,
+        "label": "data_dep: reactivation_cost"
+      },
+      {
+        "from": 18,
+        "to": 46,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 18,
+        "to": 46,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 18,
+        "to": 47,
+        "label": "data_dep: federation"
+      },
+      {
+        "from": 18,
+        "to": 47,
+        "label": "data_dep: federation"
+      }
+    ]
+  }
+]

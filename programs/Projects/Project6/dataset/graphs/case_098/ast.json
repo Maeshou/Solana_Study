@@ -1,0 +1,317 @@
+[
+  {
+    "name": "init_vault",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitVault >",
+      "label: String",
+      "nonce: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let v = & mut ctx . accounts . vault ;",
+      "v . owner = ctx . accounts . curator . key () ;",
+      "let mut name = label ;",
+      "if name . len () > 64",
+      "{",
+      "name . truncate (64) ;",
+      "}",
+      "v . label = name ;",
+      "let mut fp : u32 = 0x811C9DC5 ^ nonce ;",
+      "for (i , b) in v . label . as_bytes () . iter () . enumerate ()",
+      "{",
+      "fp = fp . rotate_left ((i as u32) & 7) ^ (* b as u32) ;",
+      "fp = fp . wrapping_mul (0x01000193) ;",
+      "}",
+      "v . fingerprint = fp ;",
+      "let mut s = (nonce as u64) ^ 0x9E3779B97F4A7C15 ;",
+      "for i in 0 .. v . noise . len ()",
+      "{",
+      "s = s . rotate_left (9) ^ (fp as u64) ;",
+      "v . noise [i] = (s as u32) ^ fp . rotate_right ((i as u32) & 31) ;",
+      "}",
+      "v . epoch = ((nonce % 251) + 1) as u16 ;",
+      "v . ledger_mix = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_keycard",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitKeyCard >",
+      "tier: Tier",
+      "channel: u8",
+      "seed: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let k = & mut ctx . accounts . keycard ;",
+      "k . vault = ctx . accounts . vault . key () ;",
+      "k . tier = tier ;",
+      "k . channel = channel ;",
+      "k . power = 0 ;",
+      "let mut s = seed ^ ((channel as u64) << 17) ;",
+      "for i in 0 .. k . hist . len ()",
+      "{",
+      "s = s . rotate_left (7) ^ 0xC3A5C85C97CB3127u64 ;",
+      "k . hist [i] = ((s >> (i * 6)) as u32) & 0x3FFF ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "rotate_audit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RotateAudit >",
+      "delta: u16",
+      "hint: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let v = & mut ctx . accounts . vault ;",
+      "let kc = & mut ctx . accounts . keycard ;",
+      "let ac = & mut ctx . accounts . auditcard ;",
+      "let l = & mut ctx . accounts . log ;",
+      "let mut x = (v . ledger_mix as u64 + hint as u64) . max (1) ;",
+      "let n = x ;",
+      "for _ in 0 .. 6",
+      "{",
+      "x = (x + n / x) >> 1 ;",
+      "}",
+      "let scale = (x as u32) . min (65_535) ;",
+      "if kc . tier == Tier1",
+      "{",
+      "kc . power = kc . power . saturating_add ((scale & 0x3FF) + delta as u32) ;",
+      "v . ledger_mix = v . ledger_mix . rotate_left (3) ^ ((kc . channel as u32) << 4) ;",
+      "l . lines = l . lines . saturating_add (1) ;",
+      "l . hash = l . hash . wrapping_add ((scale as u64) . rotate_left (11)) ;",
+      "msg ! (\"Tier1 path: keycard power boosted, vault mixed\") ;",
+      "} else",
+      "{",
+      "ac . audit = ac . audit . saturating_add (((scale >> 2) & 0x1FF) + (delta as u32 / 2)) ;",
+      "v . ledger_mix = v . ledger_mix . rotate_right (5) ^ ((ac . channel as u32) << 6) ;",
+      "l . lines = l . lines . saturating_add (2) ;",
+      "l . hash = l . hash ^ ((scale as u64) . rotate_right (9)) ;",
+      "msg ! (\"Non-Tier1 path: auditcard updated, vault mixed differently\") ;",
+      "}",
+      "for i in 0 .. v . noise . len ()",
+      "{",
+      "v . noise [i] = v . noise [i] . rotate_left ((i as u32) & 7) ^ (l . hash as u32 & 0xFFFF) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitVault",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": "# [account (init , payer = curator , space = 8 + Vault :: MAX)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "curator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitKeyCard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": "# [account (mut , has_one = owner , owner = crate :: ID)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "keycard",
+        "attribute": "# [account (init , payer = operator , space = 8 + KeyCard :: MAX)]",
+        "field_type": "Account < 'info , KeyCard >"
+      },
+      {
+        "name": "operator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RotateAudit",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": "# [account (mut , has_one = owner , owner = crate :: ID)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "log",
+        "attribute": "# [account (mut , has_one = vault , owner = crate :: ID)]",
+        "field_type": "Account < 'info , VaultLog >"
+      },
+      {
+        "name": "keycard",
+        "attribute": "# [account (mut , has_one = vault , owner = crate :: ID)]",
+        "field_type": "Account < 'info , KeyCard >"
+      },
+      {
+        "name": "auditcard",
+        "attribute": "# [account (mut , has_one = vault , owner = crate :: ID , constraint = keycard . channel != auditcard . channel @ ErrCode :: CosplayBlocked)]",
+        "field_type": "Account < 'info , AuditCard >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Vault",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "label",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "epoch",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "fingerprint",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "ledger_mix",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "noise",
+        "attribute": null,
+        "field_type": "[u32 ; 6]"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "KeyCard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "tier",
+        "attribute": null,
+        "field_type": "Tier"
+      },
+      {
+        "name": "channel",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "power",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "hist",
+        "attribute": null,
+        "field_type": "[u32 ; 8]"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AuditCard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "channel",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "audit",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "VaultLog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "hash",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "lines",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

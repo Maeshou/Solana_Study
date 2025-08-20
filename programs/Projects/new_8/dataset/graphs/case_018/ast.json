@@ -1,0 +1,147 @@
+[
+  {
+    "name": "plant_seed",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PlantSeed >",
+      "field: [u8 ; 8]",
+      "water: u16",
+      "bump: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut f = field ;",
+      "for i in 0 .. f . len ()",
+      "{",
+      "if ! f [i] . is_ascii_alphanumeric ()",
+      "{",
+      "f [i] = b'1' + (i as u8 % 9) ;",
+      "}",
+      "}",
+      "let mut w = water as u32 ;",
+      "if w > 4000",
+      "{",
+      "w = 4000 ;",
+      "}",
+      "let seeds = [& ctx . accounts . farmer . key () . to_bytes () [..] , & f [..]] ;",
+      "let addr = Pubkey :: create_program_address (& seeds , & ctx . program_id , & [bump]) . map_err (| _ | error ! (FarmErr :: Cell)) ? ;",
+      "if addr != ctx . accounts . plot_cell . key ()",
+      "{",
+      "return Err (error ! (FarmErr :: Cell)) ;",
+      "}",
+      "let p = & mut ctx . accounts . plot ;",
+      "p . farmer = ctx . accounts . farmer . key () ;",
+      "p . field = f ;",
+      "p . moist = p . moist . saturating_add (w) ;",
+      "p . cycle = p . cycle . wrapping_add (1) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "collect_crop",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CollectCrop >",
+      "field: [u8 ; 8]",
+      "bump: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let seeds = [& ctx . accounts . farmer . key () . to_bytes () [..] , & field [..]] ;",
+      "let addr = Pubkey :: create_program_address (& seeds , & ctx . program_id , & [bump]) . map_err (| _ | error ! (FarmErr :: Cell)) ? ;",
+      "if addr != ctx . accounts . plot_cell . key ()",
+      "{",
+      "return Err (error ! (FarmErr :: Cell)) ;",
+      "}",
+      "let p = & mut ctx . accounts . plot ;",
+      "let gained = (p . moist / 9) as u64 ;",
+      "p . harvest = p . harvest . saturating_add (gained) ;",
+      "p . moist = p . moist . saturating_sub ((gained as u32) * 8) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "PlantSeed",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "plot",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Plot >"
+      },
+      {
+        "name": "plot_cell",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "farmer",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CollectCrop",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "plot",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Plot >"
+      },
+      {
+        "name": "plot_cell",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "farmer",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Plot",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "farmer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "field",
+        "attribute": null,
+        "field_type": "[u8 ; 8]"
+      },
+      {
+        "name": "moist",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "harvest",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "cycle",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

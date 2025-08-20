@@ -1,0 +1,144 @@
+[
+  {
+    "name": "learn_new_skill",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < LearnNewSkill >",
+      "skill_id_to_learn: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let character = & mut ctx . accounts . character_stats ;",
+      "let skill_tree = & ctx . accounts . skill_tree ;",
+      "let mut target_skill_option : Option < Skill > = None ;",
+      "for skill in skill_tree . skills . iter ()",
+      "{",
+      "if skill . skill_id == skill_id_to_learn",
+      "{",
+      "target_skill_option = Some (skill . clone ()) ;",
+      "}",
+      "}",
+      "let target_skill = target_skill_option . ok_or (GameError :: SkillNotFoundInTree) ? ;",
+      "for learned_skill in character . learned_skills . iter ()",
+      "{",
+      "require ! (* learned_skill != skill_id_to_learn , GameError :: SkillAlreadyLearned) ;",
+      "}",
+      "require ! (character . level >= target_skill . required_level , GameError :: RequiredLevelNotMet) ;",
+      "require ! (character . skill_points > 0 , GameError :: NotEnoughSkillPoints) ;",
+      "if target_skill . prerequisite_skill_id != 0",
+      "{",
+      "let mut prerequisite_learned = false ;",
+      "for learned_skill in character . learned_skills . iter ()",
+      "{",
+      "if * learned_skill == target_skill . prerequisite_skill_id { prerequisite_learned = true ;",
+      "} } require ! (prerequisite_learned , GameError :: PrerequisiteSkillNotLearned) ;",
+      "}",
+      "character . skill_points -= 1 ;",
+      "character . learned_skills . push (skill_id_to_learn) ;",
+      "msg ! (\"Character learned a new skill: {}!\" , skill_id_to_learn) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "LearnNewSkill",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "character_stats",
+        "attribute": "# [account (mut , seeds = [b\"character_stats\" , player . key () . as_ref ()] , bump = character_stats . bump)]",
+        "field_type": "Account < 'info , CharacterStats >"
+      },
+      {
+        "name": "skill_tree",
+        "attribute": "# [account (seeds = [b\"skill_tree\" , skill_tree . class_id . to_le_bytes () . as_ref ()] , bump = skill_tree . bump)]",
+        "field_type": "Account < 'info , SkillTree >"
+      },
+      {
+        "name": "player",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CharacterStats",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "level",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "skill_points",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "learned_skills",
+        "attribute": null,
+        "field_type": "Vec < u16 >"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SkillTree",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "class_id",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "skills",
+        "attribute": null,
+        "field_type": "Vec < Skill >"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Skill",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "skill_id",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "required_level",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "prerequisite_skill_id",
+        "attribute": null,
+        "field_type": "u16"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

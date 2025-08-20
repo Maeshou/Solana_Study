@@ -1,0 +1,221 @@
+[
+  {
+    "name": "Bounty",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "organizer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "description",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "reward_pool",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Submission",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "submitter",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "bounty",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "accepted",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreateBounty",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "bounty",
+        "attribute": "# [account (init , payer = organizer , space = 8 + 32 + 4 + 256 + 8)]",
+        "field_type": "Account < 'info , Bounty >"
+      },
+      {
+        "name": "organizer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SubmitWork",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "bounty",
+        "attribute": "# [doc = \" Bounty.organizer == organizer.key() は検証されない（不要）\"] # [account (mut)]",
+        "field_type": "Account < 'info , Bounty >"
+      },
+      {
+        "name": "submission",
+        "attribute": "# [doc = \" Submission.bounty == bounty.key()、Submission.submitter == submitter.key() を検証\"] # [account (init , payer = submitter , space = 8 + 32 + 32 + 1 , has_one = bounty , has_one = submitter)]",
+        "field_type": "Account < 'info , Submission >"
+      },
+      {
+        "name": "submitter",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AcceptSubmission",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "submission",
+        "attribute": "# [doc = \" Submission.submitter == signer.key() は検証されない\"] # [account (mut)]",
+        "field_type": "Account < 'info , Submission >"
+      },
+      {
+        "name": "bounty",
+        "attribute": "# [doc = \" Submission.bounty == bounty.key() を検証\"] # [account (mut , has_one = bounty)]",
+        "field_type": "Account < 'info , Bounty >"
+      },
+      {
+        "name": "signer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PayOut",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "submission",
+        "attribute": "# [doc = \" Submission.bounty == bounty.key()、Submission.submitter == submitter.key() を検証\"] # [account (mut , has_one = bounty , has_one = submitter)]",
+        "field_type": "Account < 'info , Submission >"
+      },
+      {
+        "name": "bounty",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Bounty >"
+      },
+      {
+        "name": "submitter",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "create_bounty",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateBounty >",
+      "description: String",
+      "total_reward: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let b = & mut ctx . accounts . bounty ;",
+      "b . organizer = ctx . accounts . organizer . key () ;",
+      "b . description = description ;",
+      "b . reward_pool = total_reward ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "submit_work",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SubmitWork >"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . submission ;",
+      "s . submitter = ctx . accounts . submitter . key () ;",
+      "s . bounty = ctx . accounts . bounty . key () ;",
+      "s . accepted = false ;",
+      "require_keys_eq ! (s . bounty , ctx . accounts . bounty . key () , BountyError :: BountyMismatch) ;",
+      "require_keys_eq ! (s . submitter , ctx . accounts . submitter . key () , BountyError :: SubmitterMismatch) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "accept_submission",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AcceptSubmission >"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . submission ;",
+      "require_keys_eq ! (ctx . accounts . bounty . organizer , ctx . accounts . signer . key () , BountyError :: Unauthorized) ;",
+      "s . accepted = true ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "pay_out",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PayOut >"
+    ],
+    "attributes": [],
+    "body": [
+      "let b = & mut ctx . accounts . bounty ;",
+      "let s = & ctx . accounts . submission ;",
+      "require_keys_eq ! (s . bounty , b . key () , BountyError :: BountyMismatch) ;",
+      "require_keys_eq ! (s . submitter , ctx . accounts . submitter . key () , BountyError :: SubmitterMismatch) ;",
+      "require ! (s . accepted , BountyError :: NotAccepted) ;",
+      "let amount = b . reward_pool ;",
+      "b . reward_pool = b . reward_pool . checked_sub (amount) . ok_or (BountyError :: InsufficientFunds) ? ;",
+      "Ok (())"
+    ]
+  }
+]

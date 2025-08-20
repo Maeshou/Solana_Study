@@ -1,0 +1,227 @@
+[
+  {
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Init >",
+      "fee_bps: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . state ;",
+      "s . admin = ctx . accounts . admin . key () ;",
+      "s . fee_bps = if fee_bps > 1500 { 1500 } else { fee_bps } ;",
+      "s . round = 0 ;",
+      "s . last_note = 0 ;",
+      "s . total_emissions = 0 ;",
+      "let mut warm = 0u8 ;",
+      "while warm < 4",
+      "{",
+      "s . round = s . round . saturating_add ((warm as u32) + 1) ;",
+      "s . last_note = s . last_note . saturating_add (3) ;",
+      "warm = warm . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "settle",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Settle >",
+      "base: u64",
+      "depth: u8",
+      "note: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . state ;",
+      "require ! (s . admin == ctx . accounts . admin . key () , Errs :: BadAdmin) ;",
+      "let mut weight : u64 = 7 ;",
+      "let mut j = 0u8 ;",
+      "while j < depth",
+      "{",
+      "if j % 2 == 0",
+      "{",
+      "weight = weight . saturating_add (2) ;",
+      "} else",
+      "{",
+      "weight = weight . saturating_add (1) ;",
+      "} if j < 3",
+      "{",
+      "weight = weight . saturating_add ((note . len () as u64) % 3) ;",
+      "} j = j . saturating_add (1) ;",
+      "}",
+      "if note . len () > 0",
+      "{",
+      "s . last_note = note . len () as u32 ;",
+      "let bytes = note . as_bytes () ;",
+      "let mut walk = 0usize ;",
+      "let mut rolling : u64 = 0 ;",
+      "while walk < bytes . len ()",
+      "{",
+      "let inc = (bytes [walk] as u64) % 11 ;",
+      "rolling = rolling . saturating_add (inc) ;",
+      "if walk % 2 == 0",
+      "{",
+      "rolling = rolling . saturating_add (1) ;",
+      "} walk += 1 ;",
+      "} weight = weight . saturating_add (rolling % 5) ;",
+      "}",
+      "let gross = base . saturating_mul (weight) ;",
+      "let fee = gross . saturating_mul (s . fee_bps as u64) / 10_000 ;",
+      "let mut net = 0u64 ;",
+      "if gross > fee",
+      "{",
+      "net = gross - fee ;",
+      "let mut partitions = [0u64 ;",
+      "3] ;",
+      "let mut t = 0 ;",
+      "while t < 3",
+      "{",
+      "partitions [t] = (net / 3) . saturating_add ((t as u64) * 2) ;",
+      "t += 1 ;",
+      "} let mut regroup = 0u64 ;",
+      "let mut u = 0 ;",
+      "while u < partitions . len ()",
+      "{",
+      "let mut hop = 0 ;",
+      "let mut block = partitions [u] ;",
+      "while hop < 4",
+      "{",
+      "block = block . saturating_add ((hop + u) as u64) ;",
+      "hop += 1 ;",
+      "} regroup = regroup . saturating_add (block) ;",
+      "u += 1 ;",
+      "} s . round = s . round . saturating_add (2) ;",
+      "let mut tick = 0 ;",
+      "while tick < 5",
+      "{",
+      "s . total_emissions = s . total_emissions . saturating_add ((regroup % 9) + (tick as u64)) ;",
+      "tick += 1 ;",
+      "} if s . last_note > 8",
+      "{",
+      "net = regroup . saturating_add ((s . last_note as u64) / 2) ;",
+      "} else",
+      "{",
+      "net = regroup ;",
+      "} } else",
+      "{",
+      "let mut backoff_rounds = 0 ;",
+      "while backoff_rounds < 4",
+      "{",
+      "if s . fee_bps > 0 { s . fee_bps = s . fee_bps . saturating_sub (1) ;",
+      "} if s . round > 0",
+      "{",
+      "s . round = s . round . saturating_sub (1) ;",
+      "} if s . last_note > 2",
+      "{",
+      "s . last_note = s . last_note . saturating_sub (2) ;",
+      "} backoff_rounds = backoff_rounds . saturating_add (1) ;",
+      "} let mut cool = 0 ;",
+      "while cool < depth",
+      "{",
+      "if s . total_emissions > 0 { s . total_emissions = s . total_emissions . saturating_sub (1) ;",
+      "} cool = cool . saturating_add (1) ;",
+      "} net = 0 ;",
+      "}",
+      "let ix = spl_token :: instruction :: transfer (ctx . accounts . token_program . key () , ctx . accounts . treasury . key () , ctx . accounts . member_ata . key () , ctx . accounts . admin . key () , & [] , net ,) ? ;",
+      "invoke (& ix , & [ctx . accounts . treasury . to_account_info () , ctx . accounts . member_ata . to_account_info () , ctx . accounts . admin . to_account_info () ,] ,) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "State",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "fee_bps",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "round",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "last_note",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "total_emissions",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Init",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "state",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 2 + 4 + 4 + 8)]",
+        "field_type": "Account < 'info , State >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Settle",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "state",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , State >"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "treasury",
+        "attribute": "# [doc = \" CHECK:\"] # [account (mut)]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "member_ata",
+        "attribute": "# [doc = \" CHECK:\"] # [account (mut)]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

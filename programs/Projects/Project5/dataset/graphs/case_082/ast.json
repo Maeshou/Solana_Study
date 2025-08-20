@@ -1,43 +1,226 @@
 [
   {
-    "name": "exercise_option",
+    "name": "init_observatory",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx082 >",
-      "amount: u64"
+      "ctx: Context < InitObs >",
+      "x: u32",
+      "y: u32"
     ],
     "attributes": [],
     "body": [
-      "let cpi_accounts = Transfer { from : ctx . accounts . from_token . to_account_info () , to : ctx . accounts . to_token . to_account_info () , authority : ctx . accounts . authority . to_account_info () , } ;",
-      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
-      "token :: transfer (cpi_ctx , amount) ? ;",
+      "let o = & mut ctx . accounts . obs ;",
+      "o . owner = ctx . accounts . astronomer . key () ;",
+      "o . limit = x + y + 300 ;",
+      "o . mode = Setup ;",
+      "let a = & mut ctx . accounts . scope_a ;",
+      "let b = & mut ctx . accounts . scope_b ;",
+      "let lg = & mut ctx . accounts . logbook ;",
+      "let r = x . max (y) + y . min (x) / 2 ;",
+      "a . obs = o . key () ;",
+      "a . slot = (x & 7) as u8 ;",
+      "a . focus = r + 7 ;",
+      "b . obs = o . key () ;",
+      "b . slot = (y & 7) as u8 ;",
+      "b . focus = r . rotate_left (3) + 9 ;",
+      "lg . obs = o . key () ;",
+      "lg . slot = 9 ;",
+      "lg . count = 0 ;",
+      "lg . mix = (x as u64) << 10 | (y as u64) ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx082",
+    "name": "watch",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Watch >",
+      "n: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let o = & mut ctx . accounts . obs ;",
+      "let a = & mut ctx . accounts . scope_a ;",
+      "let b = & mut ctx . accounts . scope_b ;",
+      "let lg = & mut ctx . accounts . logbook ;",
+      "for i in 0 .. n",
+      "{",
+      "let z = ((a . focus ^ b . focus) as u64) . wrapping_mul (1099511628211) ;",
+      "a . focus = a . focus . checked_add (((z & 63) as u32) + 3) . unwrap_or (u32 :: MAX) ;",
+      "b . focus = b . focus . saturating_add ((((z >> 6) & 63) as u32) + 5) ;",
+      "lg . count = lg . count . saturating_add (1) ;",
+      "lg . mix ^= z . rotate_left ((i % 17) as u32) ;",
+      "}",
+      "let avg = if lg . count == 0 { 0 } else { (lg . mix / lg . count) as u32 } ;",
+      "if avg > o . limit",
+      "{",
+      "o . mode = Sleep ;",
+      "a . slot ^= 1 ;",
+      "b . slot = b . slot . saturating_add (1) ;",
+      "lg . slot = lg . slot . saturating_add (1) ;",
+      "msg ! (\"sleep: slot tweaks & log slot++\") ;",
+      "} else",
+      "{",
+      "o . mode = Observe ;",
+      "a . focus = a . focus . saturating_add (9) ;",
+      "b . focus = b . focus / 2 + 11 ;",
+      "lg . mix ^= 0x0F0F_F0F0 ;",
+      "msg ! (\"observe: focus adjust & mix flip\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitObs",
     "node_type": "struct",
     "fields": [
       {
-        "name": "from_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "obs",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Observatory >"
       },
       {
-        "name": "to_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "scope_a",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Telescope >"
       },
       {
-        "name": "authority",
+        "name": "scope_b",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Telescope >"
+      },
+      {
+        "name": "logbook",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 8 + 8)]",
+        "field_type": "Account < 'info , Logbook >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "astronomer",
         "attribute": null,
         "field_type": "Signer < 'info >"
       },
       {
-        "name": "token_program",
+        "name": "system_program",
         "attribute": null,
-        "field_type": "Program < 'info , Token >"
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Watch",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "obs",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Observatory >"
+      },
+      {
+        "name": "scope_a",
+        "attribute": "# [account (mut , has_one = obs , constraint = scope_a . slot != scope_b . slot @ StarErr :: Dup)]",
+        "field_type": "Account < 'info , Telescope >"
+      },
+      {
+        "name": "scope_b",
+        "attribute": "# [account (mut , has_one = obs , constraint = scope_b . slot != logbook . slot @ StarErr :: Dup)]",
+        "field_type": "Account < 'info , Telescope >"
+      },
+      {
+        "name": "logbook",
+        "attribute": "# [account (mut , has_one = obs)]",
+        "field_type": "Account < 'info , Logbook >"
+      },
+      {
+        "name": "astronomer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Observatory",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "limit",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "mode",
+        "attribute": null,
+        "field_type": "SkyMode"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Telescope",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "obs",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "slot",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "focus",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Logbook",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "obs",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "slot",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "count",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "mix",
+        "attribute": null,
+        "field_type": "u64"
       }
     ],
     "inputs": null,

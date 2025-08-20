@@ -1,0 +1,92 @@
+[
+  {
+    "name": "earn_with_penalty",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < EarnCtx >",
+      "duration_secs: u64",
+      "rate_per_sec: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 勉強時間に応じてトークンをアーニングしますが、\"]",
+      "# [doc = \" `penalty_data.efficiency_bps` によって効率が低減します。\"]",
+      "# [doc = \"\"]",
+      "# [doc = \" - `duration_secs`: 今回申告する勉強時間（秒）\"]",
+      "# [doc = \" - `rate_per_sec`:  1秒あたりのベース付与トークン量\"]",
+      "# [doc = \"\"]",
+      "# [doc = \" すべてのアカウントは `AccountInfo`／`Account` のまま、署名チェックなし。\"]"
+    ],
+    "body": [
+      "let pd = & ctx . accounts . penalty_data ;",
+      "let ud = & mut ctx . accounts . user_data ;",
+      "let base = duration_secs . checked_mul (rate_per_sec) . unwrap () ;",
+      "let adjusted = base . checked_mul (pd . efficiency_bps as u64) . unwrap () . checked_div (10_000) . unwrap () ;",
+      "ud . total_time = ud . total_time . checked_add (duration_secs) . unwrap () ;",
+      "ud . total_earned = ud . total_earned . checked_add (adjusted) . unwrap () ;",
+      "ud . last_eff_bps = pd . efficiency_bps ;"
+    ]
+  },
+  {
+    "name": "EarnCtx",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 利用者アカウント（署名チェック omitted intentionally）\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "penalty_data",
+        "attribute": "# [doc = \" ペナルティ効率を保持するアカウント（bps: 0〜10000）\"] # [account (mut)]",
+        "field_type": "Account < 'info , PenaltyData >"
+      },
+      {
+        "name": "user_data",
+        "attribute": "# [doc = \" アーニング状況を保持するアカウント\"] # [account (mut)]",
+        "field_type": "Account < 'info , UserData >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PenaltyData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "efficiency_bps",
+        "attribute": "# [doc = \" アーニング効率（basis points, 10000 = 100%）\"]",
+        "field_type": "u16"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "UserData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "total_time",
+        "attribute": "# [doc = \" 累積勉強時間（秒）\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "total_earned",
+        "attribute": "# [doc = \" 累積アーニングトークン量\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "last_eff_bps",
+        "attribute": "# [doc = \" 最後に適用された効率値（bps）\"]",
+        "field_type": "u16"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

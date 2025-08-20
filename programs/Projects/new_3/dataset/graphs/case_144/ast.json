@@ -1,0 +1,187 @@
+[
+  {
+    "name": "LoyaltyProgram",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "program_name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "total_members",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MemberAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "program",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "points",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitializeProgram",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "program",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 4 + 32 + 8)]",
+        "field_type": "Account < 'info , LoyaltyProgram >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EnrollMember",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "program",
+        "attribute": "# [doc = \" LoyaltyProgram.owner == owner.key() は検証される\"] # [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , LoyaltyProgram >"
+      },
+      {
+        "name": "member",
+        "attribute": "# [account (init , payer = user , space = 8 + 32 + 32 + 8)]",
+        "field_type": "Account < 'info , MemberAccount >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AwardPoints",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "program",
+        "attribute": "# [doc = \" LoyaltyProgram.owner == owner.key() は検証される\"] # [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , LoyaltyProgram >"
+      },
+      {
+        "name": "member",
+        "attribute": "# [doc = \" member.program == program.key() の検証がないため、任意のプログラムの member を指定可能\"] # [account (mut)]",
+        "field_type": "Account < 'info , MemberAccount >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "initialize_program",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeProgram >",
+      "name: String"
+    ],
+    "attributes": [
+      "# [doc = \" プログラムを初期化\"]"
+    ],
+    "body": [
+      "let prog = & mut ctx . accounts . program ;",
+      "prog . owner = ctx . accounts . owner . key () ;",
+      "prog . program_name = name . clone () ;",
+      "prog . total_members = 0 ;",
+      "msg ! (\"Initialized program '{}' by {}\" , name , prog . owner) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "enroll_member",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < EnrollMember >"
+    ],
+    "attributes": [
+      "# [doc = \" メンバー登録\"]"
+    ],
+    "body": [
+      "let prog = & mut ctx . accounts . program ;",
+      "let mem = & mut ctx . accounts . member ;",
+      "mem . user = ctx . accounts . user . key () ;",
+      "mem . program = prog . key () ;",
+      "mem . points = 100 ;",
+      "prog . total_members = prog . total_members . checked_add (1) . unwrap () ;",
+      "msg ! (\"User {} enrolled in '{}', total members: {}\" , mem . user , prog . program_name , prog . total_members) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "award_points",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AwardPoints >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" ポイント付与\"]"
+    ],
+    "body": [
+      "let prog = & ctx . accounts . program ;",
+      "let mem = & mut ctx . accounts . member ;",
+      "mem . points = mem . points . checked_add (amount) . unwrap () ;",
+      "msg ! (\"{} points awarded to {} in program '{}'\" , amount , mem . user , prog . program_name) ;",
+      "Ok (())"
+    ]
+  }
+]

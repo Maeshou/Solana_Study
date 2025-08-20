@@ -1,0 +1,359 @@
+[
+  {
+    "name": "init_pool",
+    "inputs": [
+      "ctx: Context < InitPool >",
+      "base_rate_bps: u16",
+      "min_stake: u64",
+      "mode: RewardMode"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let pool_state = & mut ctx . accounts . pool_state ;"
+      },
+      {
+        "id": 2,
+        "label": "pool_state . admin = ctx . accounts . admin . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "pool_state . base_rate_bps = base_rate_bps . min (2500) ;"
+      },
+      {
+        "id": 4,
+        "label": "pool_state . minimum_required = min_stake ;"
+      },
+      {
+        "id": 5,
+        "label": "pool_state . active_round = 1 ;"
+      },
+      {
+        "id": 6,
+        "label": "pool_state . total_payout = 1 ;"
+      },
+      {
+        "id": 7,
+        "label": "pool_state . mode = mode ;"
+      },
+      {
+        "id": 8,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: pool_state"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: pool_state"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: pool_state"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: pool_state"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: pool_state"
+      },
+      {
+        "from": 1,
+        "to": 6,
+        "label": "data_dep: pool_state"
+      },
+      {
+        "from": 1,
+        "to": 7,
+        "label": "data_dep: pool_state"
+      }
+    ]
+  },
+  {
+    "name": "act_settle_rewards",
+    "inputs": [
+      "ctx: Context < ActSettleRewards >",
+      "staked_units: u64",
+      "epochs: u32"
+    ],
+    "nodes": [
+      {
+        "id": 9,
+        "label": "Entry"
+      },
+      {
+        "id": 10,
+        "label": "let pool_state = & mut ctx . accounts . pool_state ;"
+      },
+      {
+        "id": 11,
+        "label": "require ! (staked_units >= pool_state . minimum_required , StkErr :: TooSmall) ;"
+      },
+      {
+        "id": 12,
+        "label": "let mut bonus_bps : u64 = 0 ;"
+      },
+      {
+        "id": 13,
+        "label": "let mut counter = 0u32 ;"
+      },
+      {
+        "id": 14,
+        "label": "while counter < epochs { bonus_bps = bonus_bps . saturating_add (5) ; counter = counter . saturating_add (1) ; }"
+      },
+      {
+        "id": 15,
+        "label": "bonus_bps = bonus_bps . saturating_add (5) ;"
+      },
+      {
+        "id": 16,
+        "label": "counter = counter . saturating_add (1) ;"
+      },
+      {
+        "id": 17,
+        "label": "let mut effective_bps : u64 = pool_state . base_rate_bps as u64 ;"
+      },
+      {
+        "id": 18,
+        "label": "if pool_state . mode == RewardMode :: Conservative { effective_bps = effective_bps . saturating_sub (50) ; }"
+      },
+      {
+        "id": 19,
+        "label": "effective_bps = effective_bps . saturating_sub (50) ;"
+      },
+      {
+        "id": 20,
+        "label": "if pool_state . mode == RewardMode :: Aggressive { effective_bps = effective_bps . saturating_add (75) ; }"
+      },
+      {
+        "id": 21,
+        "label": "effective_bps = effective_bps . saturating_add (75) ;"
+      },
+      {
+        "id": 22,
+        "label": "let total_bps = effective_bps . saturating_add (bonus_bps) ;"
+      },
+      {
+        "id": 23,
+        "label": "let gross = staked_units . saturating_mul (total_bps) / 10_000 ;"
+      },
+      {
+        "id": 24,
+        "label": "let fee = gross / 20 ;"
+      },
+      {
+        "id": 25,
+        "label": "let payable = gross . saturating_sub (fee) ;"
+      },
+      {
+        "id": 26,
+        "label": "if payable < pool_state . minimum_required / 10 { pool_state . active_round = pool_state . active_round . saturating_add (1) ; return Err (StkErr :: TooSmall . into ()) ; } else { pool_state . total_payout = pool_state . total_payout . saturating_add (payable) ; }"
+      },
+      {
+        "id": 27,
+        "label": "pool_state . active_round = pool_state . active_round . saturating_add (1) ;"
+      },
+      {
+        "id": 28,
+        "label": "return Err (StkErr :: TooSmall . into ()) ;"
+      },
+      {
+        "id": 29,
+        "label": "pool_state . total_payout = pool_state . total_payout . saturating_add (payable) ;"
+      },
+      {
+        "id": 30,
+        "label": "let cpi = ctx . accounts . transfer_from_pool_to_staker () ;"
+      },
+      {
+        "id": 31,
+        "label": "token :: transfer (cpi , payable) ? ;"
+      },
+      {
+        "id": 32,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 10,
+        "to": 10,
+        "label": "def: pool_state"
+      },
+      {
+        "from": 13,
+        "to": 13,
+        "label": "def: counter"
+      },
+      {
+        "from": 13,
+        "to": 14,
+        "label": "data_dep: counter"
+      },
+      {
+        "from": 13,
+        "to": 14,
+        "label": "data_dep: counter"
+      },
+      {
+        "from": 13,
+        "to": 14,
+        "label": "data_dep: counter"
+      },
+      {
+        "from": 13,
+        "to": 16,
+        "label": "data_dep: counter"
+      },
+      {
+        "from": 13,
+        "to": 16,
+        "label": "data_dep: counter"
+      },
+      {
+        "from": 10,
+        "to": 17,
+        "label": "data_dep: pool_state"
+      },
+      {
+        "from": 10,
+        "to": 18,
+        "label": "data_dep: pool_state"
+      },
+      {
+        "from": 10,
+        "to": 20,
+        "label": "data_dep: pool_state"
+      },
+      {
+        "from": 22,
+        "to": 22,
+        "label": "def: total_bps"
+      },
+      {
+        "from": 23,
+        "to": 23,
+        "label": "def: gross"
+      },
+      {
+        "from": 22,
+        "to": 23,
+        "label": "data_dep: total_bps"
+      },
+      {
+        "from": 24,
+        "to": 24,
+        "label": "def: fee"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "data_dep: gross"
+      },
+      {
+        "from": 25,
+        "to": 25,
+        "label": "def: payable"
+      },
+      {
+        "from": 23,
+        "to": 25,
+        "label": "data_dep: gross"
+      },
+      {
+        "from": 24,
+        "to": 25,
+        "label": "data_dep: fee"
+      },
+      {
+        "from": 25,
+        "to": 26,
+        "label": "data_dep: payable"
+      },
+      {
+        "from": 10,
+        "to": 26,
+        "label": "data_dep: pool_state"
+      },
+      {
+        "from": 10,
+        "to": 26,
+        "label": "data_dep: pool_state"
+      },
+      {
+        "from": 10,
+        "to": 26,
+        "label": "data_dep: pool_state"
+      },
+      {
+        "from": 10,
+        "to": 26,
+        "label": "data_dep: pool_state"
+      },
+      {
+        "from": 10,
+        "to": 26,
+        "label": "data_dep: pool_state"
+      },
+      {
+        "from": 25,
+        "to": 26,
+        "label": "data_dep: payable"
+      },
+      {
+        "from": 10,
+        "to": 27,
+        "label": "data_dep: pool_state"
+      },
+      {
+        "from": 10,
+        "to": 27,
+        "label": "data_dep: pool_state"
+      },
+      {
+        "from": 10,
+        "to": 29,
+        "label": "data_dep: pool_state"
+      },
+      {
+        "from": 10,
+        "to": 29,
+        "label": "data_dep: pool_state"
+      },
+      {
+        "from": 25,
+        "to": 29,
+        "label": "data_dep: payable"
+      },
+      {
+        "from": 30,
+        "to": 30,
+        "label": "def: cpi"
+      },
+      {
+        "from": 30,
+        "to": 31,
+        "label": "data_dep: cpi"
+      },
+      {
+        "from": 25,
+        "to": 31,
+        "label": "data_dep: payable"
+      }
+    ]
+  }
+]

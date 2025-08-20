@@ -1,0 +1,518 @@
+[
+  {
+    "name": "init_marketplace",
+    "inputs": [
+      "ctx: Context < InitMarketplace >",
+      "market_name: String"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let marketplace = & mut ctx . accounts . marketplace ;"
+      },
+      {
+        "id": 2,
+        "label": "marketplace . owner = ctx . accounts . owner . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "marketplace . name = market_name ;"
+      },
+      {
+        "id": 4,
+        "label": "marketplace . total_orders = 0 ;"
+      },
+      {
+        "id": 5,
+        "label": "marketplace . fee_rate = 250 ;"
+      },
+      {
+        "id": 6,
+        "label": "marketplace . is_active = true ;"
+      },
+      {
+        "id": 7,
+        "label": "marketplace . total_volume = 0 ;"
+      },
+      {
+        "id": 8,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: marketplace"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: marketplace"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: marketplace"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: marketplace"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: marketplace"
+      },
+      {
+        "from": 1,
+        "to": 6,
+        "label": "data_dep: marketplace"
+      },
+      {
+        "from": 1,
+        "to": 7,
+        "label": "data_dep: marketplace"
+      }
+    ]
+  },
+  {
+    "name": "init_order",
+    "inputs": [
+      "ctx: Context < InitOrder >",
+      "price: u64",
+      "quantity: u32"
+    ],
+    "nodes": [
+      {
+        "id": 9,
+        "label": "Entry"
+      },
+      {
+        "id": 10,
+        "label": "let order = & mut ctx . accounts . order ;"
+      },
+      {
+        "id": 11,
+        "label": "order . marketplace = ctx . accounts . marketplace . key () ;"
+      },
+      {
+        "id": 12,
+        "label": "order . creator = ctx . accounts . creator . key () ;"
+      },
+      {
+        "id": 13,
+        "label": "order . price = price ;"
+      },
+      {
+        "id": 14,
+        "label": "order . quantity = quantity ;"
+      },
+      {
+        "id": 15,
+        "label": "order . filled_quantity = 0 ;"
+      },
+      {
+        "id": 16,
+        "label": "order . status = Active ;"
+      },
+      {
+        "id": 17,
+        "label": "order . order_id = ctx . accounts . marketplace . total_orders ;"
+      },
+      {
+        "id": 18,
+        "label": "let marketplace = & mut ctx . accounts . marketplace ;"
+      },
+      {
+        "id": 19,
+        "label": "marketplace . total_orders = marketplace . total_orders . checked_add (1) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 20,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 10,
+        "to": 10,
+        "label": "def: order"
+      },
+      {
+        "from": 10,
+        "to": 11,
+        "label": "data_dep: order"
+      },
+      {
+        "from": 10,
+        "to": 12,
+        "label": "data_dep: order"
+      },
+      {
+        "from": 10,
+        "to": 13,
+        "label": "data_dep: order"
+      },
+      {
+        "from": 10,
+        "to": 14,
+        "label": "data_dep: order"
+      },
+      {
+        "from": 10,
+        "to": 15,
+        "label": "data_dep: order"
+      },
+      {
+        "from": 10,
+        "to": 16,
+        "label": "data_dep: order"
+      },
+      {
+        "from": 10,
+        "to": 17,
+        "label": "data_dep: order"
+      },
+      {
+        "from": 18,
+        "to": 18,
+        "label": "def: marketplace"
+      },
+      {
+        "from": 18,
+        "to": 19,
+        "label": "data_dep: marketplace"
+      },
+      {
+        "from": 18,
+        "to": 19,
+        "label": "data_dep: marketplace"
+      }
+    ]
+  },
+  {
+    "name": "execute_trade",
+    "inputs": [
+      "ctx: Context < ExecuteTrade >",
+      "trade_quantity: u32"
+    ],
+    "nodes": [
+      {
+        "id": 21,
+        "label": "Entry"
+      },
+      {
+        "id": 22,
+        "label": "let marketplace = & mut ctx . accounts . marketplace ;"
+      },
+      {
+        "id": 23,
+        "label": "let buyer_data = ctx . accounts . buyer . try_borrow_mut_data () ? ;"
+      },
+      {
+        "id": 24,
+        "label": "let seller_data = ctx . accounts . seller . try_borrow_mut_data () ? ;"
+      },
+      {
+        "id": 25,
+        "label": "marketplace . total_volume = marketplace . total_volume . checked_add (trade_quantity as u64) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 26,
+        "label": "for batch in 0 .. trade_quantity { let fee_amount = (batch * marketplace . fee_rate) / 10000 ; if batch % 3 == 0 { marketplace . total_volume = marketplace . total_volume ^ (batch as u64) ; marketplace . fee_rate = marketplace . fee_rate . checked_add (fee_amount) . unwrap_or (u32 :: MAX) ; marketplace . total_orders = marketplace . total_orders + (batch as u64) * 2 ; msg ! (\"Buyer batch {} processed\" , batch) ; } else { marketplace . fee_rate = marketplace . fee_rate . saturating_sub (1) ; marketplace . total_volume = marketplace . total_volume << 1 ; marketplace . total_orders = marketplace . total_orders . wrapping_add (fee_amount as u64) ; msg ! (\"Seller batch {} processed\" , batch) ; } }"
+      },
+      {
+        "id": 27,
+        "label": "let fee_amount = (batch * marketplace . fee_rate) / 10000 ;"
+      },
+      {
+        "id": 28,
+        "label": "if batch % 3 == 0 { marketplace . total_volume = marketplace . total_volume ^ (batch as u64) ; marketplace . fee_rate = marketplace . fee_rate . checked_add (fee_amount) . unwrap_or (u32 :: MAX) ; marketplace . total_orders = marketplace . total_orders + (batch as u64) * 2 ; msg ! (\"Buyer batch {} processed\" , batch) ; } else { marketplace . fee_rate = marketplace . fee_rate . saturating_sub (1) ; marketplace . total_volume = marketplace . total_volume << 1 ; marketplace . total_orders = marketplace . total_orders . wrapping_add (fee_amount as u64) ; msg ! (\"Seller batch {} processed\" , batch) ; }"
+      },
+      {
+        "id": 29,
+        "label": "marketplace . total_volume = marketplace . total_volume ^ (batch as u64) ;"
+      },
+      {
+        "id": 30,
+        "label": "marketplace . fee_rate = marketplace . fee_rate . checked_add (fee_amount) . unwrap_or (u32 :: MAX) ;"
+      },
+      {
+        "id": 31,
+        "label": "marketplace . total_orders = marketplace . total_orders + (batch as u64) * 2 ;"
+      },
+      {
+        "id": 32,
+        "label": "msg ! (\"Buyer batch {} processed\" , batch) ;"
+      },
+      {
+        "id": 33,
+        "label": "marketplace . fee_rate = marketplace . fee_rate . saturating_sub (1) ;"
+      },
+      {
+        "id": 34,
+        "label": "marketplace . total_volume = marketplace . total_volume << 1 ;"
+      },
+      {
+        "id": 35,
+        "label": "marketplace . total_orders = marketplace . total_orders . wrapping_add (fee_amount as u64) ;"
+      },
+      {
+        "id": 36,
+        "label": "msg ! (\"Seller batch {} processed\" , batch) ;"
+      },
+      {
+        "id": 37,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 22,
+        "to": 22,
+        "label": "def: marketplace"
+      },
+      {
+        "from": 23,
+        "to": 23,
+        "label": "def: buyer_data"
+      },
+      {
+        "from": 24,
+        "to": 24,
+        "label": "def: seller_data"
+      },
+      {
+        "from": 22,
+        "to": 25,
+        "label": "data_dep: marketplace"
+      },
+      {
+        "from": 22,
+        "to": 25,
+        "label": "data_dep: marketplace"
+      },
+      {
+        "from": 22,
+        "to": 26,
+        "label": "data_dep: marketplace"
+      },
+      {
+        "from": 22,
+        "to": 26,
+        "label": "data_dep: marketplace"
+      },
+      {
+        "from": 22,
+        "to": 26,
+        "label": "data_dep: marketplace"
+      },
+      {
+        "from": 22,
+        "to": 26,
+        "label": "data_dep: marketplace"
+      },
+      {
+        "from": 22,
+        "to": 26,
+        "label": "data_dep: marketplace"
+      },
+      {
+        "from": 22,
+        "to": 26,
+        "label": "data_dep: marketplace"
+      },
+      {
+        "from": 22,
+        "to": 26,
+        "label": "data_dep: marketplace"
+      },
+      {
+        "from": 22,
+        "to": 26,
+        "label": "data_dep: marketplace"
+      },
+      {
+        "from": 22,
+        "to": 26,
+        "label": "data_dep: marketplace"
+      },
+      {
+        "from": 22,
+        "to": 26,
+        "label": "data_dep: marketplace"
+      },
+      {
+        "from": 22,
+        "to": 26,
+        "label": "data_dep: marketplace"
+      },
+      {
+        "from": 22,
+        "to": 26,
+        "label": "data_dep: marketplace"
+      },
+      {
+        "from": 22,
+        "to": 26,
+        "label": "data_dep: marketplace"
+      },
+      {
+        "from": 27,
+        "to": 27,
+        "label": "def: fee_amount"
+      },
+      {
+        "from": 22,
+        "to": 27,
+        "label": "data_dep: marketplace"
+      },
+      {
+        "from": 22,
+        "to": 28,
+        "label": "data_dep: marketplace"
+      },
+      {
+        "from": 22,
+        "to": 28,
+        "label": "data_dep: marketplace"
+      },
+      {
+        "from": 22,
+        "to": 28,
+        "label": "data_dep: marketplace"
+      },
+      {
+        "from": 22,
+        "to": 28,
+        "label": "data_dep: marketplace"
+      },
+      {
+        "from": 27,
+        "to": 28,
+        "label": "data_dep: fee_amount"
+      },
+      {
+        "from": 22,
+        "to": 28,
+        "label": "data_dep: marketplace"
+      },
+      {
+        "from": 22,
+        "to": 28,
+        "label": "data_dep: marketplace"
+      },
+      {
+        "from": 22,
+        "to": 28,
+        "label": "data_dep: marketplace"
+      },
+      {
+        "from": 22,
+        "to": 28,
+        "label": "data_dep: marketplace"
+      },
+      {
+        "from": 22,
+        "to": 28,
+        "label": "data_dep: marketplace"
+      },
+      {
+        "from": 22,
+        "to": 28,
+        "label": "data_dep: marketplace"
+      },
+      {
+        "from": 22,
+        "to": 28,
+        "label": "data_dep: marketplace"
+      },
+      {
+        "from": 22,
+        "to": 28,
+        "label": "data_dep: marketplace"
+      },
+      {
+        "from": 27,
+        "to": 28,
+        "label": "data_dep: fee_amount"
+      },
+      {
+        "from": 22,
+        "to": 29,
+        "label": "data_dep: marketplace"
+      },
+      {
+        "from": 22,
+        "to": 29,
+        "label": "data_dep: marketplace"
+      },
+      {
+        "from": 22,
+        "to": 30,
+        "label": "data_dep: marketplace"
+      },
+      {
+        "from": 22,
+        "to": 30,
+        "label": "data_dep: marketplace"
+      },
+      {
+        "from": 27,
+        "to": 30,
+        "label": "data_dep: fee_amount"
+      },
+      {
+        "from": 22,
+        "to": 31,
+        "label": "data_dep: marketplace"
+      },
+      {
+        "from": 22,
+        "to": 31,
+        "label": "data_dep: marketplace"
+      },
+      {
+        "from": 22,
+        "to": 33,
+        "label": "data_dep: marketplace"
+      },
+      {
+        "from": 22,
+        "to": 33,
+        "label": "data_dep: marketplace"
+      },
+      {
+        "from": 22,
+        "to": 34,
+        "label": "data_dep: marketplace"
+      },
+      {
+        "from": 22,
+        "to": 34,
+        "label": "data_dep: marketplace"
+      },
+      {
+        "from": 22,
+        "to": 35,
+        "label": "data_dep: marketplace"
+      },
+      {
+        "from": 22,
+        "to": 35,
+        "label": "data_dep: marketplace"
+      },
+      {
+        "from": 27,
+        "to": 35,
+        "label": "data_dep: fee_amount"
+      }
+    ]
+  }
+]

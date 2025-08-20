@@ -1,0 +1,193 @@
+[
+  {
+    "name": "init_tag_list",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitTagList >"
+    ],
+    "attributes": [
+      "# [doc = \" タグリストの初期化\"]"
+    ],
+    "body": [
+      "let tags = & mut ctx . accounts . tag_list ;",
+      "tags . owner = ctx . accounts . user . key () ;",
+      "tags . tags = Vec :: new () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "create_tag",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyTagList >",
+      "name: String"
+    ],
+    "attributes": [
+      "# [doc = \" 新しいタグを追加\"]"
+    ],
+    "body": [
+      "let tags = & mut ctx . accounts . tag_list ;",
+      "let now = ctx . accounts . clock . unix_timestamp ;",
+      "require ! (tags . owner == ctx . accounts . user . key () , ErrorCode :: Unauthorized) ;",
+      "require ! (tags . tags . len () < MAX_TAGS , ErrorCode :: MaxTagsReached) ;",
+      "require ! (name . len () <= 32 , ErrorCode :: NameTooLong) ;",
+      "let mut duplicate = false ;",
+      "for t in tags . tags . iter ()",
+      "{",
+      "if t . name == name",
+      "{",
+      "duplicate = true ;",
+      "break ;",
+      "}",
+      "}",
+      "require ! (! duplicate , ErrorCode :: DuplicateTag) ;",
+      "tags . tags . push (TagItem { name , created_at : now }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "rename_tag",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyTagList >",
+      "index: u32",
+      "new_name: String"
+    ],
+    "attributes": [
+      "# [doc = \" タグの名前を変更\"]"
+    ],
+    "body": [
+      "let tags = & mut ctx . accounts . tag_list ;",
+      "let user = ctx . accounts . user . key () ;",
+      "require ! (tags . owner == user , ErrorCode :: Unauthorized) ;",
+      "require ! ((index as usize) < tags . tags . len () , ErrorCode :: IndexOutOfBounds) ;",
+      "require ! (new_name . len () <= 32 , ErrorCode :: NameTooLong) ;",
+      "let mut exists = false ;",
+      "for t in tags . tags . iter ()",
+      "{",
+      "if t . name == new_name",
+      "{",
+      "exists = true ;",
+      "break ;",
+      "}",
+      "}",
+      "require ! (! exists , ErrorCode :: DuplicateTag) ;",
+      "tags . tags [index as usize] . name = new_name ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "delete_tag",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyTagList >",
+      "index: u32"
+    ],
+    "attributes": [
+      "# [doc = \" タグを削除\"]"
+    ],
+    "body": [
+      "let tags = & mut ctx . accounts . tag_list ;",
+      "require ! (tags . owner == ctx . accounts . user . key () , ErrorCode :: Unauthorized) ;",
+      "let idx = tags . tags . iter () . enumerate () . find_map (| (i , _) | if i == index as usize { Some (i) } else { None }) ;",
+      "let i = idx . ok_or (ErrorCode :: IndexOutOfBounds) ? ;",
+      "tags . tags . remove (i) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitTagList",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "tag_list",
+        "attribute": "# [account (init , payer = user , space = 8 + 32 + 4 + (MAX_TAGS * (4 + 32 + 8)))]",
+        "field_type": "Account < 'info , TagList >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Sysvar < 'info , Signer < 'info > >"
+      },
+      {
+        "name": "clock",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ModifyTagList",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "tag_list",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TagList >"
+      },
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Clock >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TagList",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "tags",
+        "attribute": null,
+        "field_type": "Vec < TagItem >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TagItem",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "created_at",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,187 @@
+[
+  {
+    "name": "ProductAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vendor",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "reviewers",
+        "attribute": null,
+        "field_type": "Vec < Pubkey >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ReviewRecordAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "reviewer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "product",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "comment",
+        "attribute": null,
+        "field_type": "String"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreateProduct",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "product_account",
+        "attribute": "# [account (init , payer = vendor , space = 8 + 32 + 4 + 64 + 4 + (32 * 100))]",
+        "field_type": "Account < 'info , ProductAccount >"
+      },
+      {
+        "name": "vendor",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PostReview",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "product_account",
+        "attribute": "# [doc = \" ProductAccount.vendor == vendor.key() は検証される\"] # [account (mut , has_one = vendor)]",
+        "field_type": "Account < 'info , ProductAccount >"
+      },
+      {
+        "name": "review_record_account",
+        "attribute": "# [doc = \" ReviewRecordAccount.product ⇔ product_account.key() の検証がないため、\"] # [doc = \" 偽のレコードを渡して任意の製品へのレビュー投稿が可能\"] # [account (init , payer = reviewer , space = 8 + 32 + 32 + 4 + 256)]",
+        "field_type": "Account < 'info , ReviewRecordAccount >"
+      },
+      {
+        "name": "vendor",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "reviewer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ClearAllReviews",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "review_record_account",
+        "attribute": "# [doc = \" ReviewRecordAccount.reviewer == moderator.key() は検証される\"] # [account (mut , has_one = reviewer)]",
+        "field_type": "Account < 'info , ReviewRecordAccount >"
+      },
+      {
+        "name": "product_account",
+        "attribute": "# [doc = \" product_account.key() ⇔ review_record_account.product の検証がないため、\"] # [doc = \" 偽物のレコードで別製品のレビューを一括削除できる\"] # [account (mut)]",
+        "field_type": "Account < 'info , ProductAccount >"
+      },
+      {
+        "name": "reviewer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "create_product",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateProduct >",
+      "name: String"
+    ],
+    "attributes": [
+      "# [doc = \" 製品を登録\"]"
+    ],
+    "body": [
+      "let p = & mut ctx . accounts . product_account ;",
+      "p . vendor = ctx . accounts . vendor . key () ;",
+      "p . name = name ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "post_review",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PostReview >",
+      "comment: String"
+    ],
+    "attributes": [
+      "# [doc = \" レビューを投稿\"]"
+    ],
+    "body": [
+      "let p = & mut ctx . accounts . product_account ;",
+      "let rr = & mut ctx . accounts . review_record_account ;",
+      "rr . reviewer = ctx . accounts . reviewer . key () ;",
+      "rr . product = p . key () ;",
+      "rr . comment = comment . clone () ;",
+      "p . reviewers . push (rr . reviewer) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "clear_all_reviews",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ClearAllReviews >"
+    ],
+    "attributes": [
+      "# [doc = \" 全レビューをクリア（一括削除）\"]"
+    ],
+    "body": [
+      "let p = & mut ctx . accounts . product_account ;",
+      "p . reviewers . clear () ;",
+      "Ok (())"
+    ]
+  }
+]

@@ -1,0 +1,154 @@
+[
+  {
+    "name": "init_arena",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitArena >",
+      "penalty_base_input: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let arena = & mut ctx . accounts . arena ;",
+      "arena . referee = ctx . accounts . referee . key () ;",
+      "arena . penalty_base = penalty_base_input ;",
+      "if arena . penalty_base < 1",
+      "{",
+      "arena . penalty_base = 1 ;",
+      "}",
+      "arena . losses = 0 ;",
+      "arena . consolation_issued = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_settle",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActSettle >",
+      "streak_losses: u8",
+      "consolation_mint: bool"
+    ],
+    "attributes": [],
+    "body": [
+      "let arena = & mut ctx . accounts . arena ;",
+      "let mut penalty = arena . penalty_base ;",
+      "let mut i : u8 = 0 ;",
+      "while i < streak_losses",
+      "{",
+      "penalty = penalty + (arena . penalty_base / 10) + 1 ;",
+      "i = i + 1 ;",
+      "}",
+      "token :: burn (ctx . accounts . burn_ctx () , penalty) ? ;",
+      "arena . losses = arena . losses + 1 ;",
+      "if consolation_mint",
+      "{",
+      "let mut consolation = penalty / 5 + 1 ;",
+      "if streak_losses >= 3",
+      "{",
+      "consolation = consolation + 2 ;",
+      "} token :: mint_to (ctx . accounts . mint_ctx () , consolation) ? ;",
+      "arena . consolation_issued = arena . consolation_issued + consolation ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitArena",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "arena",
+        "attribute": "# [account (init , payer = referee , space = 8 + 32 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , ArenaState >"
+      },
+      {
+        "name": "referee",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActSettle",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "arena",
+        "attribute": "# [account (mut , has_one = referee)]",
+        "field_type": "Account < 'info , ArenaState >"
+      },
+      {
+        "name": "referee",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "penalty_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "player_penalty_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "consolation_mint_acc",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "player_consolation_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ArenaState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "referee",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "penalty_base",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "losses",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "consolation_issued",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

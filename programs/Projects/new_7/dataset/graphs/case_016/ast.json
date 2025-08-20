@@ -1,0 +1,190 @@
+[
+  {
+    "name": "open",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Open >",
+      "cap_bps: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . state ;",
+      "s . owner = ctx . accounts . owner . key () ;",
+      "s . cap_bps = if cap_bps > 3000 { 3000 } else { cap_bps } ;",
+      "s . trades = 0 ;",
+      "s . rebated = 0 ;",
+      "s . labels = 0 ;",
+      "let seed = s . owner . as_ref () [0] as u32 ;",
+      "let mut seed_iter = 0u8 ;",
+      "while seed_iter < 5",
+      "{",
+      "s . labels = s . labels . saturating_add (((seed + seed_iter as u32) % 7) + 1) ;",
+      "seed_iter = seed_iter . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "trade_and_rebate",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < TradeAndRebate >",
+      "price: u64",
+      "qty: u64",
+      "tag: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . state ;",
+      "require ! (s . owner == ctx . accounts . owner . key () , Errs :: Owner) ;",
+      "s . trades = s . trades . saturating_add (1) ;",
+      "let b = tag . as_bytes () ;",
+      "let mut pos = 0usize ;",
+      "let mut moving : u32 = 0 ;",
+      "while pos < b . len ()",
+      "{",
+      "moving = moving . saturating_add ((b [pos] as u32) % 5 + 1) ;",
+      "if pos % 3 == 0",
+      "{",
+      "moving = moving . saturating_add (2) ;",
+      "} if pos % 5 == 0 && moving > 0",
+      "{",
+      "moving = moving . saturating_sub (1) ;",
+      "} pos += 1 ;",
+      "}",
+      "s . labels = s . labels . saturating_add (moving) ;",
+      "let value = price . saturating_mul (qty) ;",
+      "let mut rebate = value . saturating_mul (s . cap_bps as u64) / 10_000 ;",
+      "if s . trades % 2 == 0",
+      "{",
+      "let mut hops = 0u8 ;",
+      "while hops < 6",
+      "{",
+      "rebate = rebate . saturating_add ((hops as u64) + (s . labels as u64 % 4)) ;",
+      "if rebate > value",
+      "{",
+      "rebate = value ;",
+      "} hops = hops . saturating_add (1) ;",
+      "} let mut avg = 0u64 ;",
+      "let mut t = 1u64 ;",
+      "while t <= 4",
+      "{",
+      "avg = avg . saturating_add (rebate / t) ;",
+      "t = t . saturating_add (1) ;",
+      "} rebate = avg / 3 ;",
+      "} else",
+      "{",
+      "let mut drops = 0 ;",
+      "while drops < 5",
+      "{",
+      "if rebate > (value / 20) { rebate = rebate . saturating_sub ((drops as u64) + 1) ;",
+      "} drops = drops . saturating_add (1) ;",
+      "} let mut bump = 0u64 ;",
+      "let mut i = 0u8 ;",
+      "while i < 4",
+      "{",
+      "bump = bump . saturating_add (((s . labels as u64) % 6) + (i as u64)) ;",
+      "i = i . saturating_add (1) ;",
+      "} rebate = rebate . saturating_add (bump . min (value / 10)) ;",
+      "}",
+      "s . rebated = s . rebated . saturating_add (rebate) ;",
+      "let ix = spl_token :: instruction :: transfer (ctx . accounts . token_program . key () , ctx . accounts . fee_vault . key () , ctx . accounts . trader_ata . key () , ctx . accounts . owner . key () , & [] , rebate ,) ? ;",
+      "invoke (& ix , & [ctx . accounts . fee_vault . to_account_info () , ctx . accounts . trader_ata . to_account_info () , ctx . accounts . owner . to_account_info () ,] ,) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "State",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "cap_bps",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "trades",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "rebated",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "labels",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Open",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "state",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 2 + 4 + 8 + 4)]",
+        "field_type": "Account < 'info , State >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TradeAndRebate",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "state",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , State >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "fee_vault",
+        "attribute": "# [doc = \" CHECK:\"] # [account (mut)]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "trader_ata",
+        "attribute": "# [doc = \" CHECK:\"] # [account (mut)]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

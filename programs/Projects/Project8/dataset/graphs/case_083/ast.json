@@ -1,0 +1,464 @@
+[
+  {
+    "name": "create_auction_listing",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateAuctionListing >",
+      "item_details: ItemDetails",
+      "starting_price: u64",
+      "auction_duration: u64",
+      "buyout_price: Option < u64 >"
+    ],
+    "attributes": [],
+    "body": [
+      "let auction_listing = & mut ctx . accounts . auction_listing ;",
+      "let current_time = Clock :: get () ? . unix_timestamp ;",
+      "auction_listing . seller = ctx . accounts . seller . key () ;",
+      "auction_listing . item_being_sold = item_details ;",
+      "auction_listing . starting_price = starting_price ;",
+      "auction_listing . current_highest_bid = starting_price ;",
+      "auction_listing . buyout_price = buyout_price ;",
+      "auction_listing . auction_start_time = current_time ;",
+      "auction_listing . auction_end_time = current_time + auction_duration as i64 ;",
+      "auction_listing . listing_creation_timestamp = current_time ;",
+      "require ! (starting_price >= 1000 , AuctionError :: StartingPriceTooLow) ;",
+      "require ! (auction_duration >= 3600 , AuctionError :: AuctionTooShort) ;",
+      "require ! (auction_duration <= 604800 , AuctionError :: AuctionTooLong) ;",
+      "let category_multiplier = match item_details . category { ItemCategory :: LegendaryWeapon => { auction_listing . minimum_bid_increment = starting_price / 20 ; auction_listing . featured_listing = true ; auction_listing . seller_reputation_requirement = 100 ; 300 } , ItemCategory :: RareArmor => { auction_listing . minimum_bid_increment = starting_price / 25 ; auction_listing . featured_listing = true ; auction_listing . seller_reputation_requirement = 75 ; 200 } , ItemCategory :: EpicAccessory => { auction_listing . minimum_bid_increment = starting_price / 30 ; auction_listing . featured_listing = false ; auction_listing . seller_reputation_requirement = 50 ; 250 } , ItemCategory :: CraftingMaterial => { auction_listing . minimum_bid_increment = starting_price / 50 ; auction_listing . featured_listing = false ; auction_listing . seller_reputation_requirement = 25 ; 100 } , ItemCategory :: ConsumableItem => { auction_listing . minimum_bid_increment = starting_price / 100 ; auction_listing . featured_listing = false ; auction_listing . seller_reputation_requirement = 10 ; 50 } , } ;",
+      "auction_listing . estimated_final_price = starting_price + (starting_price * category_multiplier / 100) ;",
+      "let mut bidding_history = Vec :: new () ;",
+      "bidding_history . push (BidRecord { bidder : ctx . accounts . seller . key () , bid_amount : starting_price , bid_timestamp : current_time , bid_type : BidType :: StartingPrice , automatic_bid : false , }) ;",
+      "auction_listing . bidding_history = bidding_history ;",
+      "auction_listing . total_bids_placed = 0 ;",
+      "auction_listing . unique_bidders = 0 ;",
+      "auction_listing . current_leader = None ;",
+      "auction_listing . reserve_price_met = starting_price >= item_details . reserve_price ;",
+      "let mut watchers_list = Vec :: new () ;",
+      "for watcher_slot in 0 .. 20",
+      "{",
+      "watchers_list . push (WatcherInfo",
+      "{",
+      "watcher_pubkey : None , watch_start_time : 0 , notification_preferences : NotificationPreferences { bid_outbid_alert : false , auction_ending_alert : false , price_threshold_alert : false , threshold_amount : 0 , } , }) ;",
+      "}",
+      "auction_listing . watchers = watchers_list ;",
+      "let fee_structure = match item_details . estimated_value { value if value >= 100000 => { auction_listing . listing_fee = 500 ; auction_listing . success_fee_percentage = 250 ; auction_listing . premium_features_enabled = true ; FeeStructure :: Premium } , value if value >= 50000 => { auction_listing . listing_fee = 300 ; auction_listing . success_fee_percentage = 300 ; auction_listing . premium_features_enabled = true ; FeeStructure :: Standard } , value if value >= 10000 => { auction_listing . listing_fee = 150 ; auction_listing . success_fee_percentage = 400 ; auction_listing . premium_features_enabled = false ; FeeStructure :: Basic } , _ => { auction_listing . listing_fee = 50 ; auction_listing . success_fee_percentage = 500 ; auction_listing . premium_features_enabled = false ; FeeStructure :: Economy } , } ;",
+      "auction_listing . fee_structure = fee_structure ;",
+      "let mut promotional_boosts = Vec :: new () ;",
+      "match auction_listing . premium_features_enabled { true => { promotional_boosts . push (PromotionalBoost { boost_type : BoostType :: FeaturedPlacement , duration_hours : 24 , cost_paid : 200 , activation_time : current_time , }) ; promotional_boosts . push (PromotionalBoost { boost_type : BoostType :: HighlightListing , duration_hours : 48 , cost_paid : 150 , activation_time : current_time , }) ; promotional_boosts . push (PromotionalBoost { boost_type : BoostType :: CrossCategoryPromotion , duration_hours : 72 , cost_paid : 300 , activation_time : current_time , }) ; } , false => { promotional_boosts . push (PromotionalBoost { boost_type : BoostType :: BasicVisibility , duration_hours : 12 , cost_paid : 50 , activation_time : current_time , }) ; } }",
+      "auction_listing . promotional_boosts = promotional_boosts ;",
+      "auction_listing . auction_status = AuctionStatus :: Active ;",
+      "auction_listing . auto_extension_enabled = true ;",
+      "auction_listing . extension_time_minutes = 300 ;",
+      "auction_listing . snipe_protection_active = true ;",
+      "auction_listing . market_analytics = MarketAnalytics { category_average_price : item_details . estimated_value , recent_sales_comparison : Vec :: new () , price_trend_indicator : PriceTrend :: Stable , demand_level : DemandLevel :: Moderate , supply_scarcity_rating : 5 , } ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CreateAuctionListing",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "auction_listing",
+        "attribute": "# [account (init , payer = seller , space = 8 + AuctionListing :: LEN , seeds = [b\"auction\" , seller . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , AuctionListing >"
+      },
+      {
+        "name": "seller",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AuctionListing",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "seller",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "item_being_sold",
+        "attribute": null,
+        "field_type": "ItemDetails"
+      },
+      {
+        "name": "starting_price",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "current_highest_bid",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "buyout_price",
+        "attribute": null,
+        "field_type": "Option < u64 >"
+      },
+      {
+        "name": "auction_start_time",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "auction_end_time",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "listing_creation_timestamp",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "minimum_bid_increment",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "featured_listing",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "seller_reputation_requirement",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "estimated_final_price",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "bidding_history",
+        "attribute": null,
+        "field_type": "Vec < BidRecord >"
+      },
+      {
+        "name": "total_bids_placed",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "unique_bidders",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "current_leader",
+        "attribute": null,
+        "field_type": "Option < Pubkey >"
+      },
+      {
+        "name": "reserve_price_met",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "watchers",
+        "attribute": null,
+        "field_type": "Vec < WatcherInfo >"
+      },
+      {
+        "name": "listing_fee",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "success_fee_percentage",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "premium_features_enabled",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "fee_structure",
+        "attribute": null,
+        "field_type": "FeeStructure"
+      },
+      {
+        "name": "promotional_boosts",
+        "attribute": null,
+        "field_type": "Vec < PromotionalBoost >"
+      },
+      {
+        "name": "auction_status",
+        "attribute": null,
+        "field_type": "AuctionStatus"
+      },
+      {
+        "name": "auto_extension_enabled",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "extension_time_minutes",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "snipe_protection_active",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "market_analytics",
+        "attribute": null,
+        "field_type": "MarketAnalytics"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ItemDetails",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "item_name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "description",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "category",
+        "attribute": null,
+        "field_type": "ItemCategory"
+      },
+      {
+        "name": "rarity_level",
+        "attribute": null,
+        "field_type": "RarityLevel"
+      },
+      {
+        "name": "condition_rating",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "enhancement_level",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "estimated_value",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "reserve_price",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "authentication_verified",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "previous_owners",
+        "attribute": null,
+        "field_type": "Vec < Pubkey >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BidRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "bidder",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "bid_amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "bid_timestamp",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "bid_type",
+        "attribute": null,
+        "field_type": "BidType"
+      },
+      {
+        "name": "automatic_bid",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "WatcherInfo",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "watcher_pubkey",
+        "attribute": null,
+        "field_type": "Option < Pubkey >"
+      },
+      {
+        "name": "watch_start_time",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "notification_preferences",
+        "attribute": null,
+        "field_type": "NotificationPreferences"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "NotificationPreferences",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "bid_outbid_alert",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "auction_ending_alert",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "price_threshold_alert",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "threshold_amount",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PromotionalBoost",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "boost_type",
+        "attribute": null,
+        "field_type": "BoostType"
+      },
+      {
+        "name": "duration_hours",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "cost_paid",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "activation_time",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MarketAnalytics",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "category_average_price",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "recent_sales_comparison",
+        "attribute": null,
+        "field_type": "Vec < SaleComparison >"
+      },
+      {
+        "name": "price_trend_indicator",
+        "attribute": null,
+        "field_type": "PriceTrend"
+      },
+      {
+        "name": "demand_level",
+        "attribute": null,
+        "field_type": "DemandLevel"
+      },
+      {
+        "name": "supply_scarcity_rating",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SaleComparison",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "sold_price",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "sale_date",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "item_similarity_score",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

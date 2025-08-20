@@ -1,0 +1,475 @@
+[
+  {
+    "name": "init_liquidity_pool",
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let pool = & mut ctx . accounts . liquidity_pool ;"
+      },
+      {
+        "id": 2,
+        "label": "pool . pool_manager = ctx . accounts . manager . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "pool . token_a_reserve = 0 ;"
+      },
+      {
+        "id": 4,
+        "label": "pool . token_b_reserve = 0 ;"
+      },
+      {
+        "id": 5,
+        "label": "pool . total_liquidity_tokens = 0 ;"
+      },
+      {
+        "id": 6,
+        "label": "pool . exchange_ratio = initial_ratio ;"
+      },
+      {
+        "id": 7,
+        "label": "pool . trading_fee = fee_rate ;"
+      },
+      {
+        "id": 8,
+        "label": "pool . total_volume = 0 ;"
+      },
+      {
+        "id": 9,
+        "label": "pool . impermanent_loss_factor = 0 ;"
+      },
+      {
+        "id": 10,
+        "label": "pool . last_price_update = Clock :: get () ? . unix_timestamp ;"
+      },
+      {
+        "id": 11,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 0,
+        "to": 1,
+        "label": "next"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "next"
+      },
+      {
+        "from": 2,
+        "to": 3,
+        "label": "next"
+      },
+      {
+        "from": 3,
+        "to": 4,
+        "label": "next"
+      },
+      {
+        "from": 4,
+        "to": 5,
+        "label": "next"
+      },
+      {
+        "from": 5,
+        "to": 6,
+        "label": "next"
+      },
+      {
+        "from": 6,
+        "to": 7,
+        "label": "next"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "next"
+      },
+      {
+        "from": 8,
+        "to": 9,
+        "label": "next"
+      },
+      {
+        "from": 9,
+        "to": 10,
+        "label": "next"
+      },
+      {
+        "from": 10,
+        "to": 11,
+        "label": "next"
+      }
+    ]
+  },
+  {
+    "name": "rebalance_pool",
+    "nodes": [
+      {
+        "id": 12,
+        "label": "Entry"
+      },
+      {
+        "id": 13,
+        "label": "let pool = & mut ctx . accounts . liquidity_pool ;"
+      },
+      {
+        "id": 14,
+        "label": "let rebalancer = & ctx . accounts . rebalancer ;"
+      },
+      {
+        "id": 15,
+        "label": "let current_ratio = if pool . token_b_reserve > 0 { (pool . token_a_reserve * 1000000) / pool . token_b_reserve } else { target_ratio } ;"
+      },
+      {
+        "id": 16,
+        "label": "let ratio_difference = if current_ratio > target_ratio { current_ratio - target_ratio } else { target_ratio - current_ratio } ;"
+      },
+      {
+        "id": 17,
+        "label": "let max_allowed_difference = (target_ratio * slippage_tolerance as u64) / 10000 ;"
+      },
+      {
+        "id": 18,
+        "label": "if statement"
+      },
+      {
+        "id": 19,
+        "label": "predicate"
+      },
+      {
+        "id": 20,
+        "label": "ratio_difference <= max_allowed_difference"
+      },
+      {
+        "id": 21,
+        "label": "True body"
+      },
+      {
+        "id": 22,
+        "label": "let total_value = pool . token_a_reserve + (pool . token_b_reserve * target_ratio / 1000000) ;"
+      },
+      {
+        "id": 23,
+        "label": "let new_token_a_reserve = total_value / 2 ;"
+      },
+      {
+        "id": 24,
+        "label": "let new_token_b_reserve = (total_value / 2) * 1000000 / target_ratio ;"
+      },
+      {
+        "id": 25,
+        "label": "let old_product = pool . token_a_reserve * pool . token_b_reserve ;"
+      },
+      {
+        "id": 26,
+        "label": "let new_product = new_token_a_reserve * new_token_b_reserve ;"
+      },
+      {
+        "id": 27,
+        "label": "if statement"
+      },
+      {
+        "id": 28,
+        "label": "predicate"
+      },
+      {
+        "id": 29,
+        "label": "new_product < old_product"
+      },
+      {
+        "id": 30,
+        "label": "True body"
+      },
+      {
+        "id": 31,
+        "label": "pool . impermanent_loss_factor += ((old_product - new_product) * 10000) / old_product ;"
+      },
+      {
+        "id": 32,
+        "label": "False body"
+      },
+      {
+        "id": 33,
+        "label": "No-op"
+      },
+      {
+        "id": 34,
+        "label": "merge"
+      },
+      {
+        "id": 35,
+        "label": "pool . token_a_reserve = new_token_a_reserve ;"
+      },
+      {
+        "id": 36,
+        "label": "pool . token_b_reserve = new_token_b_reserve ;"
+      },
+      {
+        "id": 37,
+        "label": "pool . exchange_ratio = target_ratio ;"
+      },
+      {
+        "id": 38,
+        "label": "pool . last_price_update = Clock :: get () ? . unix_timestamp ;"
+      },
+      {
+        "id": 39,
+        "label": "let rebalancing_volume = ratio_difference * pool . total_liquidity_tokens / 1000 ;"
+      },
+      {
+        "id": 40,
+        "label": "let collected_fees = (rebalancing_volume * pool . trading_fee as u64) / 10000 ;"
+      },
+      {
+        "id": 41,
+        "label": "pool . total_fees_collected += collected_fees ;"
+      },
+      {
+        "id": 42,
+        "label": "pool . total_volume += rebalancing_volume ;"
+      },
+      {
+        "id": 43,
+        "label": "Loop Start"
+      },
+      {
+        "id": 44,
+        "label": "let lp_share = pool . lp_token_balances [lp_index as usize] * 100 / pool . total_liquidity_tokens . max (1) ;"
+      },
+      {
+        "id": 45,
+        "label": "pool . lp_fee_rewards [lp_index as usize] += (collected_fees * lp_share) / 100 ;"
+      },
+      {
+        "id": 46,
+        "label": "Loop End"
+      },
+      {
+        "id": 47,
+        "label": "False body"
+      },
+      {
+        "id": 48,
+        "label": "No-op"
+      },
+      {
+        "id": 49,
+        "label": "merge"
+      },
+      {
+        "id": 50,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 12,
+        "to": 13,
+        "label": "next"
+      },
+      {
+        "from": 13,
+        "to": 14,
+        "label": "next"
+      },
+      {
+        "from": 14,
+        "to": 15,
+        "label": "next"
+      },
+      {
+        "from": 15,
+        "to": 16,
+        "label": "next"
+      },
+      {
+        "from": 16,
+        "to": 17,
+        "label": "next"
+      },
+      {
+        "from": 17,
+        "to": 18,
+        "label": "next"
+      },
+      {
+        "from": 18,
+        "to": 19,
+        "label": "predicate"
+      },
+      {
+        "from": 19,
+        "to": 20,
+        "label": "next"
+      },
+      {
+        "from": 18,
+        "to": 21,
+        "label": "true"
+      },
+      {
+        "from": 21,
+        "to": 22,
+        "label": "next"
+      },
+      {
+        "from": 22,
+        "to": 23,
+        "label": "next"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "next"
+      },
+      {
+        "from": 24,
+        "to": 25,
+        "label": "next"
+      },
+      {
+        "from": 25,
+        "to": 26,
+        "label": "next"
+      },
+      {
+        "from": 26,
+        "to": 27,
+        "label": "next"
+      },
+      {
+        "from": 27,
+        "to": 28,
+        "label": "predicate"
+      },
+      {
+        "from": 28,
+        "to": 29,
+        "label": "next"
+      },
+      {
+        "from": 27,
+        "to": 30,
+        "label": "true"
+      },
+      {
+        "from": 30,
+        "to": 31,
+        "label": "next"
+      },
+      {
+        "from": 27,
+        "to": 32,
+        "label": "false"
+      },
+      {
+        "from": 32,
+        "to": 33,
+        "label": "next"
+      },
+      {
+        "from": 31,
+        "to": 34,
+        "label": "next"
+      },
+      {
+        "from": 33,
+        "to": 34,
+        "label": "next"
+      },
+      {
+        "from": 34,
+        "to": 35,
+        "label": "next"
+      },
+      {
+        "from": 35,
+        "to": 36,
+        "label": "next"
+      },
+      {
+        "from": 36,
+        "to": 37,
+        "label": "next"
+      },
+      {
+        "from": 37,
+        "to": 38,
+        "label": "next"
+      },
+      {
+        "from": 38,
+        "to": 39,
+        "label": "next"
+      },
+      {
+        "from": 39,
+        "to": 40,
+        "label": "next"
+      },
+      {
+        "from": 40,
+        "to": 41,
+        "label": "next"
+      },
+      {
+        "from": 41,
+        "to": 42,
+        "label": "next"
+      },
+      {
+        "from": 42,
+        "to": 43,
+        "label": "next"
+      },
+      {
+        "from": 43,
+        "to": 44,
+        "label": "next"
+      },
+      {
+        "from": 44,
+        "to": 45,
+        "label": "next"
+      },
+      {
+        "from": 43,
+        "to": 46,
+        "label": "for"
+      },
+      {
+        "from": 18,
+        "to": 47,
+        "label": "false"
+      },
+      {
+        "from": 47,
+        "to": 48,
+        "label": "next"
+      },
+      {
+        "from": 46,
+        "to": 49,
+        "label": "next"
+      },
+      {
+        "from": 48,
+        "to": 49,
+        "label": "next"
+      },
+      {
+        "from": 49,
+        "to": 50,
+        "label": "next"
+      }
+    ]
+  }
+]

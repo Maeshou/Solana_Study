@@ -1,0 +1,160 @@
+[
+  {
+    "name": "init_shop",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitShop >",
+      "required_power_input: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let shop = & mut ctx . accounts . shop ;",
+      "shop . owner = ctx . accounts . owner . key () ;",
+      "shop . required_power = required_power_input ;",
+      "if shop . required_power < 1",
+      "{",
+      "shop . required_power = 1 ;",
+      "}",
+      "shop . progress = 3 ;",
+      "shop . total_burned = 2 ;",
+      "shop . cool_counter = 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_upgrade",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActUpgrade >",
+      "provided_power: u32",
+      "base_cost_input: u64",
+      "layers: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let shop = & mut ctx . accounts . shop ;",
+      "let mut cost = base_cost_input ;",
+      "if cost < 1",
+      "{",
+      "cost = 1 ;",
+      "}",
+      "let mut k : u8 = 0 ;",
+      "while k < layers",
+      "{",
+      "cost = cost + cost / 6 + 1 ;",
+      "k = k + 1 ;",
+      "}",
+      "if shop . cool_counter > 0",
+      "{",
+      "shop . cool_counter = shop . cool_counter - 1 ;",
+      "}",
+      "if provided_power < shop . required_power",
+      "{",
+      "shop . cool_counter = shop . cool_counter + 2 ;",
+      "return Err (ShopErr :: PowerLow . into ()) ;",
+      "}",
+      "token :: burn (ctx . accounts . burn_ctx () , cost) ? ;",
+      "shop . total_burned = shop . total_burned + cost ;",
+      "shop . progress = shop . progress + (cost / 5 + 1) ;",
+      "if shop . progress > shop . total_burned / 3",
+      "{",
+      "shop . cool_counter = shop . cool_counter + 1 ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitShop",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "shop",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 4 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , ShopState >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActUpgrade",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "shop",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , ShopState >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "material_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "material_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ShopState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "required_power",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "progress",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_burned",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "cool_counter",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

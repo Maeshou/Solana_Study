@@ -1,17 +1,193 @@
 [
   {
-    "name": "FlashLoanCtxvial",
+    "name": "create_product",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateProduct >",
+      "name: String",
+      "origin: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let product = & mut ctx . accounts . product ;",
+      "product . manufacturer = ctx . accounts . manufacturer . key () ;",
+      "product . name = name ;",
+      "product . origin = origin ;",
+      "product . current_owner = ctx . accounts . manufacturer . key () ;",
+      "product . created_at = Clock :: get () ? . unix_timestamp ;",
+      "product . bump = * ctx . bumps . get (\"product\") . unwrap () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "transfer_ownership",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < TransferOwnership >"
+    ],
+    "attributes": [],
+    "body": [
+      "let product = & mut ctx . accounts . product ;",
+      "let transfer_record = & mut ctx . accounts . transfer_record ;",
+      "transfer_record . product = product . key () ;",
+      "transfer_record . from_owner = product . current_owner ;",
+      "transfer_record . to_owner = * ctx . accounts . new_owner . key ;",
+      "transfer_record . transferred_at = Clock :: get () ? . unix_timestamp ;",
+      "transfer_record . bump = * ctx . bumps . get (\"transfer_record\") . unwrap () ;",
+      "product . current_owner = * ctx . accounts . new_owner . key ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "add_inspection",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AddInspection >",
+      "inspector_id: String",
+      "notes: String",
+      "passed: bool"
+    ],
+    "attributes": [],
+    "body": [
+      "let product = & ctx . accounts . product ;",
+      "let inspection = & mut ctx . accounts . inspection ;",
+      "inspection . product = product . key () ;",
+      "inspection . inspector_id = inspector_id ;",
+      "inspection . notes = notes ;",
+      "inspection . passed = passed ;",
+      "inspection . inspected_at = Clock :: get () ? . unix_timestamp ;",
+      "inspection . bump = * ctx . bumps . get (\"inspection\") . unwrap () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Product",
     "node_type": "struct",
     "fields": [
       {
-        "name": "lending_market",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
+        "name": "manufacturer",
+        "attribute": null,
+        "field_type": "Pubkey"
       },
       {
-        "name": "borrower",
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "origin",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "current_owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "created_at",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TransferRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "product",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "from_owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "to_owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "transferred_at",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Inspection",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "product",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "inspector_id",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "notes",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "passed",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "inspected_at",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreateProduct",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "product",
+        "attribute": "# [account (init , payer = manufacturer , space = 8 + 32 + 4 + name . len () + 4 + origin . len () + 32 + 8 + 1 , seeds = [b\"product\" , manufacturer . key () . as_ref () , name . as_bytes ()] , bump)]",
+        "field_type": "Account < 'info , Product >"
+      },
+      {
+        "name": "manufacturer",
         "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
+        "field_type": "Signer < 'info >"
       },
       {
         "name": "system_program",
@@ -24,13 +200,33 @@
     "body": null
   },
   {
-    "name": "DataAccount",
+    "name": "TransferOwnership",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data",
+        "name": "product",
+        "attribute": "# [account (mut , seeds = [b\"product\" , product . manufacturer . as_ref () , product . name . as_bytes ()] , bump = product . bump , constraint = product . current_owner == current_owner . key ())]",
+        "field_type": "Account < 'info , Product >"
+      },
+      {
+        "name": "transfer_record",
+        "attribute": "# [account (init , payer = current_owner , space = 8 + 32 + 32 + 32 + 8 + 1 , seeds = [b\"transfer\" , product . key () . as_ref () , & Clock :: get () . unwrap () . unix_timestamp . to_le_bytes ()] , bump)]",
+        "field_type": "Account < 'info , TransferRecord >"
+      },
+      {
+        "name": "current_owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "new_owner",
+        "attribute": "# [doc = \" CHECK: Verified as the new owner through transfer record\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -38,19 +234,32 @@
     "body": null
   },
   {
-    "name": "flash_loan",
-    "node_type": "function",
-    "fields": null,
-    "inputs": [
-      "ctx: Context < FlashLoanCtxvial >",
-      "amount: u64"
+    "name": "AddInspection",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "product",
+        "attribute": "# [account (seeds = [b\"product\" , product . manufacturer . as_ref () , product . name . as_bytes ()] , bump = product . bump)]",
+        "field_type": "Account < 'info , Product >"
+      },
+      {
+        "name": "inspection",
+        "attribute": "# [account (init , payer = inspector , space = 8 + 32 + 4 + inspector_id . len () + 4 + notes . len () + 1 + 8 + 1 , seeds = [b\"inspection\" , product . key () . as_ref () , & Clock :: get () . unwrap () . unix_timestamp . to_le_bytes ()] , bump)]",
+        "field_type": "Account < 'info , Inspection >"
+      },
+      {
+        "name": "inspector",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
     ],
-    "attributes": [],
-    "body": [
-      "let acct = & mut ctx . accounts . lending_market ;",
-      "for _ in 0 .. amount { acct . data += 1 ; }",
-      "msg ! (\"Executed flash_loan logic\") ;",
-      "Ok (())"
-    ]
+    "inputs": null,
+    "attributes": null,
+    "body": null
   }
 ]

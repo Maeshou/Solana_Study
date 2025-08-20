@@ -1,15 +1,90 @@
 [
   {
-    "name": "WithdrawMarginCtxhfcj",
+    "name": "initialize_lottery",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeLottery >",
+      "ticket_price: u64",
+      "max_tickets: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let lottery = & mut ctx . accounts . lottery ;",
+      "lottery . authority = ctx . accounts . authority . key () ;",
+      "lottery . ticket_price = ticket_price ;",
+      "lottery . max_tickets = max_tickets ;",
+      "lottery . tickets_sold = 0 ;",
+      "lottery . is_active = true ;",
+      "lottery . winner = Pubkey :: default () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "buy_ticket",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < BuyTicket >"
+    ],
+    "attributes": [],
+    "body": [
+      "let lottery = & mut ctx . accounts . lottery ;",
+      "require ! (lottery . is_active , LotteryError :: LotteryInactive) ;",
+      "require ! (lottery . tickets_sold < lottery . max_tickets , LotteryError :: SoldOut) ;",
+      "let participant_key = ctx . accounts . participant . key () ;",
+      "let token_account = & ctx . accounts . participant_token_account ;",
+      "require ! (token_account . owner == participant_key , LotteryError :: InvalidTokenAccount) ;",
+      "require ! (token_account . amount >= lottery . ticket_price , LotteryError :: InsufficientFunds) ;",
+      "let cpi_accounts = anchor_spl :: token :: Transfer { from : ctx . accounts . participant_token_account . to_account_info () , to : ctx . accounts . lottery_pool . to_account_info () , authority : ctx . accounts . participant . to_account_info () , } ;",
+      "let cpi_program = ctx . accounts . token_program . to_account_info () ;",
+      "let cpi_ctx = CpiContext :: new (cpi_program , cpi_accounts) ;",
+      "anchor_spl :: token :: transfer (cpi_ctx , lottery . ticket_price) ? ;",
+      "lottery . tickets_sold += 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "draw_winner",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < '_ , '_ , '_ , 'info , DrawWinner < 'info > >"
+    ],
+    "attributes": [],
+    "body": [
+      "let lottery = & mut ctx . accounts . lottery ;",
+      "require ! (lottery . is_active , LotteryError :: LotteryInactive) ;",
+      "require ! (lottery . tickets_sold > 0 , LotteryError :: NoTicketsSold) ;",
+      "let clock = Clock :: get () ? ;",
+      "let mut seed = clock . unix_timestamp as u64 ;",
+      "for account_info in ctx . remaining_accounts . iter ()",
+      "{",
+      "if account_info . owner == & crate :: ID",
+      "{",
+      "seed = seed . wrapping_add (account_info . key () . to_bytes () [0] as u64) ;",
+      "}",
+      "}",
+      "let winner_index = seed % lottery . tickets_sold ;",
+      "if let Some (winner_account) = ctx . remaining_accounts . get (winner_index as usize)",
+      "{",
+      "lottery . winner = winner_account . key () ;",
+      "}",
+      "lottery . is_active = false ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializeLottery",
     "node_type": "struct",
     "fields": [
       {
-        "name": "position",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
+        "name": "lottery",
+        "attribute": "# [account (init , payer = authority , space = 8 + 200)]",
+        "field_type": "Account < 'info , Lottery >"
       },
       {
-        "name": "trader",
+        "name": "authority",
         "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
       },
@@ -24,13 +99,33 @@
     "body": null
   },
   {
-    "name": "DataAccount",
+    "name": "BuyTicket",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data",
+        "name": "lottery",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Lottery >"
+      },
+      {
+        "name": "participant_token_account",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "lottery_pool",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "participant",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "token_program",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "Program < 'info , Token >"
       }
     ],
     "inputs": null,
@@ -38,19 +133,61 @@
     "body": null
   },
   {
-    "name": "withdraw_margin",
-    "node_type": "function",
-    "fields": null,
-    "inputs": [
-      "ctx: Context < WithdrawMarginCtxhfcj >",
-      "amount: u64"
+    "name": "DrawWinner",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "lottery",
+        "attribute": "# [account (mut , constraint = lottery . authority == authority . key ())]",
+        "field_type": "Account < 'info , Lottery >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
     ],
-    "attributes": [],
-    "body": [
-      "let acct = & mut ctx . accounts . position ;",
-      "* * ctx . accounts . position . to_account_info () . try_borrow_mut_lamports () ? += amount ;",
-      "msg ! (\"Executed withdraw_margin logic\") ;",
-      "Ok (())"
-    ]
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Lottery",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "ticket_price",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "max_tickets",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "tickets_sold",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "is_active",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "winner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
   }
 ]

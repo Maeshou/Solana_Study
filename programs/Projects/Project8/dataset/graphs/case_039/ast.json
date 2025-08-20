@@ -1,0 +1,142 @@
+[
+  {
+    "name": "craft_new_item",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CraftNewItem >",
+      "recipe_id: u32",
+      "amount: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let inventory = & mut ctx . accounts . player_inventory ;",
+      "let recipe = & ctx . accounts . crafting_recipe ;",
+      "require ! (recipe . recipe_id == recipe_id , GameError :: InvalidRecipe) ;",
+      "let mut required_item_count = 0 ;",
+      "for required_item in recipe . required_items . iter ()",
+      "{",
+      "let mut found = false ;",
+      "for owned_item in inventory . items . iter ()",
+      "{",
+      "if owned_item . item_id == required_item . item_id { if owned_item . quantity >= required_item . quantity * u64 :: from (amount) { found = true ;",
+      "required_item_count += 1 ;",
+      "} } } require ! (found , GameError :: InsufficientMaterials) ;",
+      "}",
+      "if required_item_count == recipe . required_items . len ()",
+      "{",
+      "for required_item in recipe . required_items . iter ()",
+      "{",
+      "for owned_item in inventory . items . iter_mut () { if owned_item . item_id == required_item . item_id { owned_item . quantity -= required_item . quantity * u64 :: from (amount) ;",
+      "} } } let mut item_added = false ;",
+      "for owned_item in inventory . items . iter_mut ()",
+      "{",
+      "if owned_item . item_id == recipe . result_item_id { owned_item . quantity += u64 :: from (recipe . result_item_quantity * amount) ;",
+      "item_added = true ;",
+      "} } if ! item_added",
+      "{",
+      "inventory . items . push (InventoryItem { item_id : recipe . result_item_id , quantity : u64 :: from (recipe . result_item_quantity * amount) , }) ;",
+      "} msg ! (\"Successfully crafted item",
+      "{",
+      "}!\" , recipe . result_item_id) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CraftNewItem",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "player_inventory",
+        "attribute": "# [account (mut , seeds = [b\"inventory\" , player . key () . as_ref ()] , bump = player_inventory . bump)]",
+        "field_type": "Account < 'info , PlayerInventory >"
+      },
+      {
+        "name": "crafting_recipe",
+        "attribute": "# [account (seeds = [b\"recipe\" , recipe_id . to_le_bytes () . as_ref ()] , bump = crafting_recipe . bump)]",
+        "field_type": "Account < 'info , CraftingRecipe >"
+      },
+      {
+        "name": "player",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PlayerInventory",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "items",
+        "attribute": null,
+        "field_type": "Vec < InventoryItem >"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InventoryItem",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "item_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "quantity",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CraftingRecipe",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "recipe_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "required_items",
+        "attribute": null,
+        "field_type": "Vec < InventoryItem >"
+      },
+      {
+        "name": "result_item_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "result_item_quantity",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

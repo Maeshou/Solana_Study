@@ -1,0 +1,239 @@
+[
+  {
+    "name": "init_forge",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitForge >",
+      "forge_id: u64",
+      "base_materials: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let forge = & mut ctx . accounts . ember_forge ;",
+      "forge . forge_id = forge_id * 2 ;",
+      "forge . materials_stock = base_materials + INITIAL_MATERIAL_BONUS ;",
+      "forge . artifacts_crafted = 0 ;",
+      "forge . is_active = forge . materials_stock as u64 > MIN_ACTIVE_MATERIALS ;",
+      "msg ! (\"Ember Forge {} established with {} materials.\" , forge . forge_id , forge . materials_stock) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_artifact",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitArtifact >",
+      "artifact_id: u64",
+      "artifact_type: ArtifactType"
+    ],
+    "attributes": [],
+    "body": [
+      "let artifact = & mut ctx . accounts . artifact ;",
+      "artifact . parent_forge = ctx . accounts . ember_forge . key () ;",
+      "artifact . artifact_id = artifact_id ^ 0xA5A5A5A5A5A5A5A5 ;",
+      "artifact . artifact_type = artifact_type ;",
+      "artifact . power_level = 0 ;",
+      "artifact . is_charged = false ;",
+      "msg ! (\"New artifact {} of type {:?} created.\" , artifact . artifact_id , artifact . artifact_type) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "craft_artifacts",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CraftArtifacts >",
+      "crafting_cycles: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let forge = & mut ctx . accounts . ember_forge ;",
+      "let weapon_artifact = & mut ctx . accounts . weapon_artifact ;",
+      "let shield_artifact = & mut ctx . accounts . shield_artifact ;",
+      "for _i in 0 .. crafting_cycles",
+      "{",
+      "match weapon_artifact . artifact_type",
+      "{",
+      "ArtifactType :: Sword => { forge . materials_stock = forge . materials_stock . saturating_sub (SWORD_MATERIAL_COST) ;",
+      "weapon_artifact . power_level = weapon_artifact . power_level . saturating_add (SWORD_POWER_GAIN) ;",
+      "weapon_artifact . is_charged = weapon_artifact . power_level > SWORD_CHARGE_THRESHOLD ;",
+      "} , ArtifactType :: Shield =>",
+      "{",
+      "forge . materials_stock = forge . materials_stock . saturating_sub (SHIELD_MATERIAL_COST) ;",
+      "weapon_artifact . power_level = weapon_artifact . power_level . saturating_add (SHIELD_POWER_GAIN) ;",
+      "weapon_artifact . is_charged = weapon_artifact . power_level > SHIELD_CHARGE_THRESHOLD ;",
+      "} , ArtifactType :: Wand =>",
+      "{",
+      "forge . materials_stock = forge . materials_stock . saturating_sub (WAND_MATERIAL_COST) ;",
+      "weapon_artifact . power_level = weapon_artifact . power_level . saturating_add (WAND_POWER_GAIN) ;",
+      "weapon_artifact . is_charged = weapon_artifact . power_level > WAND_CHARGE_THRESHOLD ;",
+      "} , } match shield_artifact . artifact_type",
+      "{",
+      "ArtifactType :: Sword => { forge . materials_stock = forge . materials_stock . saturating_sub (SWORD_MATERIAL_COST) ;",
+      "shield_artifact . power_level = shield_artifact . power_level . saturating_add (SWORD_POWER_GAIN) ;",
+      "shield_artifact . is_charged = shield_artifact . power_level > SWORD_CHARGE_THRESHOLD ;",
+      "} , ArtifactType :: Shield =>",
+      "{",
+      "forge . materials_stock = forge . materials_stock . saturating_sub (SHIELD_MATERIAL_COST) ;",
+      "shield_artifact . power_level = shield_artifact . power_level . saturating_add (SHIELD_POWER_GAIN) ;",
+      "shield_artifact . is_charged = shield_artifact . power_level > SHIELD_CHARGE_THRESHOLD ;",
+      "} , ArtifactType :: Wand =>",
+      "{",
+      "forge . materials_stock = forge . materials_stock . saturating_sub (WAND_MATERIAL_COST) ;",
+      "shield_artifact . power_level = shield_artifact . power_level . saturating_add (WAND_POWER_GAIN) ;",
+      "shield_artifact . is_charged = shield_artifact . power_level > WAND_CHARGE_THRESHOLD ;",
+      "} , } forge . artifacts_crafted = forge . artifacts_crafted . saturating_add (2) ;",
+      "}",
+      "msg ! (\"{} cycles of crafting completed. Weapon power level: {}, Shield power level: {}.\" , crafting_cycles , weapon_artifact . power_level , shield_artifact . power_level) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitForge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ember_forge",
+        "attribute": "# [account (init , payer = signer , space = 8 + 8 + 4 + 4 + 1)]",
+        "field_type": "Account < 'info , EmberForge >"
+      },
+      {
+        "name": "signer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitArtifact",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "artifact",
+        "attribute": "# [account (init , payer = signer , space = 8 + 32 + 8 + 1 + 4 + 1)]",
+        "field_type": "Account < 'info , Artifact >"
+      },
+      {
+        "name": "ember_forge",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , EmberForge >"
+      },
+      {
+        "name": "signer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CraftArtifacts",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ember_forge",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , EmberForge >"
+      },
+      {
+        "name": "weapon_artifact",
+        "attribute": "# [account (mut , has_one = parent_forge)]",
+        "field_type": "Account < 'info , Artifact >"
+      },
+      {
+        "name": "shield_artifact",
+        "attribute": "# [account (mut , has_one = parent_forge)]",
+        "field_type": "Account < 'info , Artifact >"
+      },
+      {
+        "name": "signer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EmberForge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "forge_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "materials_stock",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "artifacts_crafted",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "is_active",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Artifact",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent_forge",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "artifact_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "artifact_type",
+        "attribute": null,
+        "field_type": "ArtifactType"
+      },
+      {
+        "name": "power_level",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "is_charged",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

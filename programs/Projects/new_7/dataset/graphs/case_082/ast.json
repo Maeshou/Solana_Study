@@ -1,0 +1,217 @@
+[
+  {
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Init >",
+      "cap_value: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let pipeline_state = & mut ctx . accounts . pipeline_state ;",
+      "pipeline_state . master_authority = ctx . accounts . master_authority . key () ;",
+      "pipeline_state . cap_value = cap_value ;",
+      "pipeline_state . step_counter = 5 ;",
+      "pipeline_state . accumulator = (cap_value ^ 0xA5A5) as u64 ;",
+      "pipeline_state . route_program_id = Pubkey :: new_unique () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "rebind",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Rebind >",
+      "new_route: Pubkey"
+    ],
+    "attributes": [],
+    "body": [
+      "let pipeline_state = & mut ctx . accounts . pipeline_state ;",
+      "require_keys_eq ! (pipeline_state . master_authority , ctx . accounts . master_authority . key () , ErrorCode :: Denied) ;",
+      "pipeline_state . route_program_id = new_route ;",
+      "pipeline_state . step_counter = pipeline_state . step_counter . saturating_add (3) ;",
+      "pipeline_state . accumulator = pipeline_state . accumulator . rotate_left (3) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "stream",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Stream >",
+      "value: u64",
+      "loop_count: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let pipeline_state = & mut ctx . accounts . pipeline_state ;",
+      "if value <= 3",
+      "{",
+      "pipeline_state . step_counter = pipeline_state . step_counter . saturating_add (1) ;",
+      "pipeline_state . accumulator = pipeline_state . accumulator . wrapping_add (19) ;",
+      "return Ok (()) ;",
+      "}",
+      "let mut remaining_value = value ;",
+      "let mut round_index : u8 = 0 ;",
+      "while round_index < loop_count",
+      "{",
+      "let transfer_part = (remaining_value / 3) . max (4) ;",
+      "if transfer_part >= remaining_value",
+      "{",
+      "break ;",
+      "} let transfer_ix = token_ix :: transfer (& pipeline_state . route_program_id , & ctx . accounts . source_vault . key () , & ctx . accounts . sink_vault . key () , & ctx . accounts . master_authority . key () , & [] , transfer_part ,) ? ;",
+      "let external_program_ai = ctx . remaining_accounts . get (1) . ok_or (ErrorCode :: NoProgram) ? ;",
+      "invoke (& transfer_ix , & [external_program_ai . clone () , ctx . accounts . source_vault . to_account_info () , ctx . accounts . sink_vault . to_account_info () , ctx . accounts . master_authority . to_account_info () ,] ,) ? ;",
+      "remaining_value = remaining_value . saturating_sub (transfer_part) ;",
+      "pipeline_state . step_counter = pipeline_state . step_counter . saturating_add (1) ;",
+      "round_index = round_index . saturating_add (1) ;",
+      "if remaining_value < pipeline_state . cap_value / 3",
+      "{",
+      "pipeline_state . accumulator = pipeline_state . accumulator . wrapping_add (transfer_part ^ 17) ;",
+      "} else",
+      "{",
+      "pipeline_state . accumulator = pipeline_state . accumulator . wrapping_mul (3) . wrapping_add (23) ;",
+      "}",
+      "}",
+      "if remaining_value > 3",
+      "{",
+      "let final_ix = token_ix :: transfer (& pipeline_state . route_program_id , & ctx . accounts . source_vault . key () , & ctx . accounts . sink_vault . key () , & ctx . accounts . master_authority . key () , & [] , remaining_value - 3 ,) ? ;",
+      "let external_program_ai = ctx . remaining_accounts . get (1) . ok_or (ErrorCode :: NoProgram) ? ;",
+      "invoke (& final_ix , & [external_program_ai . clone () , ctx . accounts . source_vault . to_account_info () , ctx . accounts . sink_vault . to_account_info () , ctx . accounts . master_authority . to_account_info () ,] ,) ? ;",
+      "pipeline_state . accumulator = pipeline_state . accumulator . wrapping_add (remaining_value - 3) ;",
+      "}",
+      "let mut tail_turn : u8 = 1 ;",
+      "while tail_turn < 3",
+      "{",
+      "pipeline_state . step_counter = pipeline_state . step_counter . saturating_add (2) ;",
+      "pipeline_state . accumulator = pipeline_state . accumulator . rotate_right (tail_turn as u32) ;",
+      "tail_turn = tail_turn . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "PipelineState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "master_authority",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "cap_value",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "step_counter",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "accumulator",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "route_program_id",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Init",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pipeline_state",
+        "attribute": "# [account (init , payer = master_authority , space = 8 + 32 + 8 + 8 + 8 + 32)]",
+        "field_type": "Account < 'info , PipelineState >"
+      },
+      {
+        "name": "master_authority",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "source_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "sink_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Rebind",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pipeline_state",
+        "attribute": "# [account (mut , has_one = master_authority)]",
+        "field_type": "Account < 'info , PipelineState >"
+      },
+      {
+        "name": "master_authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Stream",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pipeline_state",
+        "attribute": "# [account (mut , has_one = master_authority)]",
+        "field_type": "Account < 'info , PipelineState >"
+      },
+      {
+        "name": "master_authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "source_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "sink_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

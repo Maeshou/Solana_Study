@@ -1,0 +1,262 @@
+[
+  {
+    "name": "init_post",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitPost >",
+      "lane: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let p = & mut ctx . accounts . post ;",
+      "p . owner = ctx . accounts . owner . key () ;",
+      "p . lane = lane ;",
+      "p . score = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_moderator",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitModerator >",
+      "lane: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let m = & mut ctx . accounts . moderator ;",
+      "m . parent = ctx . accounts . post . key () ;",
+      "m . lane = lane ;",
+      "m . vote = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_log",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitLog >"
+    ],
+    "attributes": [],
+    "body": [
+      "let l = & mut ctx . accounts . log ;",
+      "l . ok = 0 ;",
+      "l . ng = 0 ;",
+      "l . events = [0u32 ; 4] ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "review",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Review >",
+      "weight: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let p = & mut ctx . accounts . post ;",
+      "let a = & mut ctx . accounts . mod_a ;",
+      "let b = & mut ctx . accounts . mod_b ;",
+      "let l = & mut ctx . accounts . log ;",
+      "let delta_a = ((weight as u32) ^ (a . lane as u32)) & 0x3FF ;",
+      "let delta_b = ((weight as u32) ^ (b . lane as u32) . rotate_left (3)) & 0x3FF ;",
+      "p . score = p . score . saturating_add (delta_a / 3) . saturating_add (delta_b / 4) ;",
+      "for i in 0 .. l . events . len ()",
+      "{",
+      "let v = l . events [i] . wrapping_add (((p . score as u32) >> i) & 0x7F) ;",
+      "l . events [i] = v ;",
+      "}",
+      "if (p . score & 1) == 0",
+      "{",
+      "l . ok = l . ok . saturating_add (1) ;",
+      "} else",
+      "{",
+      "l . ng = l . ng . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitPost",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "post",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Post >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitModerator",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "post",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Post >"
+      },
+      {
+        "name": "moderator",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Moderator >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitLog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "log",
+        "attribute": "# [account (init , payer = owner , space = 8 + 4 + 4 + (4 * 4))]",
+        "field_type": "Account < 'info , Log >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Review",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "post",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Post >"
+      },
+      {
+        "name": "mod_a",
+        "attribute": "# [account (mut , constraint = mod_a . parent == post . key () @ ReviewErr :: Cosplay)]",
+        "field_type": "Account < 'info , Moderator >"
+      },
+      {
+        "name": "mod_b",
+        "attribute": "# [account (mut , constraint = mod_b . parent == post . key () @ ReviewErr :: Cosplay , constraint = mod_a . lane != mod_b . lane @ ReviewErr :: Cosplay)]",
+        "field_type": "Account < 'info , Moderator >"
+      },
+      {
+        "name": "log",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Log >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Post",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "lane",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "score",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Moderator",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "lane",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "vote",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Log",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ok",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "ng",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "events",
+        "attribute": null,
+        "field_type": "[u32 ; 4]"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

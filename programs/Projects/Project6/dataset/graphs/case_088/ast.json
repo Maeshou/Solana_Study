@@ -1,0 +1,245 @@
+[
+  {
+    "name": "init_raid",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitRaid >",
+      "boss: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let r = & mut ctx . accounts . raid ;",
+      "r . owner = ctx . accounts . host . key () ;",
+      "r . boss = boss ;",
+      "r . total_round = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_slot",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitSlot >",
+      "tag: SlotTag"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . slot ;",
+      "s . raid = ctx . accounts . raid . key () ;",
+      "s . tag = tag ;",
+      "s . total_damage = 0 ;",
+      "s . buff = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "record_round",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RecordRound >",
+      "seed: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let raid = & mut ctx . accounts . raid ;",
+      "let a = & mut ctx . accounts . attacker ;",
+      "let d = & mut ctx . accounts . defender ;",
+      "let book = & mut ctx . accounts . book ;",
+      "let mut rolling = seed ;",
+      "for _ in 0 .. 8",
+      "{",
+      "rolling = rolling . rotate_left (3) ^ 0x9E3779B97F4A7C15u64 ;",
+      "a . buff = a . buff ^ ((rolling as u32) & 0x3F) ;",
+      "book . hash = book . hash . wrapping_add (rolling) ;",
+      "}",
+      "if (rolling & 1) == 0",
+      "{",
+      "a . total_damage = a . total_damage . saturating_add (((rolling >> 8) & 0xFFFF) as u64) ;",
+      "raid . total_round = raid . total_round . saturating_add (1) ;",
+      "book . lines = book . lines . saturating_add (1) ;",
+      "book . last = rolling ;",
+      "msg ! (\"Even roll: attacker scores and round increments\") ;",
+      "} else",
+      "{",
+      "d . total_damage = d . total_damage . saturating_add (((rolling >> 12) & 0x7FFF) as u64) ;",
+      "raid . total_round = raid . total_round . saturating_add (1) ;",
+      "book . lines = book . lines . saturating_add (2) ;",
+      "book . last = rolling ^ book . hash ;",
+      "msg ! (\"Odd roll: defender absorbs and record adjusted\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitRaid",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "raid",
+        "attribute": "# [account (init , payer = host , space = 8 + Raid :: MAX)]",
+        "field_type": "Account < 'info , Raid >"
+      },
+      {
+        "name": "host",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitSlot",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "raid",
+        "attribute": "# [account (mut , has_one = owner , owner = crate :: ID)]",
+        "field_type": "Account < 'info , Raid >"
+      },
+      {
+        "name": "slot",
+        "attribute": "# [account (init , payer = user , space = 8 + Slot :: MAX)]",
+        "field_type": "Account < 'info , Slot >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RecordRound",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "raid",
+        "attribute": "# [account (mut , has_one = owner , owner = crate :: ID)]",
+        "field_type": "Account < 'info , Raid >"
+      },
+      {
+        "name": "book",
+        "attribute": "# [account (mut , has_one = raid , owner = crate :: ID)]",
+        "field_type": "Account < 'info , Book >"
+      },
+      {
+        "name": "attacker",
+        "attribute": "# [account (mut , has_one = raid , owner = crate :: ID)]",
+        "field_type": "Account < 'info , Slot >"
+      },
+      {
+        "name": "defender",
+        "attribute": "# [account (mut , has_one = raid , owner = crate :: ID , constraint = attacker . tag != defender . tag @ ErrCode :: CosplayBlocked)]",
+        "field_type": "Account < 'info , Slot >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Raid",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "boss",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "total_round",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Slot",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "raid",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "tag",
+        "attribute": null,
+        "field_type": "SlotTag"
+      },
+      {
+        "name": "total_damage",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "buff",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Book",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "raid",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "hash",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "last",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "lines",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

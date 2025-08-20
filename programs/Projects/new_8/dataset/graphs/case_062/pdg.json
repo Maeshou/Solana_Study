@@ -1,0 +1,525 @@
+[
+  {
+    "name": "make_box",
+    "inputs": [
+      "ctx: Context < MakeBox >",
+      "count: u64"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let b = & mut ctx . accounts . box_data ;"
+      },
+      {
+        "id": 2,
+        "label": "b . owner = ctx . accounts . owner . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "b . bump_saved = * ctx . bumps . get (\"box_data\") . ok_or (error ! (Errs :: MissingBump)) ? ;"
+      },
+      {
+        "id": 4,
+        "label": "b . count = count % 55 + 5 ;"
+      },
+      {
+        "id": 5,
+        "label": "b . tally = 0 ;"
+      },
+      {
+        "id": 6,
+        "label": "let mut rolling = b . count ^ (Clock :: get () ? . slot as u64) ;"
+      },
+      {
+        "id": 7,
+        "label": "for step in 0 .. 7 { if step % 2 == 0 { b . tally = b . tally . saturating_add (((rolling as u32) ^ (step as u32)) . wrapping_add (13)) ; } rolling = rolling . rotate_left ((step + 3) as u32) . wrapping_add (step as u64) ; }"
+      },
+      {
+        "id": 8,
+        "label": "if step % 2 == 0 { b . tally = b . tally . saturating_add (((rolling as u32) ^ (step as u32)) . wrapping_add (13)) ; }"
+      },
+      {
+        "id": 9,
+        "label": "b . tally = b . tally . saturating_add (((rolling as u32) ^ (step as u32)) . wrapping_add (13)) ;"
+      },
+      {
+        "id": 10,
+        "label": "rolling = rolling . rotate_left ((step + 3) as u32) . wrapping_add (step as u64) ;"
+      },
+      {
+        "id": 11,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: b"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 6,
+        "to": 6,
+        "label": "def: rolling"
+      },
+      {
+        "from": 1,
+        "to": 6,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 1,
+        "to": 7,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 1,
+        "to": 7,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 6,
+        "to": 7,
+        "label": "data_dep: rolling"
+      },
+      {
+        "from": 6,
+        "to": 7,
+        "label": "data_dep: rolling"
+      },
+      {
+        "from": 6,
+        "to": 7,
+        "label": "data_dep: rolling"
+      },
+      {
+        "from": 1,
+        "to": 8,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 1,
+        "to": 8,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 6,
+        "to": 8,
+        "label": "data_dep: rolling"
+      },
+      {
+        "from": 1,
+        "to": 9,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 1,
+        "to": 9,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 6,
+        "to": 9,
+        "label": "data_dep: rolling"
+      },
+      {
+        "from": 6,
+        "to": 10,
+        "label": "data_dep: rolling"
+      },
+      {
+        "from": 6,
+        "to": 10,
+        "label": "data_dep: rolling"
+      }
+    ]
+  },
+  {
+    "name": "withdraw",
+    "inputs": [
+      "ctx: Context < Withdraw >",
+      "lamports: u64"
+    ],
+    "nodes": [
+      {
+        "id": 12,
+        "label": "Entry"
+      },
+      {
+        "id": 13,
+        "label": "let meta = & ctx . accounts . box_data ;"
+      },
+      {
+        "id": 14,
+        "label": "let bump_variant = meta . bump_saved . wrapping_add (((lamports & 3) as u8) ^ 2) ;"
+      },
+      {
+        "id": 15,
+        "label": "let seeds_primary : & [& [u8]] = & [b\"box_shadow\" , meta . owner . as_ref () , & [bump_variant] ,] ;"
+      },
+      {
+        "id": 16,
+        "label": "let pda_primary = Pubkey :: create_program_address (& [b\"box_shadow\" , meta . owner . as_ref () , & [bump_variant]] , ctx . program_id ,) . map_err (| _ | error ! (Errs :: SeedCompute)) ? ;"
+      },
+      {
+        "id": 17,
+        "label": "let ix1 = system_instruction :: transfer (& pda_primary , & ctx . accounts . target . key () , lamports . saturating_add (97) ,) ;"
+      },
+      {
+        "id": 18,
+        "label": "let infos1 = & [ctx . accounts . alt_box . to_account_info () , ctx . accounts . target . to_account_info () , ctx . accounts . system_program . to_account_info () ,] ;"
+      },
+      {
+        "id": 19,
+        "label": "invoke_signed (& ix1 , infos1 , & [seeds_primary]) ? ;"
+      },
+      {
+        "id": 20,
+        "label": "let bump_swapped = bump_variant . wrapping_add (1) ;"
+      },
+      {
+        "id": 21,
+        "label": "let seeds_swapped : & [& [u8]] = & [meta . owner . as_ref () , b\"box_shadow\" , & [bump_swapped] ,] ;"
+      },
+      {
+        "id": 22,
+        "label": "let _maybe_swapped = Pubkey :: create_program_address (& [meta . owner . as_ref () , b\"box_shadow\" , & [bump_swapped]] , ctx . program_id ,) . unwrap_or (meta . owner) ;"
+      },
+      {
+        "id": 23,
+        "label": "let ix2 = system_instruction :: transfer (& ctx . accounts . alt_box . key () , & ctx . accounts . target . key () , (lamports ^ 41) . saturating_add (11) ,) ;"
+      },
+      {
+        "id": 24,
+        "label": "let infos2 = & [ctx . accounts . alt_box . to_account_info () , ctx . accounts . target . to_account_info () , ctx . accounts . system_program . to_account_info () ,] ;"
+      },
+      {
+        "id": 25,
+        "label": "invoke_signed (& ix2 , infos2 , & [seeds_swapped]) ? ;"
+      },
+      {
+        "id": 26,
+        "label": "let mut remain = lamports . wrapping_add ((Clock :: get () ? . unix_timestamp as u64) & 127) ;"
+      },
+      {
+        "id": 27,
+        "label": "let mut loop_guard = 0u8 ;"
+      },
+      {
+        "id": 28,
+        "label": "while loop_guard < 4 { let mix = (remain % 29) as u32 ; ctx . accounts . box_data . tally = ctx . accounts . box_data . tally . wrapping_add (mix . rotate_left ((loop_guard + 3) as u32)) . wrapping_add (17) ; remain = remain . rotate_right (2) . wrapping_add (5) ; loop_guard = loop_guard . saturating_add (1) ; }"
+      },
+      {
+        "id": 29,
+        "label": "let mix = (remain % 29) as u32 ;"
+      },
+      {
+        "id": 30,
+        "label": "ctx . accounts . box_data . tally = ctx . accounts . box_data . tally . wrapping_add (mix . rotate_left ((loop_guard + 3) as u32)) . wrapping_add (17) ;"
+      },
+      {
+        "id": 31,
+        "label": "remain = remain . rotate_right (2) . wrapping_add (5) ;"
+      },
+      {
+        "id": 32,
+        "label": "loop_guard = loop_guard . saturating_add (1) ;"
+      },
+      {
+        "id": 33,
+        "label": "if (remain & 1) == 1 { let mut spice = 3u32 ; for k in 0 .. 3 { spice = spice . rotate_left (k + 2) . wrapping_mul (7) . wrapping_add (k as u32) ; } ctx . accounts . box_data . tally = ctx . accounts . box_data . tally . wrapping_add (spice) ; }"
+      },
+      {
+        "id": 34,
+        "label": "let mut spice = 3u32 ;"
+      },
+      {
+        "id": 35,
+        "label": "for k in 0 .. 3 { spice = spice . rotate_left (k + 2) . wrapping_mul (7) . wrapping_add (k as u32) ; }"
+      },
+      {
+        "id": 36,
+        "label": "spice = spice . rotate_left (k + 2) . wrapping_mul (7) . wrapping_add (k as u32) ;"
+      },
+      {
+        "id": 37,
+        "label": "ctx . accounts . box_data . tally = ctx . accounts . box_data . tally . wrapping_add (spice) ;"
+      },
+      {
+        "id": 38,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 13,
+        "to": 13,
+        "label": "def: meta"
+      },
+      {
+        "from": 14,
+        "to": 14,
+        "label": "def: bump_variant"
+      },
+      {
+        "from": 13,
+        "to": 14,
+        "label": "data_dep: meta"
+      },
+      {
+        "from": 13,
+        "to": 15,
+        "label": "data_dep: meta"
+      },
+      {
+        "from": 14,
+        "to": 15,
+        "label": "data_dep: bump_variant"
+      },
+      {
+        "from": 16,
+        "to": 16,
+        "label": "def: pda_primary"
+      },
+      {
+        "from": 13,
+        "to": 16,
+        "label": "data_dep: meta"
+      },
+      {
+        "from": 14,
+        "to": 16,
+        "label": "data_dep: bump_variant"
+      },
+      {
+        "from": 17,
+        "to": 17,
+        "label": "def: ix1"
+      },
+      {
+        "from": 16,
+        "to": 17,
+        "label": "data_dep: pda_primary"
+      },
+      {
+        "from": 18,
+        "to": 18,
+        "label": "def: infos1"
+      },
+      {
+        "from": 17,
+        "to": 19,
+        "label": "data_dep: ix1"
+      },
+      {
+        "from": 18,
+        "to": 19,
+        "label": "data_dep: infos1"
+      },
+      {
+        "from": 20,
+        "to": 20,
+        "label": "def: bump_swapped"
+      },
+      {
+        "from": 14,
+        "to": 20,
+        "label": "data_dep: bump_variant"
+      },
+      {
+        "from": 13,
+        "to": 21,
+        "label": "data_dep: meta"
+      },
+      {
+        "from": 20,
+        "to": 21,
+        "label": "data_dep: bump_swapped"
+      },
+      {
+        "from": 22,
+        "to": 22,
+        "label": "def: _maybe_swapped"
+      },
+      {
+        "from": 13,
+        "to": 22,
+        "label": "data_dep: meta"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: bump_swapped"
+      },
+      {
+        "from": 13,
+        "to": 22,
+        "label": "data_dep: meta"
+      },
+      {
+        "from": 23,
+        "to": 23,
+        "label": "def: ix2"
+      },
+      {
+        "from": 24,
+        "to": 24,
+        "label": "def: infos2"
+      },
+      {
+        "from": 23,
+        "to": 25,
+        "label": "data_dep: ix2"
+      },
+      {
+        "from": 24,
+        "to": 25,
+        "label": "data_dep: infos2"
+      },
+      {
+        "from": 26,
+        "to": 26,
+        "label": "def: remain"
+      },
+      {
+        "from": 27,
+        "to": 27,
+        "label": "def: loop_guard"
+      },
+      {
+        "from": 27,
+        "to": 28,
+        "label": "data_dep: loop_guard"
+      },
+      {
+        "from": 26,
+        "to": 28,
+        "label": "data_dep: remain"
+      },
+      {
+        "from": 27,
+        "to": 28,
+        "label": "data_dep: loop_guard"
+      },
+      {
+        "from": 26,
+        "to": 28,
+        "label": "data_dep: remain"
+      },
+      {
+        "from": 26,
+        "to": 28,
+        "label": "data_dep: remain"
+      },
+      {
+        "from": 27,
+        "to": 28,
+        "label": "data_dep: loop_guard"
+      },
+      {
+        "from": 27,
+        "to": 28,
+        "label": "data_dep: loop_guard"
+      },
+      {
+        "from": 29,
+        "to": 29,
+        "label": "def: mix"
+      },
+      {
+        "from": 26,
+        "to": 29,
+        "label": "data_dep: remain"
+      },
+      {
+        "from": 29,
+        "to": 30,
+        "label": "data_dep: mix"
+      },
+      {
+        "from": 27,
+        "to": 30,
+        "label": "data_dep: loop_guard"
+      },
+      {
+        "from": 26,
+        "to": 31,
+        "label": "data_dep: remain"
+      },
+      {
+        "from": 26,
+        "to": 31,
+        "label": "data_dep: remain"
+      },
+      {
+        "from": 27,
+        "to": 32,
+        "label": "data_dep: loop_guard"
+      },
+      {
+        "from": 27,
+        "to": 32,
+        "label": "data_dep: loop_guard"
+      },
+      {
+        "from": 26,
+        "to": 33,
+        "label": "data_dep: remain"
+      },
+      {
+        "from": 34,
+        "to": 34,
+        "label": "def: spice"
+      },
+      {
+        "from": 34,
+        "to": 35,
+        "label": "data_dep: spice"
+      },
+      {
+        "from": 34,
+        "to": 35,
+        "label": "data_dep: spice"
+      },
+      {
+        "from": 34,
+        "to": 36,
+        "label": "data_dep: spice"
+      },
+      {
+        "from": 34,
+        "to": 36,
+        "label": "data_dep: spice"
+      },
+      {
+        "from": 34,
+        "to": 37,
+        "label": "data_dep: spice"
+      }
+    ]
+  }
+]

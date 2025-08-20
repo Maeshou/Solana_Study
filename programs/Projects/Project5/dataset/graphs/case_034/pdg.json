@@ -1,9 +1,9 @@
 [
   {
-    "name": "claim_rewards",
+    "name": "init_loom",
     "inputs": [
-      "ctx: Context < Ctx034 >",
-      "amount: u64"
+      "ctx: Context < InitLoom >",
+      "modulo: u32"
     ],
     "nodes": [
       {
@@ -12,18 +12,22 @@
       },
       {
         "id": 1,
-        "label": "let cpi_accounts = Transfer { from : ctx . accounts . from_token . to_account_info () , to : ctx . accounts . to_token . to_account_info () , authority : ctx . accounts . authority . to_account_info () , } ;"
+        "label": "let p = & mut ctx . accounts ;"
       },
       {
         "id": 2,
-        "label": "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;"
+        "label": "p . loom . weaver = p . weaver . key () ;"
       },
       {
         "id": 3,
-        "label": "token :: transfer (cpi_ctx , amount) ? ;"
+        "label": "p . loom . modulo = modulo . max (17) ;"
       },
       {
         "id": 4,
+        "label": "p . loom . phase = LoomPhase :: Warp ;"
+      },
+      {
+        "id": 5,
         "label": "Ok (())"
       }
     ],
@@ -31,22 +35,329 @@
       {
         "from": 1,
         "to": 1,
-        "label": "def: cpi_accounts"
-      },
-      {
-        "from": 2,
-        "to": 2,
-        "label": "def: cpi_ctx"
+        "label": "def: p"
       },
       {
         "from": 1,
         "to": 2,
-        "label": "data_dep: cpi_accounts"
+        "label": "data_dep: p"
       },
       {
-        "from": 2,
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 1,
         "to": 3,
-        "label": "data_dep: cpi_ctx"
+        "label": "data_dep: p"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: p"
+      }
+    ]
+  },
+  {
+    "name": "weave",
+    "inputs": [
+      "ctx: Context < Weave >",
+      "steps: u32"
+    ],
+    "nodes": [
+      {
+        "id": 6,
+        "label": "Entry"
+      },
+      {
+        "id": 7,
+        "label": "let p = & mut ctx . accounts ;"
+      },
+      {
+        "id": 8,
+        "label": "assert_ne ! (p . loom . key () , p . log . key () , \"loom/log must differ\") ;"
+      },
+      {
+        "id": 9,
+        "label": "for k in 0 .. steps { p . sheet . pos = p . sheet . pos . wrapping_mul (1664525) . wrapping_add (1013904223) ; let pat = (p . sheet . pos ^ p . sheet . pos . rotate_left (9)) & 0x00FF_FFFF ; let inc = (pat as u64 % p . loom . modulo as u64) + (k as u64 % 3) ; p . sheet . weight = (u128 :: from (p . sheet . weight) + u128 :: from (inc) * 3u128) . min (u128 :: from (u64 :: MAX)) as u64 ; p . log . rows = p . log . rows . wrapping_add ((pat & 0xFF) as u32) ; }"
+      },
+      {
+        "id": 10,
+        "label": "p . sheet . pos = p . sheet . pos . wrapping_mul (1664525) . wrapping_add (1013904223) ;"
+      },
+      {
+        "id": 11,
+        "label": "let pat = (p . sheet . pos ^ p . sheet . pos . rotate_left (9)) & 0x00FF_FFFF ;"
+      },
+      {
+        "id": 12,
+        "label": "let inc = (pat as u64 % p . loom . modulo as u64) + (k as u64 % 3) ;"
+      },
+      {
+        "id": 13,
+        "label": "p . sheet . weight = (u128 :: from (p . sheet . weight) + u128 :: from (inc) * 3u128) . min (u128 :: from (u64 :: MAX)) as u64 ;"
+      },
+      {
+        "id": 14,
+        "label": "p . log . rows = p . log . rows . wrapping_add ((pat & 0xFF) as u32) ;"
+      },
+      {
+        "id": 15,
+        "label": "if p . sheet . weight % 2 == 0 { p . loom . phase = LoomPhase :: Weft ; p . log . flags = p . log . flags . wrapping_add (5) ; p . sheet . pos ^= 0x5A5A_A5A5 ; msg ! (\"even weight: Weft, flags+=5, pos xored\") ; } else { p . loom . phase = LoomPhase :: Rest ; p . log . rows = p . log . rows . wrapping_mul (2) . wrapping_add (1) ; p . sheet . weight = p . sheet . weight / 2 + 7 ; msg ! (\"odd weight: Rest, rows=2x+1, weight halved+7\") ; }"
+      },
+      {
+        "id": 16,
+        "label": "p . loom . phase = LoomPhase :: Weft ;"
+      },
+      {
+        "id": 17,
+        "label": "p . log . flags = p . log . flags . wrapping_add (5) ;"
+      },
+      {
+        "id": 18,
+        "label": "p . sheet . pos ^= 0x5A5A_A5A5 ;"
+      },
+      {
+        "id": 19,
+        "label": "msg ! (\"even weight: Weft, flags+=5, pos xored\") ;"
+      },
+      {
+        "id": 20,
+        "label": "p . loom . phase = LoomPhase :: Rest ;"
+      },
+      {
+        "id": 21,
+        "label": "p . log . rows = p . log . rows . wrapping_mul (2) . wrapping_add (1) ;"
+      },
+      {
+        "id": 22,
+        "label": "p . sheet . weight = p . sheet . weight / 2 + 7 ;"
+      },
+      {
+        "id": 23,
+        "label": "msg ! (\"odd weight: Rest, rows=2x+1, weight halved+7\") ;"
+      },
+      {
+        "id": 24,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 7,
+        "to": 7,
+        "label": "def: p"
+      },
+      {
+        "from": 7,
+        "to": 9,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 7,
+        "to": 9,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 7,
+        "to": 9,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 7,
+        "to": 9,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 7,
+        "to": 9,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 7,
+        "to": 9,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 7,
+        "to": 9,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 7,
+        "to": 9,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 7,
+        "to": 9,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 7,
+        "to": 10,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 7,
+        "to": 10,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 11,
+        "to": 11,
+        "label": "def: pat"
+      },
+      {
+        "from": 7,
+        "to": 11,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 7,
+        "to": 11,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 12,
+        "to": 12,
+        "label": "def: inc"
+      },
+      {
+        "from": 11,
+        "to": 12,
+        "label": "data_dep: pat"
+      },
+      {
+        "from": 7,
+        "to": 12,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 7,
+        "to": 13,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 7,
+        "to": 13,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 12,
+        "to": 13,
+        "label": "data_dep: inc"
+      },
+      {
+        "from": 7,
+        "to": 14,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 7,
+        "to": 14,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 11,
+        "to": 14,
+        "label": "data_dep: pat"
+      },
+      {
+        "from": 7,
+        "to": 15,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 7,
+        "to": 15,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 7,
+        "to": 15,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 7,
+        "to": 15,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 7,
+        "to": 15,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 7,
+        "to": 15,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 7,
+        "to": 15,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 7,
+        "to": 15,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 7,
+        "to": 15,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 7,
+        "to": 15,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 7,
+        "to": 16,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 7,
+        "to": 18,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 7,
+        "to": 20,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 7,
+        "to": 21,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 7,
+        "to": 21,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 7,
+        "to": 22,
+        "label": "data_dep: p"
+      },
+      {
+        "from": 7,
+        "to": 22,
+        "label": "data_dep: p"
       }
     ]
   }

@@ -1,0 +1,148 @@
+[
+  {
+    "name": "init_machine",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitMachine >",
+      "jackpot_rate: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let m = & mut ctx . accounts . machine ;",
+      "m . owner = ctx . accounts . owner . key () ;",
+      "m . jackpot_rate = jackpot_rate . min (500) ;",
+      "m . rolls = 0 ;",
+      "m . jackpots = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_roll",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActRoll >",
+      "ticket_cost: u64",
+      "seed: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let m = & mut ctx . accounts . machine ;",
+      "token :: burn (ctx . accounts . burn_ctx () , ticket_cost) ? ;",
+      "let mut parity = 0u64 ;",
+      "for i in 0 .. 5",
+      "{",
+      "parity ^= (seed >> i) & 1 ;",
+      "}",
+      "let hit = (parity as u16) * 100 >= m . jackpot_rate ;",
+      "if hit",
+      "{",
+      "token :: mint_to (ctx . accounts . mint_ctx () , ticket_cost * 10) ? ;",
+      "m . jackpots = m . jackpots . saturating_add (1) ;",
+      "} else",
+      "{",
+      "token :: mint_to (ctx . accounts . mint_ctx () , ticket_cost / 10 + 1) ? ;",
+      "}",
+      "m . rolls = m . rolls . saturating_add (1) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitMachine",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "machine",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 2 + 8 + 8)]",
+        "field_type": "Account < 'info , Machine >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActRoll",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "machine",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Machine >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "ticket_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "user_ticket",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "prize_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "user_prize",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Machine",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "jackpot_rate",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "rolls",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "jackpots",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

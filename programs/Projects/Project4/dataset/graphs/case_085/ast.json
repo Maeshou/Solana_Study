@@ -1,33 +1,63 @@
 [
   {
-    "name": "initialize_oracle_feed",
+    "name": "init_pool",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Initialize085 >",
-      "param: u64"
+      "ctx: Context < InitPool >",
+      "threads: u8"
     ],
     "attributes": [],
     "body": [
-      "let mut data = OracleFeedData :: try_from_slice (& ctx . accounts . data_account . data . borrow ()) ? ;",
-      "data . value = param ;",
-      "data . serialize (& mut * ctx . accounts . data_account . data . borrow_mut ()) ? ;",
+      "let p = & mut ctx . accounts . pool ;",
+      "p . threads = threads ;",
+      "p . active_threads = 0 ;",
+      "p . overload_flag = false ;",
+      "if threads > 4",
+      "{",
+      "p . overload_flag = true ;",
+      "}",
       "Ok (())"
     ]
   },
   {
-    "name": "Initialize085",
+    "name": "spawn_thread",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SpawnThread >"
+    ],
+    "attributes": [],
+    "body": [
+      "let p = & mut ctx . accounts . pool ;",
+      "if p . active_threads < p . threads",
+      "{",
+      "p . active_threads = p . active_threads . saturating_add (1) ;",
+      "} else",
+      "{",
+      "p . overload_flag = true ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitPool",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "pool",
+        "attribute": "# [account (init , payer = user , space = 8 + 1 + 1 + 1)]",
+        "field_type": "Account < 'info , ThreadPoolData >"
       },
       {
-        "name": "authority",
-        "attribute": null,
+        "name": "user",
+        "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -35,13 +65,37 @@
     "body": null
   },
   {
-    "name": "OracleFeedData",
+    "name": "SpawnThread",
     "node_type": "struct",
     "fields": [
       {
-        "name": "value",
+        "name": "pool",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , ThreadPoolData >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ThreadPoolData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "threads",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "u8"
+      },
+      {
+        "name": "active_threads",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "overload_flag",
+        "attribute": null,
+        "field_type": "bool"
       }
     ],
     "inputs": null,

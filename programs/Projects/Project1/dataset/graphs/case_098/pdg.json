@@ -1,0 +1,210 @@
+[
+  {
+    "name": "init_user",
+    "inputs": [
+      "ctx: Context < InitUser >"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let ud = & mut ctx . accounts . user_cap ;"
+      },
+      {
+        "id": 2,
+        "label": "ud . authority = ctx . accounts . user . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "ud . cap = 1_000 ;"
+      },
+      {
+        "id": 4,
+        "label": "ud . earned = 0 ;"
+      },
+      {
+        "id": 5,
+        "label": "msg ! (\"Initialized cap={} for {}\" , ud . cap , ud . authority) ;"
+      },
+      {
+        "id": 6,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: ud"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: ud"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: ud"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: ud"
+      }
+    ]
+  },
+  {
+    "name": "earn",
+    "inputs": [
+      "ctx: Context < Earn >",
+      "amount: u64"
+    ],
+    "nodes": [
+      {
+        "id": 7,
+        "label": "Entry"
+      },
+      {
+        "id": 8,
+        "label": "require ! (ctx . accounts . user . is_signer , ErrorCode :: Unauthorized) ;"
+      },
+      {
+        "id": 9,
+        "label": "let ud = & mut ctx . accounts . user_cap ;"
+      },
+      {
+        "id": 10,
+        "label": "let new_earned = ud . earned . checked_add (amount) . ok_or (ErrorCode :: Overflow) ? ;"
+      },
+      {
+        "id": 11,
+        "label": "require ! (new_earned <= ud . cap , ErrorCode :: CapExceeded) ;"
+      },
+      {
+        "id": 12,
+        "label": "ud . earned = new_earned ;"
+      },
+      {
+        "id": 13,
+        "label": "msg ! (\"Earned {} (total {}) / cap {}\" , amount , ud . earned , ud . cap) ;"
+      },
+      {
+        "id": 14,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 9,
+        "to": 9,
+        "label": "def: ud"
+      },
+      {
+        "from": 10,
+        "to": 10,
+        "label": "def: new_earned"
+      },
+      {
+        "from": 9,
+        "to": 10,
+        "label": "data_dep: ud"
+      },
+      {
+        "from": 9,
+        "to": 12,
+        "label": "data_dep: ud"
+      },
+      {
+        "from": 10,
+        "to": 12,
+        "label": "data_dep: new_earned"
+      }
+    ]
+  },
+  {
+    "name": "burn_to_extend",
+    "inputs": [
+      "ctx: Context < BurnExtend >",
+      "amount: u64"
+    ],
+    "nodes": [
+      {
+        "id": 15,
+        "label": "Entry"
+      },
+      {
+        "id": 16,
+        "label": "require ! (ctx . accounts . user . is_signer , ErrorCode :: Unauthorized) ;"
+      },
+      {
+        "id": 17,
+        "label": "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , Burn { mint : ctx . accounts . mint . to_account_info () , from : ctx . accounts . user_token . to_account_info () , authority : ctx . accounts . user . to_account_info () , } ,) ;"
+      },
+      {
+        "id": 18,
+        "label": "token :: burn (cpi_ctx , amount) ? ;"
+      },
+      {
+        "id": 19,
+        "label": "let ud = & mut ctx . accounts . user_cap ;"
+      },
+      {
+        "id": 20,
+        "label": "let add = amount . checked_mul (10) . ok_or (ErrorCode :: Overflow) ? ;"
+      },
+      {
+        "id": 21,
+        "label": "ud . cap = ud . cap . checked_add (add) . ok_or (ErrorCode :: Overflow) ? ;"
+      },
+      {
+        "id": 22,
+        "label": "msg ! (\"Burned {} tokens, cap extended by {} → {}\" , amount , add , ud . cap) ;"
+      },
+      {
+        "id": 23,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 17,
+        "to": 17,
+        "label": "def: cpi_ctx"
+      },
+      {
+        "from": 17,
+        "to": 18,
+        "label": "data_dep: cpi_ctx"
+      },
+      {
+        "from": 19,
+        "to": 19,
+        "label": "def: ud"
+      },
+      {
+        "from": 20,
+        "to": 20,
+        "label": "def: add"
+      },
+      {
+        "from": 19,
+        "to": 21,
+        "label": "data_dep: ud"
+      },
+      {
+        "from": 19,
+        "to": 21,
+        "label": "data_dep: ud"
+      },
+      {
+        "from": 20,
+        "to": 21,
+        "label": "data_dep: add"
+      }
+    ]
+  }
+]

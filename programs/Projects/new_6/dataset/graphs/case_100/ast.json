@@ -1,0 +1,243 @@
+[
+  {
+    "name": "init_treasury",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitTreasury >",
+      "max_withdrawals: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let treasury = & mut ctx . accounts . treasury ;",
+      "treasury . guild_id = ctx . accounts . admin . key () ;",
+      "treasury . max_withdrawals = max_withdrawals ;",
+      "treasury . remaining_withdrawals = max_withdrawals ;",
+      "treasury . locked = false ;",
+      "treasury . audit_log = Vec :: new () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "propose_withdrawal",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ProposeWithdrawal >",
+      "amount: u64",
+      "reason: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let treasury = & mut ctx . accounts . treasury ;",
+      "let actor = & ctx . accounts . actor ;",
+      "let timestamp = Clock :: get () ? . unix_timestamp ;",
+      "if treasury . locked",
+      "{",
+      "treasury . audit_log . push (format ! (\"",
+      "{",
+      "}: Rejected proposal by {} due to locked treasury\" , timestamp , actor . key ())) ;",
+      "return Ok (()) ;",
+      "}",
+      "treasury . pending_amount = Some (amount) ;",
+      "treasury . pending_reason = Some (reason . clone ()) ;",
+      "treasury . pending_actor = Some (actor . key ()) ;",
+      "treasury . pending_at = Some (timestamp) ;",
+      "treasury . audit_log . push (format ! (\"{}: Proposal submitted by {} - {} lamports for {}\" , timestamp , actor . key () , amount , reason)) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "approve_withdrawal",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ApproveWithdrawal >"
+    ],
+    "attributes": [],
+    "body": [
+      "let treasury = & mut ctx . accounts . treasury ;",
+      "let board = & ctx . accounts . board ;",
+      "let now = Clock :: get () ? . unix_timestamp ;",
+      "if treasury . locked || treasury . remaining_withdrawals == 0",
+      "{",
+      "treasury . audit_log . push (format ! (\"",
+      "{",
+      "}: Withdrawal approval failed - treasury locked or exhausted\" , now)) ;",
+      "return Ok (()) ;",
+      "}",
+      "let approved_amount = treasury . pending_amount . unwrap_or (0) ;",
+      "if approved_amount == 0",
+      "{",
+      "treasury . audit_log . push (format ! (\"",
+      "{",
+      "}: Approval failed - no pending amount\" , now)) ;",
+      "return Ok (()) ;",
+      "}",
+      "let dest = & ctx . accounts . fund_sink ;",
+      "* * dest . to_account_info () . try_borrow_mut_lamports () ? += approved_amount ;",
+      "treasury . remaining_withdrawals -= 1 ;",
+      "treasury . audit_log . push (format ! (\"{}: Withdrawal approved by {} - {} lamports to {}\" , now , board . key () , approved_amount , dest . key ())) ;",
+      "treasury . pending_amount = None ;",
+      "treasury . pending_actor = None ;",
+      "treasury . pending_reason = None ;",
+      "treasury . pending_at = None ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "emergency_lock",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < LockTreasury >"
+    ],
+    "attributes": [],
+    "body": [
+      "let treasury = & mut ctx . accounts . treasury ;",
+      "treasury . locked = true ;",
+      "treasury . audit_log . push (format ! (\"{}: Emergency lock initiated by {}\" , Clock :: get () ?. unix_timestamp , ctx . accounts . council . key ())) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitTreasury",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "treasury",
+        "attribute": "# [account (init , payer = admin , space = 8 + 512)]",
+        "field_type": "Account < 'info , TreasuryData >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ProposeWithdrawal",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "treasury",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TreasuryData >"
+      },
+      {
+        "name": "actor",
+        "attribute": "# [doc = \" CHECK: 脆弱性ポイント - actor には何の検証もなし\"]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ApproveWithdrawal",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "treasury",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TreasuryData >"
+      },
+      {
+        "name": "board",
+        "attribute": "# [doc = \" CHECK: 脆弱性ポイント - board メンバーであることの検証なし\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "fund_sink",
+        "attribute": "# [doc = \" CHECK: 資金の送金先、任意のアカウントが通る可能性あり\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "LockTreasury",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "treasury",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TreasuryData >"
+      },
+      {
+        "name": "council",
+        "attribute": "# [doc = \" CHECK: council 役職の証明なし\"]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TreasuryData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild_id",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "max_withdrawals",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "remaining_withdrawals",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "locked",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "pending_amount",
+        "attribute": null,
+        "field_type": "Option < u64 >"
+      },
+      {
+        "name": "pending_reason",
+        "attribute": null,
+        "field_type": "Option < String >"
+      },
+      {
+        "name": "pending_actor",
+        "attribute": null,
+        "field_type": "Option < Pubkey >"
+      },
+      {
+        "name": "pending_at",
+        "attribute": null,
+        "field_type": "Option < i64 >"
+      },
+      {
+        "name": "audit_log",
+        "attribute": null,
+        "field_type": "Vec < String >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

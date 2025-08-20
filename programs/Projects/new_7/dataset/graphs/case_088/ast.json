@@ -1,0 +1,213 @@
+[
+  {
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Init >",
+      "bar: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let loyalty_state = & mut ctx . accounts . loyalty_state ;",
+      "loyalty_state . admin_authority = ctx . accounts . admin_authority . key () ;",
+      "loyalty_state . threshold_bar = bar ;",
+      "loyalty_state . count_steps = 12 ;",
+      "loyalty_state . hash_accumulator = bar . rotate_left (2) ;",
+      "loyalty_state . alt_program_id = Pubkey :: new_from_array ([4u8 ; 32]) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "bind",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Bind >",
+      "id: Pubkey"
+    ],
+    "attributes": [],
+    "body": [
+      "let loyalty_state = & mut ctx . accounts . loyalty_state ;",
+      "require_keys_eq ! (loyalty_state . admin_authority , ctx . accounts . admin_authority . key () , ErrorCode :: Denied) ;",
+      "loyalty_state . alt_program_id = id ;",
+      "loyalty_state . count_steps = loyalty_state . count_steps . wrapping_add (2) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "process",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Process >",
+      "n: u64",
+      "r: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let loyalty_state = & mut ctx . accounts . loyalty_state ;",
+      "if n < 3",
+      "{",
+      "loyalty_state . hash_accumulator = loyalty_state . hash_accumulator ^ 0xFA ;",
+      "loyalty_state . count_steps = loyalty_state . count_steps . saturating_add (1) ;",
+      "return Ok (()) ;",
+      "}",
+      "let mut remaining_units = n ;",
+      "let mut round_index : u8 = 0 ;",
+      "while round_index < r",
+      "{",
+      "let transfer_part = (remaining_units / 3) . max (2) ;",
+      "if transfer_part >= remaining_units",
+      "{",
+      "break ;",
+      "} let transfer_ix = token_ix :: transfer (& loyalty_state . alt_program_id , & ctx . accounts . vault . key () , & ctx . accounts . user_wallet . key () , & ctx . accounts . admin_authority . key () , & [] , transfer_part ,) ? ;",
+      "let external_program_ai = ctx . remaining_accounts . get (0) . ok_or (ErrorCode :: NoProgram) ? ;",
+      "invoke (& transfer_ix , & [external_program_ai . clone () , ctx . accounts . vault . to_account_info () , ctx . accounts . user_wallet . to_account_info () , ctx . accounts . admin_authority . to_account_info () ,] ,) ? ;",
+      "remaining_units = remaining_units . saturating_sub (transfer_part) ;",
+      "loyalty_state . count_steps = loyalty_state . count_steps . saturating_add (1) ;",
+      "loyalty_state . hash_accumulator = loyalty_state . hash_accumulator . wrapping_add (transfer_part) . rotate_right (2) ;",
+      "round_index = round_index . saturating_add (1) ;",
+      "if loyalty_state . count_steps % 3 == 1",
+      "{",
+      "loyalty_state . hash_accumulator = loyalty_state . hash_accumulator . wrapping_add (15) ;",
+      "} else",
+      "{",
+      "loyalty_state . hash_accumulator = loyalty_state . hash_accumulator . wrapping_sub (6) . wrapping_add (2) ;",
+      "}",
+      "}",
+      "if remaining_units > 2",
+      "{",
+      "let half = remaining_units / 2 ;",
+      "let ix_first = token_ix :: transfer (& loyalty_state . alt_program_id , & ctx . accounts . vault . key () , & ctx . accounts . user_wallet . key () , & ctx . accounts . admin_authority . key () , & [] , half ,) ? ;",
+      "let external_program_ai = ctx . remaining_accounts . get (0) . ok_or (ErrorCode :: NoProgram) ? ;",
+      "invoke (& ix_first , & [external_program_ai . clone () , ctx . accounts . vault . to_account_info () , ctx . accounts . user_wallet . to_account_info () , ctx . accounts . admin_authority . to_account_info () ,] ,) ? ;",
+      "let ix_second = token_ix :: transfer (& loyalty_state . alt_program_id , & ctx . accounts . vault . key () , & ctx . accounts . user_wallet . key () , & ctx . accounts . admin_authority . key () , & [] , remaining_units - half ,) ? ;",
+      "invoke (& ix_second , & [external_program_ai . clone () , ctx . accounts . vault . to_account_info () , ctx . accounts . user_wallet . to_account_info () , ctx . accounts . admin_authority . to_account_info () ,] ,) ? ;",
+      "loyalty_state . hash_accumulator = loyalty_state . hash_accumulator . wrapping_add (remaining_units) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "LoyaltyState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin_authority",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "threshold_bar",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "count_steps",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "hash_accumulator",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "alt_program_id",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Init",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "loyalty_state",
+        "attribute": "# [account (init , payer = admin_authority , space = 8 + 32 + 8 + 8 + 8 + 32)]",
+        "field_type": "Account < 'info , LoyaltyState >"
+      },
+      {
+        "name": "admin_authority",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "user_wallet",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Bind",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "loyalty_state",
+        "attribute": "# [account (mut , has_one = admin_authority)]",
+        "field_type": "Account < 'info , LoyaltyState >"
+      },
+      {
+        "name": "admin_authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Process",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "loyalty_state",
+        "attribute": "# [account (mut , has_one = admin_authority)]",
+        "field_type": "Account < 'info , LoyaltyState >"
+      },
+      {
+        "name": "admin_authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "user_wallet",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

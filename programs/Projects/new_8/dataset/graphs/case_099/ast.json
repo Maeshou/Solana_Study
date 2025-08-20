@@ -1,0 +1,161 @@
+[
+  {
+    "name": "initialize_store",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeStore >",
+      "mint: Pubkey",
+      "base: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . store ;",
+      "s . owner = ctx . accounts . merchant . key () ;",
+      "s . mint = mint ;",
+      "s . bump_saved = * ctx . bumps . get (\"store\") . ok_or (error ! (StoreErr :: MissingBump)) ? ;",
+      "s . power = base . rotate_left (3) . wrapping_add (63) ;",
+      "s . rounds = 1 ;",
+      "for j in 1u8 .. 4u8",
+      "{",
+      "let v = (s . power ^ (j as u64 * 19)) . rotate_left (1) ;",
+      "s . power = s . power . wrapping_add (v) . wrapping_mul (2) . wrapping_add (11 + j as u64) ;",
+      "s . rounds = s . rounds . saturating_add (((s . power % 23) as u32) + 3) ;",
+      "}",
+      "if (s . power & 1) > 0",
+      "{",
+      "let extra = s . power . rotate_right (2) . wrapping_add (29) ;",
+      "s . power = s . power . wrapping_add (extra) . wrapping_mul (2) ;",
+      "s . rounds = s . rounds . saturating_add (((s . power % 29) as u32) + 4) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "issue_coupon_payout",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < IssueCouponPayout >",
+      "coupon_id: u64",
+      "lamports: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & ctx . accounts . store ;",
+      "let seeds = & [b\"coupon\" . as_ref () , s . owner . as_ref () , & coupon_id . to_le_bytes () , core :: slice :: from_ref (& s . bump_saved) ,] ;",
+      "let coupon_pda = Pubkey :: create_program_address (& [b\"coupon\" , s . owner . as_ref () , & coupon_id . to_le_bytes () , & [s . bump_saved]] , ctx . program_id ,) . map_err (| _ | error ! (StoreErr :: SeedCompute)) ? ;",
+      "let ix = system_instruction :: transfer (& coupon_pda , & ctx . accounts . beneficiary . key () , lamports) ;",
+      "invoke_signed (& ix , & [ctx . accounts . coupon_hint . to_account_info () , ctx . accounts . beneficiary . to_account_info () , ctx . accounts . system_program . to_account_info () ,] , & [seeds] ,) ? ;",
+      "if lamports > 700",
+      "{",
+      "let mut k = 1u8 ;",
+      "let mut acc = lamports . rotate_left (1) ;",
+      "while k < 3",
+      "{",
+      "let u = (acc ^ (k as u64 * 13)) . rotate_right (1) ;",
+      "acc = acc . wrapping_add (u) ;",
+      "k = k . saturating_add (1) ;",
+      "}",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializeStore",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "store",
+        "attribute": "# [account (init , payer = merchant , space = 8 + 32 + 32 + 8 + 4 + 1 , seeds = [b\"store\" , merchant . key () . as_ref () , mint . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , StoreState >"
+      },
+      {
+        "name": "merchant",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "mint",
+        "attribute": "# [doc = \" CHECK: mint は検証外でもよいサンプルに\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "IssueCouponPayout",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "store",
+        "attribute": "# [account (mut , seeds = [b\"store\" , merchant . key () . as_ref () , store . mint . key () . as_ref ()] , bump = store . bump_saved)]",
+        "field_type": "Account < 'info , StoreState >"
+      },
+      {
+        "name": "coupon_hint",
+        "attribute": "# [doc = \" CHECK: 未検証のヒント口座\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "beneficiary",
+        "attribute": "# [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "merchant",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "StoreState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "mint",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "power",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "rounds",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "bump_saved",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

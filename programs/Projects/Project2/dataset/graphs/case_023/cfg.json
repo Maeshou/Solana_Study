@@ -1,6 +1,6 @@
 [
   {
-    "name": "close_account",
+    "name": "deposit",
     "nodes": [
       {
         "id": 0,
@@ -8,23 +8,35 @@
       },
       {
         "id": 1,
-        "label": "let acct = & mut ctx . accounts . account ;"
+        "label": "require ! (ctx . accounts . user_token_account . owner == & token :: ID , ErrorCode :: InvalidUserTokenOwner) ;"
       },
       {
         "id": 2,
-        "label": "let temp = acct . data ;"
+        "label": "require ! (ctx . accounts . vault_token_account . owner == & token :: ID , ErrorCode :: InvalidVaultTokenOwner) ;"
       },
       {
         "id": 3,
-        "label": "acct . data = temp . checked_mul (2) . unwrap () ;"
+        "label": "require ! (ctx . accounts . vault . to_account_info () . owner == ctx . program_id , ErrorCode :: InvalidVaultOwner) ;"
       },
       {
         "id": 4,
-        "label": "msg ! (\"Executed close_account logic\") ;"
+        "label": "let vault = & mut ctx . accounts . vault ;"
       },
       {
         "id": 5,
-        "label": "Ok (())"
+        "label": "vault . total_deposited += amount ;"
+      },
+      {
+        "id": 6,
+        "label": "let transfer_instruction = Transfer { from : ctx . accounts . user_token_account . to_account_info () , to : ctx . accounts . vault_token_account . to_account_info () , authority : ctx . accounts . authority . to_account_info () , } ;"
+      },
+      {
+        "id": 7,
+        "label": "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , transfer_instruction ,) ;"
+      },
+      {
+        "id": 8,
+        "label": "token :: transfer (cpi_ctx , amount)"
       }
     ],
     "edges": [
@@ -51,6 +63,122 @@
       {
         "from": 4,
         "to": 5,
+        "label": "next"
+      },
+      {
+        "from": 5,
+        "to": 6,
+        "label": "next"
+      },
+      {
+        "from": 6,
+        "to": 7,
+        "label": "next"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "call"
+      }
+    ]
+  },
+  {
+    "name": "withdraw",
+    "nodes": [
+      {
+        "id": 9,
+        "label": "Entry"
+      },
+      {
+        "id": 10,
+        "label": "let vault_info = ctx . accounts . vault . to_account_info () ;"
+      },
+      {
+        "id": 11,
+        "label": "require ! (vault_info . owner == ctx . program_id , ErrorCode :: InvalidVaultOwner) ;"
+      },
+      {
+        "id": 12,
+        "label": "let vault = & mut ctx . accounts . vault ;"
+      },
+      {
+        "id": 13,
+        "label": "require ! (vault . total_deposited >= amount , ErrorCode :: InsufficientFunds) ;"
+      },
+      {
+        "id": 14,
+        "label": "vault . total_deposited -= amount ;"
+      },
+      {
+        "id": 15,
+        "label": "let seeds = & [b\"vault\" , ctx . accounts . vault . authority . as_ref () , & [ctx . accounts . vault . bump] ,] ;"
+      },
+      {
+        "id": 16,
+        "label": "let signer = & [& seeds [..]] ;"
+      },
+      {
+        "id": 17,
+        "label": "let transfer_instruction = Transfer { from : ctx . accounts . vault_token_account . to_account_info () , to : ctx . accounts . user_token_account . to_account_info () , authority : ctx . accounts . vault . to_account_info () , } ;"
+      },
+      {
+        "id": 18,
+        "label": "let cpi_ctx = CpiContext :: new_with_signer (ctx . accounts . token_program . to_account_info () , transfer_instruction , signer ,) ;"
+      },
+      {
+        "id": 19,
+        "label": "token :: transfer (cpi_ctx , amount)"
+      }
+    ],
+    "edges": [
+      {
+        "from": 9,
+        "to": 10,
+        "label": "next"
+      },
+      {
+        "from": 10,
+        "to": 11,
+        "label": "next"
+      },
+      {
+        "from": 11,
+        "to": 12,
+        "label": "next"
+      },
+      {
+        "from": 12,
+        "to": 13,
+        "label": "next"
+      },
+      {
+        "from": 13,
+        "to": 14,
+        "label": "next"
+      },
+      {
+        "from": 14,
+        "to": 15,
+        "label": "next"
+      },
+      {
+        "from": 15,
+        "to": 16,
+        "label": "next"
+      },
+      {
+        "from": 16,
+        "to": 17,
+        "label": "next"
+      },
+      {
+        "from": 17,
+        "to": 18,
+        "label": "next"
+      },
+      {
+        "from": 18,
+        "to": 19,
         "label": "call"
       }
     ]

@@ -1,0 +1,113 @@
+[
+  {
+    "name": "initialize_vault",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeVault >"
+    ],
+    "attributes": [],
+    "body": [
+      "let v = & mut ctx . accounts . vault ;",
+      "v . owner = ctx . accounts . user . key () ;",
+      "v . bump = * ctx . bumps . get (\"vault\") . unwrap () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "withdraw_with_custom_bump",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < WithdrawWithCustomBump >",
+      "user_bump: u8",
+      "lamports: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let vault = & ctx . accounts . vault ;",
+      "let seeds = & [b\"vault\" . as_ref () , vault . owner . as_ref () , core :: slice :: from_ref (& user_bump) ,] ;",
+      "let derived = Pubkey :: create_program_address (& [b\"vault\" , vault . owner . as_ref () , & [user_bump]] , ctx . program_id ,) . map_err (| _ | error ! (VaultError :: InvalidSeeds)) ? ;",
+      "let ix = system_instruction :: transfer (& derived , & ctx . accounts . recipient . key () , lamports ,) ;",
+      "invoke_signed (& ix , & [ctx . accounts . vault_account . to_account_info () , ctx . accounts . recipient . to_account_info () , ctx . accounts . system_program . to_account_info () ,] , & [seeds] ,) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializeVault",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": "# [account (init , payer = user , space = 8 + 32 + 1 , seeds = [b\"vault\" , user . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , VaultState >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "WithdrawWithCustomBump",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": "# [account (mut , seeds = [b\"vault\" , user . key () . as_ref ()] , bump = vault . bump)]",
+        "field_type": "Account < 'info , VaultState >"
+      },
+      {
+        "name": "vault_account",
+        "attribute": "# [doc = \" CHECK: 検証されないアカウント\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "recipient",
+        "attribute": "# [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "VaultState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

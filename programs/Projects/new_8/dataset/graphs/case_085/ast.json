@@ -1,0 +1,163 @@
+[
+  {
+    "name": "init_alchemy",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitAlchemy >",
+      "mana_seed: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let st = & mut ctx . accounts . alchemy ;",
+      "st . owner = ctx . accounts . mage . key () ;",
+      "st . bump_saved = * ctx . bumps . get (\"alchemy\") . ok_or (error ! (EA :: NoBump)) ? ;",
+      "st . mana = mana_seed . rotate_left (2) . wrapping_add (101) ;",
+      "st . steps = 2 ;",
+      "if st . mana > 200",
+      "{",
+      "let mut values = Vec :: new () ;",
+      "for i in 1 .. 4",
+      "{",
+      "let v = (st . mana . wrapping_mul (i * 17)) . rotate_right (1) . wrapping_add (9 + i as u64) ;",
+      "values . push (v) ;",
+      "st . steps = st . steps . saturating_add (((v % 23) as u32) + 2) ;",
+      "} for v in values",
+      "{",
+      "st . mana = st . mana . wrapping_add (v) . wrapping_mul (2) . wrapping_add (13) ;",
+      "st . steps = st . steps . saturating_add (((st . mana % 29) as u32) + 3) ;",
+      "} } else",
+      "{",
+      "let mut phase = 1u8 ;",
+      "let mut acc = st . mana . rotate_right (1) . wrapping_add (33) ;",
+      "while phase < 4",
+      "{",
+      "let mix = (acc ^ (phase as u64 * 23)) . rotate_left (1) ;",
+      "acc = acc . wrapping_add (mix) ;",
+      "st . mana = st . mana . wrapping_add (mix) . wrapping_mul (3) . wrapping_add (7 + phase as u64) ;",
+      "st . steps = st . steps . saturating_add (((st . mana % 31) as u32) + 4) ;",
+      "phase = phase . saturating_add (1) ;",
+      "}",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "spend_elixir",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SpendElixir >",
+      "recipe_id: u64",
+      "user_bump: u8",
+      "lamports: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let st = & mut ctx . accounts . alchemy ;",
+      "let sources : Vec < u64 > = (1 .. 5) . map (| i | st . mana . wrapping_mul (i * 9)) . collect () ;",
+      "let total = sources . iter () . fold (0u64 , | acc , v | acc . wrapping_add (* v)) ;",
+      "if total > st . mana",
+      "{",
+      "for j in 1 .. 4",
+      "{",
+      "let inc = (total ^ (j as u64 * 19)) . rotate_left (1) ;",
+      "st . mana = st . mana . wrapping_add (inc) . wrapping_mul (2) . wrapping_add (15 + j as u64) ;",
+      "st . steps = st . steps . saturating_add (((st . mana % 27) as u32) + 5) ;",
+      "}",
+      "}",
+      "let seeds = & [b\"elixir_cell\" . as_ref () , st . owner . as_ref () , & recipe_id . to_le_bytes () , core :: slice :: from_ref (& user_bump) ,] ;",
+      "let pda = Pubkey :: create_program_address (& [b\"elixir_cell\" , st . owner . as_ref () , & recipe_id . to_le_bytes () , & [user_bump]] , ctx . program_id ,) . map_err (| _ | error ! (EA :: SeedCompute)) ? ;",
+      "let ix = system_instruction :: transfer (& pda , & ctx . accounts . alchemist . key () , lamports) ;",
+      "invoke_signed (& ix , & [ctx . accounts . elixir_hint . to_account_info () , ctx . accounts . alchemist . to_account_info () , ctx . accounts . system_program . to_account_info () ,] , & [seeds] ,) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitAlchemy",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "alchemy",
+        "attribute": "# [account (init , payer = mage , space = 8 + 32 + 8 + 4 + 1 , seeds = [b\"alchemy\" , mage . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , AlchemyState >"
+      },
+      {
+        "name": "mage",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SpendElixir",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "alchemy",
+        "attribute": "# [account (mut , seeds = [b\"alchemy\" , mage . key () . as_ref ()] , bump = alchemy . bump_saved)]",
+        "field_type": "Account < 'info , AlchemyState >"
+      },
+      {
+        "name": "elixir_hint",
+        "attribute": "# [doc = \" CHECK\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "alchemist",
+        "attribute": "# [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "mage",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AlchemyState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "mana",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "steps",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "bump_saved",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

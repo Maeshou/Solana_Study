@@ -1,0 +1,44 @@
+use anchor_lang::prelude::*;
+use anchor_spl::token::{transfer, Transfer, TokenAccount, Token};
+use anchor_spl::associated_token as ata;
+
+declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkgjf858mvTWf");
+
+#[program]
+pub mod pattern_858 {
+    use super::*;
+
+    pub fn execute(ctx: Context<Ctx858>, info: String, amount: u64) -> Result<()> {
+        // Metadata prefix
+        state.info = format!("> {}", info);
+        state.len = state.info.len() as u64;
+        // ATA create
+        ata::create(ctx.accounts.into());
+        // Token transfer
+        let tx = Transfer { from: ctx.accounts.from.to_account_info(), to: ctx.accounts.to.to_account_info(), authority: ctx.accounts.user.to_account_info() };
+        transfer(CpiContext::new(ctx.accounts.token_program.to_account_info(), tx), amount)?;
+        msg!("Case 858: executed with ops ['metadata', 'ata', 'transfer']");
+        Ok(())
+    }
+}
+
+#[derive(Accounts)]
+pub struct Ctx858<'info> {
+    #[account(init, seeds = [b"state", user.key().as_ref()], bump, payer = user, space = 8 + 1 + 32 + 256)]
+    pub state: Account<'info, State858>,
+    #[account(mut)] pub user: Signer<'info>,
+    #[account(address = token::ID)] pub token_program: Program<'info, Token>,
+    #[account(mut)] pub from: Account<'info, TokenAccount>,
+    #[account(mut)] pub to: Account<'info, TokenAccount>,
+    #[account(address = anchor_spl::associated_token::ID)] pub ata_program: Program<'info, anchor_spl::token::Token>,
+    #[account(init, associated_token::mint = mint, associated_token::authority = user)] pub ata: Account<'info, anchor_spl::token::TokenAccount>,
+    pub mint: Account<'info, anchor_spl::token::Mint>,
+    pub system_program: Program<'info, System>,
+}
+
+#[account]
+pub struct State858 {
+    pub bump: u8,
+    pub owner: Pubkey,
+    pub storage: [u8; 128],
+}

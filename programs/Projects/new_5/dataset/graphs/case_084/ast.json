@@ -1,0 +1,219 @@
+[
+  {
+    "name": "init_harvest",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitHarvest >",
+      "harvest_id: u64",
+      "max_harvesters: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let harvest = & mut ctx . accounts . harvest_core ;",
+      "harvest . harvest_id = harvest_id . checked_mul (2) . unwrap_or (u64 :: MAX) ;",
+      "harvest . max_harvesters = max_harvesters . checked_add (10) . unwrap_or (u32 :: MAX) ;",
+      "harvest . total_resources = (harvest_id . checked_rem (10) . unwrap_or (0)) as u64 ;",
+      "harvest . is_active = true ;",
+      "msg ! (\"Cosmic Harvest {} established with capacity for {} harvesters.\" , harvest . harvest_id , harvest . max_harvesters) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_harvester",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitHarvester >",
+      "harvester_id: u64",
+      "harvester_type: HarvesterType"
+    ],
+    "attributes": [],
+    "body": [
+      "let harvester = & mut ctx . accounts . harvester_data ;",
+      "harvester . parent_harvest = ctx . accounts . harvest_core . key () ;",
+      "harvester . harvester_id = harvester_id . checked_add (101) . unwrap_or (u64 :: MAX) ;",
+      "harvester . harvester_type = harvester_type ;",
+      "harvester . harvest_count = 0 ;",
+      "harvester . efficiency = 50 ;",
+      "msg ! (\"New harvester {} of type {:?} created.\" , harvester . harvester_id , harvester . harvester_type) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "harvest_resources",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < HarvestResources >",
+      "cycles: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let harvest = & mut ctx . accounts . harvest_core ;",
+      "let harvester = & mut ctx . accounts . harvester ;",
+      "for _i in 0 .. cycles",
+      "{",
+      "match harvester . harvester_type",
+      "{",
+      "HarvesterType :: Miner => { harvester . harvest_count = harvester . harvest_count . checked_add (10) . unwrap_or (u32 :: MAX) ;",
+      "harvester . efficiency = harvester . efficiency . checked_add (1) . unwrap_or (u32 :: MAX) ;",
+      "harvest . total_resources = harvest . total_resources . checked_add (harvester . harvest_count as u64) . unwrap_or (u64 :: MAX) ;",
+      "} , HarvesterType :: Gatherer =>",
+      "{",
+      "harvester . harvest_count = harvester . harvest_count . checked_add (5) . unwrap_or (u32 :: MAX) ;",
+      "harvester . efficiency = harvester . efficiency . checked_add (2) . unwrap_or (u32 :: MAX) ;",
+      "harvest . total_resources = harvest . total_resources . checked_add (harvester . harvest_count as u64) . unwrap_or (u64 :: MAX) ;",
+      "} , HarvesterType :: Collector =>",
+      "{",
+      "harvester . harvest_count = harvester . harvest_count . checked_add (20) . unwrap_or (u32 :: MAX) ;",
+      "harvester . efficiency = harvester . efficiency . checked_add (3) . unwrap_or (u32 :: MAX) ;",
+      "harvest . total_resources = harvest . total_resources . checked_add (harvester . harvest_count as u64) . unwrap_or (u64 :: MAX) ;",
+      "} , }",
+      "}",
+      "harvest . is_active = harvest . total_resources > 0 ;",
+      "msg ! (\"Harvester {} performed {} cycles. Total resources collected: {}.\" , harvester . harvester_id , cycles , harvester . harvest_count) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitHarvest",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "harvest_core",
+        "attribute": "# [account (init , payer = signer , space = 8 + 8 + 4 + 8 + 1)]",
+        "field_type": "Account < 'info , HarvestCore >"
+      },
+      {
+        "name": "signer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitHarvester",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "harvester_data",
+        "attribute": "# [account (init , payer = signer , space = 8 + 32 + 8 + 1 + 4 + 4)]",
+        "field_type": "Account < 'info , HarvesterData >"
+      },
+      {
+        "name": "harvest_core",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , HarvestCore >"
+      },
+      {
+        "name": "signer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "HarvestResources",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "harvest_core",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , HarvestCore >"
+      },
+      {
+        "name": "harvester",
+        "attribute": "# [account (mut , has_one = parent_harvest)]",
+        "field_type": "Account < 'info , HarvesterData >"
+      },
+      {
+        "name": "signer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "HarvestCore",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "harvest_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "max_harvesters",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "total_resources",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "is_active",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "HarvesterData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent_harvest",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "harvester_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "harvester_type",
+        "attribute": null,
+        "field_type": "HarvesterType"
+      },
+      {
+        "name": "harvest_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "efficiency",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,108 @@
+[
+  {
+    "name": "forfeit_deposit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ForfeitDeposit >"
+    ],
+    "attributes": [
+      "# [doc = \" 保証金を没収するが、\"]",
+      "# [doc = \" deposit_account.renter と ctx.accounts.enforcer.key() の照合検証がない\"]"
+    ],
+    "body": [
+      "let deposit = & mut ctx . accounts . deposit_account ;",
+      "let amount = deposit . amount ;",
+      "mark_deposit_forfeited (deposit) ;",
+      "transfer_deposit (& ctx . accounts . system_program , & ctx . accounts . deposit_pool , & ctx . accounts . enforcer , amount ,) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "mark_deposit_forfeited",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "deposit: & mut DepositAccount"
+    ],
+    "attributes": [
+      "# [doc = \" 保証金没収フラグを立てるヘルパー関数\"]"
+    ],
+    "body": [
+      "deposit . forfeited = true ;"
+    ]
+  },
+  {
+    "name": "transfer_deposit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "system_program: & Program < System >",
+      "from: & AccountInfo",
+      "to: & AccountInfo",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" system_program::transfer CPI で残高移動を行うヘルパー関数\"]"
+    ],
+    "body": [
+      "let cpi_accounts = system_program :: Transfer { from : from . to_account_info () , to : to . to_account_info () , } ;",
+      "let cpi_ctx = CpiContext :: new (system_program . to_account_info () , cpi_accounts) ;",
+      "system_program :: transfer (cpi_ctx , amount) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "ForfeitDeposit",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "deposit_account",
+        "attribute": "# [account (mut)] # [doc = \" 本来は #[account(has_one = renter)] を付与して借り手照合を行うべき\"]",
+        "field_type": "Account < 'info , DepositAccount >"
+      },
+      {
+        "name": "deposit_pool",
+        "attribute": "# [doc = \" 保証金プール（Lamports 保管先）\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "enforcer",
+        "attribute": "# [doc = \" 没収を実行する権限を持つアカウント（署名者）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": "# [doc = \" システムプログラム\"]",
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DepositAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "renter",
+        "attribute": "# [doc = \" 本来この契約を行った借り手の Pubkey\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "amount",
+        "attribute": "# [doc = \" 預託された Lamports 数\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "forfeited",
+        "attribute": "# [doc = \" 没収済みフラグ\"]",
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,181 @@
+[
+  {
+    "name": "Content",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "author",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "text",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "flagged_users",
+        "attribute": null,
+        "field_type": "Vec < Pubkey >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "FlagRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "content",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "reason",
+        "attribute": null,
+        "field_type": "String"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreateContent",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "content",
+        "attribute": "# [account (init , payer = author , space = 8 + 32 + 4 + 280 + 4 + (32 * 20))]",
+        "field_type": "Account < 'info , Content >"
+      },
+      {
+        "name": "author",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "FlagContent",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "content",
+        "attribute": "# [doc = \" Content.author == author.key() は検証される\"] # [account (mut , has_one = author)]",
+        "field_type": "Account < 'info , Content >"
+      },
+      {
+        "name": "record",
+        "attribute": "# [doc = \" FlagRecord.content ⇔ content.key() の検証がないため、\"] # [doc = \" 偽物のレコードで任意のコンテンツにフラグを立てられる\"] # [account (init , payer = user , space = 8 + 32 + 32 + 4 + 128)]",
+        "field_type": "Account < 'info , FlagRecord >"
+      },
+      {
+        "name": "author",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ResolveFlag",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "record",
+        "attribute": "# [doc = \" FlagRecord.user == moderator.key() は検証される\"] # [account (mut , has_one = user)]",
+        "field_type": "Account < 'info , FlagRecord >"
+      },
+      {
+        "name": "content",
+        "attribute": "# [doc = \" Content.key() ⇔ record.content の検証がないため、\"] # [doc = \" 偽物のレコードで別のコンテンツのフラグを解除できる\"] # [account (mut)]",
+        "field_type": "Account < 'info , Content >"
+      },
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "create_content",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateContent >",
+      "text: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let ct = & mut ctx . accounts . content ;",
+      "ct . author = ctx . accounts . author . key () ;",
+      "ct . text = text ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "flag_content",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < FlagContent >",
+      "reason: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let ct = & mut ctx . accounts . content ;",
+      "let fr = & mut ctx . accounts . record ;",
+      "fr . user = ctx . accounts . user . key () ;",
+      "fr . content = ct . key () ;",
+      "fr . reason = reason ;",
+      "ct . flagged_users . push (fr . user) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "resolve_flag",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ResolveFlag >"
+    ],
+    "attributes": [],
+    "body": [
+      "let ct = & mut ctx . accounts . content ;",
+      "ct . flagged_users . pop () ;",
+      "Ok (())"
+    ]
+  }
+]

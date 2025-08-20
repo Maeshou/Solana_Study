@@ -1,9 +1,11 @@
 [
   {
-    "name": "repay",
+    "name": "create_policy",
     "inputs": [
-      "ctx: Context < RepayCtxpyxm >",
-      "amount: u64"
+      "ctx: Context < CreatePolicy >",
+      "policy_type: PolicyType",
+      "premium: u64",
+      "coverage_amount: u64"
     ],
     "nodes": [
       {
@@ -12,18 +14,38 @@
       },
       {
         "id": 1,
-        "label": "let acct = & mut ctx . accounts . reserve ;"
+        "label": "let policy = & mut ctx . accounts . policy ;"
       },
       {
         "id": 2,
-        "label": "acct . data = acct . data . checked_add (amount) . unwrap () ;"
+        "label": "policy . holder = ctx . accounts . holder . key () ;"
       },
       {
         "id": 3,
-        "label": "msg ! (\"Executed repay logic\") ;"
+        "label": "policy . policy_type = policy_type ;"
       },
       {
         "id": 4,
+        "label": "policy . premium = premium ;"
+      },
+      {
+        "id": 5,
+        "label": "policy . coverage_amount = coverage_amount ;"
+      },
+      {
+        "id": 6,
+        "label": "policy . is_active = true ;"
+      },
+      {
+        "id": 7,
+        "label": "policy . created_at = Clock :: get () ? . unix_timestamp ;"
+      },
+      {
+        "id": 8,
+        "label": "policy . bump = * ctx . bumps . get (\"policy\") . unwrap () ;"
+      },
+      {
+        "id": 9,
         "label": "Ok (())"
       }
     ],
@@ -31,17 +53,248 @@
       {
         "from": 1,
         "to": 1,
-        "label": "def: acct"
+        "label": "def: policy"
       },
       {
         "from": 1,
         "to": 2,
-        "label": "data_dep: acct"
+        "label": "data_dep: policy"
       },
       {
         "from": 1,
-        "to": 2,
-        "label": "data_dep: acct"
+        "to": 3,
+        "label": "data_dep: policy"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: policy"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: policy"
+      },
+      {
+        "from": 1,
+        "to": 6,
+        "label": "data_dep: policy"
+      },
+      {
+        "from": 1,
+        "to": 7,
+        "label": "data_dep: policy"
+      },
+      {
+        "from": 1,
+        "to": 8,
+        "label": "data_dep: policy"
+      }
+    ]
+  },
+  {
+    "name": "file_claim",
+    "inputs": [
+      "ctx: Context < FileClaim >",
+      "amount: u64",
+      "description: String"
+    ],
+    "nodes": [
+      {
+        "id": 10,
+        "label": "Entry"
+      },
+      {
+        "id": 11,
+        "label": "let policy = & ctx . accounts . policy ;"
+      },
+      {
+        "id": 12,
+        "label": "let claim = & mut ctx . accounts . claim ;"
+      },
+      {
+        "id": 13,
+        "label": "require ! (policy . is_active , InsuranceError :: PolicyNotActive) ;"
+      },
+      {
+        "id": 14,
+        "label": "require ! (amount <= policy . coverage_amount , InsuranceError :: ExceedsCoverage) ;"
+      },
+      {
+        "id": 15,
+        "label": "claim . policy = policy . key () ;"
+      },
+      {
+        "id": 16,
+        "label": "claim . claimant = ctx . accounts . claimant . key () ;"
+      },
+      {
+        "id": 17,
+        "label": "claim . amount = amount ;"
+      },
+      {
+        "id": 18,
+        "label": "claim . description = description ;"
+      },
+      {
+        "id": 19,
+        "label": "claim . status = ClaimStatus :: Pending ;"
+      },
+      {
+        "id": 20,
+        "label": "claim . filed_at = Clock :: get () ? . unix_timestamp ;"
+      },
+      {
+        "id": 21,
+        "label": "claim . bump = * ctx . bumps . get (\"claim\") . unwrap () ;"
+      },
+      {
+        "id": 22,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 11,
+        "to": 11,
+        "label": "def: policy"
+      },
+      {
+        "from": 12,
+        "to": 12,
+        "label": "def: claim"
+      },
+      {
+        "from": 12,
+        "to": 15,
+        "label": "data_dep: claim"
+      },
+      {
+        "from": 11,
+        "to": 15,
+        "label": "data_dep: policy"
+      },
+      {
+        "from": 12,
+        "to": 16,
+        "label": "data_dep: claim"
+      },
+      {
+        "from": 12,
+        "to": 17,
+        "label": "data_dep: claim"
+      },
+      {
+        "from": 12,
+        "to": 18,
+        "label": "data_dep: claim"
+      },
+      {
+        "from": 12,
+        "to": 19,
+        "label": "data_dep: claim"
+      },
+      {
+        "from": 12,
+        "to": 20,
+        "label": "data_dep: claim"
+      },
+      {
+        "from": 12,
+        "to": 21,
+        "label": "data_dep: claim"
+      }
+    ]
+  },
+  {
+    "name": "process_claim",
+    "inputs": [
+      "ctx: Context < ProcessClaim >",
+      "approved: bool"
+    ],
+    "nodes": [
+      {
+        "id": 23,
+        "label": "Entry"
+      },
+      {
+        "id": 24,
+        "label": "let claim = & mut ctx . accounts . claim ;"
+      },
+      {
+        "id": 25,
+        "label": "require ! (matches ! (claim . status , ClaimStatus :: Pending) , InsuranceError :: ClaimAlreadyProcessed) ;"
+      },
+      {
+        "id": 26,
+        "label": "if approved { claim . status = ClaimStatus :: Approved ; * * ctx . accounts . insurance_company . lamports . borrow_mut () -= claim . amount ; * * ctx . accounts . claimant . lamports . borrow_mut () += claim . amount ; } else { claim . status = ClaimStatus :: Rejected ; }"
+      },
+      {
+        "id": 27,
+        "label": "claim . status = ClaimStatus :: Approved ;"
+      },
+      {
+        "id": 28,
+        "label": "* * ctx . accounts . insurance_company . lamports . borrow_mut () -= claim . amount ;"
+      },
+      {
+        "id": 29,
+        "label": "* * ctx . accounts . claimant . lamports . borrow_mut () += claim . amount ;"
+      },
+      {
+        "id": 30,
+        "label": "claim . status = ClaimStatus :: Rejected ;"
+      },
+      {
+        "id": 31,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 24,
+        "to": 24,
+        "label": "def: claim"
+      },
+      {
+        "from": 24,
+        "to": 26,
+        "label": "data_dep: claim"
+      },
+      {
+        "from": 24,
+        "to": 26,
+        "label": "data_dep: claim"
+      },
+      {
+        "from": 24,
+        "to": 26,
+        "label": "data_dep: claim"
+      },
+      {
+        "from": 24,
+        "to": 26,
+        "label": "data_dep: claim"
+      },
+      {
+        "from": 24,
+        "to": 27,
+        "label": "data_dep: claim"
+      },
+      {
+        "from": 24,
+        "to": 28,
+        "label": "data_dep: claim"
+      },
+      {
+        "from": 24,
+        "to": 29,
+        "label": "data_dep: claim"
+      },
+      {
+        "from": 24,
+        "to": 30,
+        "label": "data_dep: claim"
       }
     ]
   }

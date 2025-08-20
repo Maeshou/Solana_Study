@@ -1,0 +1,118 @@
+[
+  {
+    "name": "create_coupon",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateCoupon >",
+      "discount_bps: u16"
+    ],
+    "attributes": [
+      "# [doc = \" クーポンを発行：割引率と所有者を設定\"]",
+      "# [doc = \" ⚠\\u{fe0f} `coupon_owner` に対する署名者チェックは一切行わない脆弱性あり\"]"
+    ],
+    "body": [
+      "let coupon = & mut ctx . accounts . coupon ;",
+      "coupon . owner = ctx . accounts . coupon_owner . key () ;",
+      "coupon . discount_bps = discount_bps ;",
+      "coupon . redeemed = false ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "redeem_coupon",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RedeemCoupon >"
+    ],
+    "attributes": [
+      "# [doc = \" クーポンを利用：割引を適用し、再利用不可にする\"]",
+      "# [doc = \" ⚠\\u{fe0f} `coupon_owner` の署名者チェックも所有者マッチングも行わず、誰でも実行可能\"]"
+    ],
+    "body": [
+      "let coupon = & mut ctx . accounts . coupon ;",
+      "let original_price = ctx . accounts . payment_amount ;",
+      "let discounted = original_price . checked_mul (coupon . discount_bps as u64) . unwrap () / 10_000 ;",
+      "coupon . redeemed = true ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Coupon",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" クーポン所有者（検証されない！）\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "discount_bps",
+        "attribute": "# [doc = \" 割引率（ベーシスポイント単位）\"]",
+        "field_type": "u16"
+      },
+      {
+        "name": "redeemed",
+        "attribute": "# [doc = \" 利用済みフラグ\"]",
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreateCoupon",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "coupon",
+        "attribute": "# [doc = \" 新しいクーポンアカウント\"] # [account (init , payer = payer , space = 8 + 32 + 2 + 1)]",
+        "field_type": "Account < 'info , Coupon >"
+      },
+      {
+        "name": "coupon_owner",
+        "attribute": "# [doc = \" 支払い用アカウント（署名者チェックをしていない）\"] # [doc = \" ⇒ 本来は Signer であるべき\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RedeemCoupon",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "coupon",
+        "attribute": "# [doc = \" 既存のクーポンアカウント\"] # [account (mut)]",
+        "field_type": "Account < 'info , Coupon >"
+      },
+      {
+        "name": "coupon_owner",
+        "attribute": "# [doc = \" クーポン所有者を指定するが検証されない\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "payment_amount",
+        "attribute": "# [doc = \" 支払い額をインプットとして受け取るだけのアカウント\"] # [doc = \" 実際の送金は省略\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

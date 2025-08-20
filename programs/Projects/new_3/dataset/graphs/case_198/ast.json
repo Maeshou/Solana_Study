@@ -1,0 +1,182 @@
+[
+  {
+    "name": "GiftCard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "issuer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "code",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "redeemers",
+        "attribute": null,
+        "field_type": "Vec < Pubkey >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RedemptionRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "gift_card",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "message",
+        "attribute": null,
+        "field_type": "String"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreateGiftCard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "gift_card",
+        "attribute": "# [account (init , payer = issuer , space = 8 + 32 + 4 + 64 + 4 + (32 * 50))]",
+        "field_type": "Account < 'info , GiftCard >"
+      },
+      {
+        "name": "issuer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RedeemGiftCard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "gift_card",
+        "attribute": "# [doc = \" GiftCard.issuer == issuer.key() は検証される\"] # [account (mut , has_one = issuer)]",
+        "field_type": "Account < 'info , GiftCard >"
+      },
+      {
+        "name": "redemption",
+        "attribute": "# [doc = \" RedemptionRecord.gift_card ⇔ gift_card.key() の検証がないため、\"] # [doc = \" 偽のレコードを渡して任意のカードを利用できる\"] # [account (init , payer = user , space = 8 + 32 + 32 + 4 + 128)]",
+        "field_type": "Account < 'info , RedemptionRecord >"
+      },
+      {
+        "name": "issuer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ClearRedeemers",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "redemption",
+        "attribute": "# [doc = \" RedemptionRecord.user == user.key() は検証される\"] # [account (mut , has_one = user)]",
+        "field_type": "Account < 'info , RedemptionRecord >"
+      },
+      {
+        "name": "gift_card",
+        "attribute": "# [doc = \" gift_card.key() ⇔ redemption.gift_card の検証がないため、\"] # [doc = \" 偽物のレコードで別のカードの利用履歴を消去できる\"] # [account (mut)]",
+        "field_type": "Account < 'info , GiftCard >"
+      },
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "create_gift_card",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateGiftCard >",
+      "code: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let gc = & mut ctx . accounts . gift_card ;",
+      "gc . issuer = ctx . accounts . issuer . key () ;",
+      "gc . code = code ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "redeem",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RedeemGiftCard >",
+      "message: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let gc = & mut ctx . accounts . gift_card ;",
+      "let rr = & mut ctx . accounts . redemption ;",
+      "rr . user = ctx . accounts . user . key () ;",
+      "rr . gift_card = gc . key () ;",
+      "rr . message = message ;",
+      "gc . redeemers . push (rr . user) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "clear_redeemers",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ClearRedeemers >"
+    ],
+    "attributes": [],
+    "body": [
+      "let gc = & mut ctx . accounts . gift_card ;",
+      "let remaining = gc . redeemers . len () . saturating_sub (1) ;",
+      "gc . redeemers . truncate (remaining) ;",
+      "Ok (())"
+    ]
+  }
+]

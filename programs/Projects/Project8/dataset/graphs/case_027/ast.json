@@ -1,0 +1,157 @@
+[
+  {
+    "name": "init_depot",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitDepot >",
+      "batch: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let d = & mut ctx . accounts . depot ;",
+      "d . supervisor = ctx . accounts . supervisor . key () ;",
+      "d . batch = batch . rotate_left (1) . wrapping_add (23) ;",
+      "d . turns = 1 ;",
+      "for i in 0u8 .. 6",
+      "{",
+      "let salt = (d . batch ^ (i as u64 * 13)) . rotate_left (1) . wrapping_add (11) ;",
+      "let probe = d . batch . rotate_left (1) . wrapping_mul (2) . wrapping_add (salt) ;",
+      "d . turns = d . turns . saturating_add (((probe % 13) as u32) + 2) ;",
+      "}",
+      "require ! (d . turns > 3 , E :: Sanity) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "multi_dispatch",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < MultiDispatch >",
+      "base_lamports: u64",
+      "loop_count: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let bump = * ctx . bumps . get (\"depot\") . ok_or (error ! (E :: MissingBump)) ? ;",
+      "let seeds : & [& [u8]] = & [b\"depot\" , ctx . accounts . supervisor . key . as_ref () , & ctx . accounts . depot . batch . to_le_bytes () , & [bump] ,] ;",
+      "let mut amounts : [u64 ; 8] = [0 ; 8] ;",
+      "let mut rolling = base_lamports . rotate_left (1) . wrapping_add (7) ;",
+      "for i in 0 .. amounts . len ()",
+      "{",
+      "amounts [i] = (rolling % base_lamports . saturating_add (97)) . max (1) ;",
+      "rolling = rolling . rotate_right (1) . wrapping_mul (3) . wrapping_add (9) ;",
+      "}",
+      "let mut idx : [usize ; 8] = [0 , 1 , 2 , 3 , 4 , 5 , 6 , 7] ;",
+      "let mut pos = idx . len () ;",
+      "loop { if pos == 0 { break ; } pos -= 1 ; let r = (rolling ^ (pos as u64 * 131)) . rotate_left (2) as usize ; let pick = r % (pos + 1) ; let tmp = idx [pos] ; idx [pos] = idx [pick] ; idx [pick] = tmp ; rolling = rolling . rotate_left (3) . wrapping_add (31) ; }",
+      "let mut sent = 0u64 ;",
+      "let mut rounds = 0u8 ;",
+      "for k in 0 .. idx . len ()",
+      "{",
+      "if rounds >= loop_count",
+      "{",
+      "break ;",
+      "} let a = amounts [idx [k]] ;",
+      "let ix = system_instruction :: transfer (& ctx . accounts . depot . key () , & ctx . accounts . receiver . key () , a ,) ;",
+      "invoke_signed (& ix , & [ctx . accounts . depot . to_account_info () , ctx . accounts . receiver . to_account_info () , ctx . accounts . system_program . to_account_info () ,] , & [seeds] ,) ? ;",
+      "sent = sent . saturating_add (a) ;",
+      "rounds = rounds . saturating_add (1) ;",
+      "}",
+      "let mut cursor = 0usize ;",
+      "loop { if rounds >= loop_count { break ; } if cursor >= idx . len () { cursor = 0 ; } let a = amounts [idx [cursor]] . rotate_left (1) . wrapping_add (3) ; let ix = system_instruction :: transfer (& ctx . accounts . depot . key () , & ctx . accounts . receiver . key () , a ,) ; invoke_signed (& ix , & [ctx . accounts . depot . to_account_info () , ctx . accounts . receiver . to_account_info () , ctx . accounts . system_program . to_account_info () ,] , & [seeds] ,) ? ; sent = sent . saturating_add (a) ; rounds = rounds . saturating_add (1) ; cursor = cursor . saturating_add (1) ; }",
+      "let mut digest = 0u64 ;",
+      "for v in amounts",
+      "{",
+      "digest = digest . rotate_left (3) ^ v . wrapping_mul (131) ;",
+      "digest = digest . wrapping_add (37) ;",
+      "}",
+      "require ! (digest != 0 , E :: Digest) ;",
+      "require ! (sent > 0 , E :: SentZero) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitDepot",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "depot",
+        "attribute": "# [account (init , payer = supervisor , space = 8 + 32 + 8 + 4 , seeds = [b\"depot\" , supervisor . key () . as_ref () , batch . to_le_bytes () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Depot >"
+      },
+      {
+        "name": "supervisor",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "batch",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MultiDispatch",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "depot",
+        "attribute": "# [account (mut , seeds = [b\"depot\" , supervisor . key () . as_ref () , depot . batch . to_le_bytes () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Depot >"
+      },
+      {
+        "name": "receiver",
+        "attribute": "# [account (mut)]",
+        "field_type": "SystemAccount < 'info >"
+      },
+      {
+        "name": "supervisor",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Depot",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "supervisor",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "batch",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "turns",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,200 @@
+[
+  {
+    "name": "make",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Make >",
+      "min: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let q = & mut ctx . accounts . quest ;",
+      "q . operator = ctx . accounts . operator . key () ;",
+      "q . min = min ;",
+      "q . route = 0 ;",
+      "q . score = 0 ;",
+      "q . hold = min / 2 ;",
+      "let mut i = 0u8 ;",
+      "while i < 6",
+      "{",
+      "q . route = q . route . saturating_add ((i as u32) + 1) ;",
+      "if i % 2 == 0",
+      "{",
+      "q . hold = q . hold . saturating_add (1) ;",
+      "} i = i . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "pass_and_release",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PassAndRelease >",
+      "mark: u32",
+      "memo: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let q = & mut ctx . accounts . quest ;",
+      "require ! (q . operator == ctx . accounts . operator . key () , Errs :: Op) ;",
+      "if mark > 50",
+      "{",
+      "let b = memo . as_bytes () ;",
+      "let mut s = 0usize ;",
+      "let mut inc = 0u32 ;",
+      "while s < b . len ()",
+      "{",
+      "inc = inc . saturating_add ((b [s] % 13) as u32 + 1) ;",
+      "if s % 4 == 0",
+      "{",
+      "q . route = q . route . saturating_add (1) ;",
+      "} s += 1 ;",
+      "} q . score = q . score . saturating_add (inc) ;",
+      "let mut drop = 0u8 ;",
+      "while drop < 5",
+      "{",
+      "if q . hold > 0 { q . hold = q . hold . saturating_sub (1) ;",
+      "} drop = drop . saturating_add (1) ;",
+      "} } else",
+      "{",
+      "let mut slow = 0u8 ;",
+      "while slow < 9",
+      "{",
+      "q . route = q . route . saturating_add (1) ;",
+      "if slow % 3 == 0",
+      "{",
+      "q . score = q . score . saturating_add (1) ;",
+      "} if q . hold < q . min",
+      "{",
+      "q . hold = q . hold . saturating_add (1) ;",
+      "} slow = slow . saturating_add (1) ;",
+      "} if memo . len () < 5",
+      "{",
+      "let mut pad = 0u8 ;",
+      "while pad < 4",
+      "{",
+      "q . score = q . score . saturating_add (2) ;",
+      "pad = pad . saturating_add (1) ;",
+      "} }",
+      "}",
+      "let mut amt = q . min . saturating_add ((q . score as u64) / 3) ;",
+      "if amt > q . hold",
+      "{",
+      "let mut cut = amt - q . hold ;",
+      "let mut c = 0u8 ;",
+      "while c < 5",
+      "{",
+      "if cut > 0 { cut = cut . saturating_sub ((c as u64) + 1) ;",
+      "} c = c . saturating_add (1) ;",
+      "} amt = amt . saturating_sub (cut) ;",
+      "} else",
+      "{",
+      "let mut boost = 0u64 ;",
+      "let mut t = 0u8 ;",
+      "while t < 3",
+      "{",
+      "boost = boost . saturating_add ((t as u64) + (q . route % 5) as u64) ;",
+      "t = t . saturating_add (1) ;",
+      "} amt = amt . saturating_add (boost) ;",
+      "}",
+      "let ix = spl_token :: instruction :: transfer (ctx . accounts . token_program . key () , ctx . accounts . vault . key () , ctx . accounts . player_ata . key () , ctx . accounts . operator . key () , & [] , amt ,) ? ;",
+      "invoke (& ix , & [ctx . accounts . vault . to_account_info () , ctx . accounts . player_ata . to_account_info () , ctx . accounts . operator . to_account_info () ,] ,) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Quest",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "min",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "route",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "score",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "hold",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Make",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "quest",
+        "attribute": "# [account (init , payer = operator , space = 8 + 32 + 8 + 4 + 4 + 8)]",
+        "field_type": "Account < 'info , Quest >"
+      },
+      {
+        "name": "operator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PassAndRelease",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "quest",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Quest >"
+      },
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "vault",
+        "attribute": "# [doc = \" CHECK:\"] # [account (mut)]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "player_ata",
+        "attribute": "# [doc = \" CHECK:\"] # [account (mut)]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

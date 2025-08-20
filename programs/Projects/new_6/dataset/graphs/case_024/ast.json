@@ -1,0 +1,668 @@
+[
+  {
+    "name": "init_workshop",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitWorkshop >",
+      "workshop_name: String",
+      "crafting_fee: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let workshop = & mut ctx . accounts . workshop ;",
+      "workshop . owner = ctx . accounts . owner . key () ;",
+      "workshop . workshop_name = workshop_name ;",
+      "workshop . crafting_fee = crafting_fee ;",
+      "workshop . total_crafts = 0 ;",
+      "workshop . is_open = true ;",
+      "msg ! (\"Workshop initialized: {}\" , workshop . workshop_name) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_material_storage",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitMaterialStorage >",
+      "material_type: MaterialType",
+      "quantity: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let storage = & mut ctx . accounts . storage ;",
+      "storage . workshop = ctx . accounts . workshop . key () ;",
+      "storage . material_type = material_type ;",
+      "storage . quantity = quantity ;",
+      "storage . quality_grade = 1 ;",
+      "storage . is_available = true ;",
+      "msg ! (\"Material storage created: {:?}\" , material_type) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "execute_crafting_process",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ExecuteCraftingProcess >",
+      "iterations: u8",
+      "base_power: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let workshop = & mut ctx . accounts . workshop ;",
+      "let mut round = 0u8 ;",
+      "loop { if round >= iterations { break ; } if workshop . is_open { workshop . total_crafts += 1 ; let craft_bonus = (round as u32) * 50 ; workshop . crafting_fee += craft_bonus as u64 ; let power_mod = base_power ^ (round as u16) ; let final_power = power_mod & 0xFF ; msg ! (\"Craft round {}: power {}\" , round , final_power) ; } else { if workshop . total_crafts > 0 { workshop . total_crafts -= 1 ; } workshop . crafting_fee = workshop . crafting_fee . saturating_sub (100) ; msg ! (\"Closed workshop adjustment: round {}\" , round) ; } round += 1 ; }",
+      "let mut quality_iter = 0u8 ;",
+      "while quality_iter < 3",
+      "{",
+      "let quality_boost = quality_iter * 10 ;",
+      "workshop . crafting_fee += quality_boost as u64 ;",
+      "quality_iter += 1 ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitWorkshop",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "workshop",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 64 + 8 + 8 + 1)]",
+        "field_type": "Account < 'info , CraftingWorkshop >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitMaterialStorage",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "workshop",
+        "attribute": null,
+        "field_type": "Account < 'info , CraftingWorkshop >"
+      },
+      {
+        "name": "storage",
+        "attribute": "# [account (init , payer = manager , space = 8 + 32 + 1 + 4 + 4 + 1)]",
+        "field_type": "Account < 'info , MaterialStorage >"
+      },
+      {
+        "name": "manager",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ExecuteCraftingProcess",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "workshop",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , CraftingWorkshop >"
+      },
+      {
+        "name": "material_source",
+        "attribute": "# [doc = \" CHECK: 素材アカウントの検証が不十分\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "equipment_target",
+        "attribute": "# [doc = \" CHECK: 装備アカウントの検証が不十分\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "crafter",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CraftingWorkshop",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "workshop_name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "crafting_fee",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_crafts",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "is_open",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MaterialStorage",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "workshop",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "material_type",
+        "attribute": null,
+        "field_type": "MaterialType"
+      },
+      {
+        "name": "quantity",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "quality_grade",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "is_available",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "init_dao_council",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitDaoCouncil >",
+      "dao_name: String",
+      "quorum_threshold: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let council = & mut ctx . accounts . council ;",
+      "council . admin = ctx . accounts . admin . key () ;",
+      "council . dao_name = dao_name ;",
+      "council . quorum_threshold = quorum_threshold ;",
+      "council . active_proposals = 0 ;",
+      "council . is_operational = true ;",
+      "msg ! (\"DAO Council established: {}\" , council . dao_name) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_membership_record",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitMembershipRecord >",
+      "member_tier: MemberTier",
+      "voting_weight: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let record = & mut ctx . accounts . record ;",
+      "record . council = ctx . accounts . council . key () ;",
+      "record . member = ctx . accounts . member . key () ;",
+      "record . member_tier = member_tier ;",
+      "record . voting_weight = voting_weight ;",
+      "record . proposals_created = 0 ;",
+      "record . is_active = true ;",
+      "msg ! (\"Member record created with tier: {:?}\" , member_tier) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "process_governance_vote",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ProcessGovernanceVote >",
+      "vote_cycles: u16",
+      "influence_modifier: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let council = & mut ctx . accounts . council ;",
+      "let mut cycle = 0u16 ;",
+      "loop { if cycle >= vote_cycles { break ; } if council . is_operational { council . active_proposals += 1 ; let weight_bonus = (cycle % 10) as u32 * influence_modifier as u32 ; let shifted_weight = weight_bonus << 2 ; let final_weight = shifted_weight >> 1 ; msg ! (\"Vote cycle {}: weight {}\" , cycle , final_weight) ; } else { if council . active_proposals > 0 { council . active_proposals -= 1 ; } council . quorum_threshold = council . quorum_threshold . saturating_sub (5) ; msg ! (\"Suspended DAO cycle {}\" , cycle) ; } cycle += 1 ; }",
+      "let mut consensus = 0u8 ;",
+      "while consensus < 4",
+      "{",
+      "let adjustment = consensus * influence_modifier ;",
+      "council . quorum_threshold += adjustment as u16 ;",
+      "consensus += 1 ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitDaoCouncil",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "council",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 64 + 2 + 4 + 1)]",
+        "field_type": "Account < 'info , DaoCouncil >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitMembershipRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "council",
+        "attribute": null,
+        "field_type": "Account < 'info , DaoCouncil >"
+      },
+      {
+        "name": "record",
+        "attribute": "# [account (init , payer = member , space = 8 + 32 + 32 + 1 + 4 + 4 + 1)]",
+        "field_type": "Account < 'info , MembershipRecord >"
+      },
+      {
+        "name": "member",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ProcessGovernanceVote",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "council",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , DaoCouncil >"
+      },
+      {
+        "name": "proposer_data",
+        "attribute": "# [doc = \" CHECK: 提案者データの検証が不十分\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "voter_data",
+        "attribute": "# [doc = \" CHECK: 投票者データの検証が不十分\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "governance_executor",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DaoCouncil",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "dao_name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "quorum_threshold",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "active_proposals",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "is_operational",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MembershipRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "council",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "member",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "member_tier",
+        "attribute": null,
+        "field_type": "MemberTier"
+      },
+      {
+        "name": "voting_weight",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "proposals_created",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "is_active",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "init_escrow_agency",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitEscrowAgency >",
+      "agency_name: String",
+      "service_rate: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let agency = & mut ctx . accounts . agency ;",
+      "agency . operator = ctx . accounts . operator . key () ;",
+      "agency . agency_name = agency_name ;",
+      "agency . service_rate = service_rate ;",
+      "agency . completed_escrows = 0 ;",
+      "agency . is_accepting = true ;",
+      "msg ! (\"Escrow agency created: {}\" , agency . agency_name) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_escrow_contract",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitEscrowContract >",
+      "contract_value: u64",
+      "release_condition: ReleaseCondition"
+    ],
+    "attributes": [],
+    "body": [
+      "let contract = & mut ctx . accounts . contract ;",
+      "contract . agency = ctx . accounts . agency . key () ;",
+      "contract . initiator = ctx . accounts . initiator . key () ;",
+      "contract . contract_value = contract_value ;",
+      "contract . release_condition = release_condition ;",
+      "contract . escrow_status = EscrowStatus :: Pending ;",
+      "contract . dispute_count = 0 ;",
+      "msg ! (\"Escrow contract created: {} value\" , contract_value) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "execute_escrow_settlement",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ExecuteEscrowSettlement >",
+      "settlement_rounds: u8",
+      "penalty_rate: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let agency = & mut ctx . accounts . agency ;",
+      "let contract = & mut ctx . accounts . contract ;",
+      "let mut round = 0u8 ;",
+      "loop { if round >= settlement_rounds { break ; } match contract . escrow_status { EscrowStatus :: Pending => { contract . contract_value += (round as u64) * 100 ; agency . completed_escrows += 1 ; let condition_met = (round % 3) == 0 ; if condition_met { contract . escrow_status = EscrowStatus :: Released ; } msg ! (\"Pending settlement round: {}\" , round) ; } , EscrowStatus :: Released => { let service_fee = (contract . contract_value * agency . service_rate as u64) / 100 ; contract . contract_value = contract . contract_value . saturating_sub (service_fee) ; msg ! (\"Released settlement round: {}\" , round) ; } , _ => { contract . dispute_count += 1 ; let penalty = (contract . contract_value * penalty_rate as u64) / 100 ; contract . contract_value = contract . contract_value . saturating_sub (penalty) ; msg ! (\"Disputed settlement round: {}\" , round) ; } } round += 1 ; }",
+      "let mut final_round = 0u8 ;",
+      "while final_round < 2",
+      "{",
+      "agency . service_rate = (agency . service_rate + final_round + 1) . min (50) ;",
+      "contract . contract_value += final_round as u64 * 50 ;",
+      "final_round += 1 ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitEscrowAgency",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "agency",
+        "attribute": "# [account (init , payer = operator , space = 8 + 32 + 64 + 1 + 8 + 1)]",
+        "field_type": "Account < 'info , EscrowAgency >"
+      },
+      {
+        "name": "operator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitEscrowContract",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "agency",
+        "attribute": null,
+        "field_type": "Account < 'info , EscrowAgency >"
+      },
+      {
+        "name": "contract",
+        "attribute": "# [account (init , payer = initiator , space = 8 + 32 + 32 + 8 + 1 + 1 + 4)]",
+        "field_type": "Account < 'info , EscrowContract >"
+      },
+      {
+        "name": "initiator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ExecuteEscrowSettlement",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "agency",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , EscrowAgency >"
+      },
+      {
+        "name": "contract",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , EscrowContract >"
+      },
+      {
+        "name": "buyer_party",
+        "attribute": "# [doc = \" CHECK: 買い手側の検証が不十分\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "seller_party",
+        "attribute": "# [doc = \" CHECK: 売り手側の検証が不十分\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "settlement_agent",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EscrowAgency",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "agency_name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "service_rate",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "completed_escrows",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "is_accepting",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EscrowContract",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "agency",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "initiator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "contract_value",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "release_condition",
+        "attribute": null,
+        "field_type": "ReleaseCondition"
+      },
+      {
+        "name": "escrow_status",
+        "attribute": null,
+        "field_type": "EscrowStatus"
+      },
+      {
+        "name": "dispute_count",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

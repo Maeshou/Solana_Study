@@ -1,0 +1,232 @@
+[
+  {
+    "name": "create_logistics_hub",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateLogisticsHub >",
+      "hub_id: u64",
+      "location: String",
+      "initial_container_count: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let hub = & mut ctx . accounts . logistics_hub ;",
+      "hub . manager = ctx . accounts . manager . key () ;",
+      "hub . hub_id = hub_id ;",
+      "hub . location = location ;",
+      "hub . total_containers = initial_container_count ;",
+      "hub . last_activity_count = hub . total_containers as u64 ;",
+      "hub . hub_status = HubStatus :: Operational ;",
+      "msg ! (\"Logistics Hub '{}' created at {}. Status is Operational.\" , hub . hub_id , hub . location) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "register_shipping_container",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RegisterShippingContainer >",
+      "container_id: u32",
+      "content_weight: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let container = & mut ctx . accounts . shipping_container ;",
+      "let hub = & mut ctx . accounts . logistics_hub ;",
+      "if hub . hub_status != HubStatus :: Operational",
+      "{",
+      "return Err (error ! (SupplyChainError :: HubInactive)) ;",
+      "}",
+      "container . hub = hub . key () ;",
+      "container . container_id = container_id ;",
+      "container . owner = ctx . accounts . owner . key () ;",
+      "container . weight_kg = content_weight ;",
+      "container . container_status = ContainerStatus :: InTransit ;",
+      "hub . total_containers = hub . total_containers . saturating_add (1) ;",
+      "msg ! (\"Container {} registered to hub. Weight: {}.\" , container . container_id , container . weight_kg) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "process_transfer_manifest",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ProcessTransferManifest >",
+      "transfer_amount: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let primary_vault = & mut ctx . accounts . primary_vault ;",
+      "let secondary_vault = & mut ctx . accounts . secondary_vault ;",
+      "if primary_vault . container_status == ContainerStatus :: Maintenance || secondary_vault . container_status == ContainerStatus :: Maintenance",
+      "{",
+      "return Err (error ! (SupplyChainError :: ContainerInMaintenance)) ;",
+      "}",
+      "primary_vault . weight_kg = primary_vault . weight_kg . checked_sub (transfer_amount) . unwrap_or (0) ;",
+      "secondary_vault . weight_kg = secondary_vault . weight_kg . checked_add (transfer_amount) . unwrap_or (u32 :: MAX) ;",
+      "if primary_vault . weight_kg > 50000",
+      "{",
+      "primary_vault . container_status = ContainerStatus :: Loaded ;",
+      "msg ! (\"Primary vault is now loaded.\") ;",
+      "} else",
+      "{",
+      "primary_vault . container_status = ContainerStatus :: Unloaded ;",
+      "msg ! (\"Primary vault is now unloaded.\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CreateLogisticsHub",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "logistics_hub",
+        "attribute": "# [account (init , payer = manager , space = 8 + 32 + 8 + 32 + 4 + 8 + 1)]",
+        "field_type": "Account < 'info , LogisticsHub >"
+      },
+      {
+        "name": "manager",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RegisterShippingContainer",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "logistics_hub",
+        "attribute": "# [account (mut , has_one = hub)]",
+        "field_type": "Account < 'info , LogisticsHub >"
+      },
+      {
+        "name": "shipping_container",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 4 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , ShippingContainer >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ProcessTransferManifest",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "logistics_hub",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , LogisticsHub >"
+      },
+      {
+        "name": "primary_vault",
+        "attribute": "# [account (mut , has_one = hub)]",
+        "field_type": "Account < 'info , ShippingContainer >"
+      },
+      {
+        "name": "secondary_vault",
+        "attribute": "# [account (mut , has_one = hub)]",
+        "field_type": "Account < 'info , ShippingContainer >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "LogisticsHub",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "hub_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "location",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "total_containers",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "last_activity_count",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "hub_status",
+        "attribute": null,
+        "field_type": "HubStatus"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ShippingContainer",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "hub",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "container_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "weight_kg",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "container_status",
+        "attribute": null,
+        "field_type": "ContainerStatus"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

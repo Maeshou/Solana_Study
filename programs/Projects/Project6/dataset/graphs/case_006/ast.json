@@ -1,0 +1,308 @@
+[
+  {
+    "name": "init_book",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitBook >"
+    ],
+    "attributes": [],
+    "body": [
+      "let b = & mut ctx . accounts . order_book ;",
+      "b . owner = ctx . accounts . owner . key () ;",
+      "b . mid = 0 ;",
+      "b . liq = 0 ;",
+      "b . hist = [0u32 ; 8] ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "open_order",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < OpenOrder >",
+      "side: Side",
+      "price: u32",
+      "qty: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let o = & mut ctx . accounts . order ;",
+      "o . parent = ctx . accounts . order_book . key () ;",
+      "o . trader = ctx . accounts . trader . key () ;",
+      "o . side = side ;",
+      "o . price = price ;",
+      "o . qty = qty ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_warehouse",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitWarehouse >"
+    ],
+    "attributes": [],
+    "body": [
+      "let w = & mut ctx . accounts . warehouse ;",
+      "w . parent = ctx . accounts . order_book . key () ;",
+      "w . filled = 0 ;",
+      "w . hash = 0 ;",
+      "w . last = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "match_orders",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < MatchOrders >"
+    ],
+    "attributes": [],
+    "body": [
+      "let book = & mut ctx . accounts . order_book ;",
+      "let a = & mut ctx . accounts . order_a ;",
+      "let b = & mut ctx . accounts . order_b ;",
+      "let w = & mut ctx . accounts . warehouse ;",
+      "let cross = if a . side == Side :: Bid { a . price as i64 - b . price as i64 } else { b . price as i64 - a . price as i64 } ;",
+      "let can_match = cross >= 0 ;",
+      "let mut sum : u64 = 0 ;",
+      "for i in 0 .. book . hist . len ()",
+      "{",
+      "let slot = (book . hist [i] as u64) . wrapping_add ((a . price as u64 ^ b . price as u64) & 0xFFFF) ;",
+      "book . hist [i] = (slot & 0xFFFF) as u32 ;",
+      "sum = sum . wrapping_add (book . hist [i] as u64) ;",
+      "}",
+      "let avg = (sum / (book . hist . len () as u64)) . min (u32 :: MAX as u64) as u32 ;",
+      "book . mid = avg ;",
+      "if can_match",
+      "{",
+      "let fill = a . qty . min (b . qty) ;",
+      "a . qty = a . qty . saturating_sub (fill) ;",
+      "b . qty = b . qty . saturating_sub (fill) ;",
+      "w . filled = w . filled . saturating_add (fill as u64) ;",
+      "w . last = fill ;",
+      "w . hash ^= (fill as u64) . rotate_left (((a . price ^ b . price) & 31) as u32) ;",
+      "book . liq = book . liq . saturating_add (fill as u64) ;",
+      "msg ! (\"matched: fill=",
+      "{",
+      "}, book_mid={}, liq={}\" , fill , book . mid , book . liq) ;",
+      "} else",
+      "{",
+      "let drift = cross . unsigned_abs () . min (10_000) as u32 ;",
+      "book . hist [0] = book . hist [0] . saturating_add (drift) ;",
+      "w . last = 0 ;",
+      "msg ! (\"no match: drift=",
+      "{",
+      "}, book_mid={}\" , drift , book . mid) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitBook",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "order_book",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 4 + 8 + (4 * 8))]",
+        "field_type": "Account < 'info , OrderBook >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "OpenOrder",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "order_book",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , OrderBook >"
+      },
+      {
+        "name": "order",
+        "attribute": "# [account (init , payer = trader , space = 8 + 32 + 32 + 1 + 4 + 4)]",
+        "field_type": "Account < 'info , Order >"
+      },
+      {
+        "name": "trader",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitWarehouse",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "order_book",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , OrderBook >"
+      },
+      {
+        "name": "warehouse",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 8 + 4)]",
+        "field_type": "Account < 'info , Warehouse >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MatchOrders",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "order_book",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , OrderBook >"
+      },
+      {
+        "name": "order_a",
+        "attribute": "# [account (mut , constraint = order_a . parent == order_book . key () @ MarketErr :: Cosplay)]",
+        "field_type": "Account < 'info , Order >"
+      },
+      {
+        "name": "order_b",
+        "attribute": "# [account (mut , constraint = order_b . parent == order_book . key () @ MarketErr :: Cosplay , constraint = order_a . side as u8 != order_b . side as u8 @ MarketErr :: Cosplay)]",
+        "field_type": "Account < 'info , Order >"
+      },
+      {
+        "name": "warehouse",
+        "attribute": "# [account (mut , constraint = warehouse . parent == order_book . key () @ MarketErr :: Cosplay)]",
+        "field_type": "Account < 'info , Warehouse >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "OrderBook",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "mid",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "liq",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "hist",
+        "attribute": null,
+        "field_type": "[u32 ; 8]"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Order",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "trader",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "side",
+        "attribute": null,
+        "field_type": "Side"
+      },
+      {
+        "name": "price",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "qty",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Warehouse",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "filled",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "hash",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "last",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

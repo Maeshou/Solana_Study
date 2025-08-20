@@ -1,0 +1,144 @@
+[
+  {
+    "name": "init_guild",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitGuild >",
+      "level: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let g = & mut ctx . accounts . guild ;",
+      "g . leader = ctx . accounts . leader . key () ;",
+      "g . level = level . saturating_add (1) ;",
+      "g . exp = 0 ;",
+      "let mut trials = vec ! [5u64 , 9 , 13 , 27] ;",
+      "for t in trials . iter_mut ()",
+      "{",
+      "* t = (* t) . wrapping_mul (g . level) . rotate_left (1) ;",
+      "g . exp = g . exp . saturating_add ((* t % 21) as u64) ;",
+      "}",
+      "if g . exp > 100",
+      "{",
+      "g . level = g . level . saturating_add ((g . exp % 7) as u64) ;",
+      "g . exp = g . exp . wrapping_sub (77) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "payout_member",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PayoutMember >",
+      "amount: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let ix = system_instruction :: transfer (& ctx . accounts . guild . key () , & ctx . accounts . member . key () , amount) ;",
+      "let bump = * ctx . bumps . get (\"guild\") . ok_or (error ! (GuildErr :: MissingBump)) ? ;",
+      "let seeds : & [& [u8]] = & [b\"guild\" , ctx . accounts . leader . key . as_ref () , & [bump] ,] ;",
+      "invoke_signed (& ix , & [ctx . accounts . guild . to_account_info () , ctx . accounts . member . to_account_info () , ctx . accounts . system_program . to_account_info () ,] , & [seeds] ,) ? ;",
+      "emit ! (MemberPaid { member : ctx . accounts . member . key () , reward : amount }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "MemberPaid",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "member",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "reward",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitGuild",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": "# [account (init , payer = leader , space = 8 + 32 + 8 + 8 , seeds = [b\"guild\" , leader . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , GuildState >"
+      },
+      {
+        "name": "leader",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PayoutMember",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": "# [account (mut , seeds = [b\"guild\" , leader . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , GuildState >"
+      },
+      {
+        "name": "member",
+        "attribute": "# [account (mut)]",
+        "field_type": "SystemAccount < 'info >"
+      },
+      {
+        "name": "leader",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GuildState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "leader",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "level",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "exp",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

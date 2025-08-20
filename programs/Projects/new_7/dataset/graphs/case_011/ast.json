@@ -1,0 +1,161 @@
+[
+  {
+    "name": "make",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Make >",
+      "min: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let e = & mut ctx . accounts . escrow ;",
+      "e . operator = ctx . accounts . operator . key () ;",
+      "e . min = min ;",
+      "e . locked = 0 ;",
+      "e . released = 0 ;",
+      "e . score = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "pass_and_release",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PassAndRelease >",
+      "score: u32",
+      "comment: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let e = & mut ctx . accounts . escrow ;",
+      "require ! (e . operator == ctx . accounts . operator . key () , Errs :: Op) ;",
+      "if score > 50",
+      "{",
+      "let mut i = 0 ;",
+      "while i < score",
+      "{",
+      "if e . locked > 0 { e . locked = e . locked . saturating_sub (1) ;",
+      "} i = i . saturating_add (10) ;",
+      "} e . score = e . score . saturating_add (score) ;",
+      "} else",
+      "{",
+      "let mut j = 0 ;",
+      "while j < 3",
+      "{",
+      "e . locked = e . locked . saturating_add (1) ;",
+      "j = j . saturating_add (1) ;",
+      "} if comment . len () > 0",
+      "{",
+      "e . score = e . score . saturating_add (comment . len () as u32) ;",
+      "}",
+      "}",
+      "let mut amt = e . min . saturating_add ((e . score as u64) / 2) ;",
+      "if amt > e . locked",
+      "{",
+      "amt = e . locked ;",
+      "}",
+      "e . released = e . released . saturating_add (amt) ;",
+      "if e . locked >= amt",
+      "{",
+      "e . locked = e . locked - amt ;",
+      "}",
+      "let ix = spl_token :: instruction :: transfer (ctx . accounts . token_program . key () , ctx . accounts . vault . key () , ctx . accounts . player_ata . key () , ctx . accounts . operator . key () , & [] , amt ,) ? ;",
+      "invoke (& ix , & [ctx . accounts . vault . to_account_info () , ctx . accounts . player_ata . to_account_info () , ctx . accounts . operator . to_account_info () ,]) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Escrow",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "min",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "locked",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "released",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "score",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Make",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "escrow",
+        "attribute": "# [account (init , payer = operator , space = 8 + 32 + 8 + 8 + 8 + 4)]",
+        "field_type": "Account < 'info , Escrow >"
+      },
+      {
+        "name": "operator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PassAndRelease",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "escrow",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Escrow >"
+      },
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "vault",
+        "attribute": "# [doc = \" CHECK:\"] # [account (mut)]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "player_ata",
+        "attribute": "# [doc = \" CHECK:\"] # [account (mut)]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

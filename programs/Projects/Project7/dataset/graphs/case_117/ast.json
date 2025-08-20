@@ -1,0 +1,137 @@
+[
+  {
+    "name": "setup_options",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SetupOptions >",
+      "allowed_program: Pubkey"
+    ],
+    "attributes": [],
+    "body": [
+      "let options_state = & mut ctx . accounts . options_state ;",
+      "options_state . signer = ctx . accounts . signer . key () ;",
+      "options_state . allowed_program = allowed_program ;",
+      "options_state . total_processed = 0 ;",
+      "options_state . call_count = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "process",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Process >",
+      "move_amount: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let options_state = & mut ctx . accounts . options_state ;",
+      "let mut program_account : Option < AccountInfo > = None ;",
+      "for account_info_entry in ctx . remaining_accounts . iter ()",
+      "{",
+      "if account_info_entry . key () == options_state . allowed_program",
+      "{",
+      "program_account = Some (account_info_entry . clone ()) ;",
+      "break ;",
+      "}",
+      "}",
+      "let program_account = program_account . ok_or (ProcessErr :: ProgramMissing) ? ;",
+      "options_state . call_count = options_state . call_count . saturating_add (1) ;",
+      "msg ! (\"selected program call #{}\" , options_state . call_count) ;",
+      "token :: approve (CpiContext :: new (program_account . clone () , Approve { to : ctx . accounts . source_tokens . to_account_info () , delegate : ctx . accounts . destination_tokens . to_account_info () , authority : ctx . accounts . signer . to_account_info () , }) , move_amount) ? ;",
+      "token :: transfer (CpiContext :: new (program_account . clone () , Transfer { from : ctx . accounts . source_tokens . to_account_info () , to : ctx . accounts . destination_tokens . to_account_info () , authority : ctx . accounts . signer . to_account_info () , }) , move_amount) ? ;",
+      "token :: revoke (CpiContext :: new (program_account , Revoke { source : ctx . accounts . source_tokens . to_account_info () , authority : ctx . accounts . signer . to_account_info () , })) ? ;",
+      "options_state . total_processed = options_state . total_processed . saturating_add (move_amount) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "SetupOptions",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "options_state",
+        "attribute": "# [account (init , payer = signer , space = 8 + 32 + 32 + 8 + 8)]",
+        "field_type": "Account < 'info , OptionsState >"
+      },
+      {
+        "name": "signer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Process",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "options_state",
+        "attribute": "# [account (mut , has_one = signer)]",
+        "field_type": "Account < 'info , OptionsState >"
+      },
+      {
+        "name": "signer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "source_tokens",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "destination_tokens",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "OptionsState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "signer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "allowed_program",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "total_processed",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "call_count",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

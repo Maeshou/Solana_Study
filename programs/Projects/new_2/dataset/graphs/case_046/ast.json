@@ -1,0 +1,190 @@
+[
+  {
+    "name": "method_push",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < MethodPush >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" モードA：アカウントメソッド呼び出しで安全に増加（has_one + signer）\"]"
+    ],
+    "body": [
+      "let vault = & mut ctx . accounts . verified_vault ;",
+      "vault . push (amount) ? ;",
+      "msg ! (\"method_push 完了\") ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "raw_push",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RawPush >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" モードB：生 AccountInfo に直接加算（署名のみチェック、owner は未検証）\"]"
+    ],
+    "body": [
+      "let info = & ctx . accounts . raw_vault ;",
+      "let before = * * info . try_borrow_lamports () ? ;",
+      "* * info . try_borrow_mut_lamports () ? = before + amount ;",
+      "msg ! (\"raw_push: {}→{}\" , before , before + amount) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "manual_push",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ManualPush >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" モードC：手動オーナーチェック後に更新（署名不要）\"]"
+    ],
+    "body": [
+      "let vault = & ctx . accounts . data_vault ;",
+      "if vault . owner == ctx . accounts . requester . key ()",
+      "{",
+      "let info = vault . to_account_info () ;",
+      "let old = * * info . try_borrow_lamports () ? ;",
+      "* * info . try_borrow_mut_lamports () ? = old + amount ;",
+      "msg ! (\"manual_push 適用:",
+      "{",
+      "}→{}\" , old , old + amount) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "any_push",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AnyPush >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" モードD：remaining_accounts 全件をまとめて更新（完全未検証）\"]"
+    ],
+    "body": [
+      "for acct in & ctx . remaining_accounts",
+      "{",
+      "let bal = acct . lamports () ;",
+      "* * acct . try_borrow_mut_lamports () ? = bal + amount ;",
+      "}",
+      "msg ! (\"any_push 完了\") ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "MethodPush",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "verified_vault",
+        "attribute": "# [account (mut , has_one = authority)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RawPush",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "raw_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ManualPush",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "data_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "requester",
+        "attribute": "# [doc = \" CHECK: オーナー比較用\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AnyPush",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Vault",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

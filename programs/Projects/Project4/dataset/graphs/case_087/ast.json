@@ -1,33 +1,62 @@
 [
   {
-    "name": "initialize_identity_management",
+    "name": "init_multiplier",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Initialize087 >",
-      "param: u64"
+      "ctx: Context < InitMultiplier >",
+      "base: u32",
+      "mult: u8"
     ],
     "attributes": [],
     "body": [
-      "let mut data = IdentityManagementData :: try_from_slice (& ctx . accounts . data_account . data . borrow ()) ? ;",
-      "data . value = param ;",
-      "data . serialize (& mut * ctx . accounts . data_account . data . borrow_mut ()) ? ;",
+      "let s = & mut ctx . accounts . score ;",
+      "s . base_score = base ;",
+      "s . multiplier = mult ;",
+      "s . adjusted_score = base ;",
+      "s . adjusted_score = s . base_score . saturating_mul (s . multiplier as u32) ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Initialize087",
+    "name": "apply_multiplier",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ApplyMultiplier >",
+      "extra: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . score ;",
+      "let new_mult = s . multiplier . saturating_add (extra) ;",
+      "s . multiplier = if new_mult > 10 { 10 } else { new_mult } ;",
+      "s . adjusted_score = s . base_score . saturating_mul (s . multiplier as u32) ;",
+      "if s . multiplier > 5",
+      "{",
+      "s . adjusted_score = s . adjusted_score . saturating_add (50) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitMultiplier",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "score",
+        "attribute": "# [account (init , payer = user , space = 8 + 4 + 1 + 4)]",
+        "field_type": "Account < 'info , ScoreMultiplierData >"
       },
       {
-        "name": "authority",
-        "attribute": null,
+        "name": "user",
+        "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -35,13 +64,37 @@
     "body": null
   },
   {
-    "name": "IdentityManagementData",
+    "name": "ApplyMultiplier",
     "node_type": "struct",
     "fields": [
       {
-        "name": "value",
+        "name": "score",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , ScoreMultiplierData >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ScoreMultiplierData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "base_score",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "u32"
+      },
+      {
+        "name": "multiplier",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "adjusted_score",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

@@ -1,33 +1,71 @@
 [
   {
-    "name": "initialize_timelock_contract",
+    "name": "create_event",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Initialize026 >",
-      "param: u64"
+      "ctx: Context < CreateEvent >",
+      "start: i64",
+      "end: i64"
     ],
     "attributes": [],
     "body": [
-      "let mut data = TimelockContractData :: try_from_slice (& ctx . accounts . data_account . data . borrow ()) ? ;",
-      "data . value = param ;",
-      "data . serialize (& mut * ctx . accounts . data_account . data . borrow_mut ()) ? ;",
+      "let now = Clock :: get () ? . unix_timestamp ;",
+      "let e = & mut ctx . accounts . event ;",
+      "e . start = start ;",
+      "e . end = end ;",
+      "e . created_at = now ;",
+      "if e . end < e . start",
+      "{",
+      "let tmp = e . start ;",
+      "e . start = e . end ;",
+      "e . end = tmp ;",
+      "}",
+      "e . duration = e . end - e . start ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Initialize026",
+    "name": "cancel_event",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CancelEvent >"
+    ],
+    "attributes": [],
+    "body": [
+      "let now = Clock :: get () ? . unix_timestamp ;",
+      "let ev = & mut ctx . accounts . event ;",
+      "ev . canceled = true ;",
+      "ev . canceled_at = now ;",
+      "if now < ev . start",
+      "{",
+      "ev . early_cancel = true ;",
+      "} else",
+      "{",
+      "ev . early_cancel = false ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CreateEvent",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "event",
+        "attribute": "# [account (init , payer = creator , space = 8 + 8 * 4 + 8)]",
+        "field_type": "Account < 'info , EventData >"
       },
       {
-        "name": "authority",
-        "attribute": null,
+        "name": "creator",
+        "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -35,13 +73,67 @@
     "body": null
   },
   {
-    "name": "TimelockContractData",
+    "name": "CancelEvent",
     "node_type": "struct",
     "fields": [
       {
-        "name": "value",
+        "name": "event",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "Account < 'info , EventData >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EventData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "start",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "end",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "created_at",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "duration",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "canceled",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "canceled_at",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "early_cancel",
+        "attribute": null,
+        "field_type": "bool"
       }
     ],
     "inputs": null,

@@ -1,0 +1,229 @@
+[
+  {
+    "name": "upgrade_configuration",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Ctx064 >"
+    ],
+    "attributes": [],
+    "body": [
+      "let old_text = ctx . accounts . item . text . clone () ;",
+      "let new_text = format ! (\"Case 064 by {}\" , ctx . accounts . user . key ()) ;",
+      "ctx . accounts . item . text = new_text . clone () ;",
+      "msg ! (\"Case 064: '{}' -> '{}'\" , old_text , new_text) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "register_unlock",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RegisterUnlock >",
+      "uri: String"
+    ],
+    "attributes": [
+      "# [doc = \" NFT に紐づくアンロック用コンテンツ URI を登録します。\"]",
+      "# [doc = \" - `uri`: オフチェーンのコンテンツへのリンク  \"]",
+      "# [doc = \" 署名チェックは `user: AccountInfo` のまま省略、分岐・ループなし\"]"
+    ],
+    "body": [
+      "let info = & mut ctx . accounts . unlock_info ;",
+      "info . creator = * ctx . accounts . user . key ;",
+      "info . nft_mint = ctx . accounts . nft_mint . key () ;",
+      "info . uri = uri ;"
+    ]
+  },
+  {
+    "name": "redeem_unlock",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RedeemUnlock >"
+    ],
+    "attributes": [
+      "# [doc = \" 登録済みコンテンツをアンロック（閲覧）した実績を記録します。\"]"
+    ],
+    "body": [
+      "let entry = & mut ctx . accounts . redeem_entry ;",
+      "entry . user = * ctx . accounts . user . key ;",
+      "entry . nft_mint = ctx . accounts . nft_mint . key () ;",
+      "entry . times = entry . times . saturating_add (1) ;"
+    ]
+  },
+  {
+    "name": "UnlockInfo",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "creator",
+        "attribute": "# [doc = \" 本来は検証すべき登録者\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "nft_mint",
+        "attribute": "# [doc = \" 対象 NFT の Mint\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "uri",
+        "attribute": "# [doc = \" アンロック用コンテンツ URI\"]",
+        "field_type": "String"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RedeemEntry",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": "# [doc = \" アンロック実行者\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "nft_mint",
+        "attribute": "# [doc = \" 対象 NFT の Mint\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "times",
+        "attribute": "# [doc = \" アンロック回数\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RegisterUnlock",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "fee_payer",
+        "attribute": "# [doc = \" 手数料支払い用アカウント（署名必須）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" コンテンツ登録者（署名チェック omitted intentionally）\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "nft_mint",
+        "attribute": "# [doc = \" 対象 NFT の Mint（参照用）\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "unlock_info",
+        "attribute": "# [doc = \" アンロック情報を保持する PDA\"] # [account (init_if_needed , payer = fee_payer , seeds = [b\"unlock\" , nft_mint . key () . as_ref ()] , bump , space = 8 + 32 + 32 + (4 + 200))]",
+        "field_type": "Account < 'info , UnlockInfo >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "rent",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Rent >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RedeemUnlock",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "fee_payer",
+        "attribute": "# [doc = \" 手数料支払い用アカウント（署名必須）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" アンロック実行者（署名チェック omitted intentionally）\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "nft_mint",
+        "attribute": "# [doc = \" 対象 NFT の Mint（参照用）\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "unlock_info",
+        "attribute": "# [doc = \" 登録済み UnlockInfo PDA\"] # [account (seeds = [b\"unlock\" , nft_mint . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , UnlockInfo >"
+      },
+      {
+        "name": "redeem_entry",
+        "attribute": "# [doc = \" アンロック実績を保持する PDA\"] # [account (init_if_needed , payer = fee_payer , seeds = [b\"redeem\" , user . key () . as_ref () , nft_mint . key () . as_ref ()] , bump , space = 8 + 32 + 32 + 8)]",
+        "field_type": "Account < 'info , RedeemEntry >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "rent",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Rent >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Ctx064",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "item",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Item064 >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Item064",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "text",
+        "attribute": null,
+        "field_type": "String"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

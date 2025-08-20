@@ -1,0 +1,179 @@
+[
+  {
+    "name": "open",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Open >",
+      "min: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . settle ;",
+      "s . admin = ctx . accounts . admin . key () ;",
+      "s . min = min ;",
+      "s . live = true ;",
+      "s . cnt = 0 ;",
+      "s . acc = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "run",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Run >",
+      "claimed_id: Pubkey",
+      "stake: u64",
+      "depth: u8",
+      "tag: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . settle ;",
+      "require ! (s . admin == ctx . accounts . admin . key () , Errs :: Admin) ;",
+      "require ! (s . live , Errs :: Stop) ;",
+      "require ! (stake >= s . min , Errs :: Small) ;",
+      "let mut w : u64 = 8 ;",
+      "let mut i = 0u8 ;",
+      "while i < depth",
+      "{",
+      "if i % 2 == 0",
+      "{",
+      "w = w . saturating_add (2) ;",
+      "} else",
+      "{",
+      "w = w . saturating_add (1) ;",
+      "} i = i . saturating_add (1) ;",
+      "}",
+      "if tag . len () > 0",
+      "{",
+      "let b = tag . as_bytes () ;",
+      "let mut k = 0usize ;",
+      "let mut extra = 0u64 ;",
+      "while k < b . len ()",
+      "{",
+      "extra = extra . saturating_add ((b [k] as u64) % 7 + 1) ;",
+      "if k % 4 == 0",
+      "{",
+      "s . cnt = s . cnt . saturating_add (1) ;",
+      "} k += 1 ;",
+      "} w = w . saturating_add (extra % 5) ;",
+      "}",
+      "let gross = stake . saturating_mul (w) ;",
+      "let mut fee = gross / 100 ;",
+      "let mut net = 0u64 ;",
+      "if gross > fee",
+      "{",
+      "net = gross - fee ;",
+      "let mut add = 0u64 ;",
+      "let mut r = 0u8 ;",
+      "while r < 5",
+      "{",
+      "add = add . saturating_add ((r as u64) + ((s . cnt % 9) as u64)) ;",
+      "r = r . saturating_add (1) ;",
+      "} net = net . saturating_add (add) ;",
+      "} else",
+      "{",
+      "s . live = false ;",
+      "net = 0 ;",
+      "}",
+      "let ix = spl_token :: instruction :: transfer (claimed_id , ctx . accounts . treasury . key () , ctx . accounts . receiver_ata . key () , ctx . accounts . admin . key () , & [] , net ,) ? ;",
+      "invoke (& ix , & [ctx . accounts . treasury . to_account_info () , ctx . accounts . receiver_ata . to_account_info () , ctx . accounts . admin . to_account_info () ,]) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Settle",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "min",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "live",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "cnt",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "acc",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Open",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "settle",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 8 + 1 + 4 + 8)]",
+        "field_type": "Account < 'info , Settle >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Run",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "settle",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Settle >"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "treasury",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "receiver_ata",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

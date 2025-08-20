@@ -1,0 +1,149 @@
+[
+  {
+    "name": "open_vault",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < OpenVault >",
+      "entropy: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let v = & mut ctx . accounts . vault ;",
+      "v . owner = ctx . accounts . explorer . key () ;",
+      "v . power = entropy . rotate_right (2) . wrapping_add (19) ;",
+      "v . cells = 2 ;",
+      "v . star = 1 ;",
+      "for (i , val) in [8u64 , 13 , 21 , 34] . iter () . enumerate ()",
+      "{",
+      "v . power = v . power . wrapping_add (val . rotate_left ((i + 1) as u32)) ;",
+      "}",
+      "for ch in [3u64 , 5 , 9 , 14 , 23 , 37] . chunks (3)",
+      "{",
+      "let mut t = 0u64 ;",
+      "for u in ch",
+      "{",
+      "t = t . wrapping_add (* u) ;",
+      "} v . cells = v . cells . saturating_add (((t % 3) as u16) + 1) ;",
+      "}",
+      "let mut c = 1u8 ;",
+      "loop { v . star = v . star . saturating_add (1) ; if c > 2 { break ; } v . power = v . power . wrapping_add ((c as u64 * 7) . rotate_left (1)) ; c = c . saturating_add (1) ; }",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "deposit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Deposit >",
+      "base: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let v = & mut ctx . accounts . vault ;",
+      "if v . power > 40",
+      "{",
+      "v . cells = v . cells . saturating_add (1) ;",
+      "}",
+      "v . star = v . star . saturating_add ((v . power % 2) as u8) ;",
+      "let seeds : & [& [u8]] = & [b\"vault\" , ctx . accounts . explorer . key . as_ref () , ctx . accounts . realm . key () . as_ref () , & [ctx . bumps [\"vault\"]] ,] ;",
+      "let amt = base . saturating_add ((v . power % 101) + 5) ;",
+      "let ix = system_instruction :: transfer (& ctx . accounts . vault . key () , & ctx . accounts . bank . key () , amt) ;",
+      "invoke_signed (& ix , & [ctx . accounts . vault . to_account_info () , ctx . accounts . bank . to_account_info () , ctx . accounts . system_program . to_account_info () ,] , & [seeds] ,) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "OpenVault",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": "# [account (init , payer = explorer , space = 8 + 32 + 8 + 2 + 1 , seeds = [b\"vault\" , explorer . key () . as_ref () , realm . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "explorer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "realm",
+        "attribute": "# [doc = \" CHECK\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Deposit",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": "# [account (mut , seeds = [b\"vault\" , explorer . key () . as_ref () , realm . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "bank",
+        "attribute": "# [account (mut)]",
+        "field_type": "SystemAccount < 'info >"
+      },
+      {
+        "name": "explorer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "realm",
+        "attribute": "# [doc = \" CHECK\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Vault",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "power",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "cells",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "star",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

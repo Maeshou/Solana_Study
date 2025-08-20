@@ -1,0 +1,164 @@
+[
+  {
+    "name": "initialize_escrow",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeEscrow >"
+    ],
+    "attributes": [
+      "# [doc = \" エスクロー契約を初期化：管理者（イニシエータ）と受益者を登録\"]"
+    ],
+    "body": [
+      "let esc = & mut ctx . accounts . escrow ;",
+      "esc . initializer = ctx . accounts . initializer . key () ;",
+      "esc . beneficiary = ctx . accounts . beneficiary . key () ;",
+      "msg ! (\"Escrow initialized: initializer={}, beneficiary={}\" , esc . initializer , esc . beneficiary) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "deposit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Deposit >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" エスクロー口座に入金：イニシエータ署名で自身からPDAへ移動\"]"
+    ],
+    "body": [
+      "require ! (ctx . accounts . initializer . is_signer , ErrorCode :: Unauthorized) ;",
+      "* * ctx . accounts . initializer . to_account_info () . try_borrow_mut_lamports () ? -= amount ;",
+      "* * ctx . accounts . vault . to_account_info () . try_borrow_mut_lamports () ? += amount ;",
+      "msg ! (\"Deposited {} lamports into escrow vault\" , amount) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "release",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Release >"
+    ],
+    "attributes": [
+      "# [doc = \" エスクローから受益者へ引出し：イニシエータ署名でPDAから受益者へ移動\"]"
+    ],
+    "body": [
+      "require ! (ctx . accounts . initializer . is_signer , ErrorCode :: Unauthorized) ;",
+      "let vault_balance = * * ctx . accounts . vault . to_account_info () . lamports . borrow () ;",
+      "* * ctx . accounts . vault . to_account_info () . try_borrow_mut_lamports () ? -= vault_balance ;",
+      "* * ctx . accounts . beneficiary . to_account_info () . try_borrow_mut_lamports () ? += vault_balance ;",
+      "msg ! (\"Released {} lamports to beneficiary {}\" , vault_balance , ctx . accounts . beneficiary . key ()) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializeEscrow",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "escrow",
+        "attribute": "# [doc = \" 初期化用エスクロー状態保持アカウント\"] # [account (init , payer = initializer , space = 8 + 32 + 32 , seeds = [b\"escrow\" , initializer . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , EscrowState >"
+      },
+      {
+        "name": "initializer",
+        "attribute": "# [doc = \" 管理者（イニシエータ）署名\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "beneficiary",
+        "attribute": "# [doc = \" 受益者（資金受け取り先）\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Deposit",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "escrow",
+        "attribute": "# [doc = \" 既存のエスクロー状態\"] # [account (mut , seeds = [b\"escrow\" , initializer . key () . as_ref ()] , bump , has_one = initializer)]",
+        "field_type": "Account < 'info , EscrowState >"
+      },
+      {
+        "name": "initializer",
+        "attribute": "# [doc = \" イニシエータ署名\"]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "vault",
+        "attribute": "# [doc = \" 資金保管用PDA\"] # [account (mut , seeds = [b\"vault\" , escrow . key () . as_ref ()] , bump , init_if_needed , payer = initializer , space = 8)]",
+        "field_type": "SystemAccount < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Release",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "escrow",
+        "attribute": "# [doc = \" 既存のエスクロー状態\"] # [account (mut , seeds = [b\"escrow\" , initializer . key () . as_ref ()] , bump , has_one = initializer)]",
+        "field_type": "Account < 'info , EscrowState >"
+      },
+      {
+        "name": "initializer",
+        "attribute": "# [doc = \" イニシエータ署名\"]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "vault",
+        "attribute": "# [doc = \" 資金保管用PDA\"] # [account (mut , seeds = [b\"vault\" , escrow . key () . as_ref ()] , bump)]",
+        "field_type": "SystemAccount < 'info >"
+      },
+      {
+        "name": "beneficiary",
+        "attribute": "# [doc = \" 資金受取人\"] # [account (mut , address = escrow . beneficiary)]",
+        "field_type": "SystemAccount < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EscrowState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "initializer",
+        "attribute": "# [doc = \" イニシエータPubkey\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "beneficiary",
+        "attribute": "# [doc = \" 受益者Pubkey\"]",
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

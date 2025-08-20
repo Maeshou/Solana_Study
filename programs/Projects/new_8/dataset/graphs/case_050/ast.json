@@ -1,0 +1,136 @@
+[
+  {
+    "name": "create_gallery",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateGallery >",
+      "rooms: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let g = & mut ctx . accounts . gallery ;",
+      "g . owner = ctx . accounts . curator . key () ;",
+      "g . rooms = rooms % 60 + 6 ;",
+      "g . exhibits = 7 ;",
+      "g . visits = 3 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "rotate",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Rotate >",
+      "count: u16",
+      "user_bump: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let g = & mut ctx . accounts . gallery ;",
+      "let mut turn = 2u32 ;",
+      "while turn < (count as u32 % 21 + 6)",
+      "{",
+      "g . exhibits = g . exhibits . saturating_add (turn) ;",
+      "if g . exhibits % 5 != 2",
+      "{",
+      "g . visits = g . visits . saturating_add (1) ;",
+      "} let pack = (turn * 3) % 10 + 1 ;",
+      "g . rooms = g . rooms . saturating_add (pack as u16) ;",
+      "turn = turn . saturating_add (4) ;",
+      "}",
+      "let seeds = & [b\"ticket_pad\" , ctx . accounts . curator . key . as_ref () , & [user_bump]] ;",
+      "let p = Pubkey :: create_program_address (seeds , ctx . program_id) . map_err (| _ | error ! (GalErr :: SeedIssue)) ? ;",
+      "if p != ctx . accounts . ticket_pad . key ()",
+      "{",
+      "return Err (error ! (GalErr :: TicketKey)) ;",
+      "}",
+      "if count > 10",
+      "{",
+      "let add = (count % 7) as u32 + 2 ;",
+      "g . visits = g . visits . saturating_add (add) ;",
+      "let stamp = g . owner . to_bytes () [1] ;",
+      "g . exhibits = g . exhibits . saturating_add (stamp as u32) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CreateGallery",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "gallery",
+        "attribute": "# [account (init , payer = curator , space = 8 + 32 + 2 + 4 + 4 , seeds = [b\"gallery\" , curator . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Gallery >"
+      },
+      {
+        "name": "curator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Rotate",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "gallery",
+        "attribute": "# [account (mut , seeds = [b\"gallery\" , curator . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Gallery >"
+      },
+      {
+        "name": "ticket_pad",
+        "attribute": "# [doc = \" CHECK\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "curator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Gallery",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "rooms",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "exhibits",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "visits",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

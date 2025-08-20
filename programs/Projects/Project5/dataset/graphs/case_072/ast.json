@@ -1,40 +1,223 @@
 [
   {
-    "name": "update_metadata",
+    "name": "init_stage",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx072 >",
-      "amount: u64"
+      "ctx: Context < InitStage >",
+      "tempo: u16"
     ],
     "attributes": [],
     "body": [
-      "let src = & mut ctx . accounts . account_src ;",
-      "let dst = & mut ctx . accounts . account_dst ;",
-      "let before = * * src . to_account_info () . try_borrow_lamports () ? ;",
-      "* * src . to_account_info () . try_borrow_mut_lamports () ? = before . saturating_sub (amount) ;",
-      "* * dst . to_account_info () . try_borrow_mut_lamports () ? += amount ;",
+      "let st = & mut ctx . accounts . stage ;",
+      "st . owner = ctx . accounts . conductor . key () ;",
+      "st . tempo = tempo ;",
+      "st . status = Setup ;",
+      "let ch = & mut ctx . accounts . chair_a ;",
+      "let chb = & mut ctx . accounts . chair_b ;",
+      "let sc = & mut ctx . accounts . section_log ;",
+      "ch . parent = st . key () ;",
+      "ch . chair = (tempo % 8) as u8 ;",
+      "ch . score = (tempo as u32) * 2 + 5 ;",
+      "chb . parent = st . key () ;",
+      "chb . chair = ((tempo / 3) % 8) as u8 ;",
+      "chb . score = (tempo as u32) + 11 ;",
+      "sc . parent = st . key () ;",
+      "sc . section = ((tempo / 5) % 8) as u8 ;",
+      "sc . count = 0 ;",
+      "sc . total = 0 ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx072",
+    "name": "play",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Play >",
+      "bars: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let st = & mut ctx . accounts . stage ;",
+      "let a = & mut ctx . accounts . chair_a ;",
+      "let b = & mut ctx . accounts . chair_b ;",
+      "let sc = & mut ctx . accounts . section_log ;",
+      "for i in 0 .. bars",
+      "{",
+      "a . score = a . score . saturating_add ((i % 5) as u32 + 1) ;",
+      "b . score = b . score . checked_add ((i % 7) as u32 + 2) . unwrap_or (u32 :: MAX) ;",
+      "sc . count = sc . count . saturating_add (1) ;",
+      "sc . total = sc . total . saturating_add ((a . score + b . score) as u64) ;",
+      "}",
+      "let mean = if sc . count == 0 { 0 } else { (sc . total / sc . count) as u32 } ;",
+      "if mean > st . tempo as u32",
+      "{",
+      "st . status = Break ;",
+      "a . chair ^= 0x1 ;",
+      "b . chair = b . chair . saturating_add (1) ;",
+      "sc . section = sc . section . saturating_add (1) ;",
+      "msg ! (\"break: chair tweak & section++\") ;",
+      "} else",
+      "{",
+      "st . status = Play ;",
+      "a . score = a . score . saturating_add (9) ;",
+      "b . score = b . score / 2 + 7 ;",
+      "sc . total ^= 0x0FF0_FF0F ;",
+      "msg ! (\"play: score adjust & total flip\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitStage",
     "node_type": "struct",
     "fields": [
       {
-        "name": "account_src",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "stage",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 2 + 1)]",
+        "field_type": "Account < 'info , StageCore >"
       },
       {
-        "name": "account_dst",
+        "name": "chair_a",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Chair >"
+      },
+      {
+        "name": "chair_b",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Chair >"
+      },
+      {
+        "name": "section_log",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 8 + 8)]",
+        "field_type": "Account < 'info , SectionLog >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "conductor",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
       },
       {
         "name": "system_program",
         "attribute": null,
         "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Play",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "stage",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , StageCore >"
+      },
+      {
+        "name": "chair_a",
+        "attribute": "# [account (mut , has_one = stage , constraint = chair_a . chair != chair_b . chair @ OrchErr :: Dup)]",
+        "field_type": "Account < 'info , Chair >"
+      },
+      {
+        "name": "chair_b",
+        "attribute": "# [account (mut , has_one = stage , constraint = chair_b . chair != section_log . section @ OrchErr :: Dup)]",
+        "field_type": "Account < 'info , Chair >"
+      },
+      {
+        "name": "section_log",
+        "attribute": "# [account (mut , has_one = stage)]",
+        "field_type": "Account < 'info , SectionLog >"
+      },
+      {
+        "name": "conductor",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "StageCore",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "tempo",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "status",
+        "attribute": null,
+        "field_type": "Rehearsal"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Chair",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "chair",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "score",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SectionLog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "section",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "count",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total",
+        "attribute": null,
+        "field_type": "u64"
       }
     ],
     "inputs": null,

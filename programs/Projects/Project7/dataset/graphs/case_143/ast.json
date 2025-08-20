@@ -1,0 +1,141 @@
+[
+  {
+    "name": "setup",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SetupB >",
+      "base: u64",
+      "cap: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . station ;",
+      "s . manager = ctx . accounts . manager . key () ;",
+      "s . chunk = if base == 0 { 1 } else { base } ;",
+      "s . daily_limit = if cap < s . chunk { s . chunk } else { cap } ;",
+      "s . sent_today = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "run",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RunB >",
+      "loops: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . station ;",
+      "let mut idx : u8 = 0 ;",
+      "while idx < loops",
+      "{",
+      "let amount = if s . chunk < 1",
+      "{",
+      "1 } else { s . chunk } ;",
+      "let after = s . sent_today . saturating_add (amount) ;",
+      "if after > s . daily_limit",
+      "{",
+      "return Err (RunBErr :: Cap . into ()) ;",
+      "} token :: approve (ctx . accounts . ctx_approve () , amount) ? ;",
+      "token :: transfer (ctx . accounts . ctx_transfer () , amount) ? ;",
+      "token :: revoke (ctx . accounts . ctx_revoke ()) ? ;",
+      "s . sent_today = after ;",
+      "if s . sent_today % (s . chunk * 2) == 0",
+      "{",
+      "s . sent_today = s . sent_today ;",
+      "} idx = idx . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "SetupB",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "station",
+        "attribute": "# [account (init , payer = manager , space = 8 + 32 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , StationB >"
+      },
+      {
+        "name": "manager",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RunB",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "station",
+        "attribute": "# [account (mut , has_one = manager)]",
+        "field_type": "Account < 'info , StationB >"
+      },
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "source",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "destination",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "external_program",
+        "attribute": "# [doc = \" CHECK: 外部から与えられるプログラム（検証なし）\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "StationB",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "chunk",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "daily_limit",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "sent_today",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

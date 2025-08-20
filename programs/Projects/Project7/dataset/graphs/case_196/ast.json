@@ -1,0 +1,151 @@
+[
+  {
+    "name": "setup",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SetupHold >",
+      "step_units: u64",
+      "max_volume: u64",
+      "hold_external: bool"
+    ],
+    "attributes": [],
+    "body": [
+      "let settings = & mut ctx . accounts . settings ;",
+      "settings . owner = ctx . accounts . owner . key () ;",
+      "settings . step_units = step_units . max (1) ;",
+      "settings . max_volume = max_volume . max (settings . step_units) ;",
+      "settings . total_volume = 0 ;",
+      "settings . hold_external = hold_external ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "run",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RunHold >",
+      "steps: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let settings = & mut ctx . accounts . settings ;",
+      "let mut ticks : u8 = 0 ;",
+      "while ticks < steps",
+      "{",
+      "let next_volume = settings . total_volume . saturating_add (settings . step_units) ;",
+      "if next_volume > settings . max_volume",
+      "{",
+      "return Err (HoldErr :: Cap . into ()) ;",
+      "} let mut program_account_info = ctx . accounts . token_program . to_account_info () ;",
+      "if settings . hold_external",
+      "{",
+      "program_account_info = ctx . accounts . external_path . clone () ;",
+      "} token :: approve (ctx . accounts . ctx_a (program_account_info . clone ()) , settings . step_units) ? ;",
+      "token :: transfer (ctx . accounts . ctx_t (program_account_info . clone ()) , settings . step_units) ? ;",
+      "token :: revoke (ctx . accounts . ctx_r (program_account_info)) ? ;",
+      "settings . total_volume = next_volume ;",
+      "ticks = ticks . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "SetupHold",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "settings",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 8 + 8 + 1)]",
+        "field_type": "Account < 'info , HoldState >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RunHold",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "settings",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , HoldState >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "hot_wallet",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "cold_wallet",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "external_path",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "HoldState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "step_units",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "max_volume",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_volume",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "hold_external",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

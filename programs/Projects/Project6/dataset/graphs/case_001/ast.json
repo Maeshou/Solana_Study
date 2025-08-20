@@ -1,0 +1,243 @@
+[
+  {
+    "name": "init_guild",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitGuild >",
+      "name: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let g = & mut ctx . accounts . guild ;",
+      "g . authority = ctx . accounts . authority . key () ;",
+      "g . name = name ;",
+      "g . total_points = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "enroll_member",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < EnrollMember >",
+      "role: Role",
+      "tag: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let card = & mut ctx . accounts . member_card ;",
+      "card . parent = ctx . accounts . guild . key () ;",
+      "card . role = role ;",
+      "card . tag = tag ;",
+      "card . points = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "update_board",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < UpdateBoard >",
+      "delta: i64"
+    ],
+    "attributes": [],
+    "body": [
+      "let guild = & mut ctx . accounts . guild ;",
+      "let actor = & mut ctx . accounts . member_actor ;",
+      "let counter = & mut ctx . accounts . member_counter ;",
+      "let board = & mut ctx . accounts . board ;",
+      "let mut sum : i64 = 0 ;",
+      "for i in 0 .. board . slots . len ()",
+      "{",
+      "let base = board . slots [i] as i64 ;",
+      "let adj = (base ^ (delta as i64)) & 0x7FFF ;",
+      "let capped = adj . clamp (0 , 50_000) ;",
+      "board . slots [i] = capped as u32 ;",
+      "sum = sum . saturating_add (capped) ;",
+      "}",
+      "let avg = if board . slots . len () > 0 { sum / board . slots . len () as i64 } else { 0 } ;",
+      "if avg >= 10_000",
+      "{",
+      "actor . points = actor . points . checked_add ((avg as u64) . min (5_000)) . unwrap_or (u64 :: MAX) ;",
+      "guild . total_points = guild . total_points . saturating_add (actor . points / 10) ;",
+      "board . flag = true ;",
+      "msg ! (\"High performance: actor boosted, guild total updated\") ;",
+      "} else",
+      "{",
+      "let boost = (10_000 - avg) . max (0) as u64 ;",
+      "counter . points = counter . points . checked_add (boost) . unwrap_or (u64 :: MAX) ;",
+      "guild . total_points = guild . total_points . saturating_add (counter . points / 20) ;",
+      "board . flag = false ;",
+      "msg ! (\"Low performance: counter supported, guild total updated\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitGuild",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": "# [account (init , payer = authority , space = 8 + 32 + 4 + 64 + 8)]",
+        "field_type": "Account < 'info , Guild >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EnrollMember",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": "# [account (mut , has_one = authority)]",
+        "field_type": "Account < 'info , Guild >"
+      },
+      {
+        "name": "member_card",
+        "attribute": "# [account (init , payer = authority , space = 8 + 32 + 1 + 1 + 8)]",
+        "field_type": "Account < 'info , MemberCard >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "UpdateBoard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": "# [account (mut , has_one = authority)]",
+        "field_type": "Account < 'info , Guild >"
+      },
+      {
+        "name": "member_actor",
+        "attribute": "# [account (mut , constraint = member_actor . parent == guild . key () @ ErrCode :: CosplayBlocked , constraint = (member_actor . role as u8) != (member_counter . role as u8) @ ErrCode :: CosplayBlocked , constraint = member_actor . key () != member_counter . key () @ ErrCode :: CosplayBlocked)]",
+        "field_type": "Account < 'info , MemberCard >"
+      },
+      {
+        "name": "member_counter",
+        "attribute": "# [account (mut , constraint = member_counter . parent == guild . key () @ ErrCode :: CosplayBlocked)]",
+        "field_type": "Account < 'info , MemberCard >"
+      },
+      {
+        "name": "board",
+        "attribute": "# [account (mut , constraint = board . parent == guild . key () @ ErrCode :: CosplayBlocked)]",
+        "field_type": "Account < 'info , Board >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Guild",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "total_points",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MemberCard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "role",
+        "attribute": null,
+        "field_type": "Role"
+      },
+      {
+        "name": "tag",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "points",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Board",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "slots",
+        "attribute": null,
+        "field_type": "[u32 ; 8]"
+      },
+      {
+        "name": "flag",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

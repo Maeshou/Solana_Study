@@ -1,0 +1,294 @@
+[
+  {
+    "name": "init_player",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitPlayer >"
+    ],
+    "attributes": [],
+    "body": [
+      "let p = & mut ctx . accounts . player ;",
+      "p . owner = ctx . accounts . owner . key () ;",
+      "p . energy = 100 ;",
+      "p . level = 1 ;",
+      "p . flags = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "issue_ticket",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < IssueTicket >",
+      "slot: u8",
+      "quota: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let t = & mut ctx . accounts . ticket ;",
+      "t . parent = ctx . accounts . player . key () ;",
+      "t . slot = slot ;",
+      "t . quota = quota ;",
+      "t . used = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "attach_meter",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AttachMeter >"
+    ],
+    "attributes": [],
+    "body": [
+      "let m = & mut ctx . accounts . meter ;",
+      "m . parent = ctx . accounts . player . key () ;",
+      "m . consumed = 0 ;",
+      "m . regen = 0 ;",
+      "m . last = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "run_measure",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RunMeasure >",
+      "effort: u16"
+    ],
+    "attributes": [
+      "# [doc = \" 2枚のチケットの slot が一致していないことを要求（Type Cosplay 抑止）\"]"
+    ],
+    "body": [
+      "let p = & mut ctx . accounts . player ;",
+      "let ta = & mut ctx . accounts . ticket_a ;",
+      "let tb = & mut ctx . accounts . ticket_b ;",
+      "let m = & mut ctx . accounts . meter ;",
+      "let consume = (effort as u64) . min (p . energy as u64) ;",
+      "p . energy = p . energy . saturating_sub (consume as u32) ;",
+      "m . consumed = m . consumed . saturating_add (consume) ;",
+      "if (consume & 1) == 0",
+      "{",
+      "let step = ((consume as u16) % 7) as u16 + 1 ;",
+      "ta . used = ta . used . saturating_add (step) . min (ta . quota) ;",
+      "} else",
+      "{",
+      "let step = ((consume as u16) % 5) as u16 + 1 ;",
+      "tb . used = tb . used . saturating_add (step) . min (tb . quota) ;",
+      "}",
+      "if p . energy < 20",
+      "{",
+      "let rec = (ta . slot as u32 + tb . slot as u32 + 5) . min (25) ;",
+      "p . energy = p . energy . saturating_add (rec) ;",
+      "m . regen = m . regen . saturating_add (rec as u64) ;",
+      "} else",
+      "{",
+      "p . level = p . level . saturating_add (1) ;",
+      "m . last = (m . last . wrapping_add (consume as u32)) ^ ((ta . slot as u32) << 3) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitPlayer",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "player",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 4 + 4 + 4)]",
+        "field_type": "Account < 'info , Player >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "IssueTicket",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "player",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Player >"
+      },
+      {
+        "name": "ticket",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 1 + 2 + 2)]",
+        "field_type": "Account < 'info , Ticket >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AttachMeter",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "player",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Player >"
+      },
+      {
+        "name": "meter",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 8 + 4)]",
+        "field_type": "Account < 'info , Meter >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RunMeasure",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "player",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Player >"
+      },
+      {
+        "name": "ticket_a",
+        "attribute": "# [account (mut , constraint = ticket_a . parent == player . key () @ TrackErr :: Cosplay)]",
+        "field_type": "Account < 'info , Ticket >"
+      },
+      {
+        "name": "ticket_b",
+        "attribute": "# [account (mut , constraint = ticket_b . parent == player . key () @ TrackErr :: Cosplay , constraint = ticket_a . slot != ticket_b . slot @ TrackErr :: Cosplay)]",
+        "field_type": "Account < 'info , Ticket >"
+      },
+      {
+        "name": "meter",
+        "attribute": "# [account (mut , constraint = meter . parent == player . key () @ TrackErr :: Cosplay)]",
+        "field_type": "Account < 'info , Meter >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Player",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "energy",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "level",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "flags",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Ticket",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "slot",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "quota",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "used",
+        "attribute": null,
+        "field_type": "u16"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Meter",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "consumed",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "regen",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "last",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

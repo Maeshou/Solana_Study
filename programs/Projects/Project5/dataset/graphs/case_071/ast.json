@@ -1,33 +1,223 @@
 [
   {
-    "name": "init_metadata",
+    "name": "init_line",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx071 >"
+      "ctx: Context < InitLine >",
+      "mask: u32"
     ],
     "attributes": [],
     "body": [
-      "let a = & ctx . accounts . first ;",
-      "let b = & ctx . accounts . second ;",
-      "msg ! (\"Account A: {}\" , a . key ()) ;",
-      "msg ! (\"Account B: {}\" , b . key ()) ;",
+      "let k = & mut ctx . accounts . kitchen ;",
+      "k . owner = ctx . accounts . chef . key () ;",
+      "k . flag = (mask & 0x0FFF) | ((mask . rotate_left (5)) & 0xF000) ;",
+      "k . state = Prep ;",
+      "let s1 = & mut ctx . accounts . station_a ;",
+      "let s2 = & mut ctx . accounts . station_b ;",
+      "let tk = & mut ctx . accounts . ticket ;",
+      "s1 . parent = k . key () ;",
+      "s1 . station = (mask & 7) as u8 ;",
+      "s1 . heat = (mask % 90) + 10 ;",
+      "s2 . parent = k . key () ;",
+      "s2 . station = ((mask >> 4) & 7) as u8 ;",
+      "s2 . heat = ((mask >> 2) % 90) + 12 ;",
+      "tk . parent = k . key () ;",
+      "tk . number = 9 ;",
+      "tk . queue = (mask as u64) & 0xFFFF ;",
+      "tk . mix = 0 ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx071",
+    "name": "fire",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Fire >",
+      "steps: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let k = & mut ctx . accounts . kitchen ;",
+      "let a = & mut ctx . accounts . station_a ;",
+      "let b = & mut ctx . accounts . station_b ;",
+      "let t = & mut ctx . accounts . ticket ;",
+      "for i in 0 .. steps",
+      "{",
+      "let tri = ((i % 10) as i32 - 5) . abs () as u32 ;",
+      "a . heat = a . heat . checked_add (tri + 1) . unwrap_or (u32 :: MAX) ;",
+      "b . heat = b . heat . saturating_add ((tri / 2) + 1) ;",
+      "t . mix ^= ((a . heat ^ b . heat) as u64) << (i % 8) ;",
+      "}",
+      "let avg = ((a . heat + b . heat) / 2) as u32 ;",
+      "if avg > (k . flag & 0x0FFF)",
+      "{",
+      "k . state = Close ;",
+      "a . station ^= 0x1 ;",
+      "b . station = b . station . saturating_add (1) ;",
+      "t . queue = t . queue . saturating_add ((avg as u64) & 63) ;",
+      "msg ! (\"close: station flip & queue+\") ;",
+      "} else",
+      "{",
+      "k . state = Serve ;",
+      "k . flag ^= 0x00FF ;",
+      "a . heat = a . heat . saturating_add (7) ;",
+      "b . heat = b . heat / 2 + 9 ;",
+      "msg ! (\"serve: heat adjust & flag flip\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitLine",
     "node_type": "struct",
     "fields": [
       {
-        "name": "first",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "kitchen",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Kitchen >"
       },
       {
-        "name": "second",
+        "name": "station_a",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Station >"
+      },
+      {
+        "name": "station_b",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Station >"
+      },
+      {
+        "name": "ticket",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 8 + 8)]",
+        "field_type": "Account < 'info , Ticket >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "chef",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Fire",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "kitchen",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Kitchen >"
+      },
+      {
+        "name": "station_a",
+        "attribute": "# [account (mut , has_one = kitchen , constraint = station_a . station != station_b . station @ CookErr :: Dup)]",
+        "field_type": "Account < 'info , Station >"
+      },
+      {
+        "name": "station_b",
+        "attribute": "# [account (mut , has_one = kitchen , constraint = station_b . station != ticket . number @ CookErr :: Dup)]",
+        "field_type": "Account < 'info , Station >"
+      },
+      {
+        "name": "ticket",
+        "attribute": "# [account (mut , has_one = kitchen)]",
+        "field_type": "Account < 'info , Ticket >"
+      },
+      {
+        "name": "chef",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Kitchen",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "flag",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "state",
+        "attribute": null,
+        "field_type": "Service"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Station",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "station",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "heat",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Ticket",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "number",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "queue",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "mix",
+        "attribute": null,
+        "field_type": "u64"
       }
     ],
     "inputs": null,

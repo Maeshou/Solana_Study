@@ -1,0 +1,97 @@
+use anchor_lang::prelude::*;
+use anchor_lang::solana_program::{program::invoke_signed, system_instruction};
+
+declare_id!("DuNgEoNRunX44444444444444444444444444444");
+
+#[program]
+pub mod dungeon_runner_log {
+    use super::*;
+
+    pub fn init_dungeon(ctx: Context<InitDungeon>, key: u64) -> Result<()> {
+        let d = &mut ctx.accounts.dungeon;
+        d.owner = ctx.accounts.overseer.key();
+        d.bump_code = *ctx.bumps.get("dungeon").ok_or(error!(EDN::NoBump))?;
+        d.energy = key.rotate_left(1).wrapping_add(61);
+        d.steps = 2;
+
+        // for 先行 → while → if
+        for i in 1..4 {
+            let inc = (d.energy ^ (i as u64 * 23)).rotate_left(1);
+            d.energy = d.energy.wrapping_add(inc).wrapping_mul(2).wrapping_add(13 + i as u64);
+            d.steps = d.steps.saturating_add(((d.energy % 21) as u32) + 3);
+        }
+        let mut counter = 1u8;
+        while counter < 3 {
+            let spark = (d.energy ^ (counter as u64 * 17)).rotate_right(1);
+            d.energy = d.energy.wrapping_add(spark).wrapping_mul(3).wrapping_add(9 + counter as u64);
+            d.steps = d.steps.saturating_add(((d.energy % 27) as u32) + 4);
+            counter = counter.saturating_add(1);
+        }
+        if d.energy > key {
+            d.energy = d.energy.rotate_left(2).wrapping_add(25);
+            d.steps = d.steps.saturating_add(((d.energy % 29) as u32) + 4);
+        }
+        Ok(())
+    }
+
+    pub fn reward_clear(ctx: Context<RewardClear>, run_id: u64, bump_input: u8, lamports: u64) -> Result<()> {
+        let d = &mut ctx.accounts.dungeon;
+
+        // 二段階ループで集計
+        for r in 1..3 {
+            let mut p = 1u8;
+            while p < 4 {
+                let v = (d.energy ^ (r as u64 * p as u64 * 11)).rotate_left(1);
+                d.energy = d.energy.wrapping_add(v).wrapping_mul(2).wrapping_add(15 + r as u64);
+                d.steps = d.steps.saturating_add(((d.energy % 25) as u32) + 4);
+                p = p.saturating_add(1);
+            }
+        }
+
+        // BSC: bump_input を seeds に利用
+        let seeds = &[
+            b"run_bonus".as_ref(),
+            d.owner.as_ref(),
+            &run_id.to_le_bytes(),
+            core::slice::from_ref(&bump_input),
+        ];
+        let chest = Pubkey::create_program_address(
+            &[b"run_bonus", d.owner.as_ref(), &run_id.to_le_bytes(), &[bump_input]],
+            ctx.program_id,
+        ).map_err(|_| error!(EDN::SeedCompute))?;
+        let ix = system_instruction::transfer(&chest, &ctx.accounts.runner.key(), lamports);
+        invoke_signed(
+            &ix,
+            &[
+                ctx.accounts.bonus_hint.to_account_info(),
+                ctx.accounts.runner.to_account_info(),
+                ctx.accounts.system_program.to_account_info(),
+            ],
+            &[seeds],
+        )?;
+        Ok(())
+    }
+}
+
+#[derive(Accounts)]
+pub struct InitDungeon<'info> {
+    #[account(init, payer=overseer, space=8+32+8+4+1, seeds=[b"dungeon", overseer.key().as_ref()], bump)]
+    pub dungeon: Account<'info, DungeonState>,
+    #[account(mut)]
+    pub overseer: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+#[derive(Accounts)]
+pub struct RewardClear<'info> {
+    #[account(mut, seeds=[b"dungeon", overseer.key().as_ref()], bump=dungeon.bump_code)]
+    pub dungeon: Account<'info, DungeonState>,
+    /// CHECK
+    pub bonus_hint: AccountInfo<'info>,
+    #[account(mut)]
+    pub runner: AccountInfo<'info>,
+    pub overseer: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+#[account]
+pub struct DungeonState { pub owner: Pubkey, pub energy: u64, pub steps: u32, pub bump_code: u8 }
+#[error_code] pub enum EDN { #[msg("no bump")] NoBump, #[msg("seed compute failed")] SeedCompute }

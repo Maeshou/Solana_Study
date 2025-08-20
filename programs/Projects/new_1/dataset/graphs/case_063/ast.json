@@ -1,0 +1,184 @@
+[
+  {
+    "name": "register_template",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RegisterTemplate >",
+      "name: String",
+      "metadata_url: String",
+      "image_hash: [u8 ; 32]"
+    ],
+    "attributes": [
+      "# [doc = \" 新しいスキンテンプレートを登録します。\"]",
+      "# [doc = \" - `name`         : テンプレート名称  \"]",
+      "# [doc = \" - `metadata_url` : JSON メタデータのURL  \"]",
+      "# [doc = \" - `image_hash`   : 画像データのkeccak256ハッシュ（固定32バイト）\"]",
+      "# [doc = \" すべてのアカウントは AccountInfo のまま、署名チェックなし。\"]"
+    ],
+    "body": [
+      "let tmpl = & mut ctx . accounts . template ;",
+      "tmpl . author = * ctx . accounts . user . key ;",
+      "let mut hasher = hash (& [name . as_bytes () , & ctx . accounts . user . key . to_bytes ()] . concat ()) . to_bytes () ;",
+      "let mut id_arr = [0u8 ; 8] ;",
+      "id_arr . copy_from_slice (& hasher [.. 8]) ;",
+      "tmpl . template_id = u64 :: from_le_bytes (id_arr) ;",
+      "tmpl . name = name ;",
+      "tmpl . metadata = metadata_url ;",
+      "tmpl . image_hash = image_hash ;"
+    ]
+  },
+  {
+    "name": "mint_from_template",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < MintFromTemplate >",
+      "template_id: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 登録済テンプレートからジェネシスを作成します。\"]",
+      "# [doc = \" - `template_id` : 対象テンプレートのID\"]"
+    ],
+    "body": [
+      "let inst = & mut ctx . accounts . instance ;",
+      "inst . owner = * ctx . accounts . user . key ;",
+      "inst . template_id = template_id ;",
+      "let bytes = ctx . accounts . instance . key () . to_bytes () ;",
+      "let mut arr = [0u8 ; 8] ;",
+      "arr . copy_from_slice (& bytes [.. 8]) ;",
+      "inst . serial = u64 :: from_le_bytes (arr) ;"
+    ]
+  },
+  {
+    "name": "Template",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "author",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "template_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "metadata",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "image_hash",
+        "attribute": null,
+        "field_type": "[u8 ; 32]"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Instance",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "template_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "serial",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RegisterTemplate",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": "# [doc = \" テンプレート登録者（署名チェック omitted intentionally）\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "template",
+        "attribute": "# [doc = \" テンプレート情報を保持する PDA\"] # [account (init , payer = payer , space = 8 + 32 + 8 + (4 + 100) + (4 + 200) + 32 , seeds = [b\"template\" , & hash (user . key . as_ref ()) . to_bytes () [.. 8]] , bump)]",
+        "field_type": "Account < 'info , Template >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "rent",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Rent >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MintFromTemplate",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": "# [doc = \" ミント実行者（署名チェック omitted intentionally）\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "template",
+        "attribute": "# [doc = \" 参照するテンプレートPDA\"] # [account (seeds = [b\"template\" , & hash (user . key . as_ref ()) . to_bytes () [.. 8]] , bump)]",
+        "field_type": "Account < 'info , Template >"
+      },
+      {
+        "name": "instance",
+        "attribute": "# [doc = \" インスタンス情報を保持する PDA\"] # [account (init , payer = payer , space = 8 + 32 + 8 + 8 , seeds = [b\"instance\" , user . key () . as_ref () , & template . template_id . to_le_bytes ()] , bump)]",
+        "field_type": "Account < 'info , Instance >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "rent",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Rent >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,163 @@
+[
+  {
+    "name": "init_boss",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitBoss >",
+      "base_reward: u64",
+      "increment_step: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let boss_state = & mut ctx . accounts . boss_state ;",
+      "boss_state . operator_key = ctx . accounts . operator . key () ;",
+      "boss_state . base_reward = base_reward . max (2) ;",
+      "boss_state . increment_step = increment_step . min (1500) . max (25) ;",
+      "boss_state . clear_count = 2 ;",
+      "boss_state . max_combo_record = 5 ;",
+      "boss_state . challenge_flag = false ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_distribute",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActDistribute >",
+      "party_count: u8",
+      "combo_points: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "require ! (party_count > 0 , ErrRaid :: NoParticipants) ;",
+      "let boss_state = & mut ctx . accounts . boss_state ;",
+      "let mut total_increment = 0u64 ;",
+      "let mut member_index = 1u8 ;",
+      "while member_index <= party_count",
+      "{",
+      "let add = (boss_state . increment_step as u64) . saturating_div (member_index as u64) ;",
+      "total_increment = total_increment . saturating_add (add) ;",
+      "member_index = member_index . saturating_add (1) ;",
+      "}",
+      "if combo_points > boss_state . max_combo_record as u32",
+      "{",
+      "boss_state . max_combo_record = combo_points as u64 ;",
+      "}",
+      "if combo_points >= 50",
+      "{",
+      "boss_state . challenge_flag = true ;",
+      "}",
+      "if combo_points < 30",
+      "{",
+      "boss_state . challenge_flag = false ;",
+      "}",
+      "let mut payout = boss_state . base_reward . saturating_add (total_increment) ;",
+      "if boss_state . challenge_flag",
+      "{",
+      "payout = payout . saturating_mul (2) ;",
+      "}",
+      "token :: transfer (ctx . accounts . treasury_to_player () , payout) ? ;",
+      "boss_state . clear_count = boss_state . clear_count . saturating_add (1) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitBoss",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "boss_state",
+        "attribute": "# [account (init , payer = operator , space = 8 + 32 + 8 + 2 + 8 + 8 + 1)]",
+        "field_type": "Account < 'info , BossState >"
+      },
+      {
+        "name": "operator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActDistribute",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "boss_state",
+        "attribute": "# [account (mut , has_one = operator_key)]",
+        "field_type": "Account < 'info , BossState >"
+      },
+      {
+        "name": "operator_key",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "reward_treasury",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "player_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BossState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "operator_key",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "base_reward",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "increment_step",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "clear_count",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "max_combo_record",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "challenge_flag",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

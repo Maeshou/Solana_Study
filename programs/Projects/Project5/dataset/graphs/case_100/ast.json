@@ -1,43 +1,223 @@
 [
   {
-    "name": "deregister_entity",
+    "name": "xorshift",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx100 >",
-      "amount: u64"
+      "mut z: u32"
     ],
     "attributes": [],
     "body": [
-      "let cpi_accounts = Transfer { from : ctx . accounts . from_token . to_account_info () , to : ctx . accounts . to_token . to_account_info () , authority : ctx . accounts . authority . to_account_info () , } ;",
-      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
-      "token :: transfer (cpi_ctx , amount) ? ;",
+      "z ^= z << 13 ;",
+      "z ^= z >> 17 ;",
+      "z ^= z << 5 ;",
+      "z"
+    ]
+  },
+  {
+    "name": "init_market",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitMarket >",
+      "seed: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let m = & mut ctx . accounts . market ;",
+      "m . owner = ctx . accounts . merchant . key () ;",
+      "m . limit = (seed as u64) * 7 + 1_000 ;",
+      "m . state = Setup ;",
+      "let a = & mut ctx . accounts . stall_a ;",
+      "let b = & mut ctx . accounts . stall_b ;",
+      "let s1 = xorshift (seed) ;",
+      "let s2 = xorshift (seed ^ 0x9E37_79B9) ;",
+      "a . parent = m . key () ;",
+      "a . aisle = (s1 as u8) & 7 ;",
+      "a . stock = (s1 & 0x3FF) + 60 ;",
+      "b . parent = m . key () ;",
+      "b . aisle = ((s2 >> 3) as u8) & 7 ;",
+      "b . stock = ((s2 >> 5) & 0x3FF) + 55 ;",
+      "let c = & mut ctx . accounts . clerk ;",
+      "c . parent = m . key () ;",
+      "c . desk = 9 ;",
+      "c . receipts = 0 ;",
+      "c . rolling = s1 ^ s2 ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx100",
+    "name": "trade_once",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < TradeOnce >"
+    ],
+    "attributes": [],
+    "body": [
+      "let m = & mut ctx . accounts . market ;",
+      "let a = & mut ctx . accounts . stall_a ;",
+      "let b = & mut ctx . accounts . stall_b ;",
+      "let c = & mut ctx . accounts . clerk ;",
+      "let h = ((a . stock ^ b . stock) as u64) . wrapping_mul (1469598103934665603) ;",
+      "let take = ((h & 15) + 5) as u32 ;",
+      "a . stock = a . stock . saturating_sub (take . min (a . stock)) ;",
+      "b . stock = b . stock . checked_add (take + 3) . unwrap_or (u32 :: MAX) ;",
+      "c . receipts = c . receipts . saturating_add (take as u64 + ((b . stock & 7) as u64)) ;",
+      "c . rolling ^= (h as u32) . rotate_left (7) ;",
+      "m . state = Trade ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitMarket",
     "node_type": "struct",
     "fields": [
       {
-        "name": "from_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "market",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 8 + 1)]",
+        "field_type": "Account < 'info , Market >"
       },
       {
-        "name": "to_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "stall_a",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Stall >"
       },
       {
-        "name": "authority",
+        "name": "stall_b",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Stall >"
+      },
+      {
+        "name": "clerk",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 8 + 4)]",
+        "field_type": "Account < 'info , ClerkTape >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "merchant",
         "attribute": null,
         "field_type": "Signer < 'info >"
       },
       {
-        "name": "token_program",
+        "name": "system_program",
         "attribute": null,
-        "field_type": "Program < 'info , Token >"
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TradeOnce",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "market",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Market >"
+      },
+      {
+        "name": "stall_a",
+        "attribute": "# [account (mut , has_one = market , constraint = stall_a . aisle != stall_b . aisle @ BazaarErr :: Dup)]",
+        "field_type": "Account < 'info , Stall >"
+      },
+      {
+        "name": "stall_b",
+        "attribute": "# [account (mut , has_one = market , constraint = stall_b . aisle != clerk . desk @ BazaarErr :: Dup)]",
+        "field_type": "Account < 'info , Stall >"
+      },
+      {
+        "name": "clerk",
+        "attribute": "# [account (mut , has_one = market)]",
+        "field_type": "Account < 'info , ClerkTape >"
+      },
+      {
+        "name": "merchant",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Market",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "limit",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "state",
+        "attribute": null,
+        "field_type": "BazaarState"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Stall",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "aisle",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "stock",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ClerkTape",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "desk",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "receipts",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "rolling",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

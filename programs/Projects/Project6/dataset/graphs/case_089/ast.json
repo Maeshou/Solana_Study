@@ -1,0 +1,233 @@
+[
+  {
+    "name": "init_studio",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitStudio >"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . studio ;",
+      "s . owner = ctx . accounts . admin . key () ;",
+      "s . revision = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_profile",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitProfile >",
+      "role: RoleTag"
+    ],
+    "attributes": [],
+    "body": [
+      "let p = & mut ctx . accounts . profile ;",
+      "p . studio = ctx . accounts . studio . key () ;",
+      "p . role = role ;",
+      "p . score = 0 ;",
+      "p . hist = [0 ; 6] ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "process_palette",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ProcessPalette >",
+      "hues: [u16 ; 6]"
+    ],
+    "attributes": [],
+    "body": [
+      "let st = & mut ctx . accounts . studio ;",
+      "let a = & mut ctx . accounts . artist ;",
+      "let r = & mut ctx . accounts . reviewer ;",
+      "let q = & mut ctx . accounts . queue ;",
+      "let mut sum = 0u64 ;",
+      "for i in 0 .. 6",
+      "{",
+      "let v = (hues [i] as u64) * ((i as u64) + 1) ;",
+      "sum = sum . saturating_add (v & 0x3FFF) ;",
+      "a . hist [i] = a . hist [i] . saturating_add ((v as u32) & 0xFF) ;",
+      "}",
+      "if a . role == Creator",
+      "{",
+      "a . score = a . score . saturating_add ((sum % 101) as u32) ;",
+      "st . revision = st . revision . saturating_add (1) ;",
+      "q . depth = q . depth . saturating_add (1) ;",
+      "q . last = q . last . rotate_left (3) ^ sum ;",
+      "msg ! (\"Creator path applied\") ;",
+      "} else",
+      "{",
+      "r . score = r . score . saturating_add (((sum >> 2) % 67) as u32) ;",
+      "st . revision = st . revision . saturating_add (1) ;",
+      "q . depth = q . depth . saturating_add (2) ;",
+      "q . last = q . last . wrapping_add (sum . rotate_right (5)) ;",
+      "msg ! (\"Reviewer path applied\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitStudio",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "studio",
+        "attribute": "# [account (init , payer = admin , space = 8 + Studio :: MAX)]",
+        "field_type": "Account < 'info , Studio >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitProfile",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "studio",
+        "attribute": "# [account (mut , has_one = owner , owner = crate :: ID)]",
+        "field_type": "Account < 'info , Studio >"
+      },
+      {
+        "name": "profile",
+        "attribute": "# [account (init , payer = user , space = 8 + Profile :: MAX)]",
+        "field_type": "Account < 'info , Profile >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ProcessPalette",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "studio",
+        "attribute": "# [account (mut , has_one = owner , owner = crate :: ID)]",
+        "field_type": "Account < 'info , Studio >"
+      },
+      {
+        "name": "queue",
+        "attribute": "# [account (mut , has_one = studio , owner = crate :: ID)]",
+        "field_type": "Account < 'info , Queue >"
+      },
+      {
+        "name": "artist",
+        "attribute": "# [account (mut , has_one = studio , owner = crate :: ID)]",
+        "field_type": "Account < 'info , Profile >"
+      },
+      {
+        "name": "reviewer",
+        "attribute": "# [account (mut , has_one = studio , owner = crate :: ID , constraint = artist . role != reviewer . role @ ErrCode :: CosplayBlocked)]",
+        "field_type": "Account < 'info , Profile >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Studio",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "revision",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Profile",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "studio",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "role",
+        "attribute": null,
+        "field_type": "RoleTag"
+      },
+      {
+        "name": "score",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "hist",
+        "attribute": null,
+        "field_type": "[u32 ; 6]"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Queue",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "studio",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "last",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "depth",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

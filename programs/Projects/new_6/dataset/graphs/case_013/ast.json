@@ -1,0 +1,247 @@
+[
+  {
+    "name": "init_workshop",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitWorkshop >",
+      "workshop_name: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let workshop = & mut ctx . accounts . workshop ;",
+      "workshop . owner = ctx . accounts . owner . key () ;",
+      "workshop . name = workshop_name ;",
+      "workshop . enhancement_count = 0 ;",
+      "workshop . success_rate = 75 ;",
+      "workshop . is_active = true ;",
+      "workshop . creation_time = 1500 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_equipment",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitEquipment >",
+      "item_type: ItemType",
+      "base_power: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let equipment = & mut ctx . accounts . equipment ;",
+      "equipment . workshop = ctx . accounts . workshop . key () ;",
+      "equipment . owner = ctx . accounts . owner . key () ;",
+      "equipment . item_type = item_type ;",
+      "equipment . enhancement_level = 0 ;",
+      "equipment . base_power = base_power ;",
+      "equipment . is_equipped = false ;",
+      "equipment . durability = 100 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "enhance_equipment",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < EnhanceEquipment >",
+      "target_level: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let workshop = & mut ctx . accounts . workshop ;",
+      "let equipment_data = ctx . accounts . equipment . try_borrow_mut_data () ? ;",
+      "let material_data = ctx . accounts . material . try_borrow_data () ? ;",
+      "workshop . enhancement_count = workshop . enhancement_count . checked_add (1) . unwrap_or (u32 :: MAX) ;",
+      "for level in 0 .. target_level",
+      "{",
+      "let enhancement_cost = (level as u32) * 50 ;",
+      "if level % 2 == 0",
+      "{",
+      "workshop . success_rate = workshop . success_rate . checked_add (enhancement_cost / 100) . unwrap_or (100) ;",
+      "workshop . enhancement_count = workshop . enhancement_count ^ (level as u32) ;",
+      "workshop . enhancement_count = workshop . enhancement_count >> 1 ;",
+      "msg ! (\"Enhancement step",
+      "{",
+      "} succeeded\" , level) ;",
+      "} else",
+      "{",
+      "workshop . success_rate = workshop . success_rate . saturating_sub (5) ;",
+      "workshop . enhancement_count = workshop . enhancement_count . wrapping_add (enhancement_cost) ;",
+      "workshop . creation_time = workshop . creation_time + (level as i64) ;",
+      "msg ! (\"Enhancement step",
+      "{",
+      "} failed\" , level) ;",
+      "}",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitWorkshop",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "workshop",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 64 + 4 + 4 + 1 + 8)]",
+        "field_type": "Account < 'info , Workshop >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitEquipment",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "equipment",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 32 + 1 + 1 + 4 + 1 + 4)]",
+        "field_type": "Account < 'info , Equipment >"
+      },
+      {
+        "name": "workshop",
+        "attribute": null,
+        "field_type": "Account < 'info , Workshop >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EnhanceEquipment",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "workshop",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Workshop >"
+      },
+      {
+        "name": "equipment",
+        "attribute": "# [doc = \" CHECK: 脆弱 - 同一アカウントをequipment/materialに使用可能\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "material",
+        "attribute": "# [doc = \" CHECK: 脆弱 - 型検証なし、所有者チェックなし\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Workshop",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "enhancement_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "success_rate",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "is_active",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "creation_time",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Equipment",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "workshop",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "item_type",
+        "attribute": null,
+        "field_type": "ItemType"
+      },
+      {
+        "name": "enhancement_level",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "base_power",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "is_equipped",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "durability",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

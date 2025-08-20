@@ -1,0 +1,140 @@
+[
+  {
+    "name": "init_board",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitBoard >",
+      "cap: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let b = & mut ctx . accounts . board ;",
+      "b . owner = ctx . accounts . authority . key () ;",
+      "b . cap = cap ;",
+      "b . points = 1 ;",
+      "b . logs = 0 ;",
+      "if b . cap < 5",
+      "{",
+      "b . cap = 5 ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "add_points",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AddPoints >",
+      "amount: u16",
+      "user_bump: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let board = & mut ctx . accounts . board ;",
+      "let seeds = & [b\"prize_vault\" , ctx . accounts . authority . key . as_ref () , & [user_bump] ,] ;",
+      "let pv = Pubkey :: create_program_address (seeds , ctx . program_id) . map_err (| _ | error ! (BoardErr :: Derive)) ? ;",
+      "if pv != ctx . accounts . prize_vault . key ()",
+      "{",
+      "return Err (error ! (BoardErr :: VaultKey)) ;",
+      "}",
+      "let mut tmp = amount as u32 ;",
+      "if tmp > 300",
+      "{",
+      "tmp = tmp / 3 + 9 ;",
+      "}",
+      "if board . points + tmp > board . cap",
+      "{",
+      "board . points = board . cap - 1 ;",
+      "} else",
+      "{",
+      "board . points = board . points . saturating_add (tmp) ;",
+      "}",
+      "let mut i = 0u8 ;",
+      "while i < 3",
+      "{",
+      "board . logs = board . logs . saturating_add (1) ;",
+      "i = i . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitBoard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "board",
+        "attribute": "# [account (init , payer = authority , space = 8 + 32 + 4 + 4 + 4 , seeds = [b\"board\" , authority . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Board >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AddPoints",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "board",
+        "attribute": "# [account (mut , seeds = [b\"board\" , authority . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Board >"
+      },
+      {
+        "name": "prize_vault",
+        "attribute": "# [doc = \" CHECK: 別PDA（prize_vault）は unchecked\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Board",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "cap",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "points",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "logs",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

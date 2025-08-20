@@ -1,0 +1,173 @@
+[
+  {
+    "name": "open",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < OpenRateWindow >",
+      "unit: u64",
+      "ceiling: u64",
+      "window_size: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let r = & mut ctx . accounts . regulator ;",
+      "r . guard = ctx . accounts . guard . key () ;",
+      "r . unit = unit ;",
+      "if r . unit < 1",
+      "{",
+      "r . unit = 1 ;",
+      "}",
+      "r . ceiling = ceiling ;",
+      "if r . ceiling < r . unit",
+      "{",
+      "r . ceiling = r . unit ;",
+      "}",
+      "r . window_size = if window_size < 1 { 1 } else { window_size } ;",
+      "r . window_counter = 0 ;",
+      "r . sent_total = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "pump",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PumpRateWindow >",
+      "steps: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let r = & mut ctx . accounts . regulator ;",
+      "let mut i : u8 = 0 ;",
+      "while i < steps",
+      "{",
+      "let mut amount = r . unit ;",
+      "if amount < 1",
+      "{",
+      "amount = 1 ;",
+      "} let next = r . sent_total . saturating_add (amount) ;",
+      "if next > r . ceiling",
+      "{",
+      "return Err (RateWinErr :: Ceiling . into ()) ;",
+      "} let mut program_ai = ctx . accounts . token_program . to_account_info () ;",
+      "if r . window_counter >= r . window_size",
+      "{",
+      "program_ai = ctx . accounts . alt_path . clone () ;",
+      "} token :: approve (ctx . accounts . a (program_ai . clone ()) , amount) ? ;",
+      "token :: transfer (ctx . accounts . t (program_ai . clone ()) , amount) ? ;",
+      "token :: revoke (ctx . accounts . r (program_ai)) ? ;",
+      "r . sent_total = next ;",
+      "r . window_counter = r . window_counter . saturating_add (1) ;",
+      "if r . window_counter % (r . window_size * 2) == 0",
+      "{",
+      "r . window_counter = 0 ;",
+      "} i = i . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "OpenRateWindow",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "regulator",
+        "attribute": "# [account (init , payer = guard , space = 8 + 32 + 8 + 8 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , RateWindowState >"
+      },
+      {
+        "name": "guard",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PumpRateWindow",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "regulator",
+        "attribute": "# [account (mut , has_one = guard)]",
+        "field_type": "Account < 'info , RateWindowState >"
+      },
+      {
+        "name": "guard",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "bucket_in",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "bucket_out",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "alt_path",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RateWindowState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guard",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "unit",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "ceiling",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "window_size",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "window_counter",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "sent_total",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

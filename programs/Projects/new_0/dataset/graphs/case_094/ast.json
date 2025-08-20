@@ -1,0 +1,57 @@
+[
+  {
+    "name": "distribute_penalties",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < DistributePenalties >"
+    ],
+    "attributes": [
+      "# [doc = \" ペナルティプールから正常ユーザーへ一律分配\"]"
+    ],
+    "body": [
+      "require ! (ctx . accounts . admin . is_signer , ErrorCode :: Unauthorized) ;",
+      "let vault_info = ctx . accounts . vault . to_account_info () ;",
+      "let mut vault_lamports = * * vault_info . lamports . borrow () ;",
+      "let recipients = & ctx . remaining_accounts ;",
+      "let count = recipients . len () as u64 ;",
+      "require ! (count > 0 , ErrorCode :: NoRecipients) ;",
+      "let share = vault_lamports / count ;",
+      "for recipient_info in recipients . iter ()",
+      "{",
+      "* * vault_info . try_borrow_mut_lamports () ? -= share ;",
+      "* * recipient_info . try_borrow_mut_lamports () ? += share ;",
+      "vault_lamports -= share ;",
+      "msg ! (\"Distributed",
+      "{",
+      "} lamports to {}\" , share , recipient_info . key) ;",
+      "}",
+      "msg ! (\"Remaining in vault: {}\" , vault_lamports) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "DistributePenalties",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": "# [doc = \" 罰金トークン保管用PDA\"] # [account (mut , seeds = [b\"penalty_vault\"] , bump)]",
+        "field_type": "SystemAccount < 'info >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [doc = \" 管理者（分配実行者）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

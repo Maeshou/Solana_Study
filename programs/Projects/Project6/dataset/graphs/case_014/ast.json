@@ -1,0 +1,187 @@
+[
+  {
+    "name": "initialize_player",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializePlayer >",
+      "player_role: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let progression = & mut ctx . accounts . player_progression ;",
+      "let energy = & mut ctx . accounts . player_energy ;",
+      "progression . owner = ctx . accounts . owner . key () ;",
+      "progression . level = 1 ;",
+      "progression . experience = 0 ;",
+      "progression . role = player_role ;",
+      "energy . owner = ctx . accounts . owner . key () ;",
+      "energy . current_energy = 100 ;",
+      "energy . max_energy = 100 ;",
+      "energy . last_updated = Clock :: get () ? . unix_timestamp ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "gain_experience_and_consume_energy",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < GainExperienceAndConsumeEnergy >",
+      "xp_gain: u32",
+      "energy_cost: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let progression = & mut ctx . accounts . player_progression ;",
+      "let energy = & mut ctx . accounts . player_energy ;",
+      "if energy . current_energy < energy_cost",
+      "{",
+      "return err ! (ErrorCode :: NotEnoughEnergy) ;",
+      "}",
+      "energy . current_energy = energy . current_energy . checked_sub (energy_cost) . unwrap () ;",
+      "progression . experience = progression . experience . checked_add (xp_gain) . unwrap () ;",
+      "let mut xp_threshold = 100u32 ;",
+      "let mut level_up = false ;",
+      "let new_level = progression . level . checked_add (1) . unwrap () ;",
+      "if progression . experience > xp_threshold",
+      "{",
+      "progression . experience = 0 ;",
+      "progression . level = new_level ;",
+      "level_up = true ;",
+      "}",
+      "if level_up",
+      "{",
+      "msg ! (\"Player leveled up to",
+      "{",
+      "}!\" , new_level) ;",
+      "} else",
+      "{",
+      "msg ! (\"Player gained some experience.\") ;",
+      "}",
+      "let mut status_flags : u8 = 0b00000001 ;",
+      "if progression . level > 10",
+      "{",
+      "status_flags |= 0b00000010 ;",
+      "}",
+      "msg ! (\"Status flags: {:?}\" , status_flags) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializePlayer",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "player_progression",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 4 + 8 + 1 + 8 , owner = crate :: ID ,)]",
+        "field_type": "Account < 'info , PlayerProgression >"
+      },
+      {
+        "name": "player_energy",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 4 + 4 + 8 , owner = crate :: ID ,)]",
+        "field_type": "Account < 'info , PlayerEnergy >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GainExperienceAndConsumeEnergy",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "player_progression",
+        "attribute": "# [account (mut , has_one = owner , constraint = player_progression . role != 0 @ ErrorCode :: CosplayBlocked ,)]",
+        "field_type": "Account < 'info , PlayerProgression >"
+      },
+      {
+        "name": "player_energy",
+        "attribute": "# [account (mut , has_one = owner , constraint = player_progression . key () != player_energy . key () @ ErrorCode :: CosplayBlocked ,)]",
+        "field_type": "Account < 'info , PlayerEnergy >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PlayerProgression",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "level",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "experience",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "role",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "active_flags",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PlayerEnergy",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "current_energy",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "max_energy",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "last_updated",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

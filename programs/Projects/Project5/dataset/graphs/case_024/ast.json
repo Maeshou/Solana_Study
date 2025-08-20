@@ -1,40 +1,176 @@
 [
   {
-    "name": "liquidate_position",
+    "name": "init_studio",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx024 >",
-      "amount: u64"
+      "ctx: Context < InitStudio >",
+      "threshold: u32"
     ],
     "attributes": [],
     "body": [
-      "let src = & mut ctx . accounts . account_src ;",
-      "let dst = & mut ctx . accounts . account_dst ;",
-      "let before = * * src . to_account_info () . try_borrow_lamports () ? ;",
-      "* * src . to_account_info () . try_borrow_mut_lamports () ? = before . saturating_sub (amount) ;",
-      "* * dst . to_account_info () . try_borrow_mut_lamports () ? += amount ;",
+      "ctx . accounts . studio . artisan = ctx . accounts . artisan . key () ;",
+      "ctx . accounts . studio . threshold = threshold ;",
+      "ctx . accounts . studio . phase = EngravePhase :: Draft ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx024",
+    "name": "engrave",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Engrave >",
+      "strokes: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "for _ in 0 .. strokes",
+      "{",
+      "ctx . accounts . book . pages = ctx . accounts . book . pages . saturating_add (3) ;",
+      "ctx . accounts . book . power = ctx . accounts . book . power . saturating_add (9) ;",
+      "ctx . accounts . chisel . usage = ctx . accounts . chisel . usage . saturating_add (2) ;",
+      "}",
+      "if ctx . accounts . book . power > (ctx . accounts . studio . threshold as u64)",
+      "{",
+      "ctx . accounts . studio . phase = EngravePhase :: Polish ;",
+      "ctx . accounts . chisel . sharpness = ctx . accounts . chisel . sharpness . saturating_add (5) ;",
+      "ctx . accounts . book . pages = ctx . accounts . book . pages . saturating_add (2) ;",
+      "msg ! (\"power high: polish phase, improve chisel & pages\") ;",
+      "} else",
+      "{",
+      "ctx . accounts . studio . phase = EngravePhase :: Carve ;",
+      "ctx . accounts . chisel . sharpness = ctx . accounts . chisel . sharpness . saturating_add (3) ;",
+      "ctx . accounts . book . power = ctx . accounts . book . power . saturating_add (6) ;",
+      "msg ! (\"keep carving: boost sharpness & power\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitStudio",
     "node_type": "struct",
     "fields": [
       {
-        "name": "account_src",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "studio",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Studio >"
       },
       {
-        "name": "account_dst",
+        "name": "book",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4 + 8)]",
+        "field_type": "Account < 'info , RuneBook >"
+      },
+      {
+        "name": "chisel",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4 + 4)]",
+        "field_type": "Account < 'info , Chisel >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "artisan",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
       },
       {
         "name": "system_program",
         "attribute": null,
         "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Engrave",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "studio",
+        "attribute": "# [account (mut , has_one = artisan , constraint = studio . key () != book . key () , error = EngErr :: Dup)]",
+        "field_type": "Account < 'info , Studio >"
+      },
+      {
+        "name": "book",
+        "attribute": "# [account (mut , constraint = book . key () != chisel . key () , error = EngErr :: Dup)]",
+        "field_type": "Account < 'info , RuneBook >"
+      },
+      {
+        "name": "chisel",
+        "attribute": "# [account (mut , constraint = studio . key () != chisel . key () , error = EngErr :: Dup)]",
+        "field_type": "Account < 'info , Chisel >"
+      },
+      {
+        "name": "artisan",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Studio",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "artisan",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "threshold",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "phase",
+        "attribute": null,
+        "field_type": "EngravePhase"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RuneBook",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pages",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "power",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Chisel",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "sharpness",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "usage",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

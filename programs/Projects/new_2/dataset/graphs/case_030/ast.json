@@ -1,0 +1,84 @@
+[
+  {
+    "name": "RentalData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 本来はアカウントの owner フィールドで管理されるべきオーナー Pubkey\"]",
+        "field_type": "[u8 ; 32]"
+      },
+      {
+        "name": "renter",
+        "attribute": "# [doc = \" レンタル実行者（借り手）の Pubkey\"]",
+        "field_type": "[u8 ; 32]"
+      },
+      {
+        "name": "start_slot",
+        "attribute": "# [doc = \" レンタル開始のブロック高\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "duration",
+        "attribute": "# [doc = \" レンタル期間（ブロック数）\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "rent_nft",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RentNft >",
+      "owner_key: Pubkey",
+      "start_slot: u64",
+      "duration: u64"
+    ],
+    "attributes": [
+      "# [doc = \" `rental_account` の owner チェックを全く行っていないため、  \"]",
+      "# [doc = \" 攻撃者は任意のプログラム所有アカウントを指定して  \"]",
+      "# [doc = \" “自己レンタル”状態など不正に書き換え可能です。\"]"
+    ],
+    "body": [
+      "let acct = & mut ctx . accounts . rental_account . to_account_info () ;",
+      "let data = & mut acct . data . borrow_mut () ;",
+      "let size = std :: mem :: size_of :: < RentalData > () ;",
+      "if data . len () < size",
+      "{",
+      "return err ! (ErrorCode :: DataTooShort) ;",
+      "}",
+      "let mut rec = RentalData :: zeroed () ;",
+      "rec . owner = owner_key . to_bytes () ;",
+      "rec . renter = ctx . accounts . renter . key () . to_bytes () ;",
+      "rec . start_slot = start_slot ;",
+      "rec . duration = duration ;",
+      "let bytes = bytemuck :: bytes_of (& rec) ;",
+      "data [.. size] . copy_from_slice (bytes) ;",
+      "msg ! (\"Rental recorded: account={}, owner={}, renter={}, start_slot={}, duration={}\" , acct . key () , owner_key , ctx . accounts . renter . key () , start_slot , duration) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "RentNft",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "rental_account",
+        "attribute": "# [doc = \" CHECK: owner == program_id の検証を行っていない生の AccountInfo\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "renter",
+        "attribute": "# [doc = \" 借り手の署名のみ検証\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

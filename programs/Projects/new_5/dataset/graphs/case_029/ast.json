@@ -1,0 +1,244 @@
+[
+  {
+    "name": "init_profile",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitProfile >",
+      "seed: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let p = & mut ctx . accounts . profile ;",
+      "p . owner = ctx . accounts . owner . key () ;",
+      "p . seed = seed ;",
+      "p . level = 1 ;",
+      "p . energy = 100 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_stage",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitStage >",
+      "label: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . stage ;",
+      "s . parent = ctx . accounts . profile . key () ;",
+      "s . label = label ;",
+      "s . phase = Locked ;",
+      "s . progress = 0 ;",
+      "s . fail_counter = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "tick_two",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < TickTwo >",
+      "budget: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let p = & mut ctx . accounts . profile ;",
+      "let s1 = & mut ctx . accounts . stage_one ;",
+      "let s2 = & mut ctx . accounts . stage_two ;",
+      "let mut acc : u64 = p . energy as u64 + 1 ;",
+      "for _ in 0 .. 5",
+      "{",
+      "acc = acc + acc * (1000 - (acc % 1000)) / 2000 ;",
+      "p . level = (p . level + (acc as u32 % 3)) . min (99) ;",
+      "}",
+      "if p . energy > budget / 2",
+      "{",
+      "s1 . phase = Active ;",
+      "s1 . progress = s1 . progress . saturating_add (budget / 3 + 5) ;",
+      "p . energy = p . energy . saturating_sub (budget / 4) ;",
+      "s1 . fail_counter = s1 . fail_counter / 2 ;",
+      "msg ! (\"Stage1 active;",
+      "prog=",
+      "{",
+      "}, energy={}\" , s1 . progress , p . energy) ;",
+      "} else",
+      "{",
+      "s1 . phase = Locked ;",
+      "s1 . progress = s1 . progress / 2 + 1 ;",
+      "p . energy = p . energy + (p . seed as u32 % 17) ;",
+      "s1 . fail_counter = s1 . fail_counter . saturating_add (1) ;",
+      "msg ! (\"Stage1 locked;",
+      "prog=",
+      "{",
+      "}, energy={}\" , s1 . progress , p . energy) ;",
+      "}",
+      "for _ in 0 .. 4",
+      "{",
+      "if (s2 . label + p . level) & 2 == 0",
+      "{",
+      "s2 . phase = Active ;",
+      "s2 . progress = s2 . progress . saturating_add ((p . level as u32) & 31) ;",
+      "p . energy = p . energy . saturating_sub (3) ;",
+      "msg ! (\"Stage2 tick+;",
+      "prog=",
+      "{",
+      "}, energy={}\" , s2 . progress , p . energy) ;",
+      "} else",
+      "{",
+      "s2 . phase = Failed ;",
+      "s2 . fail_counter = s2 . fail_counter . saturating_add (2) ;",
+      "p . energy = p . energy + 5 ;",
+      "msg ! (\"Stage2 fail;",
+      "fails=",
+      "{",
+      "}, energy={}\" , s2 . fail_counter , p . energy) ;",
+      "}",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitProfile",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "profile",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 2 + 4 + 4)]",
+        "field_type": "Account < 'info , Profile >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitStage",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "profile",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Profile >"
+      },
+      {
+        "name": "stage",
+        "attribute": "# [account (init , payer = actor , space = 8 + 32 + 4 + 1 + 4 + 4)]",
+        "field_type": "Account < 'info , Stage >"
+      },
+      {
+        "name": "actor",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TickTwo",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "profile",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Profile >"
+      },
+      {
+        "name": "stage_one",
+        "attribute": "# [account (mut , has_one = parent)]",
+        "field_type": "Account < 'info , Stage >"
+      },
+      {
+        "name": "stage_two",
+        "attribute": "# [account (mut , has_one = parent)]",
+        "field_type": "Account < 'info , Stage >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Profile",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "seed",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "level",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "energy",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Stage",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "label",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "phase",
+        "attribute": null,
+        "field_type": "Phase"
+      },
+      {
+        "name": "progress",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "fail_counter",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,169 @@
+[
+  {
+    "name": "checksum",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "mut v: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut s = 0u64 ;",
+      "let mut i = 0 ;",
+      "while i < 8",
+      "{",
+      "s ^= v & 0xff ;",
+      "v >>= 8 ;",
+      "i += 1 ;",
+      "}",
+      "s"
+    ]
+  },
+  {
+    "name": "run",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Run >",
+      "a: u64",
+      "b: u64",
+      "pay: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut x = [a , b , a ^ b] ;",
+      "if x [0] > x [1]",
+      "{",
+      "let t = x [0] ;",
+      "x [0] = x [1] ;",
+      "x [1] = t ;",
+      "}",
+      "if x [1] > x [2]",
+      "{",
+      "let t = x [1] ;",
+      "x [1] = x [2] ;",
+      "x [2] = t ;",
+      "}",
+      "if x [0] > x [1]",
+      "{",
+      "let t = x [0] ;",
+      "x [0] = x [1] ;",
+      "x [1] = t ;",
+      "}",
+      "let mut s = 0u64 ;",
+      "let mut i = 0 ;",
+      "while i < 3",
+      "{",
+      "s = s . wrapping_add (checksum (x [i])) ;",
+      "i += 1 ;",
+      "}",
+      "if s & 1 == 1",
+      "{",
+      "ctx . accounts . tally . low = ctx . accounts . tally . low . saturating_add (1) ;",
+      "}",
+      "if s & 2 == 2",
+      "{",
+      "ctx . accounts . tally . high = ctx . accounts . tally . high . wrapping_add (2) ;",
+      "}",
+      "let mut bytes = Vec :: with_capacity (24) ;",
+      "for v in x",
+      "{",
+      "bytes . extend_from_slice (& v . to_le_bytes ()) ;",
+      "}",
+      "invoke (& Instruction { program_id : FIXED_SUM_ID , accounts : vec ! [AccountMeta :: new (ctx . accounts . sum_cell . key () , false) , AccountMeta :: new_readonly (ctx . accounts . user . key () , false) ,] , data : bytes } , & [ctx . accounts . sum_hint . to_account_info () , ctx . accounts . sum_cell . to_account_info () , ctx . accounts . user . to_account_info () ,]) ? ;",
+      "let mut p = ctx . accounts . router_hint . to_account_info () ;",
+      "if ! ctx . remaining_accounts . is_empty ()",
+      "{",
+      "p = ctx . remaining_accounts [0] . clone () ;",
+      "ctx . accounts . tally . paths = ctx . accounts . tally . paths . saturating_add (1) ;",
+      "}",
+      "let msg = pay . rotate_left ((s & 15) as u32) . to_le_bytes () . to_vec () ;",
+      "invoke (& Instruction { program_id : * p . key , accounts : vec ! [AccountMeta :: new (ctx . accounts . router_board . key () , false) , AccountMeta :: new_readonly (ctx . accounts . user . key () , false) ,] , data : msg } , & [p , ctx . accounts . router_board . to_account_info () , ctx . accounts . user . to_account_info () ,]) ? ;",
+      "token :: transfer (CpiContext :: new (ctx . accounts . token_program . to_account_info () , Transfer { from : ctx . accounts . bank . to_account_info () , to : ctx . accounts . user_token . to_account_info () , authority : ctx . accounts . bank_auth . to_account_info () , }) , pay ,) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Tally",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "low",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "high",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "paths",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Run",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "tally",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Tally >"
+      },
+      {
+        "name": "sum_cell",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "sum_hint",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "router_board",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "router_hint",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "bank",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "user_token",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "bank_auth",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

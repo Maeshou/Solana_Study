@@ -1,0 +1,120 @@
+[
+  {
+    "name": "burn_and_reward",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < BurnAndReward >",
+      "energy_per_nft: u64"
+    ],
+    "attributes": [
+      "# [doc = \" １枚の NFT を焼却し、energy_per_nft 分のエナジーを付与します。\"]"
+    ],
+    "body": [
+      "let cpi_accounts = Burn { mint : ctx . accounts . nft_mint . to_account_info () , from : ctx . accounts . nft_account . to_account_info () , authority : ctx . accounts . user . to_account_info () , } ;",
+      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
+      "burn (cpi_ctx , 1) . unwrap () ;",
+      "let data = & mut ctx . accounts . energy_data ;",
+      "data . total_energy = data . total_energy . checked_add (energy_per_nft) . unwrap () ;",
+      "data . last_burn = ctx . accounts . clock . unix_timestamp ;",
+      "emit ! (EnergyAward { user : * ctx . accounts . user . key , gained : energy_per_nft , total : data . total_energy , at_timestamp : data . last_burn , }) ;"
+    ]
+  },
+  {
+    "name": "BurnAndReward",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": "# [doc = \" ユーザー（署名チェック omitted intentionally）\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "nft_account",
+        "attribute": "# [doc = \" 焼却対象の NFT トークンアカウント\"] # [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "nft_mint",
+        "attribute": "# [doc = \" 上記 NFT の Mint\"]",
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "energy_data",
+        "attribute": "# [doc = \" ユーザーごとのエナジーデータ\"] # [account (init_if_needed , payer = user , space = 8 + 8 + 8 , seeds = [b\"energy\" , user . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , EnergyData >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "rent",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Rent >"
+      },
+      {
+        "name": "clock",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Clock >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EnergyData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "total_energy",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "last_burn",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EnergyAward",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "gained",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "at_timestamp",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

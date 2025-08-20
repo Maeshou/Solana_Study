@@ -1,0 +1,628 @@
+[
+  {
+    "name": "init_pool",
+    "inputs": [
+      "ctx: Context < InitPool >",
+      "base_rate_bps: u16",
+      "minimum_units: u64",
+      "warmup_rounds: u8"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let pool_info = & mut ctx . accounts . pool_info ;"
+      },
+      {
+        "id": 2,
+        "label": "pool_info . admin_key = ctx . accounts . admin . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "pool_info . base_rate_bps = base_rate_bps . min (3000) . max (25) ;"
+      },
+      {
+        "id": 4,
+        "label": "pool_info . minimum_units = minimum_units . max (1) ;"
+      },
+      {
+        "id": 5,
+        "label": "pool_info . current_round = (warmup_rounds as u64) . max (1) ;"
+      },
+      {
+        "id": 6,
+        "label": "pool_info . cumulative_distributed = minimum_units . saturating_add (3) ;"
+      },
+      {
+        "id": 7,
+        "label": "pool_info . mode_flag = RewardMode :: Balanced ;"
+      },
+      {
+        "id": 8,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: pool_info"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: pool_info"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: pool_info"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: pool_info"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: pool_info"
+      },
+      {
+        "from": 1,
+        "to": 6,
+        "label": "data_dep: pool_info"
+      },
+      {
+        "from": 1,
+        "to": 7,
+        "label": "data_dep: pool_info"
+      }
+    ]
+  },
+  {
+    "name": "act_settle",
+    "inputs": [
+      "ctx: Context < ActSettle >",
+      "contributed_units: u64",
+      "epoch_count: u16",
+      "ramp_bps_per_epoch: u16"
+    ],
+    "nodes": [
+      {
+        "id": 9,
+        "label": "Entry"
+      },
+      {
+        "id": 10,
+        "label": "let pool_info = & mut ctx . accounts . pool_info ;"
+      },
+      {
+        "id": 11,
+        "label": "require ! (contributed_units >= pool_info . minimum_units , ErrStk :: TooSmall) ;"
+      },
+      {
+        "id": 12,
+        "label": "let mut fee_bps = 400u64 ;"
+      },
+      {
+        "id": 13,
+        "label": "let mut round_cursor = 1u64 ;"
+      },
+      {
+        "id": 14,
+        "label": "while round_cursor < pool_info . current_round { if fee_bps > 100 { fee_bps = fee_bps . saturating_sub (50) ; } round_cursor = round_cursor . saturating_add (1) ; }"
+      },
+      {
+        "id": 15,
+        "label": "if fee_bps > 100 { fee_bps = fee_bps . saturating_sub (50) ; }"
+      },
+      {
+        "id": 16,
+        "label": "fee_bps = fee_bps . saturating_sub (50) ;"
+      },
+      {
+        "id": 17,
+        "label": "round_cursor = round_cursor . saturating_add (1) ;"
+      },
+      {
+        "id": 18,
+        "label": "let mut accumulated_bonus_bps = 0u64 ;"
+      },
+      {
+        "id": 19,
+        "label": "let mut epoch_cursor = 0u16 ;"
+      },
+      {
+        "id": 20,
+        "label": "while epoch_cursor < epoch_count { accumulated_bonus_bps = accumulated_bonus_bps . saturating_add (ramp_bps_per_epoch as u64) ; epoch_cursor = epoch_cursor . saturating_add (1) ; }"
+      },
+      {
+        "id": 21,
+        "label": "accumulated_bonus_bps = accumulated_bonus_bps . saturating_add (ramp_bps_per_epoch as u64) ;"
+      },
+      {
+        "id": 22,
+        "label": "epoch_cursor = epoch_cursor . saturating_add (1) ;"
+      },
+      {
+        "id": 23,
+        "label": "let mut effective_bps = pool_info . base_rate_bps as u64 ;"
+      },
+      {
+        "id": 24,
+        "label": "if pool_info . mode_flag == RewardMode :: Cautious { effective_bps = effective_bps . saturating_sub (30) ; }"
+      },
+      {
+        "id": 25,
+        "label": "effective_bps = effective_bps . saturating_sub (30) ;"
+      },
+      {
+        "id": 26,
+        "label": "if pool_info . mode_flag == RewardMode :: Focused { effective_bps = effective_bps . saturating_add (90) ; }"
+      },
+      {
+        "id": 27,
+        "label": "effective_bps = effective_bps . saturating_add (90) ;"
+      },
+      {
+        "id": 28,
+        "label": "let capped_bps = { let candidate = effective_bps . saturating_add (accumulated_bonus_bps) ; let ceiling = effective_bps . saturating_mul (3) ; if candidate > ceiling { ceiling } else { candidate } } ;"
+      },
+      {
+        "id": 29,
+        "label": "let candidate = effective_bps . saturating_add (accumulated_bonus_bps) ;"
+      },
+      {
+        "id": 30,
+        "label": "let ceiling = effective_bps . saturating_mul (3) ;"
+      },
+      {
+        "id": 31,
+        "label": "if candidate > ceiling { ceiling } else { candidate }"
+      },
+      {
+        "id": 32,
+        "label": "ceiling"
+      },
+      {
+        "id": 33,
+        "label": "candidate"
+      },
+      {
+        "id": 34,
+        "label": "let gross_reward = contributed_units . saturating_mul (capped_bps) / 10_000 ;"
+      },
+      {
+        "id": 35,
+        "label": "let fee_amount = gross_reward . saturating_mul (fee_bps) / 10_000 ;"
+      },
+      {
+        "id": 36,
+        "label": "let distributable = gross_reward . saturating_sub (fee_amount) ;"
+      },
+      {
+        "id": 37,
+        "label": "if distributable < pool_info . minimum_units . saturating_div (8) { pool_info . mode_flag = RewardMode :: Cautious ; pool_info . current_round = pool_info . current_round . saturating_add (1) ; return Err (ErrStk :: InsufficientYield . into ()) ; }"
+      },
+      {
+        "id": 38,
+        "label": "pool_info . mode_flag = RewardMode :: Cautious ;"
+      },
+      {
+        "id": 39,
+        "label": "pool_info . current_round = pool_info . current_round . saturating_add (1) ;"
+      },
+      {
+        "id": 40,
+        "label": "return Err (ErrStk :: InsufficientYield . into ()) ;"
+      },
+      {
+        "id": 41,
+        "label": "token :: transfer (ctx . accounts . pool_to_staker () , distributable) ? ;"
+      },
+      {
+        "id": 42,
+        "label": "pool_info . cumulative_distributed = pool_info . cumulative_distributed . saturating_add (distributable) ;"
+      },
+      {
+        "id": 43,
+        "label": "pool_info . current_round = pool_info . current_round . saturating_add (1) ;"
+      },
+      {
+        "id": 44,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 10,
+        "to": 10,
+        "label": "def: pool_info"
+      },
+      {
+        "from": 12,
+        "to": 12,
+        "label": "def: fee_bps"
+      },
+      {
+        "from": 13,
+        "to": 13,
+        "label": "def: round_cursor"
+      },
+      {
+        "from": 13,
+        "to": 14,
+        "label": "data_dep: round_cursor"
+      },
+      {
+        "from": 10,
+        "to": 14,
+        "label": "data_dep: pool_info"
+      },
+      {
+        "from": 12,
+        "to": 14,
+        "label": "data_dep: fee_bps"
+      },
+      {
+        "from": 12,
+        "to": 14,
+        "label": "data_dep: fee_bps"
+      },
+      {
+        "from": 12,
+        "to": 14,
+        "label": "data_dep: fee_bps"
+      },
+      {
+        "from": 13,
+        "to": 14,
+        "label": "data_dep: round_cursor"
+      },
+      {
+        "from": 13,
+        "to": 14,
+        "label": "data_dep: round_cursor"
+      },
+      {
+        "from": 12,
+        "to": 15,
+        "label": "data_dep: fee_bps"
+      },
+      {
+        "from": 12,
+        "to": 15,
+        "label": "data_dep: fee_bps"
+      },
+      {
+        "from": 12,
+        "to": 15,
+        "label": "data_dep: fee_bps"
+      },
+      {
+        "from": 12,
+        "to": 16,
+        "label": "data_dep: fee_bps"
+      },
+      {
+        "from": 12,
+        "to": 16,
+        "label": "data_dep: fee_bps"
+      },
+      {
+        "from": 13,
+        "to": 17,
+        "label": "data_dep: round_cursor"
+      },
+      {
+        "from": 13,
+        "to": 17,
+        "label": "data_dep: round_cursor"
+      },
+      {
+        "from": 18,
+        "to": 18,
+        "label": "def: accumulated_bonus_bps"
+      },
+      {
+        "from": 19,
+        "to": 19,
+        "label": "def: epoch_cursor"
+      },
+      {
+        "from": 19,
+        "to": 20,
+        "label": "data_dep: epoch_cursor"
+      },
+      {
+        "from": 18,
+        "to": 20,
+        "label": "data_dep: accumulated_bonus_bps"
+      },
+      {
+        "from": 18,
+        "to": 20,
+        "label": "data_dep: accumulated_bonus_bps"
+      },
+      {
+        "from": 19,
+        "to": 20,
+        "label": "data_dep: epoch_cursor"
+      },
+      {
+        "from": 19,
+        "to": 20,
+        "label": "data_dep: epoch_cursor"
+      },
+      {
+        "from": 18,
+        "to": 21,
+        "label": "data_dep: accumulated_bonus_bps"
+      },
+      {
+        "from": 18,
+        "to": 21,
+        "label": "data_dep: accumulated_bonus_bps"
+      },
+      {
+        "from": 19,
+        "to": 22,
+        "label": "data_dep: epoch_cursor"
+      },
+      {
+        "from": 19,
+        "to": 22,
+        "label": "data_dep: epoch_cursor"
+      },
+      {
+        "from": 23,
+        "to": 23,
+        "label": "def: effective_bps"
+      },
+      {
+        "from": 10,
+        "to": 23,
+        "label": "data_dep: pool_info"
+      },
+      {
+        "from": 10,
+        "to": 24,
+        "label": "data_dep: pool_info"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "data_dep: effective_bps"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "data_dep: effective_bps"
+      },
+      {
+        "from": 23,
+        "to": 25,
+        "label": "data_dep: effective_bps"
+      },
+      {
+        "from": 23,
+        "to": 25,
+        "label": "data_dep: effective_bps"
+      },
+      {
+        "from": 10,
+        "to": 26,
+        "label": "data_dep: pool_info"
+      },
+      {
+        "from": 23,
+        "to": 26,
+        "label": "data_dep: effective_bps"
+      },
+      {
+        "from": 23,
+        "to": 26,
+        "label": "data_dep: effective_bps"
+      },
+      {
+        "from": 23,
+        "to": 27,
+        "label": "data_dep: effective_bps"
+      },
+      {
+        "from": 23,
+        "to": 27,
+        "label": "data_dep: effective_bps"
+      },
+      {
+        "from": 28,
+        "to": 28,
+        "label": "def: capped_bps"
+      },
+      {
+        "from": 23,
+        "to": 28,
+        "label": "data_dep: effective_bps"
+      },
+      {
+        "from": 18,
+        "to": 28,
+        "label": "data_dep: accumulated_bonus_bps"
+      },
+      {
+        "from": 23,
+        "to": 28,
+        "label": "data_dep: effective_bps"
+      },
+      {
+        "from": 29,
+        "to": 29,
+        "label": "def: candidate"
+      },
+      {
+        "from": 23,
+        "to": 29,
+        "label": "data_dep: effective_bps"
+      },
+      {
+        "from": 18,
+        "to": 29,
+        "label": "data_dep: accumulated_bonus_bps"
+      },
+      {
+        "from": 30,
+        "to": 30,
+        "label": "def: ceiling"
+      },
+      {
+        "from": 23,
+        "to": 30,
+        "label": "data_dep: effective_bps"
+      },
+      {
+        "from": 29,
+        "to": 31,
+        "label": "data_dep: candidate"
+      },
+      {
+        "from": 30,
+        "to": 31,
+        "label": "data_dep: ceiling"
+      },
+      {
+        "from": 30,
+        "to": 31,
+        "label": "data_dep: ceiling"
+      },
+      {
+        "from": 29,
+        "to": 31,
+        "label": "data_dep: candidate"
+      },
+      {
+        "from": 30,
+        "to": 32,
+        "label": "data_dep: ceiling"
+      },
+      {
+        "from": 29,
+        "to": 33,
+        "label": "data_dep: candidate"
+      },
+      {
+        "from": 34,
+        "to": 34,
+        "label": "def: gross_reward"
+      },
+      {
+        "from": 28,
+        "to": 34,
+        "label": "data_dep: capped_bps"
+      },
+      {
+        "from": 35,
+        "to": 35,
+        "label": "def: fee_amount"
+      },
+      {
+        "from": 34,
+        "to": 35,
+        "label": "data_dep: gross_reward"
+      },
+      {
+        "from": 12,
+        "to": 35,
+        "label": "data_dep: fee_bps"
+      },
+      {
+        "from": 36,
+        "to": 36,
+        "label": "def: distributable"
+      },
+      {
+        "from": 34,
+        "to": 36,
+        "label": "data_dep: gross_reward"
+      },
+      {
+        "from": 35,
+        "to": 36,
+        "label": "data_dep: fee_amount"
+      },
+      {
+        "from": 36,
+        "to": 37,
+        "label": "data_dep: distributable"
+      },
+      {
+        "from": 10,
+        "to": 37,
+        "label": "data_dep: pool_info"
+      },
+      {
+        "from": 10,
+        "to": 37,
+        "label": "data_dep: pool_info"
+      },
+      {
+        "from": 10,
+        "to": 37,
+        "label": "data_dep: pool_info"
+      },
+      {
+        "from": 10,
+        "to": 37,
+        "label": "data_dep: pool_info"
+      },
+      {
+        "from": 10,
+        "to": 38,
+        "label": "data_dep: pool_info"
+      },
+      {
+        "from": 10,
+        "to": 39,
+        "label": "data_dep: pool_info"
+      },
+      {
+        "from": 10,
+        "to": 39,
+        "label": "data_dep: pool_info"
+      },
+      {
+        "from": 36,
+        "to": 41,
+        "label": "data_dep: distributable"
+      },
+      {
+        "from": 10,
+        "to": 42,
+        "label": "data_dep: pool_info"
+      },
+      {
+        "from": 10,
+        "to": 42,
+        "label": "data_dep: pool_info"
+      },
+      {
+        "from": 36,
+        "to": 42,
+        "label": "data_dep: distributable"
+      },
+      {
+        "from": 10,
+        "to": 43,
+        "label": "data_dep: pool_info"
+      },
+      {
+        "from": 10,
+        "to": 43,
+        "label": "data_dep: pool_info"
+      }
+    ]
+  }
+]

@@ -1,0 +1,117 @@
+[
+  {
+    "name": "withdraw_stake",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < WithdrawStake >"
+    ],
+    "attributes": [
+      "# [doc = \" NFT のアンステークと返却を行うが、アカウント照合がない\"]"
+    ],
+    "body": [
+      "let stake_acc = & mut ctx . accounts . stake_account ;",
+      "let current_time = ctx . accounts . clock . unix_timestamp ;",
+      "let elapsed = current_time - stake_acc . staked_at ;",
+      "let fee = (elapsed as u64) . checked_mul (ctx . accounts . config . withdraw_fee_rate) . unwrap () ;",
+      "stake_acc . rewards = stake_acc . rewards . checked_sub (fee) . unwrap () ;",
+      "stake_acc . active = false ;",
+      "let cpi_accounts = Transfer { from : ctx . accounts . vault . to_account_info () , to : ctx . accounts . user_nft_account . to_account_info () , authority : ctx . accounts . service_authority . to_account_info () , } ;",
+      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts ,) ;",
+      "token :: transfer (cpi_ctx , 1) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "WithdrawStake",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "stake_account",
+        "attribute": "# [account (mut)] # [doc = \" 本来は #[account(has_one = owner)] を指定して所有者照合を行うべき\"]",
+        "field_type": "Account < 'info , StakeAccount >"
+      },
+      {
+        "name": "vault",
+        "attribute": "# [doc = \" ステーク NFT 保管用アカウント (Vault)\"] # [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "user_nft_account",
+        "attribute": "# [doc = \" ユーザーの NFT 受取用アカウント\"] # [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "service_authority",
+        "attribute": "# [doc = \" CPI 実行権限を持つサービス権限アカウント\"]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": "# [doc = \" SPL トークンプログラム\"]",
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "config",
+        "attribute": "# [doc = \" 手数料レートを保持する設定アカウント\"]",
+        "field_type": "Account < 'info , Config >"
+      },
+      {
+        "name": "clock",
+        "attribute": "# [doc = \" システムクロック\"]",
+        "field_type": "Sysvar < 'info , Clock >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "StakeAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 本来このステークを所有するユーザーの Pubkey\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "nft_mint",
+        "attribute": "# [doc = \" ステーキング対象の NFT ミント\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "staked_at",
+        "attribute": "# [doc = \" ステーキング開始時刻 (UNIX タイムスタンプ)\"]",
+        "field_type": "i64"
+      },
+      {
+        "name": "rewards",
+        "attribute": "# [doc = \" 累積報酬\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "active",
+        "attribute": "# [doc = \" ステーク状態 (true=有効, false=解除済)\"]",
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Config",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "withdraw_fee_rate",
+        "attribute": "# [doc = \" 引き出し時の単位手数料 (トークン／秒)\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

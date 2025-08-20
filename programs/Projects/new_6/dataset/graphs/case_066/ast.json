@@ -1,0 +1,174 @@
+[
+  {
+    "name": "init_forge",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitForge >",
+      "seed: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let f = & mut ctx . accounts . forge ;",
+      "f . operator = ctx . accounts . operator . key () ;",
+      "f . seed = seed ;",
+      "f . banks = vec ! [0 ; 6] ;",
+      "f . modes = [0u8 ; 4] ;",
+      "f . paused = false ;",
+      "f . history = vec ! [] ;",
+      "f . eff_index = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_cycle",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CycleForge >",
+      "pulses: u16",
+      "tweak: u8",
+      "tag: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let f = & mut ctx . accounts . forge ;",
+      "let inspector = & ctx . accounts . inspector ;",
+      "let ts = Clock :: get () ? . unix_timestamp ;",
+      "f . history . push (format ! (\"p={}/{} t={}\" , pulses , tweak , ts)) ;",
+      "if f . history . len () > 30",
+      "{",
+      "f . history . drain (0 .. 5) ;",
+      "}",
+      "let mut i = 0u16 ;",
+      "while i < pulses",
+      "{",
+      "let pos = (i as usize) % f . banks . len () ;",
+      "let shifted = (pulses ^ (i . rotate_left (2))) as u64 ;",
+      "f . banks [pos] = f . banks [pos] . wrapping_add ((shifted & 0x3FF) + (tweak as u64)) ;",
+      "if f . banks [pos] & 1 == 1",
+      "{",
+      "f . modes [pos % 4] = f . modes [pos % 4] . wrapping_add ((tweak ^ (pos as u8)) & 0x1F) ;",
+      "f . seed = f . seed . rotate_left (((pos as u32) & 7) + 1) ;",
+      "} if f . modes [pos % 4] > 127",
+      "{",
+      "f . modes [pos % 4] = f . modes [pos % 4] % 101 ;",
+      "f . banks [pos] = f . banks [pos] . reverse_bits () ;",
+      "} i = i . saturating_add (3) ;",
+      "}",
+      "let mut local = 0u32 ;",
+      "for ch in tag . as_bytes ()",
+      "{",
+      "local = local . wrapping_add (* ch as u32) ;",
+      "if ch % 2 == 0",
+      "{",
+      "f . eff_index = f . eff_index . wrapping_add ((ch % 7) as u8) ;",
+      "f . seed ^= (* ch as u64) << (ch % 8) ;",
+      "}",
+      "}",
+      "if local % 5 == 0",
+      "{",
+      "f . paused = true ;",
+      "f . history . push (\"eff pause\" . into ()) ;",
+      "f . banks . rotate_left (1) ;",
+      "}",
+      "if f . paused",
+      "{",
+      "f . modes . iter_mut () . for_each (| m | * m = m . rotate_left (1)) ;",
+      "let s = f . banks . iter () . fold (0u64 , | a , b | a . wrapping_add (* b)) ;",
+      "f . history . push (format ! (\"cooldown=",
+      "{",
+      "}\" , s & 0xFF)) ;",
+      "}",
+      "f . operator = inspector . key () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitForge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "forge",
+        "attribute": "# [account (init , payer = operator , space = 8 + 32 + 8 + 64 + 8 + 64 + 64)]",
+        "field_type": "Account < 'info , Forge >"
+      },
+      {
+        "name": "operator",
+        "attribute": "# [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CycleForge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "forge",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Forge >"
+      },
+      {
+        "name": "inspector",
+        "attribute": "# [doc = \" CHECK: 役割検証なし\"]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Forge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "seed",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "banks",
+        "attribute": null,
+        "field_type": "Vec < u64 >"
+      },
+      {
+        "name": "modes",
+        "attribute": null,
+        "field_type": "[u8 ; 4]"
+      },
+      {
+        "name": "paused",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "history",
+        "attribute": null,
+        "field_type": "Vec < String >"
+      },
+      {
+        "name": "eff_index",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

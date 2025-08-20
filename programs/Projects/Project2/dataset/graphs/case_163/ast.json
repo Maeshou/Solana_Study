@@ -1,0 +1,146 @@
+[
+  {
+    "name": "create_campaign",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateCampaign >",
+      "bump: u8",
+      "campaign_id: u64",
+      "description: String",
+      "goal: u64"
+    ],
+    "attributes": [
+      "# [doc = \" キャンペーン作成：ID・説明・目標金額を受け取り、集計と状態を初期化\"]"
+    ],
+    "body": [
+      "* ctx . accounts . campaign = Campaign { owner : ctx . accounts . organizer . key () , bump , campaign_id , description , goal , collected : 0 , state : String :: from (\"active\") , } ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "donate",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyCampaign >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 寄付実行：渡された金額を `collected` に加算し、状態は維持\"]"
+    ],
+    "body": [
+      "let c = & mut ctx . accounts . campaign ;",
+      "c . collected = c . collected . wrapping_add (amount) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "finalize_campaign",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyCampaign >"
+    ],
+    "attributes": [
+      "# [doc = \" キャンペーン終了：`collected` と `goal` を比較し、状態を文字列で更新\"]"
+    ],
+    "body": [
+      "let c = & mut ctx . accounts . campaign ;",
+      "c . state = if c . collected >= c . goal { String :: from (\"successful\") } else { String :: from (\"failed\") } ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CreateCampaign",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "campaign",
+        "attribute": "# [doc = \" PDA で生成する Campaign アカウント\"] # [account (init , payer = organizer , space = 8 + 32 + 1 + 8 + 4 + 200 + 8 + 8 + 4 + 10 , seeds = [b\"campaign\" , organizer . key () . as_ref () , & campaign_id . to_le_bytes ()] , bump)]",
+        "field_type": "Account < 'info , Campaign >"
+      },
+      {
+        "name": "organizer",
+        "attribute": "# [doc = \" キャンペーン主催者（署名必須）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ModifyCampaign",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "campaign",
+        "attribute": "# [doc = \" 既存の Campaign（PDA 検証 + オーナーチェック）\"] # [account (mut , seeds = [b\"campaign\" , campaign . owner . as_ref () , & campaign . campaign_id . to_le_bytes ()] , bump = campaign . bump , has_one = owner)]",
+        "field_type": "Account < 'info , Campaign >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" キャンペーン所有者（署名必須）\"] # [account (signer)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Campaign",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "campaign_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "description",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "goal",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "collected",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "state",
+        "attribute": null,
+        "field_type": "String"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

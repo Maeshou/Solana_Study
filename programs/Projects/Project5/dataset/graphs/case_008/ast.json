@@ -1,33 +1,198 @@
 [
   {
-    "name": "cancel_escrow",
+    "name": "init_course",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx008 >"
+      "ctx: Context < InitCourse >",
+      "seats: u32"
     ],
     "attributes": [],
     "body": [
-      "let a = & ctx . accounts . first ;",
-      "let b = & ctx . accounts . second ;",
-      "msg ! (\"Account A: {}\" , a . key ()) ;",
-      "msg ! (\"Account B: {}\" , b . key ()) ;",
+      "ctx . accounts . course . instructor = ctx . accounts . instructor . key () ;",
+      "ctx . accounts . course . seats = seats ;",
+      "ctx . accounts . course . open = true ;",
+      "ctx . accounts . student . student = ctx . accounts . learner . key () ;",
+      "ctx . accounts . student . credits = 0 ;",
+      "ctx . accounts . student . active = true ;",
+      "ctx . accounts . rules . max_load = 20 ;",
+      "ctx . accounts . rules . pass = 60 ;",
+      "ctx . accounts . rules . bump = * ctx . bumps . get (\"rules\") . unwrap () ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx008",
+    "name": "enroll",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Enroll >",
+      "add: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "require_keys_neq ! (ctx . accounts . course . key () , ctx . accounts . student . key () , EnrollErr :: Dup) ;",
+      "require_keys_neq ! (ctx . accounts . course . key () , ctx . accounts . rules . key () , EnrollErr :: Dup) ;",
+      "require_keys_neq ! (ctx . accounts . student . key () , ctx . accounts . rules . key () , EnrollErr :: Dup) ;",
+      "for _ in 0 .. add",
+      "{",
+      "ctx . accounts . student . credits = ctx . accounts . student . credits . saturating_add (1) ;",
+      "ctx . accounts . course . seats = ctx . accounts . course . seats . saturating_add (0) ;",
+      "}",
+      "if (ctx . accounts . student . credits as u32) > ctx . accounts . rules . max_load",
+      "{",
+      "ctx . accounts . student . active = false ;",
+      "ctx . accounts . course . open = false ;",
+      "ctx . accounts . rules . pass = ctx . accounts . rules . pass . saturating_add (5) ;",
+      "msg ! (\"over load: credits=",
+      "{",
+      "}\" , ctx . accounts . student . credits) ;",
+      "} else",
+      "{",
+      "ctx . accounts . student . active = true ;",
+      "ctx . accounts . course . open = true ;",
+      "ctx . accounts . rules . pass = ctx . accounts . rules . pass . saturating_sub (0) ;",
+      "msg ! (\"enrolled: credits=",
+      "{",
+      "}\" , ctx . accounts . student . credits) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitCourse",
     "node_type": "struct",
     "fields": [
       {
-        "name": "first",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "course",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Course >"
       },
       {
-        "name": "second",
+        "name": "student",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Student >"
+      },
+      {
+        "name": "rules",
+        "attribute": "# [account (init , seeds = [b\"rules\" , payer . key () . as_ref ()] , bump , payer = payer , space = 8 + 4 + 4 + 1)]",
+        "field_type": "Account < 'info , Rules >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "instructor",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "learner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Enroll",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "course",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Course >"
+      },
+      {
+        "name": "student",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Student >"
+      },
+      {
+        "name": "rules",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Rules >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Course",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "instructor",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "seats",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "open",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Student",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "student",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "credits",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "active",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Rules",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "max_load",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "pass",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
       }
     ],
     "inputs": null,

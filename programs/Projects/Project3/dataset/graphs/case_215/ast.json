@@ -1,0 +1,232 @@
+[
+  {
+    "name": "initialize_vesting",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeVesting >",
+      "total_amount: u64",
+      "release_timestamp: i64",
+      "bump: u8"
+    ],
+    "attributes": [
+      "# [doc = \" ベストタイムロックアカウントの初期化\"]"
+    ],
+    "body": [
+      "let vest = & mut ctx . accounts . vesting ;",
+      "vest . beneficiary = * ctx . accounts . beneficiary . key ;",
+      "vest . total_amount = total_amount ;",
+      "vest . released = 0 ;",
+      "vest . release_at = release_timestamp ;",
+      "vest . bump = bump ;",
+      "let cpi_accounts = MintTo { mint : ctx . accounts . mint . to_account_info () , to : ctx . accounts . pda_token_account . to_account_info () , authority : ctx . accounts . mint_authority . to_account_info () , } ;",
+      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
+      "mint_to (cpi_ctx , total_amount) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "claim_tokens",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ClaimTokens >"
+    ],
+    "attributes": [
+      "# [doc = \" ロック解除タイムスタンプ到達後にトークンを請求\"]"
+    ],
+    "body": [
+      "let vest = & mut ctx . accounts . vesting ;",
+      "let now = Clock :: get () ? . unix_timestamp ;",
+      "require ! (now >= vest . release_at , ErrorCode :: TooEarly) ;",
+      "let to_release = vest . total_amount . checked_sub (vest . released) . ok_or (ErrorCode :: Overflow) ? ;",
+      "require ! (to_release > 0 , ErrorCode :: NothingToClaim) ;",
+      "let seeds = & [b\"vesting\" , vest . beneficiary . as_ref () , & [vest . bump]] ;",
+      "let signer = & [& seeds [..]] ;",
+      "let cpi_accounts = Transfer { from : ctx . accounts . pda_token_account . to_account_info () , to : ctx . accounts . beneficiary_account . to_account_info () , authority : ctx . accounts . vesting . to_account_info () , } ;",
+      "let cpi_ctx = CpiContext :: new_with_signer (ctx . accounts . token_program . to_account_info () , cpi_accounts , signer ,) ;",
+      "transfer (cpi_ctx , to_release) ? ;",
+      "vest . released = vest . released . checked_add (to_release) . ok_or (ErrorCode :: Overflow) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "revoke_vesting",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RevokeVesting >"
+    ],
+    "attributes": [
+      "# [doc = \" アカウントを取り消し、残余トークンをオーナーに返却\"]"
+    ],
+    "body": [
+      "let vest = & ctx . accounts . vesting ;",
+      "let owner = & ctx . accounts . owner ;",
+      "require ! (owner . key () == & vest . beneficiary , ErrorCode :: Unauthorized) ;",
+      "let rem = ctx . accounts . pda_token_account . amount ;",
+      "if rem > 0",
+      "{",
+      "let seeds = & [b\"vesting\" , vest . beneficiary . as_ref () , & [vest . bump]] ;",
+      "let signer = & [& seeds [..]] ;",
+      "let cpi_accounts = Transfer",
+      "{",
+      "from : ctx . accounts . pda_token_account . to_account_info () , to : ctx . accounts . owner_account . to_account_info () , authority : ctx . accounts . vesting . to_account_info () , } ;",
+      "let cpi_ctx = CpiContext :: new_with_signer (ctx . accounts . token_program . to_account_info () , cpi_accounts , signer ,) ;",
+      "transfer (cpi_ctx , rem) ? ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializeVesting",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vesting",
+        "attribute": "# [account (init , seeds = [b\"vesting\" , beneficiary . key () . as_ref ()] , bump = bump , payer = payer , space = 8 + 32 + 8 + 8 + 8 + 1 ,)]",
+        "field_type": "Account < 'info , Vesting >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "mint_authority",
+        "attribute": "# [doc = \" CHECK: ミント権限はオフチェーンで保有\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "mint",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "pda_token_account",
+        "attribute": "# [account (init , token :: mint = mint , token :: authority = vesting , payer = payer ,)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "rent",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Rent >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ClaimTokens",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vesting",
+        "attribute": "# [account (mut , seeds = [b\"vesting\" , vesting . beneficiary . as_ref ()] , bump = vesting . bump , has_one = beneficiary ,)]",
+        "field_type": "Account < 'info , Vesting >"
+      },
+      {
+        "name": "beneficiary",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "pda_token_account",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "beneficiary_account",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RevokeVesting",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vesting",
+        "attribute": "# [account (mut , seeds = [b\"vesting\" , vesting . beneficiary . as_ref ()] , bump = vesting . bump , has_one = beneficiary @ ErrorCode :: Unauthorized ,)]",
+        "field_type": "Account < 'info , Vesting >"
+      },
+      {
+        "name": "beneficiary",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "pda_token_account",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "owner_account",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Vesting",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "beneficiary",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "total_amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "released",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "release_at",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

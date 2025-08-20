@@ -1,0 +1,83 @@
+[
+  {
+    "name": "transfer_and_update_params",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < TransferAndUpdateParams >",
+      "amount: u64",
+      "new_setting: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 1) Vault から lamports を送金（Owner Check を行わない）\"]",
+      "# [doc = \" 2) 2 つの同じタイプの mutable アカウントを受け取るが、キーが重複していないかを検証しない\"]",
+      "# [doc = \" 3) 設定アカウントのパラメータを更新（Owner Check を行わない）\"]"
+    ],
+    "body": [
+      "let vault_acc = & ctx . accounts . vault_account ;",
+      "let recipient_acc = & ctx . accounts . recipient_account ;",
+      "let dup_acc1 = & ctx . accounts . dup_account1 ;",
+      "let dup_acc2 = & ctx . accounts . dup_account2 ;",
+      "let settings_acc = & ctx . accounts . settings_account ;",
+      "let payer = & ctx . accounts . payer ;",
+      "let (fee , net_amount) = { let mut f = amount / 50 ; if f == 0 { f = 1 ; } let net = amount . checked_sub (f) . ok_or (ProgramError :: InvalidArgument) ? ; msg ! (\"[STEP1] amount: {}, fee: {}, net_amount: {}\" , amount , f , net) ; (f , net) } ;",
+      "* * vault_acc . try_borrow_mut_lamports () ? -= amount ;",
+      "* * recipient_acc . try_borrow_mut_lamports () ? += net_amount ;",
+      "* * payer . try_borrow_mut_lamports () ? += fee ;",
+      "{ let mut d1 = dup_acc1 . try_borrow_mut_data () ? ; d1 [0] = d1 [0] . wrapping_add (1) ; msg ! (\"[STEP2] dup_acc1 カウンタを +1 した\") ; let mut d2 = dup_acc2 . try_borrow_mut_data () ? ; d2 [0] = d2 [0] . wrapping_add (2) ; msg ! (\"[STEP2] dup_acc2 カウンタを +2 した\") ; }",
+      "let mut settings_value : u64 = { let raw = settings_acc . try_borrow_data () ? ; let mut b = [0u8 ; 8] ; b . copy_from_slice (& raw [0 .. 8]) ; let v = u64 :: from_le_bytes (b) ; msg ! (\"[STEP3] 現在の設定値: {}\" , v) ; v } ;",
+      "{ if new_setting == 0 { msg ! (\"[STEP4] new_setting は 0 を許容しない\") ; return Err (error ! (ProgramError :: InvalidArgument)) ; } if new_setting > 5_000 { msg ! (\"[STEP4] new_setting が大きすぎる\") ; return Err (error ! (ProgramError :: InvalidArgument)) ; } settings_value = new_setting ; }",
+      "{ let bytes = settings_value . to_le_bytes () ; let mut raw = settings_acc . try_borrow_mut_data () ? ; for i in 0 .. 8 { raw [i] = bytes [i] ; } msg ! (\"[STEP4] 設定値を {} に更新\" , settings_value) ; }",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "TransferAndUpdateParams",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault_account",
+        "attribute": "# [doc = \" 本来はプログラム所有者かを検証すべきだが省略\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "recipient_account",
+        "attribute": "# [doc = \" 送金先アカウント\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "dup_account1",
+        "attribute": "# [doc = \" 同じ型の mutable アカウントを2つ受け取るがチェックせずに処理してしまう\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "dup_account2",
+        "attribute": "# [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "settings_account",
+        "attribute": "# [doc = \" 設定用アカウント（owner チェック省略）\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [doc = \" 手数料受取先（owner チェック省略）\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 実行者の署名アカウント\"]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,9 +1,10 @@
 [
   {
-    "name": "burn_token",
+    "name": "create_multisig",
     "inputs": [
-      "ctx: Context < BurnTokenCtxvuto >",
-      "amount: u64"
+      "ctx: Context < CreateMultisig >",
+      "owners: Vec < Pubkey >",
+      "threshold: u8"
     ],
     "nodes": [
       {
@@ -12,22 +13,26 @@
       },
       {
         "id": 1,
-        "label": "let acct = & mut ctx . accounts . burn_account ;"
+        "label": "let multisig = & mut ctx . accounts . multisig ;"
       },
       {
         "id": 2,
-        "label": "for _ in 0 .. amount { acct . data += 1 ; }"
+        "label": "multisig . owners = owners ;"
       },
       {
         "id": 3,
-        "label": "acct . data += 1 ;"
+        "label": "multisig . threshold = threshold ;"
       },
       {
         "id": 4,
-        "label": "msg ! (\"Executed burn_token logic\") ;"
+        "label": "multisig . nonce = 0 ;"
       },
       {
         "id": 5,
+        "label": "multisig . bump = * ctx . bumps . get (\"multisig\") . unwrap () ;"
+      },
+      {
+        "id": 6,
         "label": "Ok (())"
       }
     ],
@@ -35,17 +40,197 @@
       {
         "from": 1,
         "to": 1,
-        "label": "def: acct"
+        "label": "def: multisig"
       },
       {
         "from": 1,
         "to": 2,
-        "label": "data_dep: acct"
+        "label": "data_dep: multisig"
       },
       {
         "from": 1,
         "to": 3,
-        "label": "data_dep: acct"
+        "label": "data_dep: multisig"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: multisig"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: multisig"
+      }
+    ]
+  },
+  {
+    "name": "create_transaction",
+    "inputs": [
+      "ctx: Context < CreateTransaction >",
+      "data: Vec < u8 >",
+      "accounts: Vec < TransactionAccount >"
+    ],
+    "nodes": [
+      {
+        "id": 7,
+        "label": "Entry"
+      },
+      {
+        "id": 8,
+        "label": "let multisig = & mut ctx . accounts . multisig ;"
+      },
+      {
+        "id": 9,
+        "label": "let transaction = & mut ctx . accounts . transaction ;"
+      },
+      {
+        "id": 10,
+        "label": "transaction . multisig = multisig . key () ;"
+      },
+      {
+        "id": 11,
+        "label": "transaction . data = data ;"
+      },
+      {
+        "id": 12,
+        "label": "transaction . accounts = accounts ;"
+      },
+      {
+        "id": 13,
+        "label": "transaction . signers = vec ! [false ; multisig . owners . len ()] ;"
+      },
+      {
+        "id": 14,
+        "label": "transaction . executed = false ;"
+      },
+      {
+        "id": 15,
+        "label": "transaction . bump = * ctx . bumps . get (\"transaction\") . unwrap () ;"
+      },
+      {
+        "id": 16,
+        "label": "multisig . nonce += 1 ;"
+      },
+      {
+        "id": 17,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 8,
+        "to": 8,
+        "label": "def: multisig"
+      },
+      {
+        "from": 9,
+        "to": 9,
+        "label": "def: transaction"
+      },
+      {
+        "from": 9,
+        "to": 10,
+        "label": "data_dep: transaction"
+      },
+      {
+        "from": 8,
+        "to": 10,
+        "label": "data_dep: multisig"
+      },
+      {
+        "from": 9,
+        "to": 11,
+        "label": "data_dep: transaction"
+      },
+      {
+        "from": 9,
+        "to": 12,
+        "label": "data_dep: transaction"
+      },
+      {
+        "from": 9,
+        "to": 13,
+        "label": "data_dep: transaction"
+      },
+      {
+        "from": 9,
+        "to": 14,
+        "label": "data_dep: transaction"
+      },
+      {
+        "from": 9,
+        "to": 15,
+        "label": "data_dep: transaction"
+      },
+      {
+        "from": 8,
+        "to": 16,
+        "label": "data_dep: multisig"
+      }
+    ]
+  },
+  {
+    "name": "approve",
+    "inputs": [
+      "ctx: Context < Approve >"
+    ],
+    "nodes": [
+      {
+        "id": 18,
+        "label": "Entry"
+      },
+      {
+        "id": 19,
+        "label": "let multisig = & ctx . accounts . multisig ;"
+      },
+      {
+        "id": 20,
+        "label": "let transaction = & mut ctx . accounts . transaction ;"
+      },
+      {
+        "id": 21,
+        "label": "let owner_index = multisig . owners . iter () . position (| a | * a == ctx . accounts . owner . key ()) . ok_or (MultisigError :: InvalidOwner) ? ;"
+      },
+      {
+        "id": 22,
+        "label": "transaction . signers [owner_index] = true ;"
+      },
+      {
+        "id": 23,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 19,
+        "to": 19,
+        "label": "def: multisig"
+      },
+      {
+        "from": 20,
+        "to": 20,
+        "label": "def: transaction"
+      },
+      {
+        "from": 21,
+        "to": 21,
+        "label": "def: owner_index"
+      },
+      {
+        "from": 19,
+        "to": 21,
+        "label": "data_dep: multisig"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: transaction"
+      },
+      {
+        "from": 21,
+        "to": 22,
+        "label": "data_dep: owner_index"
       }
     ]
   }

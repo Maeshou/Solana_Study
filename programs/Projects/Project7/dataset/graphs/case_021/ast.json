@@ -1,0 +1,148 @@
+[
+  {
+    "name": "init_station",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitStation >",
+      "daily_limit: u64",
+      "chunk: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . station ;",
+      "s . manager = ctx . accounts . manager . key () ;",
+      "s . daily_cap = daily_limit . max (12) ;",
+      "s . sent_today = chunk . max (4) ;",
+      "s . chunk_size = chunk . max (4) ;",
+      "s . paused = false ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_dispatch",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActDispatch >",
+      "bursts: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . station ;",
+      "require ! (! s . paused , ErrEnergy :: Paused) ;",
+      "let mut i = 0u8 ;",
+      "while i < bursts",
+      "{",
+      "let next_total = s . sent_today . saturating_add (s . chunk_size) ;",
+      "if next_total > s . daily_cap",
+      "{",
+      "s . paused = true ;",
+      "return Err (ErrEnergy :: OverCap . into ()) ;",
+      "} token :: approve (ctx . accounts . approve_ctx () , s . chunk_size) ? ;",
+      "token :: transfer (ctx . accounts . transfer_ctx () , s . chunk_size) ? ;",
+      "token :: revoke (ctx . accounts . revoke_ctx ()) ? ;",
+      "s . sent_today = next_total ;",
+      "i = i . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitStation",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "station",
+        "attribute": "# [account (init , payer = manager , space = 8 + 32 + 8 + 8 + 8 + 1)]",
+        "field_type": "Account < 'info , EnergyStation >"
+      },
+      {
+        "name": "manager",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActDispatch",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "station",
+        "attribute": "# [account (mut , has_one = manager)]",
+        "field_type": "Account < 'info , EnergyStation >"
+      },
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "source",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "recipient",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "delegate",
+        "attribute": "# [doc = \" CHECK: 委譲先は自由\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EnergyStation",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "daily_cap",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "sent_today",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "chunk_size",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "paused",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

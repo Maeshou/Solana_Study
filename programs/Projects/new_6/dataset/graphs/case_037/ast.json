@@ -1,0 +1,132 @@
+[
+  {
+    "name": "init_order",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitOrder >",
+      "price: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let o = & mut ctx . accounts . order ;",
+      "o . seller = ctx . accounts . user . key () ;",
+      "o . price = price ;",
+      "o . filled = false ;",
+      "o . retry_count = 0 ;",
+      "o . priority = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_fill",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < FillOrder >",
+      "paid: u64",
+      "boost: bool"
+    ],
+    "attributes": [],
+    "body": [
+      "let o = & mut ctx . accounts . order ;",
+      "let payer = & ctx . accounts . payer ;",
+      "if paid >= o . price",
+      "{",
+      "o . filled = true ;",
+      "o . retry_count = 0 ;",
+      "o . priority = o . priority . saturating_add (2) ;",
+      "o . seller = payer . key () ;",
+      "}",
+      "if boost",
+      "{",
+      "o . priority = o . priority . saturating_add (10) ;",
+      "o . price = o . price . saturating_mul (2) ;",
+      "o . retry_count += 1 ;",
+      "}",
+      "if o . retry_count > 3",
+      "{",
+      "o . priority = 0 ;",
+      "o . price = 0 ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitOrder",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "order",
+        "attribute": "# [account (init , payer = user , space = 8 + 32 + 8 + 1 + 1 + 1)]",
+        "field_type": "Account < 'info , MarketOrder >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "FillOrder",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "order",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , MarketOrder >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [doc = \" CHECK: buyer としても seller としても通る構造\"]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MarketOrder",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "seller",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "price",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "filled",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "retry_count",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "priority",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

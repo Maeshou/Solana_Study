@@ -1,0 +1,216 @@
+[
+  {
+    "name": "init_pool",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitPool >",
+      "base_bps: u16",
+      "min_units: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . pool ;",
+      "s . admin = ctx . accounts . admin . key () ;",
+      "s . base_bps = clip_u16 (base_bps , 25 , 3500) ;",
+      "s . min_units = if min_units < 1 { 1 } else { min_units } ;",
+      "s . round = 2 ;",
+      "s . paid = 3 ;",
+      "s . mode = Mode :: Neutral ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_settle",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActSettle >",
+      "stake_units: u64",
+      "epochs: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . pool ;",
+      "require ! (stake_units >= s . min_units , ErrStk :: TooSmall) ;",
+      "let mut bonus_bps : u64 = 0 ;",
+      "let mut i = 1u32 ;",
+      "while i <= epochs",
+      "{",
+      "bonus_bps = bonus_bps + (10_000 / ((i as u64) + 9)) ;",
+      "i = i + 1 ;",
+      "}",
+      "let mut effective = s . base_bps as u64 ;",
+      "if s . mode == Mode :: Conservative",
+      "{",
+      "effective = effective - (effective / 20) ;",
+      "}",
+      "if s . mode == Mode :: Aggressive",
+      "{",
+      "effective = effective + (effective / 12) ;",
+      "}",
+      "let mut total_bps = effective + bonus_bps / 40 ;",
+      "let ceiling = effective * 3 ;",
+      "if total_bps > ceiling",
+      "{",
+      "total_bps = ceiling ;",
+      "}",
+      "let mut fee_bps = 500u64 ;",
+      "let mut r = 0u64 ;",
+      "while r < s . round / 3",
+      "{",
+      "if fee_bps > 100",
+      "{",
+      "fee_bps = fee_bps - 100 ;",
+      "} r = r + 1 ;",
+      "}",
+      "let gross = mul_div (stake_units , total_bps , 10_000) ;",
+      "let fee = mul_div (gross , fee_bps , 10_000) ;",
+      "let net = gross - fee ;",
+      "if net < s . min_units / 12",
+      "{",
+      "s . mode = Mode :: Conservative ;",
+      "s . round = s . round + 1 ;",
+      "return Err (ErrStk :: Small . into ()) ;",
+      "}",
+      "token :: transfer (ctx . accounts . pool_to_user () , net) ? ;",
+      "s . paid = s . paid + net ;",
+      "s . round = s . round + 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitPool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 2 + 8 + 8 + 8 + 1)]",
+        "field_type": "Account < 'info , PoolState >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActSettle",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": "# [account (mut , has_one = admin)]",
+        "field_type": "Account < 'info , PoolState >"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "pool_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "user_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PoolState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "base_bps",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "min_units",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "round",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "paid",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "mode",
+        "attribute": null,
+        "field_type": "Mode"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "clip_u16",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "v: u16",
+      "lo: u16",
+      "hi: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut out = v ;",
+      "if out < lo",
+      "{",
+      "out = lo ;",
+      "}",
+      "if out > hi",
+      "{",
+      "out = hi ;",
+      "}",
+      "out"
+    ]
+  },
+  {
+    "name": "mul_div",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "a: u64",
+      "b: u64",
+      "d: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "((a as u128 * b as u128) / d as u128) as u64"
+    ]
+  }
+]

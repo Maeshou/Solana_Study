@@ -1,0 +1,167 @@
+[
+  {
+    "name": "create_proposal",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateProposal >",
+      "bump: u8",
+      "id: u64",
+      "description: String"
+    ],
+    "attributes": [
+      "# [doc = \" 提案アカウントを作成\"]"
+    ],
+    "body": [
+      "require ! (description . len () <= 200 , ErrorCode :: DescriptionTooLong) ;",
+      "let proposal = & mut ctx . accounts . proposal ;",
+      "proposal . creator = * ctx . accounts . creator . key ;",
+      "proposal . bump = bump ;",
+      "proposal . id = id ;",
+      "proposal . description = description ;",
+      "proposal . votes = 0 ;",
+      "proposal . open = true ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "cast_vote",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CastVote >"
+    ],
+    "attributes": [
+      "# [doc = \" 投票を行う\"]"
+    ],
+    "body": [
+      "let proposal = & mut ctx . accounts . proposal ;",
+      "require ! (proposal . open , ErrorCode :: ProposalClosed) ;",
+      "proposal . votes = proposal . votes . checked_add (1) . ok_or (ErrorCode :: Overflow) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "close_proposal",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CloseProposal >"
+    ],
+    "attributes": [
+      "# [doc = \" 提案を終了する\"]"
+    ],
+    "body": [
+      "let proposal = & mut ctx . accounts . proposal ;",
+      "require ! (proposal . open , ErrorCode :: ProposalClosed) ;",
+      "proposal . open = false ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CreateProposal",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "proposal",
+        "attribute": "# [account (init , seeds = [b\"proposal\" , & id . to_le_bytes ()] , bump = bump , payer = creator , space = 8 + 32 + 1 + 8 + 4 + 200 + 8 + 1 ,)]",
+        "field_type": "Account < 'info , Proposal >"
+      },
+      {
+        "name": "creator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "rent",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Rent >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CastVote",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "proposal",
+        "attribute": "# [account (mut , seeds = [b\"proposal\" , & proposal . id . to_le_bytes ()] , bump = proposal . bump ,)]",
+        "field_type": "Account < 'info , Proposal >"
+      },
+      {
+        "name": "voter",
+        "attribute": "# [doc = \" CHECK: 投票者の署名確認のみ\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CloseProposal",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "proposal",
+        "attribute": "# [account (mut , seeds = [b\"proposal\" , & proposal . id . to_le_bytes ()] , bump = proposal . bump , has_one = creator ,)]",
+        "field_type": "Account < 'info , Proposal >"
+      },
+      {
+        "name": "creator",
+        "attribute": "# [doc = \" 提案作成者のみ終了可能\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Proposal",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "creator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "description",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "votes",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "open",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

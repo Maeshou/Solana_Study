@@ -1,0 +1,160 @@
+[
+  {
+    "name": "list_item",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ListItem >",
+      "sku: [u8 ; 8]",
+      "price: u64",
+      "bump: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut s = sku ;",
+      "for i in 0 .. s . len ()",
+      "{",
+      "if ! s [i] . is_ascii_alphanumeric ()",
+      "{",
+      "s [i] = b'0' + (i as u8 % 10) ;",
+      "}",
+      "}",
+      "let mut p = price ;",
+      "if p > 12_000_000_000",
+      "{",
+      "p = 12_000_000_000 ;",
+      "}",
+      "let seeds = [& ctx . accounts . merchant . key () . to_bytes () [..] , & s [..]] ;",
+      "let addr = Pubkey :: create_program_address (& seeds , & ctx . program_id , & [bump]) . map_err (| _ | error ! (MErr :: Cell)) ? ;",
+      "if addr != ctx . accounts . book_cell . key ()",
+      "{",
+      "return Err (error ! (MErr :: Cell)) ;",
+      "}",
+      "let b = & mut ctx . accounts . book ;",
+      "b . merchant = ctx . accounts . merchant . key () ;",
+      "b . sku = s ;",
+      "b . price = p ;",
+      "b . volume = b . volume . saturating_add (1) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "record_sale",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RecordSale >",
+      "sku: [u8 ; 8]",
+      "qty: u16",
+      "bump: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut s = sku ;",
+      "for i in 0 .. s . len ()",
+      "{",
+      "if s [i] . is_ascii_lowercase ()",
+      "{",
+      "s [i] = s [i] - 32 ;",
+      "}",
+      "}",
+      "let seeds = [& ctx . accounts . merchant . key () . to_bytes () [..] , & s [..]] ;",
+      "let addr = Pubkey :: create_program_address (& seeds , & ctx . program_id , & [bump]) . map_err (| _ | error ! (MErr :: Cell)) ? ;",
+      "if addr != ctx . accounts . book_cell . key ()",
+      "{",
+      "return Err (error ! (MErr :: Cell)) ;",
+      "}",
+      "let b = & mut ctx . accounts . book ;",
+      "let mut q = qty as u32 ;",
+      "if q > 10_000",
+      "{",
+      "q = 10_000 ;",
+      "}",
+      "b . volume = b . volume . saturating_add (q) ;",
+      "b . fees = b . fees . wrapping_add ((q as u64) . wrapping_mul (17)) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "ListItem",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "book",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , MarketBook >"
+      },
+      {
+        "name": "book_cell",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "merchant",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RecordSale",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "book",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , MarketBook >"
+      },
+      {
+        "name": "book_cell",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "merchant",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MarketBook",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "merchant",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "sku",
+        "attribute": null,
+        "field_type": "[u8 ; 8]"
+      },
+      {
+        "name": "price",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "volume",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "fees",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

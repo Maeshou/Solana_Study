@@ -1,0 +1,238 @@
+[
+  {
+    "name": "init_workshop",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitWorkshop >"
+    ],
+    "attributes": [],
+    "body": [
+      "let w = & mut ctx . accounts . workshop ;",
+      "w . owner = ctx . accounts . master . key () ;",
+      "w . level = 1 ;",
+      "w . noise = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_recipe",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitRecipe >",
+      "kind: RecipeKind"
+    ],
+    "attributes": [],
+    "body": [
+      "let r = & mut ctx . accounts . recipe ;",
+      "r . workshop = ctx . accounts . workshop . key () ;",
+      "r . kind = kind ;",
+      "r . quality = 0 ;",
+      "r . mem = [0 ; 10] ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "brew",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Brew >",
+      "seed: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let w = & mut ctx . accounts . workshop ;",
+      "let a = & mut ctx . accounts . actor ;",
+      "let b = & mut ctx . accounts . counter ;",
+      "let l = & mut ctx . accounts . ledger ;",
+      "let mut s = seed ^ (w . level as u64) ;",
+      "for k in 0 .. 10",
+      "{",
+      "s = (s ^ (k as u64) . rotate_left (5)) . wrapping_mul (0x9E3779B97F4A7C15) ;",
+      "a . mem [k] = a . mem [k] . saturating_add (((s >> (k * 3)) & 0x3F) as u32) ;",
+      "}",
+      "if a . kind == Elixir",
+      "{",
+      "a . quality = a . quality . saturating_add (((s & 0xFFFF) as u32) + 11) ;",
+      "w . level = (w . level + 1) . min (50) ;",
+      "l . lines = l . lines . saturating_add (1) ;",
+      "l . mix = l . mix . wrapping_add (s . rotate_left (7)) ;",
+      "msg ! (\"Elixir brewing path\") ;",
+      "} else",
+      "{",
+      "b . quality = b . quality . saturating_add ((((s >> 6) & 0x7FFF) as u32) + 5) ;",
+      "w . noise = w . noise ^ ((s as u32) & 0xFFFF) ;",
+      "l . lines = l . lines . saturating_add (2) ;",
+      "l . mix = l . mix ^ s . rotate_right (9) ;",
+      "msg ! (\"Non-elixir brewing path\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitWorkshop",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "workshop",
+        "attribute": "# [account (init , payer = master , space = 8 + Workshop :: MAX)]",
+        "field_type": "Account < 'info , Workshop >"
+      },
+      {
+        "name": "master",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitRecipe",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "workshop",
+        "attribute": "# [account (mut , has_one = owner , owner = crate :: ID)]",
+        "field_type": "Account < 'info , Workshop >"
+      },
+      {
+        "name": "recipe",
+        "attribute": "# [account (init , payer = user , space = 8 + Recipe :: MAX)]",
+        "field_type": "Account < 'info , Recipe >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Brew",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "workshop",
+        "attribute": "# [account (mut , has_one = owner , owner = crate :: ID)]",
+        "field_type": "Account < 'info , Workshop >"
+      },
+      {
+        "name": "ledger",
+        "attribute": "# [account (mut , has_one = workshop , owner = crate :: ID)]",
+        "field_type": "Account < 'info , Ledger >"
+      },
+      {
+        "name": "actor",
+        "attribute": "# [account (mut , has_one = workshop , owner = crate :: ID)]",
+        "field_type": "Account < 'info , Recipe >"
+      },
+      {
+        "name": "counter",
+        "attribute": "# [account (mut , has_one = workshop , owner = crate :: ID , constraint = actor . kind != counter . kind @ ErrCode :: CosplayBlocked)]",
+        "field_type": "Account < 'info , Recipe >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Workshop",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "level",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "noise",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Recipe",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "workshop",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "kind",
+        "attribute": null,
+        "field_type": "RecipeKind"
+      },
+      {
+        "name": "quality",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "mem",
+        "attribute": null,
+        "field_type": "[u32 ; 10]"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Ledger",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "workshop",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "mix",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "lines",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

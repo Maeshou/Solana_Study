@@ -1,0 +1,167 @@
+[
+  {
+    "name": "init_guard",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitGuard >",
+      "base_penalty_bps_input: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let guard = & mut ctx . accounts . guard ;",
+      "guard . moderator = ctx . accounts . moderator . key () ;",
+      "guard . base_penalty_bps = clamp_u16 (base_penalty_bps_input , 0 , 3000) ;",
+      "guard . case_index = 1 ;",
+      "guard . total_refunded = 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_refund",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActRefund >",
+      "order_amount: u64",
+      "defect_severity: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let guard = & mut ctx . accounts . guard ;",
+      "let mut penalty_bps : u64 = guard . base_penalty_bps as u64 ;",
+      "let mut severity_cursor : u8 = 0 ;",
+      "while severity_cursor < defect_severity",
+      "{",
+      "penalty_bps = penalty_bps + 50 ;",
+      "severity_cursor = severity_cursor + 1 ;",
+      "}",
+      "if penalty_bps > 5000",
+      "{",
+      "penalty_bps = 5000 ;",
+      "}",
+      "let penalty_amount : u64 = (order_amount as u128 * penalty_bps as u128 / 10_000u128) as u64 ;",
+      "let buyer_refund : u64 = order_amount - penalty_amount ;",
+      "token :: transfer (ctx . accounts . seller_pool_to_buyer () , buyer_refund) ? ;",
+      "token :: transfer (ctx . accounts . seller_pool_to_fee () , penalty_amount) ? ;",
+      "guard . total_refunded = guard . total_refunded + buyer_refund ;",
+      "guard . case_index = guard . case_index + 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitGuard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guard",
+        "attribute": "# [account (init , payer = moderator , space = 8 + 32 + 2 + 8 + 8)]",
+        "field_type": "Account < 'info , GuardState >"
+      },
+      {
+        "name": "moderator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActRefund",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guard",
+        "attribute": "# [account (mut , has_one = moderator)]",
+        "field_type": "Account < 'info , GuardState >"
+      },
+      {
+        "name": "moderator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "seller_pool_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "buyer_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "fee_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GuardState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "moderator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "base_penalty_bps",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "case_index",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_refunded",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "clamp_u16",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "v: u16",
+      "lo: u16",
+      "hi: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut o = v ;",
+      "if o < lo",
+      "{",
+      "o = lo ;",
+      "}",
+      "if o > hi",
+      "{",
+      "o = hi ;",
+      "}",
+      "o"
+    ]
+  }
+]

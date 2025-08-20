@@ -1,17 +1,59 @@
 [
   {
-    "name": "BuyTicketCtxoacm",
+    "name": "list_nft",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ListNFT >",
+      "price: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let listing = & mut ctx . accounts . listing ;",
+      "listing . nft_mint = ctx . accounts . nft_mint . key () ;",
+      "listing . seller = ctx . accounts . seller . key () ;",
+      "listing . price = price ;",
+      "listing . is_active = true ;",
+      "let cpi_accounts = anchor_spl :: token :: Transfer { from : ctx . accounts . seller_token_account . to_account_info () , to : ctx . accounts . escrow_token_account . to_account_info () , authority : ctx . accounts . seller . to_account_info () , } ;",
+      "let cpi_program = ctx . accounts . token_program . to_account_info () ;",
+      "let cpi_ctx = CpiContext :: new (cpi_program , cpi_accounts) ;",
+      "anchor_spl :: token :: transfer (cpi_ctx , 1) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "ListNFT",
     "node_type": "struct",
     "fields": [
       {
-        "name": "lottery",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
+        "name": "listing",
+        "attribute": "# [account (init , payer = seller , space = 8 + 200 , seeds = [b\"listing\" , nft_mint . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Listing >"
       },
       {
-        "name": "buyer",
+        "name": "nft_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "seller_token_account",
+        "attribute": "# [account (mut , constraint = seller_token_account . mint == nft_mint . key ())]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "escrow_token_account",
+        "attribute": "# [account (mut , constraint = escrow_token_account . mint == nft_mint . key ())]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "seller",
         "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
       },
       {
         "name": "system_program",
@@ -24,33 +66,32 @@
     "body": null
   },
   {
-    "name": "DataAccount",
+    "name": "Listing",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data",
+        "name": "nft_mint",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "seller",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "price",
         "attribute": null,
         "field_type": "u64"
+      },
+      {
+        "name": "is_active",
+        "attribute": null,
+        "field_type": "bool"
       }
     ],
     "inputs": null,
     "attributes": null,
     "body": null
-  },
-  {
-    "name": "buy_ticket",
-    "node_type": "function",
-    "fields": null,
-    "inputs": [
-      "ctx: Context < BuyTicketCtxoacm >",
-      "amount: u64"
-    ],
-    "attributes": [],
-    "body": [
-      "let acct = & mut ctx . accounts . lottery ;",
-      "* * ctx . accounts . lottery . to_account_info () . try_borrow_mut_lamports () ? += amount ;",
-      "msg ! (\"Executed buy_ticket logic\") ;",
-      "Ok (())"
-    ]
   }
 ]

@@ -1,0 +1,239 @@
+[
+  {
+    "name": "RentContract",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "nft_contract",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "rent_fee",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "renter",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "expires_at",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "NFTAsset",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "mint",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "rental_contract",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "is_rented",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "NftRented",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "contract",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "asset",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "renter",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitializeContract",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "rent_contract",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 * 4 + 8 + 1)]",
+        "field_type": "Account < 'info , RentContract >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RentNft",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "rent_contract",
+        "attribute": "# [doc = \" RentContract.renter == renter.key() は検証される\"] # [account (mut , has_one = renter)]",
+        "field_type": "Account < 'info , RentContract >"
+      },
+      {
+        "name": "nft_asset",
+        "attribute": "# [doc = \" 本来は rent_contract.key() と NFTAsset.rental_contract が一致すべきだが、\"] # [doc = \" ここでは一切チェックしていない\"] # [account (mut)]",
+        "field_type": "Account < 'info , NFTAsset >"
+      },
+      {
+        "name": "renter",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ReturnNft",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "rent_contract",
+        "attribute": "# [doc = \" レンタル契約の所有者だけが返却を承認できる\"] # [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , RentContract >"
+      },
+      {
+        "name": "nft_asset",
+        "attribute": "# [doc = \" 同上。紐づき検証なし\"] # [account (mut)]",
+        "field_type": "Account < 'info , NFTAsset >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "initialize_contract",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeContract >",
+      "nft_contract: Pubkey",
+      "fee: u64",
+      "duration_secs: i64"
+    ],
+    "attributes": [
+      "# [doc = \" レンタル契約を初期化\"]"
+    ],
+    "body": [
+      "let c = & mut ctx . accounts . rent_contract ;",
+      "c . owner = ctx . accounts . owner . key () ;",
+      "c . nft_contract = nft_contract ;",
+      "c . rent_fee = fee ;",
+      "c . renter = Pubkey :: default () ;",
+      "c . expires_at = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "rent",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RentNft >"
+    ],
+    "attributes": [
+      "# [doc = \" NFTを借りる\"]"
+    ],
+    "body": [
+      "let c = & mut ctx . accounts . rent_contract ;",
+      "let asset = & mut ctx . accounts . nft_asset ;",
+      "asset . owner = ctx . accounts . renter . key () ;",
+      "asset . is_rented = true ;",
+      "asset . rental_contract = c . key () ;",
+      "c . renter = ctx . accounts . renter . key () ;",
+      "c . expires_at = Clock :: get () ? . unix_timestamp + 60 * 60 * 24 ;",
+      "emit ! (NftRented { contract : c . key () , asset : asset . key () , renter : c . renter , }) ;",
+      "msg ! (\"NFT {} をレンタルしました (契約: {})\" , asset . mint , c . key ()) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "return_nft",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ReturnNft >"
+    ],
+    "attributes": [
+      "# [doc = \" NFTを返却する\"]"
+    ],
+    "body": [
+      "let c = & mut ctx . accounts . rent_contract ;",
+      "let asset = & mut ctx . accounts . nft_asset ;",
+      "asset . owner = c . owner ;",
+      "asset . is_rented = false ;",
+      "asset . rental_contract = Pubkey :: default () ;",
+      "c . renter = Pubkey :: default () ;",
+      "c . expires_at = 0 ;",
+      "msg ! (\"NFT {} を返却しました (契約: {})\" , asset . mint , c . key ()) ;",
+      "Ok (())"
+    ]
+  }
+]

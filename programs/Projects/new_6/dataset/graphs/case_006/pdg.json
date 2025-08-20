@@ -1,0 +1,738 @@
+[
+  {
+    "name": "init_lending_pool",
+    "inputs": [
+      "ctx: Context < InitLendingPool >"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let pool = & mut ctx . accounts . lending_pool ;"
+      },
+      {
+        "id": 2,
+        "label": "pool . manager = ctx . accounts . manager . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "pool . total_deposits = 0 ;"
+      },
+      {
+        "id": 4,
+        "label": "pool . total_borrows = 0 ;"
+      },
+      {
+        "id": 5,
+        "label": "pool . interest_rate = 8 ;"
+      },
+      {
+        "id": 6,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: pool"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: pool"
+      }
+    ]
+  },
+  {
+    "name": "create_deposit",
+    "inputs": [
+      "ctx: Context < CreateDeposit >",
+      "amount: u64"
+    ],
+    "nodes": [
+      {
+        "id": 7,
+        "label": "Entry"
+      },
+      {
+        "id": 8,
+        "label": "let deposit = & mut ctx . accounts . deposit_account ;"
+      },
+      {
+        "id": 9,
+        "label": "deposit . pool = ctx . accounts . lending_pool . key () ;"
+      },
+      {
+        "id": 10,
+        "label": "deposit . depositor = ctx . accounts . depositor . key () ;"
+      },
+      {
+        "id": 11,
+        "label": "deposit . amount = amount ;"
+      },
+      {
+        "id": 12,
+        "label": "deposit . interest_earned = 0 ;"
+      },
+      {
+        "id": 13,
+        "label": "deposit . last_update = Clock :: get () ? . unix_timestamp ;"
+      },
+      {
+        "id": 14,
+        "label": "let pool = & mut ctx . accounts . lending_pool ;"
+      },
+      {
+        "id": 15,
+        "label": "pool . total_deposits = pool . total_deposits . checked_add (amount) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 16,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 8,
+        "to": 8,
+        "label": "def: deposit"
+      },
+      {
+        "from": 8,
+        "to": 9,
+        "label": "data_dep: deposit"
+      },
+      {
+        "from": 8,
+        "to": 10,
+        "label": "data_dep: deposit"
+      },
+      {
+        "from": 8,
+        "to": 11,
+        "label": "data_dep: deposit"
+      },
+      {
+        "from": 8,
+        "to": 12,
+        "label": "data_dep: deposit"
+      },
+      {
+        "from": 8,
+        "to": 13,
+        "label": "data_dep: deposit"
+      },
+      {
+        "from": 14,
+        "to": 14,
+        "label": "def: pool"
+      },
+      {
+        "from": 14,
+        "to": 15,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 14,
+        "to": 15,
+        "label": "data_dep: pool"
+      }
+    ]
+  },
+  {
+    "name": "vulnerable_liquidation",
+    "inputs": [
+      "ctx: Context < VulnerableLiquidation >"
+    ],
+    "nodes": [
+      {
+        "id": 17,
+        "label": "Entry"
+      },
+      {
+        "id": 18,
+        "label": "let pool = & mut ctx . accounts . lending_pool ;"
+      },
+      {
+        "id": 19,
+        "label": "let borrower_info = & ctx . accounts . borrower_position ;"
+      },
+      {
+        "id": 20,
+        "label": "let liquidator_info = & ctx . accounts . liquidator_position ;"
+      },
+      {
+        "id": 21,
+        "label": "let borrower_data = borrower_info . try_borrow_data () ? ;"
+      },
+      {
+        "id": 22,
+        "label": "let liquidator_data = liquidator_info . try_borrow_data () ? ;"
+      },
+      {
+        "id": 23,
+        "label": "if borrower_data . len () >= 40 && liquidator_data . len () >= 40 { let borrow_amount = u64 :: from_le_bytes ([borrower_data [32] , borrower_data [33] , borrower_data [34] , borrower_data [35] , borrower_data [36] , borrower_data [37] , borrower_data [38] , borrower_data [39]]) ; for liquidation_round in 0 .. 7 { if borrow_amount > 5000 { let liquidation_amount = (borrow_amount >> liquidation_round) & 0x1FF ; pool . total_borrows = pool . total_borrows . saturating_sub (liquidation_amount) ; let rate_adjustment = (liquidation_amount >> 8) & 0x0F ; pool . interest_rate = pool . interest_rate . checked_add (rate_adjustment as u32) . unwrap_or (50) ; let bonus = liquidation_amount * (liquidation_round + 1) as u64 / 10 ; pool . total_deposits = pool . total_deposits . checked_add (bonus) . unwrap_or (u64 :: MAX) ; msg ! (\"Liquidation round {}: amount={}, bonus={}\" , liquidation_round , liquidation_amount , bonus) ; } else { let penalty = pool . total_deposits / 100 ; pool . total_deposits = pool . total_deposits . saturating_sub (penalty) ; let compound_interest = (pool . total_borrows * pool . interest_rate as u64) / 100 ; pool . total_borrows = pool . total_borrows . checked_add (compound_interest) . unwrap_or (u64 :: MAX) ; msg ! (\"Penalty applied: {}, compound interest: {}\" , penalty , compound_interest) ; } } }"
+      },
+      {
+        "id": 24,
+        "label": "let borrow_amount = u64 :: from_le_bytes ([borrower_data [32] , borrower_data [33] , borrower_data [34] , borrower_data [35] , borrower_data [36] , borrower_data [37] , borrower_data [38] , borrower_data [39]]) ;"
+      },
+      {
+        "id": 25,
+        "label": "for liquidation_round in 0 .. 7 { if borrow_amount > 5000 { let liquidation_amount = (borrow_amount >> liquidation_round) & 0x1FF ; pool . total_borrows = pool . total_borrows . saturating_sub (liquidation_amount) ; let rate_adjustment = (liquidation_amount >> 8) & 0x0F ; pool . interest_rate = pool . interest_rate . checked_add (rate_adjustment as u32) . unwrap_or (50) ; let bonus = liquidation_amount * (liquidation_round + 1) as u64 / 10 ; pool . total_deposits = pool . total_deposits . checked_add (bonus) . unwrap_or (u64 :: MAX) ; msg ! (\"Liquidation round {}: amount={}, bonus={}\" , liquidation_round , liquidation_amount , bonus) ; } else { let penalty = pool . total_deposits / 100 ; pool . total_deposits = pool . total_deposits . saturating_sub (penalty) ; let compound_interest = (pool . total_borrows * pool . interest_rate as u64) / 100 ; pool . total_borrows = pool . total_borrows . checked_add (compound_interest) . unwrap_or (u64 :: MAX) ; msg ! (\"Penalty applied: {}, compound interest: {}\" , penalty , compound_interest) ; } }"
+      },
+      {
+        "id": 26,
+        "label": "if borrow_amount > 5000 { let liquidation_amount = (borrow_amount >> liquidation_round) & 0x1FF ; pool . total_borrows = pool . total_borrows . saturating_sub (liquidation_amount) ; let rate_adjustment = (liquidation_amount >> 8) & 0x0F ; pool . interest_rate = pool . interest_rate . checked_add (rate_adjustment as u32) . unwrap_or (50) ; let bonus = liquidation_amount * (liquidation_round + 1) as u64 / 10 ; pool . total_deposits = pool . total_deposits . checked_add (bonus) . unwrap_or (u64 :: MAX) ; msg ! (\"Liquidation round {}: amount={}, bonus={}\" , liquidation_round , liquidation_amount , bonus) ; } else { let penalty = pool . total_deposits / 100 ; pool . total_deposits = pool . total_deposits . saturating_sub (penalty) ; let compound_interest = (pool . total_borrows * pool . interest_rate as u64) / 100 ; pool . total_borrows = pool . total_borrows . checked_add (compound_interest) . unwrap_or (u64 :: MAX) ; msg ! (\"Penalty applied: {}, compound interest: {}\" , penalty , compound_interest) ; }"
+      },
+      {
+        "id": 27,
+        "label": "let liquidation_amount = (borrow_amount >> liquidation_round) & 0x1FF ;"
+      },
+      {
+        "id": 28,
+        "label": "pool . total_borrows = pool . total_borrows . saturating_sub (liquidation_amount) ;"
+      },
+      {
+        "id": 29,
+        "label": "let rate_adjustment = (liquidation_amount >> 8) & 0x0F ;"
+      },
+      {
+        "id": 30,
+        "label": "pool . interest_rate = pool . interest_rate . checked_add (rate_adjustment as u32) . unwrap_or (50) ;"
+      },
+      {
+        "id": 31,
+        "label": "let bonus = liquidation_amount * (liquidation_round + 1) as u64 / 10 ;"
+      },
+      {
+        "id": 32,
+        "label": "pool . total_deposits = pool . total_deposits . checked_add (bonus) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 33,
+        "label": "msg ! (\"Liquidation round {}: amount={}, bonus={}\" , liquidation_round , liquidation_amount , bonus) ;"
+      },
+      {
+        "id": 34,
+        "label": "let penalty = pool . total_deposits / 100 ;"
+      },
+      {
+        "id": 35,
+        "label": "pool . total_deposits = pool . total_deposits . saturating_sub (penalty) ;"
+      },
+      {
+        "id": 36,
+        "label": "let compound_interest = (pool . total_borrows * pool . interest_rate as u64) / 100 ;"
+      },
+      {
+        "id": 37,
+        "label": "pool . total_borrows = pool . total_borrows . checked_add (compound_interest) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 38,
+        "label": "msg ! (\"Penalty applied: {}, compound interest: {}\" , penalty , compound_interest) ;"
+      },
+      {
+        "id": 39,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 18,
+        "to": 18,
+        "label": "def: pool"
+      },
+      {
+        "from": 19,
+        "to": 19,
+        "label": "def: borrower_info"
+      },
+      {
+        "from": 20,
+        "to": 20,
+        "label": "def: liquidator_info"
+      },
+      {
+        "from": 21,
+        "to": 21,
+        "label": "def: borrower_data"
+      },
+      {
+        "from": 19,
+        "to": 21,
+        "label": "data_dep: borrower_info"
+      },
+      {
+        "from": 22,
+        "to": 22,
+        "label": "def: liquidator_data"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: liquidator_info"
+      },
+      {
+        "from": 21,
+        "to": 23,
+        "label": "data_dep: borrower_data"
+      },
+      {
+        "from": 22,
+        "to": 23,
+        "label": "data_dep: liquidator_data"
+      },
+      {
+        "from": 21,
+        "to": 23,
+        "label": "data_dep: borrower_data"
+      },
+      {
+        "from": 21,
+        "to": 23,
+        "label": "data_dep: borrower_data"
+      },
+      {
+        "from": 21,
+        "to": 23,
+        "label": "data_dep: borrower_data"
+      },
+      {
+        "from": 21,
+        "to": 23,
+        "label": "data_dep: borrower_data"
+      },
+      {
+        "from": 21,
+        "to": 23,
+        "label": "data_dep: borrower_data"
+      },
+      {
+        "from": 21,
+        "to": 23,
+        "label": "data_dep: borrower_data"
+      },
+      {
+        "from": 21,
+        "to": 23,
+        "label": "data_dep: borrower_data"
+      },
+      {
+        "from": 21,
+        "to": 23,
+        "label": "data_dep: borrower_data"
+      },
+      {
+        "from": 18,
+        "to": 23,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 23,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 23,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 23,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 23,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 23,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 23,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 23,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 23,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 23,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 23,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 23,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 23,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 24,
+        "to": 24,
+        "label": "def: borrow_amount"
+      },
+      {
+        "from": 21,
+        "to": 24,
+        "label": "data_dep: borrower_data"
+      },
+      {
+        "from": 21,
+        "to": 24,
+        "label": "data_dep: borrower_data"
+      },
+      {
+        "from": 21,
+        "to": 24,
+        "label": "data_dep: borrower_data"
+      },
+      {
+        "from": 21,
+        "to": 24,
+        "label": "data_dep: borrower_data"
+      },
+      {
+        "from": 21,
+        "to": 24,
+        "label": "data_dep: borrower_data"
+      },
+      {
+        "from": 21,
+        "to": 24,
+        "label": "data_dep: borrower_data"
+      },
+      {
+        "from": 21,
+        "to": 24,
+        "label": "data_dep: borrower_data"
+      },
+      {
+        "from": 21,
+        "to": 24,
+        "label": "data_dep: borrower_data"
+      },
+      {
+        "from": 24,
+        "to": 25,
+        "label": "data_dep: borrow_amount"
+      },
+      {
+        "from": 24,
+        "to": 25,
+        "label": "data_dep: borrow_amount"
+      },
+      {
+        "from": 18,
+        "to": 25,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 25,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 25,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 25,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 25,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 25,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 25,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 25,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 25,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 25,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 25,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 25,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 25,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 24,
+        "to": 26,
+        "label": "data_dep: borrow_amount"
+      },
+      {
+        "from": 24,
+        "to": 26,
+        "label": "data_dep: borrow_amount"
+      },
+      {
+        "from": 18,
+        "to": 26,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 26,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 26,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 26,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 26,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 26,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 26,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 26,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 26,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 26,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 26,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 26,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 26,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 27,
+        "to": 27,
+        "label": "def: liquidation_amount"
+      },
+      {
+        "from": 24,
+        "to": 27,
+        "label": "data_dep: borrow_amount"
+      },
+      {
+        "from": 18,
+        "to": 28,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 28,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 27,
+        "to": 28,
+        "label": "data_dep: liquidation_amount"
+      },
+      {
+        "from": 29,
+        "to": 29,
+        "label": "def: rate_adjustment"
+      },
+      {
+        "from": 27,
+        "to": 29,
+        "label": "data_dep: liquidation_amount"
+      },
+      {
+        "from": 18,
+        "to": 30,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 30,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 29,
+        "to": 30,
+        "label": "data_dep: rate_adjustment"
+      },
+      {
+        "from": 31,
+        "to": 31,
+        "label": "def: bonus"
+      },
+      {
+        "from": 27,
+        "to": 31,
+        "label": "data_dep: liquidation_amount"
+      },
+      {
+        "from": 18,
+        "to": 32,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 32,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 31,
+        "to": 32,
+        "label": "data_dep: bonus"
+      },
+      {
+        "from": 34,
+        "to": 34,
+        "label": "def: penalty"
+      },
+      {
+        "from": 18,
+        "to": 34,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 35,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 35,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 34,
+        "to": 35,
+        "label": "data_dep: penalty"
+      },
+      {
+        "from": 36,
+        "to": 36,
+        "label": "def: compound_interest"
+      },
+      {
+        "from": 18,
+        "to": 36,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 36,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 37,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 37,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 36,
+        "to": 37,
+        "label": "data_dep: compound_interest"
+      }
+    ]
+  }
+]

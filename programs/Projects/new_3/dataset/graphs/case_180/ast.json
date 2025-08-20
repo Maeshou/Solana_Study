@@ -1,0 +1,183 @@
+[
+  {
+    "name": "CalendarEvent",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "organizer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "title",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "invitees",
+        "attribute": null,
+        "field_type": "Vec < Pubkey >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InviteRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "inviter",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "event",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "message",
+        "attribute": null,
+        "field_type": "String"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreateEvent",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "event",
+        "attribute": "# [account (init , payer = organizer , space = 8 + 32 + 4 + 64 + 4 + (32 * 10))]",
+        "field_type": "Account < 'info , CalendarEvent >"
+      },
+      {
+        "name": "organizer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SendInvite",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "event",
+        "attribute": "# [doc = \" CalendarEvent.organizer == organizer.key() は検証される\"] # [account (mut , has_one = organizer)]",
+        "field_type": "Account < 'info , CalendarEvent >"
+      },
+      {
+        "name": "record",
+        "attribute": "# [doc = \" InviteRecord.event ⇔ event.key() の検証がないため、\"] # [doc = \" 任意のレコードで招待処理をすり抜けられる\"] # [account (init , payer = organizer , space = 8 + 32 + 32 + 4 + 128)]",
+        "field_type": "Account < 'info , InviteRecord >"
+      },
+      {
+        "name": "organizer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RevokeInvite",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "event",
+        "attribute": "# [doc = \" CalendarEvent.organizer == organizer.key() は検証される\"] # [account (mut , has_one = organizer)]",
+        "field_type": "Account < 'info , CalendarEvent >"
+      },
+      {
+        "name": "record",
+        "attribute": "# [doc = \" InviteRecord.inviter == organizer.key() は検証される\"] # [account (mut , has_one = inviter)]",
+        "field_type": "Account < 'info , InviteRecord >"
+      },
+      {
+        "name": "organizer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "create_event",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateEvent >",
+      "title: String"
+    ],
+    "attributes": [
+      "# [doc = \" 新しいイベントを作成\"]"
+    ],
+    "body": [
+      "let ev = & mut ctx . accounts . event ;",
+      "ev . organizer = ctx . accounts . organizer . key () ;",
+      "ev . title = title ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "send_invite",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SendInvite >",
+      "message: String"
+    ],
+    "attributes": [
+      "# [doc = \" 招待を送信\"]"
+    ],
+    "body": [
+      "let ev = & mut ctx . accounts . event ;",
+      "let rc = & mut ctx . accounts . record ;",
+      "rc . inviter = ctx . accounts . organizer . key () ;",
+      "rc . event = ev . key () ;",
+      "rc . message = message . clone () ;",
+      "ev . invitees . push (ctx . accounts . organizer . key ()) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "revoke_invite",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RevokeInvite >"
+    ],
+    "attributes": [
+      "# [doc = \" 招待を取り消し\"]"
+    ],
+    "body": [
+      "let ev = & mut ctx . accounts . event ;",
+      "let rc = & ctx . accounts . record ;",
+      "ev . invitees . retain (| & pk | pk != rc . inviter) ;",
+      "Ok (())"
+    ]
+  }
+]

@@ -1,43 +1,228 @@
 [
   {
-    "name": "settle_prediction",
+    "name": "init_kiosk",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx088 >",
-      "amount: u64"
+      "ctx: Context < InitKiosk >",
+      "seed: u32"
     ],
     "attributes": [],
     "body": [
-      "let cpi_accounts = Transfer { from : ctx . accounts . from_token . to_account_info () , to : ctx . accounts . to_token . to_account_info () , authority : ctx . accounts . authority . to_account_info () , } ;",
-      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
-      "token :: transfer (cpi_ctx , amount) ? ;",
+      "let m = & mut ctx . accounts . meter ;",
+      "m . arcade = ctx . accounts . arcade . key () ;",
+      "m . lane = 9 ;",
+      "m . dispensed = 0 ;",
+      "m . entropy = seed . rotate_left (9) ^ 0xA55A_33CC ;",
+      "let a = & mut ctx . accounts . arcade ;",
+      "a . owner = ctx . accounts . operator . key () ;",
+      "a . float = (seed as u64) * 3 + 500 ;",
+      "a . state = Offline ;",
+      "m . arcade = a . key () ;",
+      "let mut s64 = (seed as u64) . wrapping_mul (6364136223846793005) . wrapping_add (1) ;",
+      "let h1 = & mut ctx . accounts . hopper_a ;",
+      "h1 . arcade = a . key () ;",
+      "h1 . chute = (s64 as u8) & 7 ;",
+      "h1 . coins = ((s64 & 255) as u32) + 80 ;",
+      "s64 = s64 . wrapping_mul (6364136223846793005) . wrapping_add (1) ;",
+      "let h2 = & mut ctx . accounts . hopper_b ;",
+      "h2 . arcade = a . key () ;",
+      "h2 . chute = ((s64 >> 3) as u8) & 7 ;",
+      "h2 . coins = (((s64 >> 8) & 255) as u32) + 75 ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx088",
+    "name": "vend",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Vend >",
+      "presses: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let a = & mut ctx . accounts . arcade ;",
+      "let h1 = & mut ctx . accounts . hopper_a ;",
+      "let h2 = & mut ctx . accounts . hopper_b ;",
+      "let m = & mut ctx . accounts . meter ;",
+      "for i in 0 .. presses",
+      "{",
+      "let mix = ((h1 . coins ^ h2 . coins) as u64) . wrapping_mul (780291637) ;",
+      "let take = ((mix & 7) + 1) as u32 ;",
+      "h1 . coins = h1 . coins . saturating_sub (take . min (h1 . coins)) ;",
+      "h2 . coins = h2 . coins . checked_add (take + (i & 3)) . unwrap_or (u32 :: MAX) ;",
+      "m . dispensed = m . dispensed . saturating_add (take as u64) ;",
+      "m . entropy ^= (mix as u32) . rotate_left ((i % 11) as u32) ;",
+      "}",
+      "let total = h1 . coins as u64 + h2 . coins as u64 + m . dispensed ;",
+      "if total > a . float",
+      "{",
+      "a . state = Locked ;",
+      "h1 . chute ^= 1 ;",
+      "h2 . chute = h2 . chute . saturating_add (1) ;",
+      "m . lane = m . lane . saturating_add (1) ;",
+      "msg ! (\"locked: lanes tweaked, meter lane++\") ;",
+      "} else",
+      "{",
+      "a . state = Serving ;",
+      "h1 . coins = h1 . coins . saturating_add (9) ;",
+      "h2 . coins = h2 . coins / 2 + 11 ;",
+      "m . entropy ^= 0x0F0F_F0F0 ;",
+      "msg ! (\"serving: coin adjust & entropy flip\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitKiosk",
     "node_type": "struct",
     "fields": [
       {
-        "name": "from_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "arcade",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 8 + 1)]",
+        "field_type": "Account < 'info , ArcadeCore >"
       },
       {
-        "name": "to_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "hopper_a",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Hopper >"
       },
       {
-        "name": "authority",
+        "name": "hopper_b",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Hopper >"
+      },
+      {
+        "name": "meter",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 8 + 4)]",
+        "field_type": "Account < 'info , Meter >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "operator",
         "attribute": null,
         "field_type": "Signer < 'info >"
       },
       {
-        "name": "token_program",
+        "name": "system_program",
         "attribute": null,
-        "field_type": "Program < 'info , Token >"
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Vend",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "arcade",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , ArcadeCore >"
+      },
+      {
+        "name": "hopper_a",
+        "attribute": "# [account (mut , has_one = arcade , constraint = hopper_a . chute != hopper_b . chute @ ArcadeErr :: Dup)]",
+        "field_type": "Account < 'info , Hopper >"
+      },
+      {
+        "name": "hopper_b",
+        "attribute": "# [account (mut , has_one = arcade , constraint = hopper_b . chute != meter . lane @ ArcadeErr :: Dup)]",
+        "field_type": "Account < 'info , Hopper >"
+      },
+      {
+        "name": "meter",
+        "attribute": "# [account (mut , has_one = arcade)]",
+        "field_type": "Account < 'info , Meter >"
+      },
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ArcadeCore",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "float",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "state",
+        "attribute": null,
+        "field_type": "ArcadeState"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Hopper",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "arcade",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "chute",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "coins",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Meter",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "arcade",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "lane",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "dispensed",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "entropy",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

@@ -1,0 +1,188 @@
+[
+  {
+    "name": "setup_workshop",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SetupWorkshop >",
+      "energy: u64"
+    ],
+    "attributes": [
+      "# [doc = \" メインのPDAは Anchor の #[account(seeds, bump)] で検証・安全\"]"
+    ],
+    "body": [
+      "let ws = & mut ctx . accounts . workshop ;",
+      "ws . owner = ctx . accounts . owner . key () ;",
+      "ws . workshop_bump = * ctx . bumps . get (\"workshop\") . ok_or (error ! (Errs :: MissingBump)) ? ;",
+      "ws . energy = energy % 700 + 100 ;",
+      "ws . quality = 1 ;",
+      "let mut t = 0u8 ;",
+      "while t < 6",
+      "{",
+      "ws . energy = ws . energy . rotate_left (1) . wrapping_add ((t as u64) * 17 + 9) ;",
+      "if (ws . energy & 1) == 1",
+      "{",
+      "ws . quality = ws . quality . saturating_add ((ws . energy % 23) as u32 + 7) ;",
+      "ws . energy = ws . energy . wrapping_mul (2) . wrapping_add (13) ;",
+      "} else",
+      "{",
+      "ws . quality = ws . quality . saturating_add ((ws . energy % 19) as u32 + 8) ;",
+      "ws . energy = ws . energy . rotate_right (2) . wrapping_add (11) ;",
+      "} t = t . saturating_add (1) ;",
+      "}",
+      "if ws . quality % 2 == 0",
+      "{",
+      "ws . energy = ws . energy . wrapping_mul (3) . wrapping_add (29) ;",
+      "ws . quality = ws . quality . saturating_add (5) ;",
+      "} else",
+      "{",
+      "ws . energy = ws . energy . wrapping_mul (2) . wrapping_add (31) ;",
+      "ws . quality = ws . quality . saturating_add (9) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "craft_and_withdraw",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CraftAndWithdraw >",
+      "item_tag: String",
+      "user_bump: u8",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 問題のコア：\"]",
+      "# [doc = \" - workshop は #[account(seeds=[b\\\"workshop\\\", owner], bump)] で安全に検証済み\"]",
+      "# [doc = \" - しかし「別の関連PDA bench」を *手動* で導出し、ユーザ由来の user_bump で invoke_signed してしまう\"]",
+      "# [doc = \" - bench アカウント自体は #[account(seeds=...)] で検証していない\"]",
+      "# [doc = \" → Bump Seed Canonicalization が bench 側で再発\"]"
+    ],
+    "body": [
+      "let ws = & mut ctx . accounts . workshop ;",
+      "for step in 0 .. 7",
+      "{",
+      "let addq = ((ws . energy % 37) as u32) . saturating_add (step as u32 + 6) ;",
+      "ws . quality = ws . quality . saturating_add (addq) ;",
+      "ws . energy = ws . energy . wrapping_add ((step as u64) * 21 + 5) ;",
+      "}",
+      "if ws . energy & 4 == 4",
+      "{",
+      "ws . quality = ws . quality . saturating_add (13) ;",
+      "ws . energy = ws . energy . rotate_left (1) . wrapping_add (17) ;",
+      "} else",
+      "{",
+      "ws . quality = ws . quality . saturating_add (19) ;",
+      "ws . energy = ws . energy . rotate_right (2) . wrapping_add (23) ;",
+      "}",
+      "require ! (item_tag . as_bytes () . len () <= 32 , Errs :: TagTooLong) ;",
+      "let manual_seeds = & [b\"bench\" . as_ref () , ws . owner . as_ref () , item_tag . as_bytes () , core :: slice :: from_ref (& user_bump) ,] ;",
+      "let manual_pda = Pubkey :: create_program_address (& [b\"bench\" , ws . owner . as_ref () , item_tag . as_bytes () , & [user_bump]] , ctx . program_id ,) . map_err (| _ | error ! (Errs :: SeedCompute)) ? ;",
+      "let ix = system_instruction :: transfer (& manual_pda , & ctx . accounts . recipient . key () , amount) ;",
+      "invoke_signed (& ix , & [ctx . accounts . bench_hint . to_account_info () , ctx . accounts . recipient . to_account_info () , ctx . accounts . system_program . to_account_info () ,] , & [manual_seeds] ,) ? ;",
+      "for k in 0 .. 6",
+      "{",
+      "ws . energy = ws . energy . wrapping_add ((k as u64) * 13 + 7) ;",
+      "ws . quality = ws . quality . saturating_add (((amount % 17) as u32) + k as u32 + 4) ;",
+      "}",
+      "if ws . quality & 1 == 1",
+      "{",
+      "ws . energy = ws . energy . rotate_left (2) . wrapping_add (27) ;",
+      "ws . quality = ws . quality . saturating_add (11) ;",
+      "} else",
+      "{",
+      "ws . energy = ws . energy . rotate_right (1) . wrapping_add (25) ;",
+      "ws . quality = ws . quality . saturating_add (15) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "SetupWorkshop",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "workshop",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 4 + 1 , seeds = [b\"workshop\" , owner . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , WorkshopState >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CraftAndWithdraw",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "workshop",
+        "attribute": "# [account (mut , seeds = [b\"workshop\" , owner . key () . as_ref ()] , bump = workshop . workshop_bump)]",
+        "field_type": "Account < 'info , WorkshopState >"
+      },
+      {
+        "name": "bench_hint",
+        "attribute": "# [doc = \" CHECK\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "recipient",
+        "attribute": "# [doc = \" CHECK: 受取人\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "WorkshopState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "energy",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "quality",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "workshop_bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

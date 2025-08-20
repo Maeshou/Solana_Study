@@ -1,0 +1,245 @@
+[
+  {
+    "name": "init_party",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitParty >",
+      "flag: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let p = & mut ctx . accounts . party ;",
+      "p . leader = ctx . accounts . leader . key () ;",
+      "p . flag = flag ;",
+      "p . power = 100 ;",
+      "p . raid_count = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_log",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitLog >",
+      "boss_id: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let l = & mut ctx . accounts . raid_log ;",
+      "l . parent = ctx . accounts . party . key () ;",
+      "l . boss_id = boss_id ;",
+      "l . state = Dormant ;",
+      "l . damage = 0 ;",
+      "l . turns = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "record_rounds",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RecordRounds >",
+      "bursts: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let p = & mut ctx . accounts . party ;",
+      "let a = & mut ctx . accounts . log_a ;",
+      "let b = & mut ctx . accounts . log_b ;",
+      "let mut avg : u64 = p . power as u64 ;",
+      "for k in 0 .. 6",
+      "{",
+      "let hit = ((bursts as u64 + k as u64 * 17) % 300) as u64 ;",
+      "avg = (avg * 3 + hit) / 4 ;",
+      "p . raid_count = p . raid_count . saturating_add (1) ;",
+      "}",
+      "if avg as u32 > p . power",
+      "{",
+      "a . state = Raging ;",
+      "a . damage = a . damage . saturating_add ((avg as u32) / 3 + 10) ;",
+      "a . turns = a . turns . saturating_add (2) ;",
+      "p . power = (p . power + ((avg as u32) & 255)) . min (10_000) ;",
+      "msg ! (\"A raging;",
+      "dmg=",
+      "{",
+      "}, power={}\" , a . damage , p . power) ;",
+      "} else",
+      "{",
+      "a . state = Dormant ;",
+      "a . damage = a . damage / 2 + (bursts & 31) ;",
+      "a . turns = a . turns . saturating_sub (1) ;",
+      "p . power = (p . power / 2) + 77 ;",
+      "msg ! (\"A calmed;",
+      "dmg=",
+      "{",
+      "}, power={}\" , a . damage , p . power) ;",
+      "}",
+      "for _ in 0 .. 4",
+      "{",
+      "if (b . boss_id ^ (p . power as u32)) & 1 == 1",
+      "{",
+      "b . state = Enraged ;",
+      "b . damage = b . damage . saturating_add (bursts / 2 + 5) ;",
+      "p . power = p . power . saturating_add (9) ;",
+      "msg ! (\"B enraged;",
+      "dmg=",
+      "{",
+      "}, power={}\" , b . damage , p . power) ;",
+      "} else",
+      "{",
+      "b . state = Dormant ;",
+      "b . turns = b . turns . saturating_add (1) ;",
+      "p . power = p . power . saturating_sub (3) ;",
+      "msg ! (\"B stall;",
+      "turns=",
+      "{",
+      "}, power={}\" , b . turns , p . power) ;",
+      "}",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitParty",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "party",
+        "attribute": "# [account (init , payer = leader , space = 8 + 32 + 1 + 4 + 8)]",
+        "field_type": "Account < 'info , Party >"
+      },
+      {
+        "name": "leader",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitLog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "party",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Party >"
+      },
+      {
+        "name": "raid_log",
+        "attribute": "# [account (init , payer = writer , space = 8 + 32 + 4 + 1 + 4 + 4)]",
+        "field_type": "Account < 'info , RaidLog >"
+      },
+      {
+        "name": "writer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RecordRounds",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "party",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Party >"
+      },
+      {
+        "name": "log_a",
+        "attribute": "# [account (mut , has_one = parent)]",
+        "field_type": "Account < 'info , RaidLog >"
+      },
+      {
+        "name": "log_b",
+        "attribute": "# [account (mut , has_one = parent)]",
+        "field_type": "Account < 'info , RaidLog >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Party",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "leader",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "flag",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "power",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "raid_count",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RaidLog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "boss_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "state",
+        "attribute": null,
+        "field_type": "BossState"
+      },
+      {
+        "name": "damage",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "turns",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

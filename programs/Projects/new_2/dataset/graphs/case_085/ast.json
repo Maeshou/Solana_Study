@@ -1,0 +1,58 @@
+[
+  {
+    "name": "claim_daily_challenge",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ClaimDailyChallenge >",
+      "reward_amount: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let prog_acc = & mut ctx . accounts . challenge_progress_account . to_account_info () ;",
+      "let data = & mut prog_acc . data . borrow_mut () ;",
+      "if data . len () < 16",
+      "{",
+      "return err ! (ErrorCode :: DataTooShort) ;",
+      "}",
+      "let (ts_slice , streak_slice) = data . split_at_mut (8) ;",
+      "let now = Clock :: get () ? . unix_timestamp as u64 ;",
+      "let last = u64 :: from_le_bytes (ts_slice . try_into () . unwrap ()) ;",
+      "if now < last . saturating_add (86400)",
+      "{",
+      "return err ! (ErrorCode :: TooSoon) ;",
+      "}",
+      "let new_streak = 1 ;",
+      "ts_slice . copy_from_slice (& now . to_le_bytes ()) ;",
+      "streak_slice . copy_from_slice (& new_streak . to_le_bytes ()) ;",
+      "* * ctx . accounts . reward_pool . to_account_info () . lamports . borrow_mut () = ctx . accounts . reward_pool . to_account_info () . lamports () . saturating_sub (reward_amount) ;",
+      "* * ctx . accounts . user . to_account_info () . lamports . borrow_mut () += reward_amount ;",
+      "msg ! (\"Daily challenge claimed: streak={} reward={} by {}\" , new_streak , reward_amount , ctx . accounts . user . key ()) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "ClaimDailyChallenge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "challenge_progress_account",
+        "attribute": "# [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "reward_pool",
+        "attribute": "# [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

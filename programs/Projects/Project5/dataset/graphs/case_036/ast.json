@@ -1,40 +1,184 @@
 [
   {
-    "name": "revoke_vote",
+    "name": "init_tower",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx036 >",
-      "amount: u64"
+      "ctx: Context < InitTower >",
+      "ring: u32"
     ],
     "attributes": [],
     "body": [
-      "let src = & mut ctx . accounts . account_src ;",
-      "let dst = & mut ctx . accounts . account_dst ;",
-      "let before = * * src . to_account_info () . try_borrow_lamports () ? ;",
-      "* * src . to_account_info () . try_borrow_mut_lamports () ? = before . saturating_sub (amount) ;",
-      "* * dst . to_account_info () . try_borrow_mut_lamports () ? += amount ;",
+      "let t = & mut ctx . accounts ;",
+      "t . cfg . operator = t . operator . key () ;",
+      "t . cfg . ring = ring . max (17) | 1 ;",
+      "t . cfg . stage = TowerStage :: Setup ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx036",
+    "name": "ping",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Ping >",
+      "times: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let t = & mut ctx . accounts ;",
+      "assert_ne ! (t . log . key () , t . lamp . key () , \"log/lamp must differ\") ;",
+      "for _ in 0 .. times",
+      "{",
+      "t . lamp . index = (t . lamp . index . wrapping_mul (1315423911)) . wrapping_add (2654435761) ;",
+      "let pos = t . lamp . index % t . cfg . ring ;",
+      "t . log . ring_sum = t . log . ring_sum . wrapping_add (pos as u64) ;",
+      "}",
+      "if t . log . ring_sum % 3 == 0",
+      "{",
+      "t . cfg . stage = TowerStage :: Signal ;",
+      "t . lamp . intensity = t . lamp . intensity . saturating_mul (3) . min (u32 :: MAX) ;",
+      "t . log . beacons = t . log . beacons . wrapping_add (1) ;",
+      "msg ! (\"signal phase: intensity*3, beacons++\") ;",
+      "} else",
+      "{",
+      "t . cfg . stage = TowerStage :: Cool ;",
+      "t . lamp . intensity = t . lamp . intensity / 2 + 1 ;",
+      "t . log . cooldowns = t . log . cooldowns . wrapping_add (2) ;",
+      "msg ! (\"cool phase: intensity/2+1, cooldowns+2\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitTower",
     "node_type": "struct",
     "fields": [
       {
-        "name": "account_src",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "cfg",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1 , seeds = [b\"cfg\" , operator . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , TowerCfg >"
       },
       {
-        "name": "account_dst",
+        "name": "lamp",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4 + 4)]",
+        "field_type": "Account < 'info , Lamp >"
+      },
+      {
+        "name": "log",
+        "attribute": "# [account (init , payer = payer , space = 8 + 8 + 8)]",
+        "field_type": "Account < 'info , TowerLog >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
       },
       {
         "name": "system_program",
         "attribute": null,
         "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Ping",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "cfg",
+        "attribute": "# [account (mut , seeds = [b\"cfg\" , operator . key () . as_ref ()] , bump , has_one = operator)]",
+        "field_type": "Account < 'info , TowerCfg >"
+      },
+      {
+        "name": "lamp",
+        "attribute": "# [account (mut , constraint = cfg . key () != lamp . key () , error = BeaconErr :: Dup)]",
+        "field_type": "Account < 'info , Lamp >"
+      },
+      {
+        "name": "log",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TowerLog >"
+      },
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TowerCfg",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "ring",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "stage",
+        "attribute": null,
+        "field_type": "TowerStage"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Lamp",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "index",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "intensity",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TowerLog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ring_sum",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "beacons",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "cooldowns",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

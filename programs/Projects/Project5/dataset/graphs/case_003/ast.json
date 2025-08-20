@@ -1,40 +1,189 @@
 [
   {
-    "name": "deposit_collateral",
+    "name": "init_game",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx003 >",
-      "amount: u64"
+      "ctx: Context < InitGame >",
+      "difficulty: u32"
     ],
     "attributes": [],
     "body": [
-      "let src = & mut ctx . accounts . account_src ;",
-      "let dst = & mut ctx . accounts . account_dst ;",
-      "let before = * * src . to_account_info () . try_borrow_lamports () ? ;",
-      "* * src . to_account_info () . try_borrow_mut_lamports () ? = before . saturating_sub (amount) ;",
-      "* * dst . to_account_info () . try_borrow_mut_lamports () ? += amount ;",
+      "ctx . accounts . game_config . max_rounds = 10 ;",
+      "ctx . accounts . game_config . difficulty = difficulty ;",
+      "ctx . accounts . game_config . bump = * ctx . bumps . get (\"game_config\") . unwrap () ;",
+      "ctx . accounts . player_stats . score = 0 ;",
+      "ctx . accounts . player_stats . level = 1 ;",
+      "ctx . accounts . player_stats . active = true ;",
+      "ctx . accounts . score_board . total_score = 0 ;",
+      "ctx . accounts . score_board . plays = 0 ;",
+      "ctx . accounts . score_board . locked = false ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx003",
+    "name": "play_round",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PlayRound >",
+      "points: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut total = ctx . accounts . score_board . total_score ;",
+      "for _ in 0 .. points",
+      "{",
+      "total += ctx . accounts . player_stats . score ;",
+      "}",
+      "require ! (ctx . accounts . game_config . key () != ctx . accounts . score_board . key () , ProgramError :: InvalidArgument) ;",
+      "if total > ctx . accounts . game_config . difficulty as u64",
+      "{",
+      "ctx . accounts . player_stats . level += 1 ;",
+      "msg ! (\"Level up:",
+      "{",
+      "}\" , ctx . accounts . player_stats . level) ;",
+      "ctx . accounts . score_board . locked = true ;",
+      "ctx . accounts . score_board . plays += 1 ;",
+      "} else",
+      "{",
+      "ctx . accounts . player_stats . level = 0 ;",
+      "msg ! (\"Reset level\") ;",
+      "ctx . accounts . score_board . locked = false ;",
+      "ctx . accounts . score_board . plays -= 1 ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitGame",
     "node_type": "struct",
     "fields": [
       {
-        "name": "account_src",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "game_config",
+        "attribute": "# [account (init , payer = payer , space = 8 + 1 + 4 + 1)]",
+        "field_type": "Account < 'info , GameConfig >"
       },
       {
-        "name": "account_dst",
+        "name": "player_stats",
+        "attribute": "# [account (init , payer = payer , space = 8 + 8 + 4 + 1)]",
+        "field_type": "Account < 'info , PlayerStats >"
+      },
+      {
+        "name": "score_board",
+        "attribute": "# [account (init , payer = payer , space = 8 + 8 + 4 + 1)]",
+        "field_type": "Account < 'info , ScoreBoard >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
       },
       {
         "name": "system_program",
         "attribute": null,
         "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PlayRound",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "game_config",
+        "attribute": "# [account (mut , constraint = game_config . key () != player_stats . key () , error = GameError :: SameAccount)]",
+        "field_type": "Account < 'info , GameConfig >"
+      },
+      {
+        "name": "player_stats",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , PlayerStats >"
+      },
+      {
+        "name": "score_board",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , ScoreBoard >"
+      },
+      {
+        "name": "player",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GameConfig",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "max_rounds",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "difficulty",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PlayerStats",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "score",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "level",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "active",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ScoreBoard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "total_score",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "plays",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "locked",
+        "attribute": null,
+        "field_type": "bool"
       }
     ],
     "inputs": null,

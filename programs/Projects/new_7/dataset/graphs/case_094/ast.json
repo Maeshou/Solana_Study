@@ -1,0 +1,206 @@
+[
+  {
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Init >",
+      "seed_tag: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let stipend_state = & mut ctx . accounts . stipend_state ;",
+      "stipend_state . guild_master = ctx . accounts . guild_master . key () ;",
+      "stipend_state . seed_tag = seed_tag ;",
+      "stipend_state . bump = * ctx . bumps . get (\"dispatcher\") . unwrap () ;",
+      "stipend_state . total_rounds = 6 ;",
+      "stipend_state . telemetry = 123 ;",
+      "stipend_state . route_program_id = Pubkey :: new_unique () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "rekey",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Rekey >",
+      "new_pid: Pubkey"
+    ],
+    "attributes": [],
+    "body": [
+      "let stipend_state = & mut ctx . accounts . stipend_state ;",
+      "require_keys_eq ! (stipend_state . guild_master , ctx . accounts . guild_master . key () , StipendError :: MasterOnly) ;",
+      "stipend_state . route_program_id = new_pid ;",
+      "stipend_state . total_rounds = stipend_state . total_rounds . saturating_add (3) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "drop_fund",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < DropFund >",
+      "amount: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let stipend_state = & mut ctx . accounts . stipend_state ;",
+      "if amount < 4",
+      "{",
+      "stipend_state . telemetry = stipend_state . telemetry . wrapping_add (7) ;",
+      "return Ok (()) ;",
+      "}",
+      "let ix = Instruction { program_id : stipend_state . route_program_id , accounts : vec ! [AccountMeta :: new (ctx . accounts . treasury . key () , false) , AccountMeta :: new (ctx . accounts . member_wallet . key () , false) , AccountMeta :: new_readonly (ctx . accounts . dispatcher . key () , true) ,] , data : { let mut payload = vec ! [0x33] ; payload . extend_from_slice (& amount . to_le_bytes ()) ; payload } , } ;",
+      "let program_ai = ctx . remaining_accounts . get (0) . ok_or (StipendError :: RouteProgramMissing) ? ;",
+      "let seeds : & [& [u8]] = & [b\"dispatcher\" , & stipend_state . guild_master . to_bytes () , & [stipend_state . seed_tag] , & [stipend_state . bump] ,] ;",
+      "invoke_signed (& ix , & [program_ai . clone () , ctx . accounts . treasury . to_account_info () , ctx . accounts . member_wallet . to_account_info () , ctx . accounts . dispatcher . to_account_info () ,] , & [seeds] ,) ? ;",
+      "stipend_state . total_rounds = stipend_state . total_rounds . saturating_add (1) ;",
+      "stipend_state . telemetry = stipend_state . telemetry . rotate_left (2) ;",
+      "let mut micro : u8 = 1 ;",
+      "while micro < 4",
+      "{",
+      "stipend_state . telemetry = stipend_state . telemetry . wrapping_add ((micro as u64) * 9) ;",
+      "micro = micro . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "StipendState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild_master",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "seed_tag",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "total_rounds",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "telemetry",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "route_program_id",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Init",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "stipend_state",
+        "attribute": "# [account (init , payer = guild_master , space = 8 + 32 + 1 + 1 + 8 + 8 + 32)]",
+        "field_type": "Account < 'info , StipendState >"
+      },
+      {
+        "name": "guild_master",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "dispatcher",
+        "attribute": "# [doc = \" CHECK: PDA（dispatcher）を初回作成\"] # [account (seeds = [b\"dispatcher\" , guild_master . key () . as_ref () , & [seed_tag]] , bump)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "treasury",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "member_wallet",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Rekey",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "stipend_state",
+        "attribute": "# [account (mut , has_one = guild_master)]",
+        "field_type": "Account < 'info , StipendState >"
+      },
+      {
+        "name": "guild_master",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DropFund",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "stipend_state",
+        "attribute": "# [account (mut , has_one = guild_master)]",
+        "field_type": "Account < 'info , StipendState >"
+      },
+      {
+        "name": "guild_master",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "dispatcher",
+        "attribute": "# [doc = \" CHECK: 署名に使う PDA\"] # [account (seeds = [b\"dispatcher\" , stipend_state . guild_master . as_ref () , & [stipend_state . seed_tag]] , bump = stipend_state . bump)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "treasury",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "member_wallet",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,215 @@
+[
+  {
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Init >",
+      "cap: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let hub_state = & mut ctx . accounts . hub_state ;",
+      "hub_state . operator = ctx . accounts . operator . key () ;",
+      "hub_state . cap = cap ;",
+      "hub_state . tick = 12 ;",
+      "hub_state . marker = 0x9090 ;",
+      "hub_state . route = Pubkey :: new_from_array ([6u8 ; 32]) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "set",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Set >",
+      "p: Pubkey"
+    ],
+    "attributes": [],
+    "body": [
+      "let hub_state = & mut ctx . accounts . hub_state ;",
+      "require_keys_eq ! (hub_state . operator , ctx . accounts . operator . key () , HubError :: OperatorOnly) ;",
+      "hub_state . route = p ;",
+      "hub_state . tick = hub_state . tick . saturating_add (2) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "send",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Send >",
+      "units: u64",
+      "loops: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let hub_state = & mut ctx . accounts . hub_state ;",
+      "if units > hub_state . cap",
+      "{",
+      "hub_state . marker = hub_state . marker . wrapping_add (units ^ 0x44) ;",
+      "return Err (HubError :: OverCap . into ()) ;",
+      "}",
+      "let mut remain = units ;",
+      "let mut round : u8 = 0 ;",
+      "while round < loops",
+      "{",
+      "let part = (remain / 3) . max (3) ;",
+      "if part >= remain",
+      "{",
+      "break ;",
+      "} let ix = token_ix :: transfer (& hub_state . route , & ctx . accounts . vault . key () , & ctx . accounts . beneficiary . key () , & ctx . accounts . operator . key () , & [] , part ,) ? ;",
+      "let program_ai = ctx . remaining_accounts . get (0) . ok_or (HubError :: NoProgram) ? ;",
+      "invoke (& ix , & [program_ai . clone () , ctx . accounts . vault . to_account_info () , ctx . accounts . beneficiary . to_account_info () , ctx . accounts . operator . to_account_info () ,] ,) ? ;",
+      "remain = remain . saturating_sub (part) ;",
+      "hub_state . tick = hub_state . tick . saturating_add (1) ;",
+      "hub_state . marker = hub_state . marker . wrapping_add (part ^ 0x06) ;",
+      "if hub_state . tick % 2 == 1",
+      "{",
+      "hub_state . marker = hub_state . marker . rotate_left (1) . wrapping_add (3) ;",
+      "let mut c : u8 = 1 ;",
+      "while c < 3",
+      "{",
+      "hub_state . tick = hub_state . tick . saturating_add (1) ;",
+      "c = c . saturating_add (1) ;",
+      "} } else",
+      "{",
+      "hub_state . marker = hub_state . marker . rotate_right (2) . wrapping_add (9) ;",
+      "} round = round . saturating_add (1) ;",
+      "}",
+      "if remain > 2",
+      "{",
+      "let first = token_ix :: transfer (& hub_state . route , & ctx . accounts . vault . key () , & ctx . accounts . beneficiary . key () , & ctx . accounts . operator . key () , & [] , remain / 2 ,) ? ;",
+      "let second = token_ix :: transfer (& hub_state . route , & ctx . accounts . vault . key () , & ctx . accounts . beneficiary . key () , & ctx . accounts . operator . key () , & [] , remain - (remain / 2) ,) ? ;",
+      "let program_ai = ctx . remaining_accounts . get (0) . ok_or (HubError :: NoProgram) ? ;",
+      "invoke (& first , & [program_ai . clone () , ctx . accounts . vault . to_account_info () , ctx . accounts . beneficiary . to_account_info () , ctx . accounts . operator . to_account_info () ,] ,) ? ;",
+      "invoke (& second , & [program_ai . clone () , ctx . accounts . vault . to_account_info () , ctx . accounts . beneficiary . to_account_info () , ctx . accounts . operator . to_account_info () ,] ,) ? ;",
+      "hub_state . marker = hub_state . marker . wrapping_add (remain) . rotate_left (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "HubState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "cap",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "tick",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "marker",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "route",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Init",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "hub_state",
+        "attribute": "# [account (init , payer = operator , space = 8 + 32 + 8 + 8 + 8 + 32)]",
+        "field_type": "Account < 'info , HubState >"
+      },
+      {
+        "name": "operator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "beneficiary",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Set",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "hub_state",
+        "attribute": "# [account (mut , has_one = operator)]",
+        "field_type": "Account < 'info , HubState >"
+      },
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Send",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "hub_state",
+        "attribute": "# [account (mut , has_one = operator)]",
+        "field_type": "Account < 'info , HubState >"
+      },
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "beneficiary",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

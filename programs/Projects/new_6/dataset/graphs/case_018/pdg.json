@@ -1,0 +1,809 @@
+[
+  {
+    "name": "init_pool",
+    "inputs": [
+      "ctx: Context < InitPool >",
+      "interest_rate: u32",
+      "max_ltv: u32"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let pool = & mut ctx . accounts . pool ;"
+      },
+      {
+        "id": 2,
+        "label": "pool . admin = ctx . accounts . admin . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "pool . interest_rate = interest_rate ;"
+      },
+      {
+        "id": 4,
+        "label": "pool . max_ltv = max_ltv ;"
+      },
+      {
+        "id": 5,
+        "label": "pool . total_deposits = 0 ;"
+      },
+      {
+        "id": 6,
+        "label": "pool . total_borrows = 0 ;"
+      },
+      {
+        "id": 7,
+        "label": "pool . is_active = true ;"
+      },
+      {
+        "id": 8,
+        "label": "pool . created_at = Clock :: get () ? . unix_timestamp ;"
+      },
+      {
+        "id": 9,
+        "label": "msg ! (\"Lending pool initialized with {}% interest\" , interest_rate) ;"
+      },
+      {
+        "id": 10,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: pool"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 1,
+        "to": 6,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 1,
+        "to": 7,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 1,
+        "to": 8,
+        "label": "data_dep: pool"
+      }
+    ]
+  },
+  {
+    "name": "init_position",
+    "inputs": [
+      "ctx: Context < InitPosition >",
+      "position_type: PositionType",
+      "initial_amount: u64"
+    ],
+    "nodes": [
+      {
+        "id": 11,
+        "label": "Entry"
+      },
+      {
+        "id": 12,
+        "label": "let position = & mut ctx . accounts . position ;"
+      },
+      {
+        "id": 13,
+        "label": "position . pool = ctx . accounts . pool . key () ;"
+      },
+      {
+        "id": 14,
+        "label": "position . owner = ctx . accounts . owner . key () ;"
+      },
+      {
+        "id": 15,
+        "label": "position . position_type = position_type ;"
+      },
+      {
+        "id": 16,
+        "label": "position . amount = initial_amount ;"
+      },
+      {
+        "id": 17,
+        "label": "position . last_updated = Clock :: get () ? . unix_timestamp ;"
+      },
+      {
+        "id": 18,
+        "label": "position . is_active = true ;"
+      },
+      {
+        "id": 19,
+        "label": "msg ! (\"Position created: {:?} with amount {}\" , position_type , initial_amount) ;"
+      },
+      {
+        "id": 20,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 12,
+        "to": 12,
+        "label": "def: position"
+      },
+      {
+        "from": 12,
+        "to": 13,
+        "label": "data_dep: position"
+      },
+      {
+        "from": 12,
+        "to": 14,
+        "label": "data_dep: position"
+      },
+      {
+        "from": 12,
+        "to": 15,
+        "label": "data_dep: position"
+      },
+      {
+        "from": 12,
+        "to": 16,
+        "label": "data_dep: position"
+      },
+      {
+        "from": 12,
+        "to": 17,
+        "label": "data_dep: position"
+      },
+      {
+        "from": 12,
+        "to": 18,
+        "label": "data_dep: position"
+      }
+    ]
+  },
+  {
+    "name": "process_lending_operations",
+    "inputs": [
+      "ctx: Context < ProcessLendingOperations >",
+      "operation_count: u32",
+      "multiplier: u64"
+    ],
+    "nodes": [
+      {
+        "id": 21,
+        "label": "Entry"
+      },
+      {
+        "id": 22,
+        "label": "let pool = & mut ctx . accounts . pool ;"
+      },
+      {
+        "id": 23,
+        "label": "let mut current_ops = 0 ;"
+      },
+      {
+        "id": 24,
+        "label": "while current_ops < operation_count { if pool . is_active { pool . total_deposits = pool . total_deposits . checked_add (multiplier * (current_ops as u64 + 1)) . unwrap_or (u64 :: MAX) ; let interest_earned = (pool . total_deposits * pool . interest_rate as u64) / 10000 ; pool . total_borrows = pool . total_borrows . checked_add (interest_earned) . unwrap_or (u64 :: MAX) ; let compound_factor = (current_ops ^ 0x5) << 1 ; pool . total_deposits = pool . total_deposits . checked_add (compound_factor as u64) . unwrap_or (u64 :: MAX) ; msg ! (\"Active lending operation {} processed\" , current_ops) ; } else { pool . total_borrows = pool . total_borrows . saturating_sub (multiplier / 2) ; let liquidation_penalty = (current_ops as u64) * 500 ; pool . total_deposits = pool . total_deposits . saturating_sub (liquidation_penalty) ; let sqrt_approx = integer_sqrt (pool . total_borrows) ; pool . interest_rate = (sqrt_approx % 2000) as u32 + 100 ; msg ! (\"Liquidation operation {} processed\" , current_ops) ; } current_ops += 1 ; }"
+      },
+      {
+        "id": 25,
+        "label": "if pool . is_active { pool . total_deposits = pool . total_deposits . checked_add (multiplier * (current_ops as u64 + 1)) . unwrap_or (u64 :: MAX) ; let interest_earned = (pool . total_deposits * pool . interest_rate as u64) / 10000 ; pool . total_borrows = pool . total_borrows . checked_add (interest_earned) . unwrap_or (u64 :: MAX) ; let compound_factor = (current_ops ^ 0x5) << 1 ; pool . total_deposits = pool . total_deposits . checked_add (compound_factor as u64) . unwrap_or (u64 :: MAX) ; msg ! (\"Active lending operation {} processed\" , current_ops) ; } else { pool . total_borrows = pool . total_borrows . saturating_sub (multiplier / 2) ; let liquidation_penalty = (current_ops as u64) * 500 ; pool . total_deposits = pool . total_deposits . saturating_sub (liquidation_penalty) ; let sqrt_approx = integer_sqrt (pool . total_borrows) ; pool . interest_rate = (sqrt_approx % 2000) as u32 + 100 ; msg ! (\"Liquidation operation {} processed\" , current_ops) ; }"
+      },
+      {
+        "id": 26,
+        "label": "pool . total_deposits = pool . total_deposits . checked_add (multiplier * (current_ops as u64 + 1)) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 27,
+        "label": "let interest_earned = (pool . total_deposits * pool . interest_rate as u64) / 10000 ;"
+      },
+      {
+        "id": 28,
+        "label": "pool . total_borrows = pool . total_borrows . checked_add (interest_earned) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 29,
+        "label": "let compound_factor = (current_ops ^ 0x5) << 1 ;"
+      },
+      {
+        "id": 30,
+        "label": "pool . total_deposits = pool . total_deposits . checked_add (compound_factor as u64) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 31,
+        "label": "msg ! (\"Active lending operation {} processed\" , current_ops) ;"
+      },
+      {
+        "id": 32,
+        "label": "pool . total_borrows = pool . total_borrows . saturating_sub (multiplier / 2) ;"
+      },
+      {
+        "id": 33,
+        "label": "let liquidation_penalty = (current_ops as u64) * 500 ;"
+      },
+      {
+        "id": 34,
+        "label": "pool . total_deposits = pool . total_deposits . saturating_sub (liquidation_penalty) ;"
+      },
+      {
+        "id": 35,
+        "label": "let sqrt_approx = integer_sqrt (pool . total_borrows) ;"
+      },
+      {
+        "id": 36,
+        "label": "pool . interest_rate = (sqrt_approx % 2000) as u32 + 100 ;"
+      },
+      {
+        "id": 37,
+        "label": "msg ! (\"Liquidation operation {} processed\" , current_ops) ;"
+      },
+      {
+        "id": 38,
+        "label": "current_ops += 1 ;"
+      },
+      {
+        "id": 39,
+        "label": "for round in 0 .. 3 { let rate_adjustment = (round * 50) + (multiplier % 100) as u32 ; pool . interest_rate = pool . interest_rate . checked_add (rate_adjustment) . unwrap_or (10000) . min (10000) ; pool . total_deposits = (pool . total_deposits * 99 + pool . total_borrows) / 100 ; msg ! (\"Rate adjustment round {}: new rate {}%\" , round , pool . interest_rate) ; }"
+      },
+      {
+        "id": 40,
+        "label": "let rate_adjustment = (round * 50) + (multiplier % 100) as u32 ;"
+      },
+      {
+        "id": 41,
+        "label": "pool . interest_rate = pool . interest_rate . checked_add (rate_adjustment) . unwrap_or (10000) . min (10000) ;"
+      },
+      {
+        "id": 42,
+        "label": "pool . total_deposits = (pool . total_deposits * 99 + pool . total_borrows) / 100 ;"
+      },
+      {
+        "id": 43,
+        "label": "msg ! (\"Rate adjustment round {}: new rate {}%\" , round , pool . interest_rate) ;"
+      },
+      {
+        "id": 44,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 22,
+        "to": 22,
+        "label": "def: pool"
+      },
+      {
+        "from": 23,
+        "to": 23,
+        "label": "def: current_ops"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "data_dep: current_ops"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "data_dep: current_ops"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "data_dep: current_ops"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "data_dep: current_ops"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "data_dep: current_ops"
+      },
+      {
+        "from": 22,
+        "to": 25,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 22,
+        "to": 25,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 22,
+        "to": 25,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 23,
+        "to": 25,
+        "label": "data_dep: current_ops"
+      },
+      {
+        "from": 22,
+        "to": 25,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 22,
+        "to": 25,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 22,
+        "to": 25,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 22,
+        "to": 25,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 23,
+        "to": 25,
+        "label": "data_dep: current_ops"
+      },
+      {
+        "from": 22,
+        "to": 25,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 22,
+        "to": 25,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 22,
+        "to": 25,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 22,
+        "to": 25,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 23,
+        "to": 25,
+        "label": "data_dep: current_ops"
+      },
+      {
+        "from": 22,
+        "to": 25,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 22,
+        "to": 25,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 22,
+        "to": 25,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 22,
+        "to": 25,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 22,
+        "to": 26,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 22,
+        "to": 26,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 23,
+        "to": 26,
+        "label": "data_dep: current_ops"
+      },
+      {
+        "from": 27,
+        "to": 27,
+        "label": "def: interest_earned"
+      },
+      {
+        "from": 22,
+        "to": 27,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 22,
+        "to": 27,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 22,
+        "to": 28,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 22,
+        "to": 28,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 27,
+        "to": 28,
+        "label": "data_dep: interest_earned"
+      },
+      {
+        "from": 29,
+        "to": 29,
+        "label": "def: compound_factor"
+      },
+      {
+        "from": 23,
+        "to": 29,
+        "label": "data_dep: current_ops"
+      },
+      {
+        "from": 22,
+        "to": 30,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 22,
+        "to": 30,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 29,
+        "to": 30,
+        "label": "data_dep: compound_factor"
+      },
+      {
+        "from": 22,
+        "to": 32,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 22,
+        "to": 32,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 33,
+        "to": 33,
+        "label": "def: liquidation_penalty"
+      },
+      {
+        "from": 23,
+        "to": 33,
+        "label": "data_dep: current_ops"
+      },
+      {
+        "from": 22,
+        "to": 34,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 22,
+        "to": 34,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 33,
+        "to": 34,
+        "label": "data_dep: liquidation_penalty"
+      },
+      {
+        "from": 35,
+        "to": 35,
+        "label": "def: sqrt_approx"
+      },
+      {
+        "from": 22,
+        "to": 35,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 22,
+        "to": 36,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 35,
+        "to": 36,
+        "label": "data_dep: sqrt_approx"
+      },
+      {
+        "from": 23,
+        "to": 38,
+        "label": "data_dep: current_ops"
+      },
+      {
+        "from": 22,
+        "to": 39,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 22,
+        "to": 39,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 22,
+        "to": 39,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 22,
+        "to": 39,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 22,
+        "to": 39,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 40,
+        "to": 40,
+        "label": "def: rate_adjustment"
+      },
+      {
+        "from": 22,
+        "to": 41,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 22,
+        "to": 41,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 40,
+        "to": 41,
+        "label": "data_dep: rate_adjustment"
+      },
+      {
+        "from": 22,
+        "to": 42,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 22,
+        "to": 42,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 22,
+        "to": 42,
+        "label": "data_dep: pool"
+      }
+    ]
+  },
+  {
+    "name": "integer_sqrt",
+    "inputs": [
+      "n: u64"
+    ],
+    "nodes": [
+      {
+        "id": 45,
+        "label": "Entry"
+      },
+      {
+        "id": 46,
+        "label": "if n == 0 { return 0 ; }"
+      },
+      {
+        "id": 47,
+        "label": "return 0 ;"
+      },
+      {
+        "id": 48,
+        "label": "let mut x = n ;"
+      },
+      {
+        "id": 49,
+        "label": "let mut y = (x + 1) / 2 ;"
+      },
+      {
+        "id": 50,
+        "label": "while y < x { x = y ; y = (x + n / x) / 2 ; }"
+      },
+      {
+        "id": 51,
+        "label": "x = y ;"
+      },
+      {
+        "id": 52,
+        "label": "y = (x + n / x) / 2 ;"
+      },
+      {
+        "id": 53,
+        "label": "x"
+      }
+    ],
+    "edges": [
+      {
+        "from": 48,
+        "to": 48,
+        "label": "def: x"
+      },
+      {
+        "from": 49,
+        "to": 49,
+        "label": "def: y"
+      },
+      {
+        "from": 48,
+        "to": 49,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 49,
+        "to": 50,
+        "label": "data_dep: y"
+      },
+      {
+        "from": 48,
+        "to": 50,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 48,
+        "to": 50,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 49,
+        "to": 50,
+        "label": "data_dep: y"
+      },
+      {
+        "from": 49,
+        "to": 50,
+        "label": "data_dep: y"
+      },
+      {
+        "from": 48,
+        "to": 50,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 48,
+        "to": 50,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 48,
+        "to": 51,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 49,
+        "to": 51,
+        "label": "data_dep: y"
+      },
+      {
+        "from": 49,
+        "to": 52,
+        "label": "data_dep: y"
+      },
+      {
+        "from": 48,
+        "to": 52,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 48,
+        "to": 52,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 48,
+        "to": 53,
+        "label": "data_dep: x"
+      }
+    ]
+  }
+]

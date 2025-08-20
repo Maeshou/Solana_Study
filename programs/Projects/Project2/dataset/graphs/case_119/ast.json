@@ -1,0 +1,157 @@
+[
+  {
+    "name": "create_group",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateGroup >",
+      "name: String"
+    ],
+    "attributes": [
+      "# [doc = \" 新しいグループを作成\"]"
+    ],
+    "body": [
+      "if name . len () > 64",
+      "{",
+      "return Err (ErrorCode :: NameTooLong . into ()) ;",
+      "}",
+      "let grp = & mut ctx . accounts . group ;",
+      "grp . admin = ctx . accounts . user . key () ;",
+      "grp . name = name ;",
+      "grp . participants = Vec :: new () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "join_group",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < JoinGroup >"
+    ],
+    "attributes": [
+      "# [doc = \" グループに参加\"]"
+    ],
+    "body": [
+      "let grp = & mut ctx . accounts . group ;",
+      "let user = ctx . accounts . user . key () ;",
+      "if grp . participants . iter () . any (| & p | p == user)",
+      "{",
+      "return Err (ErrorCode :: AlreadyMember . into ()) ;",
+      "}",
+      "if grp . participants . len () >= 10",
+      "{",
+      "return Err (ErrorCode :: GroupFull . into ()) ;",
+      "}",
+      "grp . participants . push (user) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "leave_group",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < LeaveGroup >"
+    ],
+    "attributes": [
+      "# [doc = \" グループから退会\"]"
+    ],
+    "body": [
+      "let grp = & mut ctx . accounts . group ;",
+      "let user = ctx . accounts . user . key () ;",
+      "if ! grp . participants . iter () . any (| & p | p == user)",
+      "{",
+      "return Err (ErrorCode :: NotMember . into ()) ;",
+      "}",
+      "grp . participants . retain (| & p | p != user) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CreateGroup",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "group",
+        "attribute": "# [doc = \" 同一アカウント再初期化防止（Reinit Attack）\"] # [account (init , payer = user , space = 8 + 32 + 4 + 64 + 4 + (10 * 32))]",
+        "field_type": "Account < 'info , GroupAccount >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" グループ作成者（署名必須）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "JoinGroup",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "group",
+        "attribute": "# [doc = \" Account<> による Owner Check / Type Cosplay\"] # [account (mut)]",
+        "field_type": "Account < 'info , GroupAccount >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 参加者（署名必須）\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "LeaveGroup",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "group",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , GroupAccount >"
+      },
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GroupAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": "# [doc = \" グループ管理者\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "name",
+        "attribute": "# [doc = \" グループ名（最大64文字）\"]",
+        "field_type": "String"
+      },
+      {
+        "name": "participants",
+        "attribute": "# [doc = \" 参加者リスト（最大10名）\"]",
+        "field_type": "Vec < Pubkey >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

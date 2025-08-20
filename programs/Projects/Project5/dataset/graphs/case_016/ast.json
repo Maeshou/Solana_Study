@@ -1,43 +1,230 @@
 [
   {
-    "name": "create_pool",
+    "name": "init_nursery",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx016 >",
-      "amount: u64"
+      "ctx: Context < InitNursery >",
+      "cap: u64"
     ],
     "attributes": [],
     "body": [
-      "let cpi_accounts = Transfer { from : ctx . accounts . from_token . to_account_info () , to : ctx . accounts . to_token . to_account_info () , authority : ctx . accounts . authority . to_account_info () , } ;",
-      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
-      "token :: transfer (cpi_ctx , amount) ? ;",
+      "let n = & mut ctx . accounts . nursery ;",
+      "n . warden = ctx . accounts . warden . key () ;",
+      "n . cap = cap ;",
+      "n . state = NurseryState :: Active ;",
+      "let lab = & mut ctx . accounts . lab ;",
+      "lab . mixes = 0 ;",
+      "lab . heat = 0 ;",
+      "let pol = & mut ctx . accounts . policy ;",
+      "pol . min_mix = 8 ;",
+      "pol . max_mix = 256 ;",
+      "pol . strict = 1 ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx016",
+    "name": "mix_eggs",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < MixEggs >",
+      "batches: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut i = 0 ;",
+      "while i < batches",
+      "{",
+      "ctx . accounts . parent_a . mut_points = ctx . accounts . parent_a . mut_points . saturating_add (1) ;",
+      "ctx . accounts . parent_b . mut_points = ctx . accounts . parent_b . mut_points . saturating_add (2) ;",
+      "ctx . accounts . lab . mixes = ctx . accounts . lab . mixes . saturating_add (1) ;",
+      "i += 1 ;",
+      "}",
+      "let total = (ctx . accounts . parent_a . mut_points as u64) . saturating_add (ctx . accounts . parent_b . mut_points as u64) ;",
+      "if total > ctx . accounts . nursery . cap",
+      "{",
+      "ctx . accounts . nursery . state = NurseryState :: Paused ;",
+      "ctx . accounts . policy . strict = 1 ;",
+      "ctx . accounts . lab . heat = ctx . accounts . lab . heat . saturating_add (5) ;",
+      "msg ! (\"cap exceeded: total=",
+      "{",
+      "} cap={}\" , total , ctx . accounts . nursery . cap) ;",
+      "} else",
+      "{",
+      "ctx . accounts . nursery . state = NurseryState :: Active ;",
+      "ctx . accounts . policy . strict = 0 ;",
+      "ctx . accounts . lab . heat = ctx . accounts . lab . heat . saturating_add (1) ;",
+      "msg ! (\"within cap: total=",
+      "{",
+      "} cap={}\" , total , ctx . accounts . nursery . cap) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitNursery",
     "node_type": "struct",
     "fields": [
       {
-        "name": "from_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "nursery",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 8 + 1 , seeds = [b\"nursery\" , payer . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Nursery >"
       },
       {
-        "name": "to_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "lab",
+        "attribute": "# [account (init , payer = payer , space = 8 + 8 + 8 , seeds = [b\"lab\" , payer . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Lab >"
       },
       {
-        "name": "authority",
+        "name": "policy",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4 + 4 + 1)]",
+        "field_type": "Account < 'info , MixPolicy >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "warden",
         "attribute": null,
         "field_type": "Signer < 'info >"
       },
       {
-        "name": "token_program",
+        "name": "system_program",
         "attribute": null,
-        "field_type": "Program < 'info , Token >"
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MixEggs",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "nursery",
+        "attribute": "# [account (mut , has_one = warden)]",
+        "field_type": "Account < 'info , Nursery >"
+      },
+      {
+        "name": "lab",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Lab >"
+      },
+      {
+        "name": "policy",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , MixPolicy >"
+      },
+      {
+        "name": "parent_a",
+        "attribute": "# [account (mut , constraint = parent_a . key () != parent_b . key () , error = EggErr :: Same)]",
+        "field_type": "Account < 'info , DragonCard >"
+      },
+      {
+        "name": "parent_b",
+        "attribute": "# [account (mut , constraint = parent_b . key () != lab . key () , error = EggErr :: Same)]",
+        "field_type": "Account < 'info , DragonCard >"
+      },
+      {
+        "name": "warden",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Nursery",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "warden",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "cap",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "state",
+        "attribute": null,
+        "field_type": "NurseryState"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Lab",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "mixes",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "heat",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MixPolicy",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "min_mix",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "max_mix",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "strict",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DragonCard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "dna",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "tier",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "mut_points",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

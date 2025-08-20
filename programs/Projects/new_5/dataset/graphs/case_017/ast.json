@@ -1,0 +1,127 @@
+[
+  {
+    "name": "execute_sale",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ExecuteSale >",
+      "sale_price: u64",
+      "commission_rate: u8",
+      "tag_suffix: String"
+    ],
+    "attributes": [
+      "# [doc = \" seller_acc と buyer_acc で NFT を売買するが、\"]",
+      "# [doc = \" 同一アカウントチェックが抜けている Duplicate Mutable Account 脆弱性あり\"]"
+    ],
+    "body": [
+      "let seller = & mut ctx . accounts . seller_acc ;",
+      "let buyer = & mut ctx . accounts . buyer_acc ;",
+      "let nft = & mut ctx . accounts . nft ;",
+      "let now = ctx . accounts . clock . unix_timestamp ;",
+      "seller . balance = seller . balance + sale_price ;",
+      "buyer . balance = buyer . balance - sale_price ;",
+      "let commission = sale_price * (commission_rate as u64) / 100 ;",
+      "seller . balance = seller . balance - commission ;",
+      "nft . owner = buyer . owner ;",
+      "seller . sale_count = seller . sale_count + 1 ;",
+      "buyer . purchase_count = buyer . purchase_count + 1 ;",
+      "seller . note = seller . note . clone () + \"|sold@\" + & now . to_string () ;",
+      "buyer . note = buyer . note . clone () + \"|bought@\" + & now . to_string () ;",
+      "nft . tag = (nft . tag . clone () + \"-\" + & tag_suffix) . to_uppercase () ;",
+      "msg ! (\"Sale executed: {} sold NFT to {} for {} lamports (commission={}, time={})\" , seller . owner , buyer . owner , sale_price , commission , now) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "ExecuteSale",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "seller_acc",
+        "attribute": "# [doc = \" 売り手アカウント（mutable）\"] # [account (mut)]",
+        "field_type": "Account < 'info , UserProfile >"
+      },
+      {
+        "name": "buyer_acc",
+        "attribute": "# [doc = \" 買い手アカウント（mutable）\"] # [account (mut)]",
+        "field_type": "Account < 'info , UserProfile >"
+      },
+      {
+        "name": "nft",
+        "attribute": "# [doc = \" 売買対象の NFT\"] # [account (mut)]",
+        "field_type": "Account < 'info , GameNft >"
+      },
+      {
+        "name": "operator",
+        "attribute": "# [doc = \" オペレーション担当者（署名者）\"] # [account (signer)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": "# [doc = \" 時刻取得用 Sysvar\"]",
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": "# [doc = \" システムプログラム\"]",
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "UserProfile",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" アカウント所有者\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "balance",
+        "attribute": "# [doc = \" 残高\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "sale_count",
+        "attribute": "# [doc = \" 売却回数\"]",
+        "field_type": "u32"
+      },
+      {
+        "name": "purchase_count",
+        "attribute": "# [doc = \" 購入回数\"]",
+        "field_type": "u32"
+      },
+      {
+        "name": "note",
+        "attribute": "# [doc = \" 自由メモ欄\"]",
+        "field_type": "String"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GameNft",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" NFT 所有者\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "tag",
+        "attribute": "# [doc = \" NFT タグ\"]",
+        "field_type": "String"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

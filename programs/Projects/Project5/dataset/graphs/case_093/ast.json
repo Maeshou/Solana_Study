@@ -1,40 +1,225 @@
 [
   {
-    "name": "subscribe",
+    "name": "init_plant",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx093 >",
-      "amount: u64"
+      "ctx: Context < InitPlant >",
+      "minerals: u32"
     ],
     "attributes": [],
     "body": [
-      "let src = & mut ctx . accounts . account_src ;",
-      "let dst = & mut ctx . accounts . account_dst ;",
-      "let before = * * src . to_account_info () . try_borrow_lamports () ? ;",
-      "* * src . to_account_info () . try_borrow_mut_lamports () ? = before . saturating_sub (amount) ;",
-      "* * dst . to_account_info () . try_borrow_mut_lamports () ? += amount ;",
+      "let p = & mut ctx . accounts . plant ;",
+      "p . owner = ctx . accounts . overseer . key () ;",
+      "p . quota = (minerals as u64) * 5 + 1_000 ;",
+      "p . state = Prime ;",
+      "let v1 = & mut ctx . accounts . valve_a ;",
+      "let v2 = & mut ctx . accounts . valve_b ;",
+      "let g = & mut ctx . accounts . gauge ;",
+      "let r = (minerals % 97 + 1) as u64 ;",
+      "v1 . plant = p . key () ;",
+      "v1 . gate = (minerals & 7) as u8 ;",
+      "v1 . flow = ((r * 300) / 97) as u32 + 20 ;",
+      "v2 . plant = p . key () ;",
+      "v2 . gate = ((minerals >> 2) & 7) as u8 ;",
+      "v2 . flow = ((r * 450) / 97) as u32 + 25 ;",
+      "g . plant = p . key () ;",
+      "g . gate = 9 ;",
+      "g . total = 0 ;",
+      "g . salt = minerals ^ 0x1357_ABCD ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx093",
+    "name": "run",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RunPump >",
+      "ticks: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let p = & mut ctx . accounts . plant ;",
+      "let a = & mut ctx . accounts . valve_a ;",
+      "let b = & mut ctx . accounts . valve_b ;",
+      "let g = & mut ctx . accounts . gauge ;",
+      "for i in 0 .. ticks",
+      "{",
+      "let mix = ((a . flow ^ b . flow) as u64) . wrapping_mul (2654435761) ;",
+      "a . flow = a . flow . checked_add (((mix & 31) as u32) + 2) . unwrap_or (u32 :: MAX) ;",
+      "b . flow = b . flow . saturating_add ((((mix >> 5) & 31) as u32) + 3) ;",
+      "g . total = g . total . saturating_add ((a . flow as u64 + b . flow as u64) & 127) ;",
+      "g . salt ^= (mix as u32) . rotate_left ((i % 13) as u32) ;",
+      "}",
+      "let sum = a . flow as u64 + b . flow as u64 + g . total ;",
+      "if sum > p . quota",
+      "{",
+      "p . state = Drain ;",
+      "a . gate ^= 1 ;",
+      "b . gate = b . gate . saturating_add (1) ;",
+      "g . gate = g . gate . saturating_add (1) ;",
+      "msg ! (\"drain: gate tweaks & gauge move\") ;",
+      "} else",
+      "{",
+      "p . state = Pump ;",
+      "a . flow = a . flow . saturating_add (9) ;",
+      "b . flow = b . flow / 2 + 11 ;",
+      "g . salt ^= 0x0F0F_F0F0 ;",
+      "msg ! (\"pump: flow adjust & salt flip\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitPlant",
     "node_type": "struct",
     "fields": [
       {
-        "name": "account_src",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "plant",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 8 + 1)]",
+        "field_type": "Account < 'info , Plant >"
       },
       {
-        "name": "account_dst",
+        "name": "valve_a",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Valve >"
+      },
+      {
+        "name": "valve_b",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Valve >"
+      },
+      {
+        "name": "gauge",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 8 + 4)]",
+        "field_type": "Account < 'info , Gauge >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "overseer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
       },
       {
         "name": "system_program",
         "attribute": null,
         "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RunPump",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "plant",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Plant >"
+      },
+      {
+        "name": "valve_a",
+        "attribute": "# [account (mut , has_one = plant , constraint = valve_a . gate != valve_b . gate @ WaterErr :: Dup)]",
+        "field_type": "Account < 'info , Valve >"
+      },
+      {
+        "name": "valve_b",
+        "attribute": "# [account (mut , has_one = plant , constraint = valve_b . gate != gauge . gate @ WaterErr :: Dup)]",
+        "field_type": "Account < 'info , Valve >"
+      },
+      {
+        "name": "gauge",
+        "attribute": "# [account (mut , has_one = plant)]",
+        "field_type": "Account < 'info , Gauge >"
+      },
+      {
+        "name": "overseer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Plant",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "quota",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "state",
+        "attribute": null,
+        "field_type": "WaterState"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Valve",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "plant",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "gate",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "flow",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Gauge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "plant",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "gate",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "total",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "salt",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

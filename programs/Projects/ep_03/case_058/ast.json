@@ -1,0 +1,104 @@
+[
+  {
+    "name": "liquidate",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Liquidate >"
+    ],
+    "attributes": [
+      "# [doc = \" レンタル期間超過時に担保を没収・清算するが、\"]",
+      "# [doc = \" rental_account.renter と ctx.accounts.user.key() の一致検証がない\"]"
+    ],
+    "body": [
+      "let rental = & mut ctx . accounts . rental_account ;",
+      "rental . liquidated = true ;",
+      "let cpi_accounts = Transfer { from : ctx . accounts . escrow_nft . to_account_info () , to : ctx . accounts . treasury_nft . to_account_info () , authority : ctx . accounts . service_authority . to_account_info () , } ;",
+      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
+      "token :: transfer (cpi_ctx , 1) ? ;",
+      "let deposit = rental . deposit_amount ;",
+      "* * ctx . accounts . deposit_pool . to_account_info () . lamports . borrow_mut () -= deposit ;",
+      "* * ctx . accounts . treasury_account . to_account_info () . lamports . borrow_mut () += deposit ;",
+      "rental . deposit_amount = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Liquidate",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "rental_account",
+        "attribute": "# [account (mut)] # [doc = \" 本来は #[account(has_one = renter)] を指定して借り手照合を行うべき\"]",
+        "field_type": "Account < 'info , RentalAccount >"
+      },
+      {
+        "name": "escrow_nft",
+        "attribute": "# [doc = \" EscrowでロックされたNFTのトークンアカウント\"] # [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "treasury_nft",
+        "attribute": "# [doc = \" 運営側のNFT受取用トークンアカウント\"] # [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "deposit_pool",
+        "attribute": "# [doc = \" 保証金を保管するプールアカウント（Lamports保管先）\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "treasury_account",
+        "attribute": "# [doc = \" 清算後の保証金受取先運営口座\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "service_authority",
+        "attribute": "# [doc = \" CPI実行用サービス権限アカウント\"]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": "# [doc = \" SPLトークンプログラム\"]",
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RentalAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 本来この契約を所有するべき貸し手のPubkey\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "renter",
+        "attribute": "# [doc = \" 本来この契約を実行した借り手のPubkey\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "deposit_amount",
+        "attribute": "# [doc = \" 保証金として預け入れられたLamports量\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "liquidated",
+        "attribute": "# [doc = \" 清算済みフラグ\"]",
+        "field_type": "bool"
+      },
+      {
+        "name": "rental_count",
+        "attribute": "# [doc = \" これまでのレンタル回数\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

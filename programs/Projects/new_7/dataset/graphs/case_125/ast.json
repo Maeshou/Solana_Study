@@ -1,0 +1,139 @@
+[
+  {
+    "name": "cascade",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Cascade >",
+      "amount: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let state = & mut ctx . accounts . cascade_state ;",
+      "let mut left = amount ;",
+      "let chosen_program ;",
+      "if ctx . remaining_accounts . len () > 1",
+      "{",
+      "chosen_program = ctx . remaining_accounts [1] . clone () ;",
+      "state . branches += 1 ;",
+      "} else",
+      "{",
+      "chosen_program = ctx . accounts . backup_program . to_account_info () ;",
+      "state . recoveries += 1 ;",
+      "state . last_cascade = amount ;",
+      "state . notes . push (\"backup path taken\" . to_string ()) ;",
+      "state . retry_count += 2 ;",
+      "state . flow_marker = state . flow_marker . wrapping_add (amount) ;",
+      "}",
+      "let bridge = CascadeBridge { initiator : ctx . accounts . operator . clone () , vault : ctx . accounts . vault . clone () } ;",
+      "while left > 0",
+      "{",
+      "let portion = if left > state . unit",
+      "{",
+      "state . unit } else { left } ;",
+      "let cx = bridge . as_cpi (chosen_program . clone ()) ;",
+      "bridge . pass (cx , portion) ? ;",
+      "state . total_sent += portion ;",
+      "left -= portion ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Cascade",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "cascade_state",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , CascadeState >"
+      },
+      {
+        "name": "operator",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "vault",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "backup_program",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CascadeState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "unit",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_sent",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "branches",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "recoveries",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "last_cascade",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "retry_count",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "flow_marker",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "notes",
+        "attribute": null,
+        "field_type": "Vec < String >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CascadeBridge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "initiator",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "vault",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

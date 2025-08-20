@@ -1,0 +1,250 @@
+[
+  {
+    "name": "init_defense_layout",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitDefenseLayout >",
+      "size_hint: u32",
+      "tier: TerritoryTier",
+      "order_seed: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let layout = & mut ctx . accounts . defense_plan ;",
+      "let now = Clock :: get () ? . unix_timestamp ;",
+      "require ! (size_hint >= 100 , ErrorCode :: TooSmallHint) ;",
+      "layout . created_at = now ;",
+      "layout . tier = tier . clone () ;",
+      "layout . estimated_size = size_hint ;",
+      "let count = slot_count_from_size (size_hint) ;",
+      "layout . slot_count = count ;",
+      "let base = base_stats_for_tier (& tier) ;",
+      "layout . structures = build_structures (count , order_seed , base , now) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "slot_count_from_size",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "size_hint: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut c = 3u32 ;",
+      "if size_hint >= 2_000",
+      "{",
+      "c = 5 ;",
+      "}",
+      "if size_hint >= 5_000",
+      "{",
+      "c = 8 ;",
+      "}",
+      "c"
+    ]
+  },
+  {
+    "name": "BaseStats",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "hp",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "dp",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "upkeep",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "base_stats_for_tier",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "t: & TerritoryTier"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut b = BaseStats { hp : 900 , dp : 120 , upkeep : 18 } ;",
+      "if matches ! (t , TerritoryTier :: City)",
+      "{",
+      "b . hp = b . hp . saturating_add (400) ;",
+      "b . dp = b . dp . saturating_add (60) ;",
+      "b . upkeep = b . upkeep . saturating_add (10) ;",
+      "}",
+      "if matches ! (t , TerritoryTier :: Capital)",
+      "{",
+      "b . hp = b . hp . saturating_add (900) ;",
+      "b . dp = b . dp . saturating_add (180) ;",
+      "b . upkeep = b . upkeep . saturating_add (30) ;",
+      "}",
+      "b"
+    ]
+  },
+  {
+    "name": "build_structures",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "count: u32",
+      "seed: u64",
+      "base: BaseStats",
+      "now: i64"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut out = Vec :: new () ;",
+      "let start = (seed as usize) % (count as usize) ;",
+      "let mut i = 0usize ;",
+      "while i < count as usize",
+      "{",
+      "let idx = (start + i) % (count as usize) ;",
+      "let kind = choose_kind (idx) ;",
+      "let tweak = ((seed . rotate_left ((idx as u32) & 13)) as u32) % 37 ;",
+      "let hp = base . hp . saturating_add (tweak * 10) ;",
+      "let dp = base . dp . saturating_add ((tweak % 9) * 10) ;",
+      "let up = base . upkeep . saturating_add (tweak % 7) ;",
+      "out . push (DefenseStructure",
+      "{",
+      "structure_id : idx as u32 , structure_type : kind , health_points : hp , defense_power : dp , maintenance_cost : up , last_upgrade : now , }) ;",
+      "i = i . saturating_add (1) ;",
+      "}",
+      "out"
+    ]
+  },
+  {
+    "name": "choose_kind",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "idx: usize"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut k = StructureType :: Watchtower ;",
+      "if idx % 4 == 1",
+      "{",
+      "k = StructureType :: BarricadeWall ;",
+      "}",
+      "if idx % 4 == 2",
+      "{",
+      "k = StructureType :: MagicBarrier ;",
+      "}",
+      "if idx % 4 >= 3",
+      "{",
+      "k = StructureType :: TrapField ;",
+      "}",
+      "k"
+    ]
+  },
+  {
+    "name": "InitDefenseLayout",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "defense_plan",
+        "attribute": "# [account (init , payer = planner , space = 8 + DefensePlan :: MAX_SPACE , seeds = [b\"defense-plan\" , planner . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , DefensePlan >"
+      },
+      {
+        "name": "planner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DefensePlan",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "created_at",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "tier",
+        "attribute": null,
+        "field_type": "TerritoryTier"
+      },
+      {
+        "name": "estimated_size",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "slot_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "structures",
+        "attribute": null,
+        "field_type": "Vec < DefenseStructure >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DefenseStructure",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "structure_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "structure_type",
+        "attribute": null,
+        "field_type": "StructureType"
+      },
+      {
+        "name": "health_points",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "defense_power",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "maintenance_cost",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "last_upgrade",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

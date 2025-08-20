@@ -1,0 +1,182 @@
+[
+  {
+    "name": "init_hub",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitHub >",
+      "code: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let h = & mut ctx . accounts . hub ;",
+      "h . owner = ctx . accounts . owner . key () ;",
+      "h . code = code ;",
+      "h . completed = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "register",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Register >",
+      "role: Role",
+      "tag: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let h = & mut ctx . accounts . hub ;",
+      "let r = & mut ctx . accounts . runner ;",
+      "r . hub = h . key () ;",
+      "r . role = role ;",
+      "r . tag = tag ;",
+      "r . progress = 0 ;",
+      "let v = & mut ctx . accounts . verifier ;",
+      "v . hub = h . key () ;",
+      "v . role = Verifier ;",
+      "v . tag = tag ^ 0x55AA ;",
+      "v . approvals = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "verify",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Verify >",
+      "steps: Vec < u16 >"
+    ],
+    "attributes": [],
+    "body": [
+      "let h = & mut ctx . accounts . hub ;",
+      "let r = & mut ctx . accounts . runner ;",
+      "let v = & mut ctx . accounts . verifier ;",
+      "let b = & mut ctx . accounts . board ;",
+      "let mut sum : u32 = 0 ;",
+      "let mut mix : u16 = 0 ;",
+      "for s in steps",
+      "{",
+      "sum = sum . saturating_add ((s & 0x3FF) as u32) ;",
+      "mix ^= (s . rotate_left (1)) ^ 0x1234 ;",
+      "}",
+      "let inc = (sum + (mix & 0xFF) as u32) as u32 ;",
+      "if r . role == Runner",
+      "{",
+      "r . progress = r . progress . saturating_add (inc / 2) ;",
+      "v . approvals = v . approvals . saturating_add ((mix & 0x3F) as u16) ;",
+      "h . completed = h . completed . saturating_add ((inc / 8) as u32) ;",
+      "msg ! (\"Runner path: inc=",
+      "{",
+      "}, prog={}, appr={}, done={}\" , inc , r . progress , v . approvals , h . completed) ;",
+      "} else",
+      "{",
+      "r . progress = r . progress . saturating_add (inc / 3) ;",
+      "v . approvals = v . approvals . saturating_add (((mix >> 2) & 0x3F) as u16) ;",
+      "h . completed = h . completed . saturating_add ((inc / 10) as u32) ;",
+      "msg ! (\"Verifier-as-actor path: inc=",
+      "{",
+      "}, prog={}, appr={}, done={}\" , inc , r . progress , v . approvals , h . completed) ;",
+      "}",
+      "let mut x = (h . completed as u128) . max (1) ;",
+      "let mut i = 0 ;",
+      "while i < 3",
+      "{",
+      "x = (x + (h . completed as u128 / x)) . max (1) / 2 ;",
+      "i += 1 ;",
+      "}",
+      "b . hub = h . key () ;",
+      "b . index = (x as u32) . min (2_000_000) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitHub",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "hub",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 4)]",
+        "field_type": "Account < 'info , Hub >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Register",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "hub",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Hub >"
+      },
+      {
+        "name": "runner",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 2 + 4)]",
+        "field_type": "Account < 'info , RoleCard >"
+      },
+      {
+        "name": "verifier",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 2 + 2)]",
+        "field_type": "Account < 'info , RoleCard >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Verify",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "hub",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Hub >"
+      },
+      {
+        "name": "board",
+        "attribute": "# [account (mut , has_one = hub)]",
+        "field_type": "Account < 'info , Board >"
+      },
+      {
+        "name": "runner",
+        "attribute": "# [account (mut , has_one = hub , constraint = runner . role != verifier . role @ ErrCode :: CosplayBlocked)]",
+        "field_type": "Account < 'info , RoleCard >"
+      },
+      {
+        "name": "verifier",
+        "attribute": "# [account (mut , has_one = hub)]",
+        "field_type": "Account < 'info , RoleCard >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

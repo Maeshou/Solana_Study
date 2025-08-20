@@ -1,33 +1,75 @@
 [
   {
-    "name": "initialize_bridge_contract",
+    "name": "init_battery",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Initialize072 >",
-      "param: u64"
+      "ctx: Context < InitBattery >",
+      "cycles: u32"
     ],
     "attributes": [],
     "body": [
-      "let mut data = BridgeContractData :: try_from_slice (& ctx . accounts . data_account . data . borrow ()) ? ;",
-      "data . value = param ;",
-      "data . serialize (& mut * ctx . accounts . data_account . data . borrow_mut ()) ? ;",
+      "let b = & mut ctx . accounts . battery ;",
+      "b . charge_level = 100 ;",
+      "b . cycles = cycles ;",
+      "b . health_flag = false ;",
+      "let mut degrade = 0u32 ;",
+      "if cycles > 1000",
+      "{",
+      "degrade = 20 ;",
+      "} else",
+      "{",
+      "degrade = 5 ;",
+      "}",
+      "b . charge_level = b . charge_level . saturating_sub (degrade) ;",
+      "if degrade > 10",
+      "{",
+      "b . health_flag = true ;",
+      "}",
       "Ok (())"
     ]
   },
   {
-    "name": "Initialize072",
+    "name": "discharge",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Discharge >",
+      "amount: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let b = & mut ctx . accounts . battery ;",
+      "if amount > 50",
+      "{",
+      "b . charge_level = b . charge_level . saturating_sub (30) ;",
+      "}",
+      "b . charge_level = b . charge_level . saturating_sub (amount . min (b . charge_level)) ;",
+      "if b . charge_level < 20",
+      "{",
+      "b . health_flag = true ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitBattery",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "battery",
+        "attribute": "# [account (init , payer = user , space = 8 + 4 + 4 + 1)]",
+        "field_type": "Account < 'info , BatteryData >"
       },
       {
-        "name": "authority",
-        "attribute": null,
+        "name": "user",
+        "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -35,13 +77,37 @@
     "body": null
   },
   {
-    "name": "BridgeContractData",
+    "name": "Discharge",
     "node_type": "struct",
     "fields": [
       {
-        "name": "value",
+        "name": "battery",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , BatteryData >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BatteryData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "charge_level",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "u32"
+      },
+      {
+        "name": "cycles",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "health_flag",
+        "attribute": null,
+        "field_type": "bool"
       }
     ],
     "inputs": null,

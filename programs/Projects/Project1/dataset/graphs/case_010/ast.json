@@ -1,0 +1,124 @@
+[
+  {
+    "name": "transfer_tokens",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < TransferTokens >",
+      "amount: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "if ! ctx . accounts . authority . is_signer",
+      "{",
+      "return Err (ErrorCode :: UnauthorizedSigner . into ()) ;",
+      "}",
+      "if ctx . accounts . authority . key () != ctx . accounts . user_token_account . owner",
+      "{",
+      "return Err (ErrorCode :: InvalidOwner . into ()) ;",
+      "}",
+      "let cpi_accounts = anchor_spl :: token :: Transfer { from : ctx . accounts . user_token_account . to_account_info () , to : ctx . accounts . destination_token_account . to_account_info () , authority : ctx . accounts . authority . to_account_info () , } ;",
+      "let cpi_program = ctx . accounts . token_program . to_account_info () ;",
+      "let cpi_ctx = CpiContext :: new (cpi_program , cpi_accounts) ;",
+      "anchor_spl :: token :: transfer (cpi_ctx , amount) ? ;",
+      "msg ! (\"Successfully transferred {} tokens\" , amount) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "update_user_data",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < UpdateUserData >",
+      "new_data: String"
+    ],
+    "attributes": [],
+    "body": [
+      "if ! ctx . accounts . user . is_signer",
+      "{",
+      "return Err (ErrorCode :: UnauthorizedSigner . into ()) ;",
+      "}",
+      "if ctx . accounts . user_data . owner != ctx . accounts . user . key ()",
+      "{",
+      "return Err (ErrorCode :: InvalidDataOwner . into ()) ;",
+      "}",
+      "ctx . accounts . user_data . data = new_data ;",
+      "ctx . accounts . user_data . last_updated = Clock :: get () ? . unix_timestamp ;",
+      "msg ! (\"User data updated successfully\") ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "TransferTokens",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "authority",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "user_token_account",
+        "attribute": "# [account (mut , constraint = user_token_account . owner == authority . key () @ ErrorCode :: InvalidTokenOwner)]",
+        "field_type": "Account < 'info , anchor_spl :: token :: TokenAccount >"
+      },
+      {
+        "name": "destination_token_account",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , anchor_spl :: token :: TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , anchor_spl :: token :: Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "UpdateUserData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "user_data",
+        "attribute": "# [account (mut , constraint = user_data . owner == user . key () @ ErrorCode :: InvalidDataOwner , seeds = [b\"user_data\" , user . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , UserData >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "UserData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "data",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "last_updated",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,179 @@
+[
+  {
+    "name": "init_vault",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitVault >",
+      "series: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let v = & mut ctx . accounts . vault ;",
+      "v . owner = ctx . accounts . owner . key () ;",
+      "v . series = series . rotate_left (1) . wrapping_add (31) ;",
+      "v . meter = 3 ;",
+      "let mut i = 0u8 ;",
+      "let mut probe = v . series . rotate_right (2) . wrapping_add (17) ;",
+      "while i < 6",
+      "{",
+      "probe = probe . rotate_left (1) . wrapping_mul (3) . wrapping_add (7) ;",
+      "v . meter = v . meter . saturating_add (((probe % 23) as u32) + 1) ;",
+      "i = i . saturating_add (1) ;",
+      "}",
+      "require ! (v . meter > 10 , E :: Meter) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "offset_and_release",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < OffsetAndRelease >",
+      "burn_amount: u64",
+      "reward: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let bump = * ctx . bumps . get (\"vault\") . ok_or (error ! (E :: MissingBump)) ? ;",
+      "let seeds : & [& [u8]] = & [b\"vault\" , ctx . accounts . owner . key . as_ref () , & ctx . accounts . vault . series . to_le_bytes () , & [bump]] ;",
+      "let mut left_burn = burn_amount ;",
+      "let mut burn_step = (burn_amount / 4) . max (1) ;",
+      "let mut burn_crc = 0u64 ;",
+      "while left_burn > 0",
+      "{",
+      "let now = left_burn . min (burn_step) ;",
+      "let burn_ctx = CpiContext :: new_with_signer (ctx . accounts . token_program . to_account_info () , Burn",
+      "{",
+      "mint : ctx . accounts . credit_mint . to_account_info () , from : ctx . accounts . vault_token . to_account_info () , authority : ctx . accounts . vault . to_account_info () , } , & [seeds] ,) ;",
+      "token :: burn (burn_ctx , now) ? ;",
+      "left_burn = left_burn . saturating_sub (now) ;",
+      "burn_crc = burn_crc . rotate_left (3) ^ now . wrapping_mul (113) ;",
+      "if burn_step & 1 > 0",
+      "{",
+      "burn_step = burn_step . rotate_left (1) . wrapping_add (2) ;",
+      "} else",
+      "{",
+      "burn_step = burn_step . rotate_right (1) . wrapping_add (1) ;",
+      "} if burn_step > left_burn && left_burn > 5",
+      "{",
+      "burn_step = left_burn - 3 ;",
+      "}",
+      "}",
+      "require ! (burn_crc != 0 , E :: Crc) ;",
+      "let mut left_reward = reward ;",
+      "let mut step = (reward / 3) . max (1) ;",
+      "let mut rounds = 3u8 ;",
+      "while left_reward > 0 && rounds > 0",
+      "{",
+      "let give = left_reward . min (step) ;",
+      "let xfer_ctx = CpiContext :: new_with_signer (ctx . accounts . token_program . to_account_info () , Transfer",
+      "{",
+      "from : ctx . accounts . vault_token . to_account_info () , to : ctx . accounts . user_token . to_account_info () , authority : ctx . accounts . vault . to_account_info () , } , & [seeds] ,) ;",
+      "token :: transfer (xfer_ctx , give) ? ;",
+      "left_reward = left_reward . saturating_sub (give) ;",
+      "step = step . rotate_right (1) . wrapping_add (2) ;",
+      "if step > left_reward && left_reward > 4",
+      "{",
+      "step = left_reward - 2 ;",
+      "} rounds = rounds . saturating_sub (1) ;",
+      "}",
+      "let v = & mut ctx . accounts . vault ;",
+      "v . meter = v . meter . saturating_add (((burn_crc % 17) as u32) + 1) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitVault",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 4 , seeds = [b\"vault\" , owner . key () . as_ref () , series . to_le_bytes () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "series",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "OffsetAndRelease",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": "# [account (mut , seeds = [b\"vault\" , owner . key () . as_ref () , vault . series . to_le_bytes () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "vault_token",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "user_token",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "credit_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Vault",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "series",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "meter",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

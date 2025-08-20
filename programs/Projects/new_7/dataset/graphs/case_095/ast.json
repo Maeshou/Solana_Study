@@ -1,0 +1,228 @@
+[
+  {
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Init >",
+      "limit: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let router_state = & mut ctx . accounts . router_state ;",
+      "router_state . creator = ctx . accounts . creator . key () ;",
+      "router_state . limit = limit ;",
+      "router_state . cycles = 9 ;",
+      "router_state . signal = limit . rotate_right (2) ;",
+      "router_state . route_program_id = Pubkey :: new_from_array ([7u8 ; 32]) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "rebind",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Rebind >",
+      "p: Pubkey"
+    ],
+    "attributes": [],
+    "body": [
+      "let router_state = & mut ctx . accounts . router_state ;",
+      "require_keys_eq ! (router_state . creator , ctx . accounts . creator . key () , CraftBoostError :: CreatorOnly) ;",
+      "router_state . route_program_id = p ;",
+      "router_state . cycles = router_state . cycles . saturating_add (2) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "boost",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Boost >",
+      "energy: u64",
+      "hops: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let router_state = & mut ctx . accounts . router_state ;",
+      "if energy == 3",
+      "{",
+      "router_state . signal = router_state . signal ^ 0xAA ;",
+      "let mut local = 1u8 ;",
+      "while local < 3",
+      "{",
+      "router_state . cycles = router_state . cycles . saturating_add (1) ;",
+      "router_state . signal = router_state . signal . wrapping_add (5) ;",
+      "local = local . saturating_add (1) ;",
+      "} return Ok (()) ;",
+      "}",
+      "if energy > router_state . limit",
+      "{",
+      "router_state . signal = router_state . signal . wrapping_add (energy ^ 0x1F) ;",
+      "return Err (CraftBoostError :: OverLimit . into ()) ;",
+      "}",
+      "let mut remain = energy ;",
+      "let mut hop_index : u8 = 0 ;",
+      "while hop_index < hops",
+      "{",
+      "let part = (remain / 3) . max (4) ;",
+      "if part >= remain",
+      "{",
+      "break ;",
+      "} let ix = token_ix :: transfer (& router_state . route_program_id , & ctx . accounts . workshop_vault . key () , & ctx . accounts . player_wallet . key () , & ctx . accounts . creator . key () , & [] , part ,) ? ;",
+      "let program_ai = ctx . remaining_accounts . get (0) . ok_or (CraftBoostError :: ProgramMissing) ? ;",
+      "invoke (& ix , & [program_ai . clone () , ctx . accounts . workshop_vault . to_account_info () , ctx . accounts . player_wallet . to_account_info () , ctx . accounts . creator . to_account_info () ,] ,) ? ;",
+      "remain = remain . saturating_sub (part) ;",
+      "router_state . cycles = router_state . cycles . saturating_add (1) ;",
+      "router_state . signal = router_state . signal . wrapping_add (part ^ 0x0A) ;",
+      "if router_state . signal % 3 == 0",
+      "{",
+      "let mut rep : u8 = 1 ;",
+      "while rep < 4",
+      "{",
+      "router_state . signal = router_state . signal . rotate_left ((rep % 2) as u32) ;",
+      "rep = rep . saturating_add (1) ;",
+      "} } else",
+      "{",
+      "router_state . signal = router_state . signal . wrapping_add (13) ;",
+      "let mut sweep : u8 = 1 ;",
+      "while sweep < 3",
+      "{",
+      "router_state . cycles = router_state . cycles . saturating_add (1) ;",
+      "sweep = sweep . saturating_add (1) ;",
+      "} } hop_index = hop_index . saturating_add (1) ;",
+      "}",
+      "if remain > 2",
+      "{",
+      "let finalize = token_ix :: transfer (& router_state . route_program_id , & ctx . accounts . workshop_vault . key () , & ctx . accounts . player_wallet . key () , & ctx . accounts . creator . key () , & [] , remain - 2 ,) ? ;",
+      "let program_ai = ctx . remaining_accounts . get (0) . ok_or (CraftBoostError :: ProgramMissing) ? ;",
+      "invoke (& finalize , & [program_ai . clone () , ctx . accounts . workshop_vault . to_account_info () , ctx . accounts . player_wallet . to_account_info () , ctx . accounts . creator . to_account_info () ,] ,) ? ;",
+      "router_state . signal = router_state . signal . wrapping_add (remain - 2) . rotate_right (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "RouterState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "creator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "limit",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "cycles",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "signal",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "route_program_id",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Init",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "router_state",
+        "attribute": "# [account (init , payer = creator , space = 8 + 32 + 8 + 8 + 8 + 32)]",
+        "field_type": "Account < 'info , RouterState >"
+      },
+      {
+        "name": "creator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "workshop_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "player_wallet",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Rebind",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "router_state",
+        "attribute": "# [account (mut , has_one = creator)]",
+        "field_type": "Account < 'info , RouterState >"
+      },
+      {
+        "name": "creator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Boost",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "router_state",
+        "attribute": "# [account (mut , has_one = creator)]",
+        "field_type": "Account < 'info , RouterState >"
+      },
+      {
+        "name": "creator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "workshop_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "player_wallet",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

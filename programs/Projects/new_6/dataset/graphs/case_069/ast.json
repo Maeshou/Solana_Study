@@ -1,0 +1,168 @@
+[
+  {
+    "name": "init_ledger",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitLedger >"
+    ],
+    "attributes": [],
+    "body": [
+      "let l = & mut ctx . accounts . ledger ;",
+      "l . distributor = ctx . accounts . distributor . key () ;",
+      "l . boss_id = 0 ;",
+      "l . total_damage = 0 ;",
+      "l . payout_pool = 0 ;",
+      "l . claims = vec ! [] ;",
+      "l . weights = vec ! [1 , 2 , 3 , 4 , 5] ;",
+      "l . flags = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_record_and_distribute",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RecordAndDistribute >",
+      "boss_id: u32",
+      "damages: Vec < u64 >",
+      "seed: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let l = & mut ctx . accounts . ledger ;",
+      "let writer = & ctx . accounts . writer ;",
+      "l . boss_id = boss_id ;",
+      "l . total_damage = 0 ;",
+      "for d in damages . iter ()",
+      "{",
+      "l . total_damage = l . total_damage . saturating_add (* d) ;",
+      "}",
+      "l . payout_pool = (l . total_damage / 10) ^ seed ;",
+      "if l . weights . len () < damages . len ()",
+      "{",
+      "l . weights . resize (damages . len () , 1) ;",
+      "}",
+      "for i in 0 .. damages . len ()",
+      "{",
+      "let w = ((damages [i] as u32) ^ (seed as u32)) . rotate_left ((i % 7) as u32) % 97 + 1 ;",
+      "l . weights [i] = w ;",
+      "if w % 2 == 0",
+      "{",
+      "l . flags ^= 0b01 ;",
+      "}",
+      "}",
+      "l . claims . clear () ;",
+      "for i in 0 .. damages . len ()",
+      "{",
+      "let share = (damages [i] . saturating_mul (l . weights [i] as u64 + 1)) / (1 + (i as u64)) ;",
+      "l . claims . push ((i as u32 , share)) ;",
+      "}",
+      "if l . claims . len () > 16",
+      "{",
+      "l . claims . sort_by (| a , b | b . 1 . cmp (& a . 1)) ;",
+      "l . claims . truncate (16) ;",
+      "}",
+      "let mut checksum = 0u64 ;",
+      "for (i , d) in damages . iter () . enumerate ()",
+      "{",
+      "checksum ^= (* d) . rotate_left ((i % 11) as u32) ;",
+      "}",
+      "if checksum % 5 == 0",
+      "{",
+      "l . flags ^= 0b10 ;",
+      "l . payout_pool = l . payout_pool . reverse_bits () ;",
+      "}",
+      "l . distributor = writer . key () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitLedger",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ledger",
+        "attribute": "# [account (init , payer = distributor , space = 8 + 32 + 4 + 8 + 8 + 128 + 64)]",
+        "field_type": "Account < 'info , BossLedger >"
+      },
+      {
+        "name": "distributor",
+        "attribute": "# [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RecordAndDistribute",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ledger",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , BossLedger >"
+      },
+      {
+        "name": "writer",
+        "attribute": "# [doc = \" CHECK: writer検証なし\"]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BossLedger",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "distributor",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "boss_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "total_damage",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "payout_pool",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "claims",
+        "attribute": null,
+        "field_type": "Vec < (u32 , u64) >"
+      },
+      {
+        "name": "weights",
+        "attribute": null,
+        "field_type": "Vec < u32 >"
+      },
+      {
+        "name": "flags",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

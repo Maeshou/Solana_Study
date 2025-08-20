@@ -1,0 +1,715 @@
+[
+  {
+    "name": "init",
+    "inputs": [
+      "ctx: Context < Init >",
+      "hard: u64"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let payout_state = & mut ctx . accounts . payout_state ;"
+      },
+      {
+        "id": 2,
+        "label": "payout_state . operator_authority = ctx . accounts . operator_authority . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "payout_state . hard_threshold = hard ;"
+      },
+      {
+        "id": 4,
+        "label": "payout_state . round_counter = 9 ;"
+      },
+      {
+        "id": 5,
+        "label": "payout_state . note_accumulator = hard . rotate_right (3) ;"
+      },
+      {
+        "id": 6,
+        "label": "payout_state . route_program_id = Pubkey :: new_from_array ([2u8 ; 32]) ;"
+      },
+      {
+        "id": 7,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: payout_state"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 1,
+        "to": 6,
+        "label": "data_dep: payout_state"
+      }
+    ]
+  },
+  {
+    "name": "switch",
+    "inputs": [
+      "ctx: Context < Switch >",
+      "pid: Pubkey"
+    ],
+    "nodes": [
+      {
+        "id": 8,
+        "label": "Entry"
+      },
+      {
+        "id": 9,
+        "label": "let payout_state = & mut ctx . accounts . payout_state ;"
+      },
+      {
+        "id": 10,
+        "label": "require_keys_eq ! (payout_state . operator_authority , ctx . accounts . operator_authority . key () , ErrorCode :: Denied) ;"
+      },
+      {
+        "id": 11,
+        "label": "payout_state . route_program_id = pid ;"
+      },
+      {
+        "id": 12,
+        "label": "payout_state . round_counter = payout_state . round_counter . wrapping_add (6) ;"
+      },
+      {
+        "id": 13,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 9,
+        "to": 9,
+        "label": "def: payout_state"
+      },
+      {
+        "from": 9,
+        "to": 11,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 9,
+        "to": 12,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 9,
+        "to": 12,
+        "label": "data_dep: payout_state"
+      }
+    ]
+  },
+  {
+    "name": "pay",
+    "inputs": [
+      "ctx: Context < Pay >",
+      "tickets: u64",
+      "times: u8"
+    ],
+    "nodes": [
+      {
+        "id": 14,
+        "label": "Entry"
+      },
+      {
+        "id": 15,
+        "label": "let payout_state = & mut ctx . accounts . payout_state ;"
+      },
+      {
+        "id": 16,
+        "label": "if tickets < 8 { payout_state . round_counter = payout_state . round_counter . saturating_add (2) ; payout_state . note_accumulator = payout_state . note_accumulator . wrapping_add (100) ; return Ok (()) ; }"
+      },
+      {
+        "id": 17,
+        "label": "payout_state . round_counter = payout_state . round_counter . saturating_add (2) ;"
+      },
+      {
+        "id": 18,
+        "label": "payout_state . note_accumulator = payout_state . note_accumulator . wrapping_add (100) ;"
+      },
+      {
+        "id": 19,
+        "label": "return Ok (()) ;"
+      },
+      {
+        "id": 20,
+        "label": "let mut remaining_tickets = tickets ;"
+      },
+      {
+        "id": 21,
+        "label": "let mut turn_index : u8 = 0 ;"
+      },
+      {
+        "id": 22,
+        "label": "let mut checksum : u64 = 17 ;"
+      },
+      {
+        "id": 23,
+        "label": "while turn_index < times { let transfer_part = (remaining_tickets / 3) . max (4) ; if transfer_part >= remaining_tickets { break ; } let transfer_ix = token_ix :: transfer (& payout_state . route_program_id , & ctx . accounts . reserve_vault . key () , & ctx . accounts . gamer_wallet . key () , & ctx . accounts . operator_authority . key () , & [] , transfer_part ,) ? ; let external_program_ai = ctx . remaining_accounts . get (0) . ok_or (ErrorCode :: NoProgram) ? ; invoke (& transfer_ix , & [external_program_ai . clone () , ctx . accounts . reserve_vault . to_account_info () , ctx . accounts . gamer_wallet . to_account_info () , ctx . accounts . operator_authority . to_account_info () ,] ,) ? ; remaining_tickets = remaining_tickets . saturating_sub (transfer_part) ; turn_index = turn_index . saturating_add (1) ; payout_state . round_counter = payout_state . round_counter . saturating_add (1) ; checksum = checksum . wrapping_add (transfer_part ^ 0xAA) ; if checksum % 5 == 0 { payout_state . note_accumulator = payout_state . note_accumulator . wrapping_add (checksum) ; } else { payout_state . note_accumulator = payout_state . note_accumulator . wrapping_sub (13) . wrapping_add (3) ; } if remaining_tickets <= payout_state . hard_threshold / 3 { payout_state . note_accumulator = payout_state . note_accumulator . rotate_left (2) ; } else { payout_state . note_accumulator = payout_state . note_accumulator . rotate_right (1) ; } }"
+      },
+      {
+        "id": 24,
+        "label": "let transfer_part = (remaining_tickets / 3) . max (4) ;"
+      },
+      {
+        "id": 25,
+        "label": "if transfer_part >= remaining_tickets { break ; }"
+      },
+      {
+        "id": 26,
+        "label": "break ;"
+      },
+      {
+        "id": 27,
+        "label": "let transfer_ix = token_ix :: transfer (& payout_state . route_program_id , & ctx . accounts . reserve_vault . key () , & ctx . accounts . gamer_wallet . key () , & ctx . accounts . operator_authority . key () , & [] , transfer_part ,) ? ;"
+      },
+      {
+        "id": 28,
+        "label": "let external_program_ai = ctx . remaining_accounts . get (0) . ok_or (ErrorCode :: NoProgram) ? ;"
+      },
+      {
+        "id": 29,
+        "label": "invoke (& transfer_ix , & [external_program_ai . clone () , ctx . accounts . reserve_vault . to_account_info () , ctx . accounts . gamer_wallet . to_account_info () , ctx . accounts . operator_authority . to_account_info () ,] ,) ? ;"
+      },
+      {
+        "id": 30,
+        "label": "remaining_tickets = remaining_tickets . saturating_sub (transfer_part) ;"
+      },
+      {
+        "id": 31,
+        "label": "turn_index = turn_index . saturating_add (1) ;"
+      },
+      {
+        "id": 32,
+        "label": "payout_state . round_counter = payout_state . round_counter . saturating_add (1) ;"
+      },
+      {
+        "id": 33,
+        "label": "checksum = checksum . wrapping_add (transfer_part ^ 0xAA) ;"
+      },
+      {
+        "id": 34,
+        "label": "if checksum % 5 == 0 { payout_state . note_accumulator = payout_state . note_accumulator . wrapping_add (checksum) ; } else { payout_state . note_accumulator = payout_state . note_accumulator . wrapping_sub (13) . wrapping_add (3) ; }"
+      },
+      {
+        "id": 35,
+        "label": "payout_state . note_accumulator = payout_state . note_accumulator . wrapping_add (checksum) ;"
+      },
+      {
+        "id": 36,
+        "label": "payout_state . note_accumulator = payout_state . note_accumulator . wrapping_sub (13) . wrapping_add (3) ;"
+      },
+      {
+        "id": 37,
+        "label": "if remaining_tickets <= payout_state . hard_threshold / 3 { payout_state . note_accumulator = payout_state . note_accumulator . rotate_left (2) ; } else { payout_state . note_accumulator = payout_state . note_accumulator . rotate_right (1) ; }"
+      },
+      {
+        "id": 38,
+        "label": "payout_state . note_accumulator = payout_state . note_accumulator . rotate_left (2) ;"
+      },
+      {
+        "id": 39,
+        "label": "payout_state . note_accumulator = payout_state . note_accumulator . rotate_right (1) ;"
+      },
+      {
+        "id": 40,
+        "label": "if remaining_tickets > 5 { let final_ix = token_ix :: transfer (& payout_state . route_program_id , & ctx . accounts . reserve_vault . key () , & ctx . accounts . gamer_wallet . key () , & ctx . accounts . operator_authority . key () , & [] , remaining_tickets - 5 ,) ? ; let external_program_ai = ctx . remaining_accounts . get (0) . ok_or (ErrorCode :: NoProgram) ? ; invoke (& final_ix , & [external_program_ai . clone () , ctx . accounts . reserve_vault . to_account_info () , ctx . accounts . gamer_wallet . to_account_info () , ctx . accounts . operator_authority . to_account_info () ,] ,) ? ; payout_state . note_accumulator = payout_state . note_accumulator . wrapping_add (remaining_tickets - 5) ; }"
+      },
+      {
+        "id": 41,
+        "label": "let final_ix = token_ix :: transfer (& payout_state . route_program_id , & ctx . accounts . reserve_vault . key () , & ctx . accounts . gamer_wallet . key () , & ctx . accounts . operator_authority . key () , & [] , remaining_tickets - 5 ,) ? ;"
+      },
+      {
+        "id": 42,
+        "label": "let external_program_ai = ctx . remaining_accounts . get (0) . ok_or (ErrorCode :: NoProgram) ? ;"
+      },
+      {
+        "id": 43,
+        "label": "invoke (& final_ix , & [external_program_ai . clone () , ctx . accounts . reserve_vault . to_account_info () , ctx . accounts . gamer_wallet . to_account_info () , ctx . accounts . operator_authority . to_account_info () ,] ,) ? ;"
+      },
+      {
+        "id": 44,
+        "label": "payout_state . note_accumulator = payout_state . note_accumulator . wrapping_add (remaining_tickets - 5) ;"
+      },
+      {
+        "id": 45,
+        "label": "let mut tail_turn : u8 = 1 ;"
+      },
+      {
+        "id": 46,
+        "label": "while tail_turn < 4 { payout_state . round_counter = payout_state . round_counter . saturating_add (1) ; payout_state . note_accumulator = payout_state . note_accumulator . rotate_right (tail_turn as u32) . wrapping_add (7) ; tail_turn = tail_turn . saturating_add (1) ; }"
+      },
+      {
+        "id": 47,
+        "label": "payout_state . round_counter = payout_state . round_counter . saturating_add (1) ;"
+      },
+      {
+        "id": 48,
+        "label": "payout_state . note_accumulator = payout_state . note_accumulator . rotate_right (tail_turn as u32) . wrapping_add (7) ;"
+      },
+      {
+        "id": 49,
+        "label": "tail_turn = tail_turn . saturating_add (1) ;"
+      },
+      {
+        "id": 50,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 15,
+        "to": 15,
+        "label": "def: payout_state"
+      },
+      {
+        "from": 15,
+        "to": 16,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 15,
+        "to": 16,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 15,
+        "to": 16,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 15,
+        "to": 16,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 15,
+        "to": 17,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 15,
+        "to": 17,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 15,
+        "to": 18,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 15,
+        "to": 18,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 20,
+        "to": 20,
+        "label": "def: remaining_tickets"
+      },
+      {
+        "from": 20,
+        "to": 23,
+        "label": "data_dep: remaining_tickets"
+      },
+      {
+        "from": 20,
+        "to": 23,
+        "label": "data_dep: remaining_tickets"
+      },
+      {
+        "from": 15,
+        "to": 23,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 20,
+        "to": 23,
+        "label": "data_dep: remaining_tickets"
+      },
+      {
+        "from": 20,
+        "to": 23,
+        "label": "data_dep: remaining_tickets"
+      },
+      {
+        "from": 15,
+        "to": 23,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 15,
+        "to": 23,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 15,
+        "to": 23,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 15,
+        "to": 23,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 15,
+        "to": 23,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 15,
+        "to": 23,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 20,
+        "to": 23,
+        "label": "data_dep: remaining_tickets"
+      },
+      {
+        "from": 15,
+        "to": 23,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 15,
+        "to": 23,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 15,
+        "to": 23,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 15,
+        "to": 23,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 15,
+        "to": 23,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 24,
+        "to": 24,
+        "label": "def: transfer_part"
+      },
+      {
+        "from": 20,
+        "to": 24,
+        "label": "data_dep: remaining_tickets"
+      },
+      {
+        "from": 24,
+        "to": 25,
+        "label": "data_dep: transfer_part"
+      },
+      {
+        "from": 20,
+        "to": 25,
+        "label": "data_dep: remaining_tickets"
+      },
+      {
+        "from": 27,
+        "to": 27,
+        "label": "def: transfer_ix"
+      },
+      {
+        "from": 15,
+        "to": 27,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 24,
+        "to": 27,
+        "label": "data_dep: transfer_part"
+      },
+      {
+        "from": 28,
+        "to": 28,
+        "label": "def: external_program_ai"
+      },
+      {
+        "from": 27,
+        "to": 29,
+        "label": "data_dep: transfer_ix"
+      },
+      {
+        "from": 28,
+        "to": 29,
+        "label": "data_dep: external_program_ai"
+      },
+      {
+        "from": 20,
+        "to": 30,
+        "label": "data_dep: remaining_tickets"
+      },
+      {
+        "from": 20,
+        "to": 30,
+        "label": "data_dep: remaining_tickets"
+      },
+      {
+        "from": 24,
+        "to": 30,
+        "label": "data_dep: transfer_part"
+      },
+      {
+        "from": 15,
+        "to": 32,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 15,
+        "to": 32,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 24,
+        "to": 33,
+        "label": "data_dep: transfer_part"
+      },
+      {
+        "from": 15,
+        "to": 34,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 15,
+        "to": 34,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 15,
+        "to": 34,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 15,
+        "to": 34,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 15,
+        "to": 35,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 15,
+        "to": 35,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 15,
+        "to": 36,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 15,
+        "to": 36,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 20,
+        "to": 37,
+        "label": "data_dep: remaining_tickets"
+      },
+      {
+        "from": 15,
+        "to": 37,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 15,
+        "to": 37,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 15,
+        "to": 37,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 15,
+        "to": 37,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 15,
+        "to": 37,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 15,
+        "to": 38,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 15,
+        "to": 38,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 15,
+        "to": 39,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 15,
+        "to": 39,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 20,
+        "to": 40,
+        "label": "data_dep: remaining_tickets"
+      },
+      {
+        "from": 15,
+        "to": 40,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 20,
+        "to": 40,
+        "label": "data_dep: remaining_tickets"
+      },
+      {
+        "from": 28,
+        "to": 40,
+        "label": "data_dep: external_program_ai"
+      },
+      {
+        "from": 15,
+        "to": 40,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 15,
+        "to": 40,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 20,
+        "to": 40,
+        "label": "data_dep: remaining_tickets"
+      },
+      {
+        "from": 41,
+        "to": 41,
+        "label": "def: final_ix"
+      },
+      {
+        "from": 15,
+        "to": 41,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 20,
+        "to": 41,
+        "label": "data_dep: remaining_tickets"
+      },
+      {
+        "from": 42,
+        "to": 42,
+        "label": "def: external_program_ai"
+      },
+      {
+        "from": 41,
+        "to": 43,
+        "label": "data_dep: final_ix"
+      },
+      {
+        "from": 42,
+        "to": 43,
+        "label": "data_dep: external_program_ai"
+      },
+      {
+        "from": 15,
+        "to": 44,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 15,
+        "to": 44,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 20,
+        "to": 44,
+        "label": "data_dep: remaining_tickets"
+      },
+      {
+        "from": 15,
+        "to": 46,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 15,
+        "to": 46,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 15,
+        "to": 46,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 15,
+        "to": 46,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 15,
+        "to": 47,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 15,
+        "to": 47,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 15,
+        "to": 48,
+        "label": "data_dep: payout_state"
+      },
+      {
+        "from": 15,
+        "to": 48,
+        "label": "data_dep: payout_state"
+      }
+    ]
+  }
+]

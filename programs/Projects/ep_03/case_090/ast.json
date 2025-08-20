@@ -1,0 +1,166 @@
+[
+  {
+    "name": "lock_nft_for_bridge",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < LockNFT >"
+    ],
+    "attributes": [
+      "# [doc = \" NFT をブリッジ用にロックするが、\"]",
+      "# [doc = \" bridge_account.owner と ctx.accounts.user.key() の一致検証がない\"]"
+    ],
+    "body": [
+      "let bridge = & mut ctx . accounts . bridge_account ;",
+      "bridge . locked = true ;",
+      "bridge . destination_chain = ctx . accounts . config . chain_id ;",
+      "bridge . lock_count = bridge . lock_count . saturating_add (1) ;",
+      "let cpi_accounts = Transfer { from : ctx . accounts . user_nft_account . to_account_info () , to : ctx . accounts . vault_nft_account . to_account_info () , authority : ctx . accounts . user . to_account_info () , } ;",
+      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
+      "token :: transfer (cpi_ctx , 1) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "release_nft_from_bridge",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ReleaseNFT >"
+    ],
+    "attributes": [
+      "# [doc = \" ブリッジ完了後にロックを解除し NFT を返却するが、\"]",
+      "# [doc = \" bridge_account.owner と ctx.accounts.user.key() の一致検証がない\"]"
+    ],
+    "body": [
+      "let bridge = & mut ctx . accounts . bridge_account ;",
+      "bridge . locked = false ;",
+      "bridge . release_count = bridge . release_count . saturating_add (1) ;",
+      "let cpi_accounts = Transfer { from : ctx . accounts . vault_nft_account . to_account_info () , to : ctx . accounts . user_nft_account . to_account_info () , authority : ctx . accounts . service_authority . to_account_info () , } ;",
+      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
+      "token :: transfer (cpi_ctx , 1) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "LockNFT",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "bridge_account",
+        "attribute": "# [account (mut)] # [doc = \" 本来は #[account(has_one = owner)] を指定して所有者照合すべき\"]",
+        "field_type": "Account < 'info , BridgeAccount >"
+      },
+      {
+        "name": "user_nft_account",
+        "attribute": "# [doc = \" ユーザーの NFT 保有アカウント\"] # [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "vault_nft_account",
+        "attribute": "# [doc = \" Escrow Vault 用トークンアカウント\"] # [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" CPI 実行のためのユーザー署名\"]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": "# [doc = \" SPL トークンプログラム\"]",
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "config",
+        "attribute": "# [doc = \" ブリッジ設定（チェーン ID など）\"]",
+        "field_type": "Account < 'info , BridgeConfig >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ReleaseNFT",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "bridge_account",
+        "attribute": "# [account (mut)] # [doc = \" 本来は #[account(has_one = owner)] を指定して所有者照合すべき\"]",
+        "field_type": "Account < 'info , BridgeAccount >"
+      },
+      {
+        "name": "vault_nft_account",
+        "attribute": "# [doc = \" Escrow Vault 用トークンアカウント\"] # [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "user_nft_account",
+        "attribute": "# [doc = \" ユーザーの NFT 受取アカウント\"] # [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "service_authority",
+        "attribute": "# [doc = \" CPI 実行用サービス権限アカウント\"]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": "# [doc = \" SPL トークンプログラム\"]",
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BridgeAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 本来このブリッジを操作できるユーザーの Pubkey\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "locked",
+        "attribute": "# [doc = \" ロック中かどうか\"]",
+        "field_type": "bool"
+      },
+      {
+        "name": "destination_chain",
+        "attribute": "# [doc = \" 送信先チェーンの ID\"]",
+        "field_type": "u16"
+      },
+      {
+        "name": "lock_count",
+        "attribute": "# [doc = \" NFT ロック回数\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "release_count",
+        "attribute": "# [doc = \" NFT 解除回数\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BridgeConfig",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "chain_id",
+        "attribute": "# [doc = \" ブリッジ先チェーンを識別する固定 ID\"]",
+        "field_type": "u16"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

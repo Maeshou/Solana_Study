@@ -1,33 +1,62 @@
 [
   {
-    "name": "initialize_subscription_plan",
+    "name": "list",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Initialize020 >",
-      "param: u64"
+      "ctx: Context < List >",
+      "prices: Vec < u64 >"
     ],
     "attributes": [],
     "body": [
-      "let mut data = SubscriptionPlanData :: try_from_slice (& ctx . accounts . data_account . data . borrow ()) ? ;",
-      "data . value = param ;",
-      "data . serialize (& mut * ctx . accounts . data_account . data . borrow_mut ()) ? ;",
+      "let mut min = u64 :: MAX ;",
+      "for & p in prices . iter ()",
+      "{",
+      "if p < min",
+      "{",
+      "min = p ;",
+      "}",
+      "}",
+      "let l = & mut ctx . accounts . listing ;",
+      "l . lowest = min ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Initialize020",
+    "name": "buy",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Buy >",
+      "qty: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let _l = & ctx . accounts . listing ;",
+      "let pur = & mut ctx . accounts . purchase_account ;",
+      "pur . buyer = ctx . accounts . user . key () ;",
+      "pur . qty = qty ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "List",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "listing",
+        "attribute": "# [account (init , payer = seller , space = 8 + 8)]",
+        "field_type": "Account < 'info , ListingData >"
       },
       {
-        "name": "authority",
-        "attribute": null,
+        "name": "seller",
+        "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -35,13 +64,61 @@
     "body": null
   },
   {
-    "name": "SubscriptionPlanData",
+    "name": "Buy",
     "node_type": "struct",
     "fields": [
       {
-        "name": "value",
+        "name": "listing",
+        "attribute": null,
+        "field_type": "Account < 'info , ListingData >"
+      },
+      {
+        "name": "purchase_account",
+        "attribute": "# [account (mut , init , payer = user , space = 8 + 32 + 4)]",
+        "field_type": "Account < 'info , PurchaseData >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ListingData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "lowest",
         "attribute": null,
         "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PurchaseData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "buyer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "qty",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

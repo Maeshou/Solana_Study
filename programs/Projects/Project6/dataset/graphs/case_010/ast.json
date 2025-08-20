@@ -1,0 +1,305 @@
+[
+  {
+    "name": "init_catalog",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitCatalog >"
+    ],
+    "attributes": [],
+    "body": [
+      "let c = & mut ctx . accounts . catalog ;",
+      "c . owner = ctx . accounts . owner . key () ;",
+      "c . index = 0 ;",
+      "c . hash = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "issue_card",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < IssueCard >",
+      "kind: Kind",
+      "init_balance: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let card = & mut ctx . accounts . card ;",
+      "card . parent = ctx . accounts . catalog . key () ;",
+      "card . kind = kind ;",
+      "card . balance = init_balance ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "place_order",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PlaceOrder >",
+      "price: u32",
+      "qty: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let o = & mut ctx . accounts . order ;",
+      "o . parent = ctx . accounts . catalog . key () ;",
+      "o . price = price ;",
+      "o . qty = qty ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "settle_trade",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SettleTrade >"
+    ],
+    "attributes": [],
+    "body": [
+      "let cat = & mut ctx . accounts . catalog ;",
+      "let buyer = & mut ctx . accounts . card_buyer ;",
+      "let seller = & mut ctx . accounts . card_seller ;",
+      "let order = & mut ctx . accounts . order ;",
+      "let rec = & mut ctx . accounts . record ;",
+      "let cost = (order . price as u64) . saturating_mul (order . qty as u64) ;",
+      "if buyer . balance >= cost",
+      "{",
+      "buyer . balance = buyer . balance . saturating_sub (cost) ;",
+      "seller . balance = seller . balance . saturating_add (cost) ;",
+      "rec . ok = rec . ok . saturating_add (1) ;",
+      "} else",
+      "{",
+      "rec . ng = rec . ng . saturating_add (1) ;",
+      "}",
+      "cat . index = cat . index . wrapping_add (order . qty as u64) ;",
+      "cat . hash ^= ((order . price as u64) << 7) ^ (order . qty as u64) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitCatalog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "catalog",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 8)]",
+        "field_type": "Account < 'info , Catalog >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "IssueCard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "catalog",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Catalog >"
+      },
+      {
+        "name": "card",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 1 + 8)]",
+        "field_type": "Account < 'info , Card >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PlaceOrder",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "catalog",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Catalog >"
+      },
+      {
+        "name": "order",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 4 + 4)]",
+        "field_type": "Account < 'info , Order >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SettleTrade",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "catalog",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Catalog >"
+      },
+      {
+        "name": "card_buyer",
+        "attribute": "# [account (mut , constraint = card_buyer . parent == catalog . key () @ ShopErr :: Cosplay)]",
+        "field_type": "Account < 'info , Card >"
+      },
+      {
+        "name": "card_seller",
+        "attribute": "# [account (mut , constraint = card_seller . parent == catalog . key () @ ShopErr :: Cosplay , constraint = card_buyer . key () != card_seller . key () @ ShopErr :: Cosplay , constraint = card_buyer . kind as u8 != card_seller . kind as u8 @ ShopErr :: Cosplay)]",
+        "field_type": "Account < 'info , Card >"
+      },
+      {
+        "name": "order",
+        "attribute": "# [account (mut , constraint = order . parent == catalog . key () @ ShopErr :: Cosplay)]",
+        "field_type": "Account < 'info , Order >"
+      },
+      {
+        "name": "record",
+        "attribute": "# [account (init_if_needed , payer = owner , space = 8 + 32 + 8 + 8)]",
+        "field_type": "Account < 'info , TradeRecord >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Catalog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "index",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "hash",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Order",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "price",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "qty",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Card",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "kind",
+        "attribute": null,
+        "field_type": "Kind"
+      },
+      {
+        "name": "balance",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TradeRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "ok",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "ng",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

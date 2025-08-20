@@ -1,0 +1,151 @@
+[
+  {
+    "name": "init_deal",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitDeal >",
+      "scholar_bps: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let d = & mut ctx . accounts . deal ;",
+      "d . manager = ctx . accounts . manager . key () ;",
+      "d . scholar_bps = scholar_bps . min (9000) ;",
+      "d . rounds = 0 ;",
+      "d . paid_out = 0 ;",
+      "d . mode = SplitMode :: Fixed ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_split",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActSplit >",
+      "revenue: u64",
+      "dynamic: bool"
+    ],
+    "attributes": [],
+    "body": [
+      "let d = & mut ctx . accounts . deal ;",
+      "let mut bonus = 0u64 ;",
+      "for _ in 0 .. (d . rounds % 5)",
+      "{",
+      "bonus = bonus . saturating_add (10) ;",
+      "}",
+      "if dynamic",
+      "{",
+      "d . mode = SplitMode :: Dynamic ;",
+      "} else",
+      "{",
+      "d . mode = SplitMode :: Fixed ;",
+      "}",
+      "let scholar_cut = match d . mode { SplitMode :: Fixed => revenue . saturating_mul (d . scholar_bps as u64) / 10_000 , SplitMode :: Dynamic => (revenue / 2) . saturating_add (bonus) , } ;",
+      "let manager_cut = revenue . saturating_sub (scholar_cut) ;",
+      "token :: transfer (ctx . accounts . pay_to_scholar () , scholar_cut) ? ;",
+      "token :: transfer (ctx . accounts . pay_to_manager () , manager_cut) ? ;",
+      "d . rounds = d . rounds . saturating_add (1) ;",
+      "d . paid_out = d . paid_out . saturating_add (revenue) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitDeal",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "deal",
+        "attribute": "# [account (init , payer = manager , space = 8 + 32 + 2 + 8 + 8 + 1)]",
+        "field_type": "Account < 'info , Deal >"
+      },
+      {
+        "name": "manager",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActSplit",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "deal",
+        "attribute": "# [account (mut , has_one = manager)]",
+        "field_type": "Account < 'info , Deal >"
+      },
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "income_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "scholar_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "manager_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Deal",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "scholar_bps",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "rounds",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "paid_out",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "mode",
+        "attribute": null,
+        "field_type": "SplitMode"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

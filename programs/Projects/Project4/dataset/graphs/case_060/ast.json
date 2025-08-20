@@ -1,33 +1,87 @@
 [
   {
-    "name": "initialize_variable_reward",
+    "name": "init_course",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Initialize060 >",
-      "param: u64"
+      "ctx: Context < InitCourse >",
+      "capacity: u8",
+      "initial: u8"
     ],
     "attributes": [],
     "body": [
-      "let mut data = VariableRewardData :: try_from_slice (& ctx . accounts . data_account . data . borrow ()) ? ;",
-      "data . value = param ;",
-      "data . serialize (& mut * ctx . accounts . data_account . data . borrow_mut ()) ? ;",
+      "let course = & mut ctx . accounts . course ;",
+      "course . capacity = capacity ;",
+      "course . registered = 0 ;",
+      "let mut xor_id = 0u8 ;",
+      "for i in 1 ..= initial . min (capacity)",
+      "{",
+      "course . registered += 1 ;",
+      "xor_id ^= i ;",
+      "}",
+      "let counter = & mut ctx . accounts . counter ;",
+      "counter . count = course . registered ;",
+      "counter . xor_id = xor_id ;",
+      "let stats = & mut ctx . accounts . stats ;",
+      "stats . full = course . registered == capacity ;",
+      "stats . enrolled = course . registered as u32 ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Initialize060",
+    "name": "register",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Register >"
+    ],
+    "attributes": [],
+    "body": [
+      "let course = & mut ctx . accounts . course ;",
+      "let counter = & mut ctx . accounts . counter ;",
+      "let stats = & mut ctx . accounts . stats ;",
+      "if course . registered < course . capacity",
+      "{",
+      "course . registered += 1 ;",
+      "counter . count += 1 ;",
+      "if counter . count % 2 == 0",
+      "{",
+      "counter . count += 10 ;",
+      "}",
+      "}",
+      "stats . full = course . registered == course . capacity ;",
+      "stats . enrolled = course . registered as u32 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitCourse",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "course",
+        "attribute": "# [account (init , payer = teacher , space = 8 + 1 + 1)]",
+        "field_type": "Account < 'info , CourseData >"
       },
       {
-        "name": "authority",
-        "attribute": null,
+        "name": "counter",
+        "attribute": "# [account (init , payer = teacher , space = 8 + 1 + 1)]",
+        "field_type": "Account < 'info , CounterData >"
+      },
+      {
+        "name": "stats",
+        "attribute": "# [account (init , payer = teacher , space = 8 + 1 + 4)]",
+        "field_type": "Account < 'info , StatsData >"
+      },
+      {
+        "name": "teacher",
+        "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -35,13 +89,80 @@
     "body": null
   },
   {
-    "name": "VariableRewardData",
+    "name": "Register",
     "node_type": "struct",
     "fields": [
       {
-        "name": "value",
+        "name": "course",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , CourseData >"
+      },
+      {
+        "name": "counter",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , CounterData >"
+      },
+      {
+        "name": "stats",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , StatsData >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CourseData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "capacity",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "u8"
+      },
+      {
+        "name": "registered",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CounterData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "count",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "xor_id",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "StatsData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "full",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "enrolled",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

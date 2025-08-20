@@ -1,33 +1,65 @@
 [
   {
-    "name": "initialize_registration_account",
+    "name": "init_course",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Initialize017 >",
-      "param: u64"
+      "ctx: Context < InitCourse >",
+      "slots: u8"
     ],
     "attributes": [],
     "body": [
-      "let mut data = RegistrationAccountData :: try_from_slice (& ctx . accounts . data_account . data . borrow ()) ? ;",
-      "data . value = param ;",
-      "data . serialize (& mut * ctx . accounts . data_account . data . borrow_mut ()) ? ;",
+      "let c = & mut ctx . accounts . course ;",
+      "c . capacity = slots ;",
+      "c . filled = 0 ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Initialize017",
+    "name": "batch_enroll",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < BatchEnroll >",
+      "students: Vec < Pubkey >"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut filled = ctx . accounts . course . filled ;",
+      "if filled >= ctx . accounts . course . capacity",
+      "{",
+      "return Ok (()) ;",
+      "}",
+      "for _ in students . iter ()",
+      "{",
+      "if filled < ctx . accounts . course . capacity",
+      "{",
+      "filled += 1 ;",
+      "}",
+      "}",
+      "let e = & mut ctx . accounts . enrollment_account ;",
+      "e . count = filled ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitCourse",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "course",
+        "attribute": "# [account (init , payer = admin , space = 8 + 1 + 1)]",
+        "field_type": "Account < 'info , CourseData >"
       },
       {
-        "name": "authority",
-        "attribute": null,
+        "name": "admin",
+        "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -35,13 +67,61 @@
     "body": null
   },
   {
-    "name": "RegistrationAccountData",
+    "name": "BatchEnroll",
     "node_type": "struct",
     "fields": [
       {
-        "name": "value",
+        "name": "course",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "Account < 'info , CourseData >"
+      },
+      {
+        "name": "enrollment_account",
+        "attribute": "# [account (mut , init , payer = admin , space = 8 + 4)]",
+        "field_type": "Account < 'info , EnrollmentData >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CourseData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "capacity",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "filled",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EnrollmentData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "count",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

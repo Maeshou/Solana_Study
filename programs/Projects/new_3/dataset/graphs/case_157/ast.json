@@ -1,0 +1,183 @@
+[
+  {
+    "name": "Order",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "buyer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "total_price",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "paid",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Payment",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "payer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "order_id",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "amount",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreateOrder",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "order",
+        "attribute": "# [account (init , payer = buyer , space = 8 + 32 + 8 + 1)]",
+        "field_type": "Account < 'info , Order >"
+      },
+      {
+        "name": "buyer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MakePayment",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "order",
+        "attribute": "# [doc = \" Order.buyer == buyer.key() は検証される\"] # [account (mut , has_one = buyer)]",
+        "field_type": "Account < 'info , Order >"
+      },
+      {
+        "name": "payment",
+        "attribute": "# [doc = \" Payment.order_id == order.key() の検証がない\"] # [account (init , payer = buyer , space = 8 + 32 + 32 + 8)]",
+        "field_type": "Account < 'info , Payment >"
+      },
+      {
+        "name": "buyer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ConfirmPayment",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "order",
+        "attribute": "# [doc = \" Order.buyer == buyer.key() は検証される\"] # [account (mut , has_one = buyer)]",
+        "field_type": "Account < 'info , Order >"
+      },
+      {
+        "name": "payment",
+        "attribute": "# [doc = \" Payment.order_id と order.key() の一致チェックがない\"] # [account (mut)]",
+        "field_type": "Account < 'info , Payment >"
+      },
+      {
+        "name": "buyer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "create_order",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateOrder >",
+      "total_price: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 注文を作成\"]"
+    ],
+    "body": [
+      "let o = & mut ctx . accounts . order ;",
+      "o . buyer = ctx . accounts . buyer . key () ;",
+      "o . total_price = total_price ;",
+      "o . paid = false ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "make_payment",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < MakePayment >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 支払いを記録\"]"
+    ],
+    "body": [
+      "let p = & mut ctx . accounts . payment ;",
+      "let o = & ctx . accounts . order ;",
+      "p . payer = ctx . accounts . buyer . key () ;",
+      "p . order_id = o . key () ;",
+      "p . amount = amount ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "confirm_payment",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ConfirmPayment >"
+    ],
+    "attributes": [
+      "# [doc = \" 支払いを確定\"]"
+    ],
+    "body": [
+      "let o = & mut ctx . accounts . order ;",
+      "let p = & ctx . accounts . payment ;",
+      "o . paid = true ;",
+      "Ok (())"
+    ]
+  }
+]

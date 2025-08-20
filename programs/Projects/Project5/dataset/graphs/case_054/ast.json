@@ -1,40 +1,205 @@
 [
   {
-    "name": "deposit_farm",
+    "name": "init_museum",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx054 >",
-      "amount: u64"
+      "ctx: Context < InitMuseum >",
+      "cap: u32"
     ],
     "attributes": [],
     "body": [
-      "let src = & mut ctx . accounts . account_src ;",
-      "let dst = & mut ctx . accounts . account_dst ;",
-      "let before = * * src . to_account_info () . try_borrow_lamports () ? ;",
-      "* * src . to_account_info () . try_borrow_mut_lamports () ? = before . saturating_sub (amount) ;",
-      "* * dst . to_account_info () . try_borrow_mut_lamports () ? += amount ;",
+      "let a = & mut ctx . accounts ;",
+      "a . museum . curator = a . curator . key () ;",
+      "a . museum . cap = cap ;",
+      "a . museum . state = Draft ;",
+      "a . relic_a . museum = a . museum . key () ;",
+      "a . relic_b . museum = a . museum . key () ;",
+      "a . log . museum = a . museum . key () ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx054",
+    "name": "update_exhibit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < UpdateExhibit >",
+      "rounds: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let a = & mut ctx . accounts ;",
+      "for i in 0 .. rounds",
+      "{",
+      "let w = 3 + (i % 5) ;",
+      "a . relic_a . score = a . relic_a . score . wrapping_add (w * 7) ;",
+      "a . relic_b . score = a . relic_b . score . wrapping_add ((w + 2) * 5) ;",
+      "a . log . events = a . log . events . wrapping_add (1) ;",
+      "}",
+      "let sum = a . relic_a . score as u64 + a . relic_b . score as u64 ;",
+      "if sum > a . museum . cap as u64",
+      "{",
+      "a . museum . state = Seal ;",
+      "a . log . flags = a . log . flags . wrapping_add (2) ;",
+      "a . relic_a . score = a . relic_a . score / 2 + 11 ;",
+      "a . relic_b . score = a . relic_b . score / 2 + 13 ;",
+      "msg ! (\"sealed: flags+2, both scores halved+adj\") ;",
+      "} else",
+      "{",
+      "a . museum . state = Open ;",
+      "a . log . checks = a . log . checks . wrapping_add (1) ;",
+      "a . relic_a . score = a . relic_a . score . rotate_left (1) ;",
+      "a . relic_b . score = a . relic_b . score . rotate_right (1) ;",
+      "msg ! (\"open: checks+1, rotate scores\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitMuseum",
     "node_type": "struct",
     "fields": [
       {
-        "name": "account_src",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "museum",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Museum >"
       },
       {
-        "name": "account_dst",
+        "name": "relic_a",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4)]",
+        "field_type": "Account < 'info , Relic >"
+      },
+      {
+        "name": "relic_b",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4)]",
+        "field_type": "Account < 'info , Relic >"
+      },
+      {
+        "name": "log",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 8 + 4)]",
+        "field_type": "Account < 'info , ExhibitLog >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "curator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
       },
       {
         "name": "system_program",
         "attribute": null,
         "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "UpdateExhibit",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "museum",
+        "attribute": "# [account (mut , has_one = curator)]",
+        "field_type": "Account < 'info , Museum >"
+      },
+      {
+        "name": "relic_a",
+        "attribute": "# [account (mut , has_one = museum , constraint = relic_a . key () != relic_b . key () @ MsErr :: Dup , constraint = relic_a . key () != log . key () @ MsErr :: Dup)]",
+        "field_type": "Account < 'info , Relic >"
+      },
+      {
+        "name": "relic_b",
+        "attribute": "# [account (mut , has_one = museum)]",
+        "field_type": "Account < 'info , Relic >"
+      },
+      {
+        "name": "log",
+        "attribute": "# [account (mut , has_one = museum)]",
+        "field_type": "Account < 'info , ExhibitLog >"
+      },
+      {
+        "name": "curator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Museum",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "curator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "cap",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "state",
+        "attribute": null,
+        "field_type": "ExhibitState"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Relic",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "museum",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "score",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ExhibitLog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "museum",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "events",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "checks",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "flags",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

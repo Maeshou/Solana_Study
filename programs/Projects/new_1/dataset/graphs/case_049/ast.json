@@ -1,0 +1,205 @@
+[
+  {
+    "name": "increase_cap",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < IncreaseCap >",
+      "burn_amount: u64",
+      "multiplier: u64"
+    ],
+    "attributes": [
+      "# [doc = \" バーンしたトークン量に応じてアーニング上限を拡張します。\"]"
+    ],
+    "body": [
+      "let profile = & mut ctx . accounts . profile ;",
+      "profile . burned_total = profile . burned_total . saturating_add (burn_amount) ;",
+      "let added = burn_amount . checked_mul (multiplier) . unwrap () ;",
+      "profile . cap = profile . cap . saturating_add (added) ;"
+    ]
+  },
+  {
+    "name": "earn_tokens",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < EarnTokens >",
+      "rate_per_nft: u64"
+    ],
+    "attributes": [
+      "# [doc = \" NFT 保有量に応じてトークンをアーニングします（上限あり）。\"]"
+    ],
+    "body": [
+      "let profile = & ctx . accounts . profile ;",
+      "let status = & mut ctx . accounts . status ;",
+      "let hold = ctx . accounts . hold_acc . amount ;",
+      "let potential = hold . checked_mul (rate_per_nft) . unwrap () ;",
+      "let available_cap = profile . cap . saturating_sub (status . earned) ;",
+      "let to_add = potential . min (available_cap) ;",
+      "status . earned = status . earned . saturating_add (to_add) ;"
+    ]
+  },
+  {
+    "name": "claim_tokens",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ClaimTokens >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" アーニング済みトークンを請求（クレーム）します。\"]"
+    ],
+    "body": [
+      "let status = & mut ctx . accounts . status ;",
+      "let available = status . earned . saturating_sub (status . claimed) ;",
+      "let to_claim = amount . min (available) ;",
+      "status . claimed = status . claimed . saturating_add (to_claim) ;"
+    ]
+  },
+  {
+    "name": "reset_status",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ResetStatus >"
+    ],
+    "attributes": [
+      "# [doc = \" アーニング状態をリセットします（例：シーズン切替時など）。\"]"
+    ],
+    "body": [
+      "let status = & mut ctx . accounts . status ;",
+      "status . earned = 0 ;",
+      "status . claimed = 0 ;"
+    ]
+  },
+  {
+    "name": "IncreaseCap",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 実行ユーザー（署名チェック omitted intentionally）\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "profile",
+        "attribute": "# [doc = \" プロフィールデータ（PDA）\"] # [account (mut)]",
+        "field_type": "Account < 'info , ProfileData >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EarnTokens",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 実行ユーザー（署名チェック omitted intentionally）\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "hold_acc",
+        "attribute": "# [doc = \" NFT 保有枚数を参照する TokenAccount\"] # [account (constraint = hold_acc . owner == * user . key)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "profile",
+        "attribute": "# [doc = \" アーニング上限を管理する PDA\"]",
+        "field_type": "Account < 'info , ProfileData >"
+      },
+      {
+        "name": "status",
+        "attribute": "# [doc = \" アーニングステータスを保持する PDA\"] # [account (mut)]",
+        "field_type": "Account < 'info , EarnStatus >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ClaimTokens",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 実行ユーザー（署名チェック omitted intentionally）\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "status",
+        "attribute": "# [doc = \" アーニングステータスを保持する PDA\"] # [account (mut)]",
+        "field_type": "Account < 'info , EarnStatus >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ResetStatus",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 実行ユーザー（署名チェック omitted intentionally）\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "status",
+        "attribute": "# [doc = \" アーニングステータスを保持する PDA\"] # [account (mut)]",
+        "field_type": "Account < 'info , EarnStatus >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ProfileData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "burned_total",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "cap",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EarnStatus",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "earned",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "claimed",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

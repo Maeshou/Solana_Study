@@ -1,0 +1,186 @@
+[
+  {
+    "name": "BugTicket",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "reporter",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "title",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "status",
+        "attribute": null,
+        "field_type": "String"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "FixRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "fixer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "ticket",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "note",
+        "attribute": null,
+        "field_type": "String"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreateTicket",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ticket",
+        "attribute": "# [account (init , payer = reporter , space = 8 + 32 + 4 + 64 + 4 + 16)]",
+        "field_type": "Account < 'info , BugTicket >"
+      },
+      {
+        "name": "reporter",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RecordFix",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ticket",
+        "attribute": "# [doc = \" BugTicket.reporter == reporter.key() は検証される\"] # [account (mut , has_one = reporter)]",
+        "field_type": "Account < 'info , BugTicket >"
+      },
+      {
+        "name": "record",
+        "attribute": "# [doc = \" FixRecord.ticket ⇔ ticket.key() の検証がないため、\"] # [doc = \" 偽のレコードで任意のチケットを修了扱いにできる\"] # [account (init , payer = fixer , space = 8 + 32 + 32 + 4 + 128)]",
+        "field_type": "Account < 'info , FixRecord >"
+      },
+      {
+        "name": "reporter",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "fixer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ApplyFix",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "record",
+        "attribute": "# [doc = \" FixRecord.fixer == fixer.key() は検証される\"] # [account (mut , has_one = fixer)]",
+        "field_type": "Account < 'info , FixRecord >"
+      },
+      {
+        "name": "ticket",
+        "attribute": "# [doc = \" ticket.key() ⇔ record.ticket の検証がないため、\"] # [doc = \" 偽のレコードで別チケットのステータスを変えられる\"] # [account (mut)]",
+        "field_type": "Account < 'info , BugTicket >"
+      },
+      {
+        "name": "fixer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "create_ticket",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateTicket >",
+      "title: String"
+    ],
+    "attributes": [
+      "# [doc = \" チケットを作成\"]"
+    ],
+    "body": [
+      "let t = & mut ctx . accounts . ticket ;",
+      "t . reporter = ctx . accounts . reporter . key () ;",
+      "t . title = title ;",
+      "t . status = \"open\" . to_string () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "record_fix",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RecordFix >",
+      "note: String"
+    ],
+    "attributes": [
+      "# [doc = \" 修正記録を残す\"]"
+    ],
+    "body": [
+      "let r = & mut ctx . accounts . record ;",
+      "r . fixer = ctx . accounts . fixer . key () ;",
+      "r . ticket = ctx . accounts . ticket . key () ;",
+      "r . note = note ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "apply_fix",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ApplyFix >"
+    ],
+    "attributes": [
+      "# [doc = \" 修正を適用してチケットを閉じる\"]"
+    ],
+    "body": [
+      "let t = & mut ctx . accounts . ticket ;",
+      "t . status = \"fixed\" . to_uppercase () ;",
+      "Ok (())"
+    ]
+  }
+]

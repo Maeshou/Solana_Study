@@ -1,0 +1,161 @@
+[
+  {
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitDaily >",
+      "unit_lamports: u64",
+      "unit_tokens: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let d = & mut ctx . accounts . daily ;",
+      "d . admin = ctx . accounts . admin . key () ;",
+      "d . unit_lamports = unit_lamports ;",
+      "d . unit_tokens = unit_tokens . max (1) ;",
+      "d . last_day = 0 ;",
+      "d . use_system_today = false ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "tick",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < TickDaily >"
+    ],
+    "attributes": [],
+    "body": [
+      "let d = & mut ctx . accounts . daily ;",
+      "let now = Clock :: get () ? . unix_timestamp as u64 ;",
+      "let today = now / 86_400 ;",
+      "if d . last_day != today",
+      "{",
+      "d . last_day = today ;",
+      "d . use_system_today = ! d . use_system_today ;",
+      "}",
+      "if d . use_system_today",
+      "{",
+      "system_program :: transfer (CpiContext :: new (ctx . accounts . system_program . to_account_info () , SysTransfer",
+      "{",
+      "from : ctx . accounts . payer . to_account_info () , to : ctx . accounts . receiver . to_account_info () , } ,) , d . unit_lamports) ? ;",
+      "}",
+      "if ! d . use_system_today",
+      "{",
+      "token :: transfer (CpiContext :: new (ctx . accounts . token_program . to_account_info () , SplTransfer",
+      "{",
+      "from : ctx . accounts . src . to_account_info () , to : ctx . accounts . dst . to_account_info () , authority : ctx . accounts . admin . to_account_info () , } ,) , d . unit_tokens) ? ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitDaily",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "daily",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 8 + 8 + 8 + 1)]",
+        "field_type": "Account < 'info , DailyRoute >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TickDaily",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "daily",
+        "attribute": "# [account (mut , has_one = admin)]",
+        "field_type": "Account < 'info , DailyRoute >"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "receiver",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , SystemAccount >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "src",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "dst",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DailyRoute",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "unit_lamports",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "unit_tokens",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "last_day",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "use_system_today",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

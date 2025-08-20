@@ -1,0 +1,219 @@
+[
+  {
+    "name": "init_harvester",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitHarvester >",
+      "harvester_id: u64",
+      "energy_level: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let harvester = & mut ctx . accounts . harvester_core ;",
+      "harvester . harvester_id = harvester_id * 3 ;",
+      "harvester . energy_level = energy_level ;",
+      "harvester . crystals_processed = 0 ;",
+      "harvester . is_active = harvester . energy_level > 0 ;",
+      "msg ! (\"Quantum Harvester {} initialized with {} energy.\" , harvester . harvester_id , harvester . energy_level) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_crystal",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitCrystal >",
+      "crystal_id: u64",
+      "efficiency: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let crystal = & mut ctx . accounts . quantum_crystal ;",
+      "crystal . parent_harvester = ctx . accounts . harvester_core . key () ;",
+      "crystal . crystal_id = crystal_id ^ 0x1122334455667788 ;",
+      "crystal . efficiency = efficiency ;",
+      "crystal . is_charged = false ;",
+      "msg ! (\"New crystal {} created with {} efficiency.\" , crystal . crystal_id , crystal . efficiency) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "process_quantum_state",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ProcessQuantumState >",
+      "cycles: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let harvester = & mut ctx . accounts . harvester_core ;",
+      "let crystal_a = & mut ctx . accounts . crystal_a ;",
+      "let crystal_b = & mut ctx . accounts . crystal_b ;",
+      "for _i in 0 .. cycles",
+      "{",
+      "if crystal_a . efficiency > MIN_PROCESSING_EFFICIENCY",
+      "{",
+      "harvester . energy_level = harvester . energy_level . saturating_add (ENERGY_GAIN_PER_CYCLE) ;",
+      "crystal_a . is_charged = harvester . energy_level > MAX_ENERGY_CAPACITY / 2 ;",
+      "} else",
+      "{",
+      "harvester . energy_level = harvester . energy_level . saturating_sub (ENERGY_GAIN_PER_CYCLE / 2) ;",
+      "} if crystal_b . efficiency > MIN_PROCESSING_EFFICIENCY",
+      "{",
+      "harvester . energy_level = harvester . energy_level . saturating_add (ENERGY_GAIN_PER_CYCLE * 2) ;",
+      "crystal_b . is_charged = harvester . energy_level > MAX_ENERGY_CAPACITY ;",
+      "} else",
+      "{",
+      "harvester . energy_level = harvester . energy_level . saturating_sub (ENERGY_GAIN_PER_CYCLE) ;",
+      "}",
+      "}",
+      "harvester . crystals_processed = harvester . crystals_processed . saturating_add (2) ;",
+      "harvester . is_active = harvester . energy_level > 0 ;",
+      "msg ! (\"Processed crystals for {} cycles. Harvester energy: {}. Crystal A charged: {}, Crystal B charged: {}.\" , cycles , harvester . energy_level , crystal_a . is_charged , crystal_b . is_charged) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitHarvester",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "harvester_core",
+        "attribute": "# [account (init , payer = signer , space = 8 + 8 + 8 + 8 + 1)]",
+        "field_type": "Account < 'info , HarvesterCore >"
+      },
+      {
+        "name": "signer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitCrystal",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "quantum_crystal",
+        "attribute": "# [account (init , payer = signer , space = 8 + 32 + 8 + 4 + 1)]",
+        "field_type": "Account < 'info , QuantumCrystal >"
+      },
+      {
+        "name": "harvester_core",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , HarvesterCore >"
+      },
+      {
+        "name": "signer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ProcessQuantumState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "harvester_core",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , HarvesterCore >"
+      },
+      {
+        "name": "crystal_a",
+        "attribute": "# [account (mut , has_one = parent_harvester)]",
+        "field_type": "Account < 'info , QuantumCrystal >"
+      },
+      {
+        "name": "crystal_b",
+        "attribute": "# [account (mut , has_one = parent_harvester)]",
+        "field_type": "Account < 'info , QuantumCrystal >"
+      },
+      {
+        "name": "signer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "HarvesterCore",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "harvester_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "energy_level",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "crystals_processed",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "is_active",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "QuantumCrystal",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent_harvester",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "crystal_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "efficiency",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "is_charged",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

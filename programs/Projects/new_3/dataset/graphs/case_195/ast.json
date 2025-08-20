@@ -1,0 +1,183 @@
+[
+  {
+    "name": "TaskList",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "title",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "tasks",
+        "attribute": null,
+        "field_type": "Vec < Pubkey >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TaskAssignment",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "assignee",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "list",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "note",
+        "attribute": null,
+        "field_type": "String"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreateList",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "list",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 4 + 64 + 4 + (32 * 50))]",
+        "field_type": "Account < 'info , TaskList >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AssignTask",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "list",
+        "attribute": "# [doc = \" TaskList.owner == owner.key() は検証される\"] # [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , TaskList >"
+      },
+      {
+        "name": "record",
+        "attribute": "# [doc = \" TaskAssignment.list ⇔ list.key() の検証がないため、\"] # [doc = \" 偽のレコードで任意のリストにタスクを割り当てられる\"] # [account (init , payer = owner , space = 8 + 32 + 32 + 4 + 128)]",
+        "field_type": "Account < 'info , TaskAssignment >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RemoveAssignment",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "record",
+        "attribute": "# [doc = \" TaskAssignment.assignee == assignee.key() は検証される\"] # [account (mut , has_one = assignee)]",
+        "field_type": "Account < 'info , TaskAssignment >"
+      },
+      {
+        "name": "list",
+        "attribute": "# [doc = \" list.key() ⇔ record.list の検証がないため、\"] # [doc = \" 偽物のレコードで別リストからタスクを削除できる\"] # [account (mut)]",
+        "field_type": "Account < 'info , TaskList >"
+      },
+      {
+        "name": "assignee",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "create_list",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateList >",
+      "title: String"
+    ],
+    "attributes": [
+      "# [doc = \" 新しいタスクリストを作成\"]"
+    ],
+    "body": [
+      "let lst = & mut ctx . accounts . list ;",
+      "lst . owner = ctx . accounts . owner . key () ;",
+      "lst . title = title ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "assign_task",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AssignTask >",
+      "assignee: Pubkey",
+      "note: String"
+    ],
+    "attributes": [
+      "# [doc = \" タスクを割り当て\"]"
+    ],
+    "body": [
+      "let lst = & mut ctx . accounts . list ;",
+      "let rec = & mut ctx . accounts . record ;",
+      "rec . assignee = assignee ;",
+      "rec . list = lst . key () ;",
+      "rec . note = note ;",
+      "lst . tasks . push (assignee) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "remove_assignment",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RemoveAssignment >"
+    ],
+    "attributes": [
+      "# [doc = \" 割当を解除（最後に割り当てられたタスクを除去）\"]"
+    ],
+    "body": [
+      "let lst = & mut ctx . accounts . list ;",
+      "lst . tasks . pop () ;",
+      "Ok (())"
+    ]
+  }
+]

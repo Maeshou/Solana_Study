@@ -1,0 +1,176 @@
+[
+  {
+    "name": "issue_certificate",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < IssueCertificate >",
+      "metadata: String"
+    ],
+    "attributes": [
+      "# [doc = \" 証明書発行：メタデータと受取人を受け取り、初期フィールドだけ設定\"]"
+    ],
+    "body": [
+      "let cert = & mut ctx . accounts . certificate ;",
+      "cert . issuer = ctx . accounts . issuer . key () ;",
+      "cert . bump = * ctx . bumps . get (\"certificate\") . unwrap () ;",
+      "cert . cert_id = ctx . accounts . cert_id ;",
+      "cert . recipient = ctx . accounts . recipient . key () ;",
+      "cert . metadata = metadata ;",
+      "let now = ctx . accounts . clock . unix_timestamp ;",
+      "cert . issued_ts = now ;",
+      "cert . last_action_ts = now ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "verify_certificate",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyCertificate >"
+    ],
+    "attributes": [
+      "# [doc = \" 証明書検証：最後の検証時刻を更新\"]"
+    ],
+    "body": [
+      "let cert = & mut ctx . accounts . certificate ;",
+      "cert . last_action_ts = ctx . accounts . clock . unix_timestamp ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "revoke_certificate",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyCertificate >"
+    ],
+    "attributes": [
+      "# [doc = \" 証明書失効：is_revoked を立て、時刻を更新\"]"
+    ],
+    "body": [
+      "let cert = & mut ctx . accounts . certificate ;",
+      "cert . is_revoked = true ;",
+      "cert . last_action_ts = ctx . accounts . clock . unix_timestamp ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "IssueCertificate",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "certificate",
+        "attribute": "# [doc = \" ゼロクリア後、必要フィールドだけ設定\"] # [account (init_zeroed , payer = issuer , seeds = [b\"certificate\" , issuer . key () . as_ref () , & cert_id . to_le_bytes ()] , bump , space = 8 + 32 + 1 + 8 + 32 + 4 + 100 + 1 + 8 + 8)]",
+        "field_type": "Account < 'info , Certificate >"
+      },
+      {
+        "name": "issuer",
+        "attribute": "# [doc = \" 証明書発行者（署名必須）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "recipient",
+        "attribute": "# [doc = \" 証明書受取人（キーだけ必要なため未チェックアカウント）\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "cert_id",
+        "attribute": "# [doc = \" 証明書ID（PDA にも使用）\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "clock",
+        "attribute": "# [doc = \" 時刻取得用\"]",
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ModifyCertificate",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "certificate",
+        "attribute": "# [doc = \" 既存の証明書（PDA 検証 + オーナーチェック）\"] # [account (mut , seeds = [b\"certificate\" , certificate . issuer . as_ref () , & certificate . cert_id . to_le_bytes ()] , bump = certificate . bump , has_one = issuer)]",
+        "field_type": "Account < 'info , Certificate >"
+      },
+      {
+        "name": "issuer",
+        "attribute": "# [doc = \" 証明書発行者（署名必須）\"] # [account (signer)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": "# [doc = \" 時刻取得用\"]",
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Certificate",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "issuer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "cert_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "recipient",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "metadata",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "is_revoked",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "issued_ts",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "last_action_ts",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

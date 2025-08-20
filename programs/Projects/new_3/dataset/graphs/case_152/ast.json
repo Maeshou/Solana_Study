@@ -1,0 +1,140 @@
+[
+  {
+    "name": "Campaign",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "total_contributions",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "backers_count",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Donation",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "donor",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "campaign",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "contribution",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitializeCampaign",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "campaign",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 8)]",
+        "field_type": "Account < 'info , Campaign >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MakeDonation",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "campaign",
+        "attribute": "# [doc = \" Campaign.owner == owner.key() は検証される\"] # [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Campaign >"
+      },
+      {
+        "name": "donation",
+        "attribute": "# [doc = \" Donation.campaign == campaign.key() の検証が **ない**\"] # [account (init_if_needed , payer = donor , space = 8 + 32 + 32 + 8)]",
+        "field_type": "Account < 'info , Donation >"
+      },
+      {
+        "name": "donor",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "initialize_campaign",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeCampaign >",
+      "_goal: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let c = & mut ctx . accounts . campaign ;",
+      "c . owner = ctx . accounts . owner . key () ;",
+      "c . total_contributions = 0 ;",
+      "c . backers_count = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "make_donation",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < MakeDonation >",
+      "amount: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let c = & mut ctx . accounts . campaign ;",
+      "let d = & mut ctx . accounts . donation ;",
+      "d . donor = ctx . accounts . donor . key () ;",
+      "d . campaign = c . key () ;",
+      "d . contribution = d . contribution . saturating_add (amount) ;",
+      "c . total_contributions = c . total_contributions . checked_add (amount) . unwrap_or (c . total_contributions) ;",
+      "c . backers_count = c . backers_count . saturating_add (1) ;",
+      "Ok (())"
+    ]
+  }
+]

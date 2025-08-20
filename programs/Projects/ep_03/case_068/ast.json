@@ -1,0 +1,109 @@
+[
+  {
+    "name": "refund_deposit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RefundDeposit >"
+    ],
+    "attributes": [
+      "# [doc = \" 保証金を返却するが、\"]",
+      "# [doc = \" deposit_account.owner と ctx.accounts.requester.key() の一致検証がない\"]"
+    ],
+    "body": [
+      "let deposit = & mut ctx . accounts . deposit_account ;",
+      "let amount = deposit . amount ;",
+      "reset_deposit (deposit) ;",
+      "send_funds (& ctx . accounts . system_program , & ctx . accounts . vault_account , & ctx . accounts . requester , amount ,) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "reset_deposit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "deposit: & mut DepositAccount"
+    ],
+    "attributes": [
+      "# [doc = \" DepositAccount.amount を 0 にリセットし、refund_count をインクリメント\"]"
+    ],
+    "body": [
+      "deposit . amount = 0 ;",
+      "deposit . refund_count = deposit . refund_count . checked_add (1) . unwrap () ;"
+    ]
+  },
+  {
+    "name": "send_funds",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "system_program: & Program < System >",
+      "from: & AccountInfo",
+      "to: & AccountInfo",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" system_program::transfer CPI を使って Lamports を移動\"]"
+    ],
+    "body": [
+      "let cpi_accounts = system_program :: Transfer { from : from . to_account_info () , to : to . to_account_info () , } ;",
+      "let cpi_ctx = CpiContext :: new (system_program . to_account_info () , cpi_accounts) ;",
+      "system_program :: transfer (cpi_ctx , amount) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "RefundDeposit",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "deposit_account",
+        "attribute": "# [account (mut)] # [doc = \" 本来は #[account(has_one = owner)] を指定して照合すべき\"]",
+        "field_type": "Account < 'info , DepositAccount >"
+      },
+      {
+        "name": "vault_account",
+        "attribute": "# [doc = \" 保証金保管用 Vault アカウント\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "requester",
+        "attribute": "# [doc = \" 返却をリクエストするユーザー（署名者）\"]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": "# [doc = \" システムプログラム\"]",
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DepositAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 本来この保証金を預けたユーザーの Pubkey\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "amount",
+        "attribute": "# [doc = \" 預託中の Lamports 残高\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "refund_count",
+        "attribute": "# [doc = \" 返却が実行された回数\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

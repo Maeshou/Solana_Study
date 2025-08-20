@@ -1,0 +1,274 @@
+[
+  {
+    "name": "init_guild",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitGuild >",
+      "name: String",
+      "max_members: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let guild = & mut ctx . accounts . guild ;",
+      "guild . founder = ctx . accounts . founder . key () ;",
+      "guild . name = name ;",
+      "guild . max_members = max_members ;",
+      "guild . current_members = 0 ;",
+      "guild . total_contribution_points = 0 ;",
+      "guild . is_active = true ;",
+      "msg ! (\"Guild initialized: {}\" , guild . name) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_contribution_log",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitContributionLog >",
+      "log_id: u32",
+      "base_points: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let log = & mut ctx . accounts . log ;",
+      "let guild = & mut ctx . accounts . guild ;",
+      "log . guild = guild . key () ;",
+      "log . contributor = ctx . accounts . contributor . key () ;",
+      "log . log_id = log_id ;",
+      "log . base_points = base_points ;",
+      "log . is_processed = false ;",
+      "msg ! (\"Contribution log created for guild {} by {}\" , guild . name , log . contributor) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "process_contributions",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ProcessContributions >"
+    ],
+    "attributes": [],
+    "body": [
+      "let guild = & mut ctx . accounts . guild ;",
+      "let logs = & mut ctx . accounts . logs ;",
+      "let mut processed_count = 0 ;",
+      "let mut total_points_gained : u64 = 0 ;",
+      "let mut base_points_sum : u32 = 0 ;",
+      "let mut log_indices_to_remove = Vec :: new () ;",
+      "let num_logs = logs . data . len () ;",
+      "let loop_limit = (num_logs as u8) . min (10) ;",
+      "for i in 0 .. (loop_limit as usize)",
+      "{",
+      "let log = & mut logs . data [i] ;",
+      "if ! log . is_processed",
+      "{",
+      "let bonus_multiplier : u64 = if log . base_points > 1000 { 150 } else { 100 } ;",
+      "let final_points = (log . base_points as u64) * bonus_multiplier / 100 ;",
+      "if final_points > 5000",
+      "{",
+      "guild . total_contribution_points = guild . total_contribution_points . saturating_add (5000) ;",
+      "msg ! (\"Points capped at 5000 for log",
+      "{",
+      "}\" , log . log_id) ;",
+      "log . is_processed = true ;",
+      "total_points_gained += 5000 ;",
+      "base_points_sum = base_points_sum . saturating_add (log . base_points) ;",
+      "log_indices_to_remove . push (i) ;",
+      "processed_count += 1 ;",
+      "} else",
+      "{",
+      "guild . total_contribution_points = guild . total_contribution_points . saturating_add (final_points) ;",
+      "log . is_processed = true ;",
+      "total_points_gained += final_points ;",
+      "base_points_sum = base_points_sum . saturating_add (log . base_points) ;",
+      "log_indices_to_remove . push (i) ;",
+      "processed_count += 1 ;",
+      "} }",
+      "}",
+      "log_indices_to_remove . sort_by (| a , b | b . cmp (a)) ;",
+      "for index in log_indices_to_remove",
+      "{",
+      "logs . data . remove (index) ;",
+      "}",
+      "msg ! (\"Processed {} logs, adding {} points to guild. New total: {}\" , processed_count , total_points_gained , guild . total_contribution_points) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitGuild",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": "# [account (init , payer = founder , space = 8 + 32 + 32 + 1 + 20 + 8 + 1)]",
+        "field_type": "Account < 'info , Guild >"
+      },
+      {
+        "name": "founder",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitContributionLog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": "# [account (mut , has_one = guild)]",
+        "field_type": "Account < 'info , Guild >"
+      },
+      {
+        "name": "logs",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , ContributionLogBoard >"
+      },
+      {
+        "name": "contributor",
+        "attribute": "# [doc = \" CHECK: Contributor is just a Pubkey\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "log",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 32 + 4 + 4 + 1)]",
+        "field_type": "Account < 'info , ContributionLog >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ProcessContributions",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Guild >"
+      },
+      {
+        "name": "logs",
+        "attribute": "# [account (mut , has_one = guild)]",
+        "field_type": "Account < 'info , ContributionLogBoard >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Guild",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "founder",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "max_members",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "current_members",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "total_contribution_points",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "is_active",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ContributionLog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "contributor",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "log_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "base_points",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "is_processed",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ContributionLogBoard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "data",
+        "attribute": null,
+        "field_type": "Vec < ContributionLog >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

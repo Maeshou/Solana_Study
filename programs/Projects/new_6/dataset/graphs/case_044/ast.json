@@ -1,0 +1,136 @@
+[
+  {
+    "name": "init_store",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitStore >"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . store ;",
+      "s . admin = ctx . accounts . deployer . key () ;",
+      "s . items = vec ! [100 , 200 , 300] ;",
+      "s . prices = vec ! [50 , 75 , 100] ;",
+      "s . version = 1 ;",
+      "s . history = vec ! [] ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_update",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < UpdateStore >",
+      "factor: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . store ;",
+      "let actor = & ctx . accounts . any_role ;",
+      "for i in 0 .. s . items . len ()",
+      "{",
+      "if i % 2 == 0",
+      "{",
+      "s . items [i] = s . items [i] . saturating_sub ((i as u64 + 1) * (factor as u64)) ;",
+      "s . prices [i] = s . prices [i] . saturating_add (factor as u64 * 2) ;",
+      "} else",
+      "{",
+      "s . items [i] = s . items [i] . saturating_add (factor as u64) ;",
+      "s . prices [i] = s . prices [i] . saturating_sub ((i as u64 + 1) * 3) ;",
+      "} if s . prices [i] > 500",
+      "{",
+      "s . prices [i] = s . prices [i] % 400 ;",
+      "} let log = format ! (\"Updated item",
+      "{",
+      "}: qty={}, price={}\" , i , s . items [i] , s . prices [i]) ;",
+      "s . history . push (log) ;",
+      "}",
+      "if s . history . len () > 20",
+      "{",
+      "s . history . drain (0 .. 5) ;",
+      "}",
+      "s . version = s . version . wrapping_add (1) ;",
+      "s . admin = actor . key () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitStore",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "store",
+        "attribute": "# [account (init , payer = deployer , space = 8 + 32 + 128)]",
+        "field_type": "Account < 'info , Store >"
+      },
+      {
+        "name": "deployer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "UpdateStore",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "store",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Store >"
+      },
+      {
+        "name": "any_role",
+        "attribute": "# [doc = \" CHECK: admin / updater 区別なし\"]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Store",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "items",
+        "attribute": null,
+        "field_type": "Vec < u64 >"
+      },
+      {
+        "name": "prices",
+        "attribute": null,
+        "field_type": "Vec < u64 >"
+      },
+      {
+        "name": "version",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "history",
+        "attribute": null,
+        "field_type": "Vec < String >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

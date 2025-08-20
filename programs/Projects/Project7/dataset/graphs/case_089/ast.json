@@ -1,0 +1,169 @@
+[
+  {
+    "name": "init_raid_config",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitRaidConfig >",
+      "base_reward: u64",
+      "difficulty_multiplier: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let config = & mut ctx . accounts . raid_config ;",
+      "config . game_master = ctx . accounts . game_master . key () ;",
+      "config . reward_mint = ctx . accounts . reward_mint . key () ;",
+      "config . base_reward = base_reward ;",
+      "config . difficulty_multiplier = difficulty_multiplier ;",
+      "config . raids_completed = 0 ;",
+      "config . total_rewards_distributed = 0 ;",
+      "config . is_active = true ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "distribute_raid_loot",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < DistributeRaidLoot >",
+      "difficulty: RaidDifficulty"
+    ],
+    "attributes": [],
+    "body": [
+      "let config = & mut ctx . accounts . raid_config ;",
+      "if ! config . is_active",
+      "{",
+      "return Ok (()) ;",
+      "}",
+      "let difficulty_bonus = match difficulty { RaidDifficulty :: Normal => 1 , RaidDifficulty :: Hard => 2 , RaidDifficulty :: Expert => 4 , RaidDifficulty :: Legendary => 8 , } ;",
+      "let base_amount = config . base_reward * config . difficulty_multiplier as u64 * difficulty_bonus ;",
+      "let participants = & ctx . remaining_accounts ;",
+      "if participants . len () > 0",
+      "{",
+      "let mut individual_rewards = base_amount / participants . len () as u64 ;",
+      "while config . raids_completed > 0 && config . raids_completed % 10 == 0",
+      "{",
+      "individual_rewards += individual_rewards / 10 ;",
+      "break ;",
+      "} for participant_account in participants . iter ()",
+      "{",
+      "if individual_rewards > 0 { transfer (ctx . accounts . transfer_loot_ctx () , individual_rewards ,) ? ;",
+      "} } config . raids_completed += 1 ;",
+      "config . total_rewards_distributed += base_amount ;",
+      "if config . total_rewards_distributed > 10_000_000 * 10u64 . pow (6)",
+      "{",
+      "config . is_active = false ;",
+      "}",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitRaidConfig",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "game_master",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "raid_config",
+        "attribute": "# [account (init , payer = game_master , space = 8 + RaidConfig :: INIT_SPACE , seeds = [b\"raid_config\" , game_master . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , RaidConfig >"
+      },
+      {
+        "name": "reward_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DistributeRaidLoot",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "raid_config",
+        "attribute": "# [account (mut , seeds = [b\"raid_config\" , raid_config . game_master . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , RaidConfig >"
+      },
+      {
+        "name": "reward_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "participant_token_account",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RaidConfig",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "game_master",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "reward_mint",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "base_reward",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "difficulty_multiplier",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "raids_completed",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "total_rewards_distributed",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "is_active",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,308 @@
+[
+  {
+    "name": "init_orchestra",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitOrchestra >",
+      "name: String",
+      "seed: u64",
+      "seats_mask: u32"
+    ],
+    "attributes": [
+      "# [doc = \" オーケストラ初期化：\"]",
+      "# [doc = \" - nameは64文字に制限し保存\"]",
+      "# [doc = \" - seats_maskで使用可能な席集合をビットで指定\"]",
+      "# [doc = \" - seedを混ぜて拍子テーブルをループ初期化\"]"
+    ],
+    "body": [
+      "let o = & mut ctx . accounts . orchestra ;",
+      "o . owner = ctx . accounts . maestro . key () ;",
+      "let mut nm = name ;",
+      "if nm . len () > 64",
+      "{",
+      "nm . truncate (64) ;",
+      "}",
+      "o . name = nm ;",
+      "o . seats_mask = seats_mask ;",
+      "o . revision = 1 ;",
+      "o . mix = (seats_mask ^ (seed as u32)) . rotate_left (7) ;",
+      "let mut s = seed ^ 0xC3A5_C85C_97CB_3127u64 ;",
+      "for i in 0 .. o . beat_table . len ()",
+      "{",
+      "s = s . rotate_left (11) ^ (seats_mask as u64) ;",
+      "o . beat_table [i] = ((s >> (i * 5)) as u16) & 0x3FFF ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_score",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitScore >",
+      "part: Part",
+      "seat: u8",
+      "tempo_bias: u16"
+    ],
+    "attributes": [
+      "# [doc = \" 演奏カード初期化：\"]",
+      "# [doc = \" - seat（席番号）の範囲／ビット許可を検証\"]",
+      "# [doc = \" - partに応じて初期ポテンシャルを非線形生成\"]"
+    ],
+    "body": [
+      "let sc = & mut ctx . accounts . score ;",
+      "sc . orchestra = ctx . accounts . orchestra . key () ;",
+      "require ! (seat < 32 , ErrCode :: SeatOutOfRange) ;",
+      "let allowed = (ctx . accounts . orchestra . seats_mask >> seat) & 1 ;",
+      "require ! (allowed == 1 , ErrCode :: SeatDisabled) ;",
+      "sc . part = part ;",
+      "sc . seat = seat ;",
+      "sc . potential = 300 + ((tempo_bias as u32) % 500) ;",
+      "for i in 0 .. sc . dynamics . len ()",
+      "{",
+      "sc . dynamics [i] = ((sc . potential as u16) ^ ((i as u16) * 257)) & 0x7FFF ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "perform",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Perform >",
+      "score_delta: i16",
+      "jitter: u16"
+    ],
+    "attributes": [
+      "# [doc = \" 演奏処理：\"]",
+      "# [doc = \" - actor と partner は同じ Part にはできても、同じ seat は不可（Cosplay遮断）\"]",
+      "# [doc = \" - ループで譜面・ダイナミクスを更新、if/elseで分岐（各4行以上）\"]"
+    ],
+    "body": [
+      "let orch = & mut ctx . accounts . orchestra ;",
+      "let actor = & mut ctx . accounts . actor ;",
+      "let partner = & mut ctx . accounts . partner ;",
+      "let board = & mut ctx . accounts . board ;",
+      "let mut acc : u32 = 0 ;",
+      "for i in 0 .. orch . beat_table . len ()",
+      "{",
+      "let local = ((orch . beat_table [i] as u32) ^ (jitter as u32) . rotate_left ((i as u32) & 15)) . wrapping_add (((score_delta as i32) . unsigned_abs ()) & 0x3FFF) ;",
+      "let idx = i % actor . dynamics . len () ;",
+      "actor . dynamics [idx] = (actor . dynamics [idx] as u32 ^ (local & 0x7FFF)) as u16 ;",
+      "acc = acc . wrapping_add (local & 0x1FFF) ;",
+      "}",
+      "if actor . part == Part :: Conductor",
+      "{",
+      "actor . potential = actor . potential . saturating_add ((acc & 0x0FFF) + (jitter as u32)) ;",
+      "orch . revision = orch . revision . saturating_add (1) ;",
+      "board . lines = board . lines . saturating_add (1) ;",
+      "board . hash = board . hash . wrapping_add ((acc as u64) . rotate_left (17)) ;",
+      "msg ! (\"Conductor path: actor boosted, orchestra revised, board appended\") ;",
+      "} else",
+      "{",
+      "partner . potential = partner . potential . saturating_add (((acc >> 2) & 0x0FFF) + (score_delta . unsigned_abs () as u32)) ;",
+      "orch . mix = orch . mix . rotate_right (5) ^ ((partner . seat as u32) << 9) ;",
+      "board . lines = board . lines . saturating_add (2) ;",
+      "board . hash = board . hash ^ ((acc as u64) . rotate_right (11)) ;",
+      "msg ! (\"Non-Conductor path: partner boosted, mix updated, board branched\") ;",
+      "}",
+      "for i in 0 .. board . trace . len ()",
+      "{",
+      "board . trace [i] = board . trace [i] . rotate_left ((i as u32) & 7) ^ (orch . mix & 0xFFFF) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitOrchestra",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "orchestra",
+        "attribute": "# [account (init , payer = maestro , space = 8 + Orchestra :: MAX)]",
+        "field_type": "Account < 'info , Orchestra >"
+      },
+      {
+        "name": "maestro",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitScore",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "orchestra",
+        "attribute": "# [account (mut , has_one = owner , owner = crate :: ID)]",
+        "field_type": "Account < 'info , Orchestra >"
+      },
+      {
+        "name": "score",
+        "attribute": "# [account (init , payer = player , space = 8 + ScoreCard :: MAX)]",
+        "field_type": "Account < 'info , ScoreCard >"
+      },
+      {
+        "name": "player",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Perform",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "orchestra",
+        "attribute": "# [account (mut , has_one = owner , owner = crate :: ID)]",
+        "field_type": "Account < 'info , Orchestra >"
+      },
+      {
+        "name": "board",
+        "attribute": "# [account (mut , has_one = orchestra , owner = crate :: ID)]",
+        "field_type": "Account < 'info , ScoreBoard >"
+      },
+      {
+        "name": "actor",
+        "attribute": "# [account (mut , has_one = orchestra , owner = crate :: ID)]",
+        "field_type": "Account < 'info , ScoreCard >"
+      },
+      {
+        "name": "partner",
+        "attribute": "# [account (mut , has_one = orchestra , owner = crate :: ID , constraint = actor . seat != partner . seat @ ErrCode :: CosplayBlocked)]",
+        "field_type": "Account < 'info , ScoreCard >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Orchestra",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "seats_mask",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "revision",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "mix",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "beat_table",
+        "attribute": null,
+        "field_type": "[u16 ; 12]"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ScoreCard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "orchestra",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "part",
+        "attribute": null,
+        "field_type": "Part"
+      },
+      {
+        "name": "seat",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "potential",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "dynamics",
+        "attribute": null,
+        "field_type": "[u16 ; 16]"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ScoreBoard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "orchestra",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "hash",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "lines",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "trace",
+        "attribute": null,
+        "field_type": "[u32 ; 6]"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

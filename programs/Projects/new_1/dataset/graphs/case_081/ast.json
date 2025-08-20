@@ -1,0 +1,178 @@
+[
+  {
+    "name": "configure",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Configure >",
+      "tokens_per_drop: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 1. 設定関数：ProgramResult を使う\"]",
+      "# [doc = \"    NFT ドロップあたりのトークン数を設定する\"]"
+    ],
+    "body": [
+      "let cfg = & mut ctx . accounts . config ;",
+      "cfg . tokens_per_drop = tokens_per_drop ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "calculate_tokens",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Calculate >",
+      "drop_count: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 2. 算出関数：トークン数を返す -> Result<u64>\"]",
+      "# [doc = \"    ドロップ数に応じて必要なトークン量を計算する\"]"
+    ],
+    "body": [
+      "let cfg = & ctx . accounts . config ;",
+      "let total = cfg . tokens_per_drop . checked_mul (drop_count) . ok_or (ErrorCode :: Overflow) ? ;",
+      "Ok (total)"
+    ]
+  },
+  {
+    "name": "execute_withdrawal",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ExecuteWithdrawal >",
+      "drop_count: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 3. 実行関数：戻り値を明示せず、unwrap() を多用\"]",
+      "# [doc = \"    ドロップ数に応じたトークンをミントし、受信者に送る\"]"
+    ],
+    "body": [
+      "let cfg = & ctx . accounts . config ;",
+      "let amount = cfg . tokens_per_drop . checked_mul (drop_count) . unwrap () ;",
+      "token :: mint_to (CpiContext :: new (ctx . accounts . token_program . to_account_info () , MintTo { mint : ctx . accounts . reward_mint . to_account_info () , to : ctx . accounts . recipient . to_account_info () , authority : ctx . accounts . mint_authority . to_account_info () , } ,) , amount ,) . unwrap () ;"
+    ]
+  },
+  {
+    "name": "pause",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Pause >"
+    ],
+    "attributes": [
+      "# [doc = \" 4. 停止関数：Result<bool> を返す\"]",
+      "# [doc = \"    ミントを一時停止するフラグを立てる\"]"
+    ],
+    "body": [
+      "let cfg = & mut ctx . accounts . config ;",
+      "cfg . paused = true ;",
+      "Ok (true)"
+    ]
+  },
+  {
+    "name": "Config",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "tokens_per_drop",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "paused",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Configure",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "config",
+        "attribute": "# [account (init , payer = initializer , space = 8 + 8 + 1)]",
+        "field_type": "Account < 'info , Config >"
+      },
+      {
+        "name": "initializer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Calculate",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "config",
+        "attribute": null,
+        "field_type": "Account < 'info , Config >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ExecuteWithdrawal",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "config",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Config >"
+      },
+      {
+        "name": "reward_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "recipient",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "mint_authority",
+        "attribute": "# [doc = \" CHECK: 署名者チェックなしでミント権限を渡す（脆弱）\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Pause",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "config",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Config >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

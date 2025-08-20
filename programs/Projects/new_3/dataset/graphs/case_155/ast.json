@@ -1,0 +1,178 @@
+[
+  {
+    "name": "Plan",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "fee_per_day",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Subscription",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "subscriber",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "plan",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "valid_until",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitializePlan",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "plan",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8)]",
+        "field_type": "Account < 'info , Plan >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Subscribe",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "plan",
+        "attribute": "# [doc = \" Plan.owner == owner.key() は検証される\"] # [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Plan >"
+      },
+      {
+        "name": "subscription",
+        "attribute": "# [doc = \" Subscription.plan == plan.key() の検証がないまま生成\"] # [account (init , payer = subscriber , space = 8 + 32 + 32 + 8)]",
+        "field_type": "Account < 'info , Subscription >"
+      },
+      {
+        "name": "subscriber",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ExtendSubscription",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "subscription",
+        "attribute": "# [doc = \" Subscription.subscriber == subscriber.key() は検証される\"] # [account (mut , has_one = subscriber)]",
+        "field_type": "Account < 'info , Subscription >"
+      },
+      {
+        "name": "plan",
+        "attribute": "# [doc = \" plan.key() と subscription.plan の一致チェックがない\"] # [account (mut)]",
+        "field_type": "Account < 'info , Plan >"
+      },
+      {
+        "name": "subscriber",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "initialize_plan",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializePlan >",
+      "fee_per_day: u64"
+    ],
+    "attributes": [
+      "# [doc = \" プランを新規作成\"]"
+    ],
+    "body": [
+      "let p = & mut ctx . accounts . plan ;",
+      "p . owner = ctx . accounts . owner . key () ;",
+      "p . fee_per_day = fee_per_day ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "subscribe",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Subscribe >",
+      "duration_days: i64"
+    ],
+    "attributes": [
+      "# [doc = \" ユーザーをプランに登録\"]"
+    ],
+    "body": [
+      "let p = & ctx . accounts . plan ;",
+      "let s = & mut ctx . accounts . subscription ;",
+      "s . subscriber = ctx . accounts . subscriber . key () ;",
+      "s . plan = p . key () ;",
+      "s . valid_until = Clock :: get () ? . unix_timestamp + duration_days * 24 * 60 * 60 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "extend",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ExtendSubscription >",
+      "extra_days: i64"
+    ],
+    "attributes": [
+      "# [doc = \" サブスクリプションの延長\"]"
+    ],
+    "body": [
+      "let p = & ctx . accounts . plan ;",
+      "let s = & mut ctx . accounts . subscription ;",
+      "s . valid_until = s . valid_until . checked_add (extra_days * 24 * 60 * 60) . unwrap () ;",
+      "Ok (())"
+    ]
+  }
+]

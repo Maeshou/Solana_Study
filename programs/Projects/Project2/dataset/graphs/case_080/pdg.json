@@ -1,9 +1,9 @@
 [
   {
-    "name": "lock_asset",
+    "name": "change",
     "inputs": [
-      "ctx: Context < LockAssetCtxhido >",
-      "amount: u64"
+      "ctx: Context < Change >",
+      "data: u64"
     ],
     "nodes": [
       {
@@ -12,15 +12,15 @@
       },
       {
         "id": 1,
-        "label": "let acct = & mut ctx . accounts . bridge ;"
+        "label": "let mut buf = ctx . accounts . acc . data . borrow_mut () ;"
       },
       {
         "id": 2,
-        "label": "acct . data = acct . data . checked_add (amount) . unwrap () ;"
+        "label": "buf [.. 8] . copy_from_slice (& data . to_le_bytes ()) ;"
       },
       {
         "id": 3,
-        "label": "msg ! (\"Executed lock_asset logic\") ;"
+        "label": "emit ! (BufferWritten { by : ctx . accounts . author . key () , data }) ;"
       },
       {
         "id": 4,
@@ -31,17 +31,61 @@
       {
         "from": 1,
         "to": 1,
-        "label": "def: acct"
+        "label": "def: buf"
       },
       {
         "from": 1,
         "to": 2,
-        "label": "data_dep: acct"
+        "label": "data_dep: buf"
+      }
+    ]
+  },
+  {
+    "name": "read",
+    "inputs": [
+      "ctx: Context < ViewBuf >"
+    ],
+    "nodes": [
+      {
+        "id": 5,
+        "label": "Entry"
       },
       {
-        "from": 1,
-        "to": 2,
-        "label": "data_dep: acct"
+        "id": 6,
+        "label": "let buf = ctx . accounts . acc . data . borrow () ;"
+      },
+      {
+        "id": 7,
+        "label": "let val = u64 :: from_le_bytes (buf [.. 8] . try_into () . unwrap ()) ;"
+      },
+      {
+        "id": 8,
+        "label": "msg ! (\"Current buffer value: {}\" , val) ;"
+      },
+      {
+        "id": 9,
+        "label": "emit ! (BufferRead { data : val }) ;"
+      },
+      {
+        "id": 10,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 6,
+        "to": 6,
+        "label": "def: buf"
+      },
+      {
+        "from": 7,
+        "to": 7,
+        "label": "def: val"
+      },
+      {
+        "from": 6,
+        "to": 7,
+        "label": "data_dep: buf"
       }
     ]
   }

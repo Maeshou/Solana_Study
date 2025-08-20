@@ -1,0 +1,223 @@
+[
+  {
+    "name": "init_alliance",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitAlliance >",
+      "base_units_input: u64",
+      "start_fee_bps: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let state = & mut ctx . accounts . alliance ;",
+      "state . admin = ctx . accounts . admin . key () ;",
+      "state . base_units = base_units_input ;",
+      "if state . base_units < 1",
+      "{",
+      "state . base_units = 1 ;",
+      "}",
+      "state . fee_bps = clamp_u16 (start_fee_bps , 100 , 2500) ;",
+      "state . round_index = 1 ;",
+      "state . total_distributed = 1 ;",
+      "state . scale = AllianceScale :: Mid ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_grant",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActGrant >",
+      "member_count: u8",
+      "sessions: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let state = & mut ctx . accounts . alliance ;",
+      "let mut member_bonus : u64 = 0 ;",
+      "let mut cursor : u8 = 1 ;",
+      "while cursor <= member_count",
+      "{",
+      "if cursor <= 4",
+      "{",
+      "member_bonus = member_bonus + 7 ;",
+      "} if cursor > 4",
+      "{",
+      "member_bonus = member_bonus + 4 ;",
+      "} if cursor > 9",
+      "{",
+      "member_bonus = member_bonus + 3 ;",
+      "} cursor = cursor + 1 ;",
+      "}",
+      "let mut harmonic_bps : u64 = 0 ;",
+      "let mut step : u8 = 1 ;",
+      "while step <= sessions",
+      "{",
+      "harmonic_bps = harmonic_bps + (10_000 / (step as u64 + 9)) ;",
+      "step = step + 1 ;",
+      "}",
+      "let mut effective = state . base_units + (harmonic_bps / 50) ;",
+      "if state . scale == AllianceScale :: High",
+      "{",
+      "effective = effective + effective / 8 ;",
+      "}",
+      "if state . scale == AllianceScale :: Low",
+      "{",
+      "effective = effective - effective / 12 ;",
+      "}",
+      "effective = effective + member_bonus ;",
+      "let mut fee_bps_now : u64 = state . fee_bps as u64 ;",
+      "let mut r : u64 = 0 ;",
+      "while r < state . round_index / 2",
+      "{",
+      "if fee_bps_now > 100",
+      "{",
+      "fee_bps_now = fee_bps_now - 100 ;",
+      "} r = r + 1 ;",
+      "}",
+      "let cap = state . base_units * 4 ;",
+      "if effective > cap",
+      "{",
+      "effective = cap ;",
+      "}",
+      "if effective < 1",
+      "{",
+      "effective = 1 ;",
+      "}",
+      "let fee_units = (effective as u128 * fee_bps_now as u128 / 10_000u128) as u64 ;",
+      "let net_units = effective - fee_units ;",
+      "token :: transfer (ctx . accounts . treasury_to_member () , net_units) ? ;",
+      "token :: transfer (ctx . accounts . treasury_to_fee () , fee_units) ? ;",
+      "state . total_distributed = state . total_distributed + net_units ;",
+      "state . round_index = state . round_index + 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitAlliance",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "alliance",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 8 + 2 + 8 + 8 + 1)]",
+        "field_type": "Account < 'info , AllianceState >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActGrant",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "alliance",
+        "attribute": "# [account (mut , has_one = admin)]",
+        "field_type": "Account < 'info , AllianceState >"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "reward_treasury",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "member_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "fee_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AllianceState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "base_units",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "fee_bps",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "round_index",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_distributed",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "scale",
+        "attribute": null,
+        "field_type": "AllianceScale"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "clamp_u16",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "v: u16",
+      "lo: u16",
+      "hi: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut o = v ;",
+      "if o < lo",
+      "{",
+      "o = lo ;",
+      "}",
+      "if o > hi",
+      "{",
+      "o = hi ;",
+      "}",
+      "o"
+    ]
+  }
+]

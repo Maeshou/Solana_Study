@@ -1,0 +1,136 @@
+[
+  {
+    "name": "rent_nft",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RentNft >",
+      "duration_secs: i64",
+      "memo: String"
+    ],
+    "attributes": [
+      "# [doc = \" owner_account から renter_account に NFT をレンタルするが、\"]",
+      "# [doc = \" 同一アカウントチェックが入っていないため、\"]",
+      "# [doc = \" owner_account.key() == renter_account.key() でも “自己レンタル” が成立してしまう\"]"
+    ],
+    "body": [
+      "let owner_acc = & mut ctx . accounts . owner_account ;",
+      "let renter_acc = & mut ctx . accounts . renter_account ;",
+      "let nft = & mut ctx . accounts . nft ;",
+      "let now = ctx . accounts . clock . unix_timestamp ;",
+      "owner_acc . rental_count = owner_acc . rental_count + 1 ;",
+      "renter_acc . rental_count = renter_acc . rental_count + 1 ;",
+      "nft . is_rented = true ;",
+      "nft . rental_start = now ;",
+      "nft . rental_end = now + duration_secs ;",
+      "owner_acc . last_action = now ;",
+      "renter_acc . last_action = now ;",
+      "owner_acc . notes = owner_acc . notes . clone () + \"|rent@\" + & now . to_string () + \":\" + & memo ;",
+      "renter_acc . notes = renter_acc . notes . clone () + \"|lend@\" + & now . to_string () + \":\" + & memo ;",
+      "msg ! (\"Rental started: NFT {} rented by {} from {} for {} seconds\" , nft . id , ctx . accounts . renter . key () , ctx . accounts . owner . key () , duration_secs) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "RentNft",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner_account",
+        "attribute": "# [doc = \" NFT の貸し手プロファイル（mutable）\"] # [account (mut)]",
+        "field_type": "Account < 'info , UserProfile >"
+      },
+      {
+        "name": "renter_account",
+        "attribute": "# [doc = \" NFT の借り手プロファイル（mutable）\"] # [account (mut)]",
+        "field_type": "Account < 'info , UserProfile >"
+      },
+      {
+        "name": "nft",
+        "attribute": "# [doc = \" レンタル対象 NFT（mutable）\"] # [account (mut)]",
+        "field_type": "Account < 'info , GameNft >"
+      },
+      {
+        "name": "operator",
+        "attribute": "# [doc = \" 操作を実行する署名者\"] # [account (signer)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": "# [doc = \" 時刻取得用 Sysvar\"]",
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": "# [doc = \" システムプログラム\"]",
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "UserProfile",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" このプロファイルのオーナー\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "rental_count",
+        "attribute": "# [doc = \" 累積レンタル回数\"]",
+        "field_type": "u32"
+      },
+      {
+        "name": "last_action",
+        "attribute": "# [doc = \" 最終操作 UNIX タイムスタンプ\"]",
+        "field_type": "i64"
+      },
+      {
+        "name": "notes",
+        "attribute": "# [doc = \" 任意メモ欄\"]",
+        "field_type": "String"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GameNft",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "id",
+        "attribute": "# [doc = \" NFT の一意 ID\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 現在のオーナー\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "is_rented",
+        "attribute": "# [doc = \" レンタル中かどうか\"]",
+        "field_type": "bool"
+      },
+      {
+        "name": "rental_start",
+        "attribute": "# [doc = \" レンタル開始時刻\"]",
+        "field_type": "i64"
+      },
+      {
+        "name": "rental_end",
+        "attribute": "# [doc = \" レンタル終了予定時刻\"]",
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

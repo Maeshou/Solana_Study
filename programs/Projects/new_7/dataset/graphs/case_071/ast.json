@@ -1,0 +1,207 @@
+[
+  {
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Init >",
+      "cap: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . state ;",
+      "s . master = ctx . accounts . master . key () ;",
+      "s . cap = cap ;",
+      "s . steps = 5 ;",
+      "s . acc = (cap ^ 0xA5A5) as u64 ;",
+      "s . route = Pubkey :: new_unique () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "rebind",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Rebind >",
+      "new_route: Pubkey"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . state ;",
+      "require_keys_eq ! (s . master , ctx . accounts . master . key () , ErrorCode :: Denied) ;",
+      "s . route = new_route ;",
+      "s . steps += 3 ;",
+      "s . acc = s . acc . rotate_left (3) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "stream",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Stream >",
+      "value: u64",
+      "loops: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . state ;",
+      "if value <= 3",
+      "{",
+      "s . steps += 1 ;",
+      "s . acc = s . acc . wrapping_add (19) ;",
+      "return Ok (()) ;",
+      "}",
+      "let mut rest = value ;",
+      "let mut i = 0u8 ;",
+      "while i < loops",
+      "{",
+      "let part = (rest / 3) . max (4) ;",
+      "if part >= rest",
+      "{",
+      "break ;",
+      "} let ix = token_ix :: transfer (& s . route , & ctx . accounts . source . key () , & ctx . accounts . sink . key () , & ctx . accounts . master . key () , & [] , part ,) ? ;",
+      "let prog = ctx . remaining_accounts . get (1) . ok_or (ErrorCode :: NoProgram) ? ;",
+      "invoke (& ix , & [prog . clone () , ctx . accounts . source . to_account_info () , ctx . accounts . sink . to_account_info () , ctx . accounts . master . to_account_info () ,] ,) ? ;",
+      "rest -= part ;",
+      "s . steps += 1 ;",
+      "i += 1 ;",
+      "if rest < s . cap / 3",
+      "{",
+      "s . acc = s . acc . wrapping_add (part ^ 17) ;",
+      "} else",
+      "{",
+      "s . acc = s . acc . wrapping_mul (3) . wrapping_add (23) ;",
+      "}",
+      "}",
+      "if rest > 3",
+      "{",
+      "let ix2 = token_ix :: transfer (& s . route , & ctx . accounts . source . key () , & ctx . accounts . sink . key () , & ctx . accounts . master . key () , & [] , rest - 3 ,) ? ;",
+      "let prog = ctx . remaining_accounts . get (1) . ok_or (ErrorCode :: NoProgram) ? ;",
+      "invoke (& ix2 , & [prog . clone () , ctx . accounts . source . to_account_info () , ctx . accounts . sink . to_account_info () , ctx . accounts . master . to_account_info () ,] ,) ? ;",
+      "s . acc = s . acc . wrapping_add (rest - 3) ;",
+      "}",
+      "let mut t = 1u8 ;",
+      "while t < 3",
+      "{",
+      "s . steps += 2 ;",
+      "s . acc = s . acc . rotate_right (t as u32) ;",
+      "t += 1 ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "State",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "master",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "cap",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "steps",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "acc",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "route",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Init",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "state",
+        "attribute": "# [account (init , payer = master , space = 8 + 32 + 8 + 8 + 8 + 32)]",
+        "field_type": "Account < 'info , State >"
+      },
+      {
+        "name": "master",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Rebind",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "state",
+        "attribute": "# [account (mut , has_one = master)]",
+        "field_type": "Account < 'info , State >"
+      },
+      {
+        "name": "master",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Stream",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "state",
+        "attribute": "# [account (mut , has_one = master)]",
+        "field_type": "Account < 'info , State >"
+      },
+      {
+        "name": "master",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "source",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "sink",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,158 @@
+[
+  {
+    "name": "init_pool",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitPool >",
+      "fee_bps: u16",
+      "min_lock: u64",
+      "tier: RewardTier"
+    ],
+    "attributes": [],
+    "body": [
+      "let p = & mut ctx . accounts . pool ;",
+      "p . authority = ctx . accounts . authority . key () ;",
+      "p . fee_bps = fee_bps . min (500) ;",
+      "p . min_lock = min_lock ;",
+      "p . total_settled = 0 ;",
+      "p . active = true ;",
+      "p . tier = tier ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_settle",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActSettle >",
+      "staked_amount: u64",
+      "epochs: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let p = & mut ctx . accounts . pool ;",
+      "require ! (p . active , ErrorCode :: InactivePool) ;",
+      "require ! (staked_amount >= p . min_lock , ErrorCode :: BelowMinimum) ;",
+      "let mut multiplier : u64 = match p . tier { RewardTier :: Bronze => 10 , RewardTier :: Silver => 12 , RewardTier :: Gold => 15 , RewardTier :: Platinum => 18 , } ;",
+      "let mut i = 0 ;",
+      "while i < epochs",
+      "{",
+      "multiplier = multiplier . saturating_add (1) ;",
+      "i += 1 ;",
+      "}",
+      "let gross = staked_amount . saturating_mul (multiplier) ;",
+      "let fee = gross . saturating_mul (p . fee_bps as u64) / 10_000 ;",
+      "let net = if gross > fee { gross - fee } else { 0 } ;",
+      "if net == 0",
+      "{",
+      "p . active = false ;",
+      "return Err (ErrorCode :: NoReward . into ()) ;",
+      "} else",
+      "{",
+      "p . total_settled = p . total_settled . saturating_add (net) ;",
+      "}",
+      "let cpi_ctx = ctx . accounts . transfer_ctx () ;",
+      "token :: transfer (cpi_ctx , net) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitPool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": "# [account (init , payer = authority , space = 8 + 32 + 2 + 8 + 8 + 1 + 1)]",
+        "field_type": "Account < 'info , Pool >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActSettle",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": "# [account (mut , has_one = authority)]",
+        "field_type": "Account < 'info , Pool >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "treasury",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "staker_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Pool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "fee_bps",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "min_lock",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_settled",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "active",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "tier",
+        "attribute": null,
+        "field_type": "RewardTier"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

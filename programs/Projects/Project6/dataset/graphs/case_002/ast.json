@@ -1,0 +1,268 @@
+[
+  {
+    "name": "init_blueprint",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitBlueprint >",
+      "name: String",
+      "lane: Lane"
+    ],
+    "attributes": [],
+    "body": [
+      "let b = & mut ctx . accounts . blueprint ;",
+      "b . owner = ctx . accounts . owner . key () ;",
+      "b . name = name ;",
+      "b . lane = lane ;",
+      "b . quality = 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_line",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitLine >"
+    ],
+    "attributes": [],
+    "body": [
+      "let l = & mut ctx . accounts . line ;",
+      "let inv = & mut ctx . accounts . inventory ;",
+      "l . parent = ctx . accounts . blueprint . key () ;",
+      "l . batch = 0 ;",
+      "l . fail = 0 ;",
+      "l . ok = 0 ;",
+      "inv . parent = ctx . accounts . blueprint . key () ;",
+      "inv . count = 0 ;",
+      "inv . scrap = 0 ;",
+      "inv . hash = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "process_line",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ProcessLine >",
+      "cycles: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let bp = & mut ctx . accounts . blueprint ;",
+      "let line = & mut ctx . accounts . line ;",
+      "let inv = & mut ctx . accounts . inventory ;",
+      "let mut c = 0u16 ;",
+      "while c < cycles",
+      "{",
+      "let mut x = (bp . quality as u64) . max (1) ;",
+      "let mut k = 0 ;",
+      "while k < 4",
+      "{",
+      "x = (x + (bp . quality as u64) . max (1) / x) . max (1) / 2 ;",
+      "k += 1 ;",
+      "} let pass = ((x as u32) & 1) == 0 ;",
+      "if pass",
+      "{",
+      "line . ok = line . ok . saturating_add (1) ;",
+      "inv . count = inv . count . saturating_add (1) ;",
+      "inv . hash ^= inv . count . rotate_left ((inv . count % 31) as u32) ;",
+      "bp . quality = (bp . quality + 1) . min (100) ;",
+      "msg ! (\"produce ok: +1, inv=",
+      "{",
+      "}, q={}\" , inv . count , bp . quality) ;",
+      "} else",
+      "{",
+      "line . fail = line . fail . saturating_add (1) ;",
+      "inv . scrap = inv . scrap . saturating_add (1) ;",
+      "bp . quality = bp . quality . saturating_sub (1) . max (1) ;",
+      "msg ! (\"produce fail: scrap+1, q=",
+      "{",
+      "}\" , bp . quality) ;",
+      "} line . batch = line . batch . wrapping_add (1) ;",
+      "c += 1 ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitBlueprint",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "blueprint",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 4 + 64 + 1 + 1)]",
+        "field_type": "Account < 'info , Blueprint >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitLine",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "blueprint",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Blueprint >"
+      },
+      {
+        "name": "line",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , Line >"
+      },
+      {
+        "name": "inventory",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 8 + 8 , address = inventory_fixed . key ())]",
+        "field_type": "Account < 'info , Inventory >"
+      },
+      {
+        "name": "inventory_fixed",
+        "attribute": "# [doc = \" CHECK: 固定先のアドレスを渡すダミー（実デプロイでは PDA/定数を想定）\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ProcessLine",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "blueprint",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Blueprint >"
+      },
+      {
+        "name": "line",
+        "attribute": "# [account (mut , has_one = parent)]",
+        "field_type": "Account < 'info , Line >"
+      },
+      {
+        "name": "inventory",
+        "attribute": "# [account (mut , has_one = parent)]",
+        "field_type": "Account < 'info , Inventory >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Blueprint",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "lane",
+        "attribute": null,
+        "field_type": "Lane"
+      },
+      {
+        "name": "quality",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Line",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "batch",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "ok",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "fail",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Inventory",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "count",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "scrap",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "hash",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

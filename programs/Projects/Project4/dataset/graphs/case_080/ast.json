@@ -1,33 +1,61 @@
 [
   {
-    "name": "initialize_dao_treasury",
+    "name": "init_uptime",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Initialize080 >",
-      "param: u64"
+      "ctx: Context < InitUptime >",
+      "cycles: u32"
     ],
     "attributes": [],
     "body": [
-      "let mut data = DaoTreasuryData :: try_from_slice (& ctx . accounts . data_account . data . borrow ()) ? ;",
-      "data . value = param ;",
-      "data . serialize (& mut * ctx . accounts . data_account . data . borrow_mut ()) ? ;",
+      "let u = & mut ctx . accounts . uptime ;",
+      "u . start_count = cycles ;",
+      "u . failures = 0 ;",
+      "u . stable_flag = false ;",
+      "if cycles > 1000",
+      "{",
+      "u . stable_flag = true ;",
+      "}",
       "Ok (())"
     ]
   },
   {
-    "name": "Initialize080",
+    "name": "record_failure",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RecordFailure >"
+    ],
+    "attributes": [],
+    "body": [
+      "let u = & mut ctx . accounts . uptime ;",
+      "u . failures = u . failures . saturating_add (1) ;",
+      "if u . failures > u . start_count / 10",
+      "{",
+      "u . stable_flag = false ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitUptime",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "uptime",
+        "attribute": "# [account (init , payer = user , space = 8 + 4 + 4 + 1)]",
+        "field_type": "Account < 'info , UptimeData >"
       },
       {
-        "name": "authority",
-        "attribute": null,
+        "name": "user",
+        "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -35,13 +63,37 @@
     "body": null
   },
   {
-    "name": "DaoTreasuryData",
+    "name": "RecordFailure",
     "node_type": "struct",
     "fields": [
       {
-        "name": "value",
+        "name": "uptime",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , UptimeData >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "UptimeData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "start_count",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "u32"
+      },
+      {
+        "name": "failures",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "stable_flag",
+        "attribute": null,
+        "field_type": "bool"
       }
     ],
     "inputs": null,

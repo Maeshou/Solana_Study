@@ -1,33 +1,224 @@
 [
   {
-    "name": "init_raffle",
+    "name": "init_yard",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx089 >"
+      "ctx: Context < InitYard >",
+      "mass: u32"
     ],
     "attributes": [],
     "body": [
-      "let a = & ctx . accounts . first ;",
-      "let b = & ctx . accounts . second ;",
-      "msg ! (\"Account A: {}\" , a . key ()) ;",
-      "msg ! (\"Account B: {}\" , b . key ()) ;",
+      "let a = & mut ctx . accounts . balloon_a ;",
+      "let b = & mut ctx . accounts . balloon_b ;",
+      "let y = & mut ctx . accounts . yard ;",
+      "a . yard = y . key () ;",
+      "a . mast = (mass & 7) as u8 ;",
+      "a . lift = (mass . count_ones () * 7 + 50) as u32 ;",
+      "b . yard = y . key () ;",
+      "b . mast = ((mass >> 3) & 7) as u8 ;",
+      "b . lift = ((mass ^ (mass << 1)) . count_ones () * 5 + 60) as u32 ;",
+      "y . owner = ctx . accounts . marshal . key () ;",
+      "y . capacity = mass . saturating_mul (3) + 400 ;",
+      "y . phase = Dock ;",
+      "let t = & mut ctx . accounts . tether ;",
+      "t . yard = y . key () ;",
+      "t . mast = 9 ;",
+      "t . strain = 0 ;",
+      "t . knot = mass ^ 0x39A7 ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx089",
+    "name": "ballast",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Ballast >",
+      "steps: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let y = & mut ctx . accounts . yard ;",
+      "let a = & mut ctx . accounts . balloon_a ;",
+      "let b = & mut ctx . accounts . balloon_b ;",
+      "let t = & mut ctx . accounts . tether ;",
+      "for i in 0 .. steps",
+      "{",
+      "let mix = ((a . lift ^ b . lift) as u64) . wrapping_mul (11400714819323198485) ;",
+      "a . lift = a . lift . checked_add (((mix & 31) as u32) + 3) . unwrap_or (u32 :: MAX) ;",
+      "b . lift = b . lift . saturating_add ((((mix >> 5) & 31) as u32) + 2) ;",
+      "t . strain = t . strain . saturating_add ((a . lift as u64 + b . lift as u64) & 0x7F) ;",
+      "t . knot ^= (mix as u32) . rotate_left ((i % 13) as u32) ;",
+      "}",
+      "let total = a . lift + b . lift ;",
+      "if total > y . capacity",
+      "{",
+      "y . phase = Hold ;",
+      "a . mast ^= 1 ;",
+      "b . mast = b . mast . saturating_add (1) ;",
+      "t . mast = t . mast . saturating_add (1) ;",
+      "msg ! (\"hold: mast tweaks & tether move\") ;",
+      "} else",
+      "{",
+      "y . phase = Load ;",
+      "a . lift = a . lift . saturating_add (9) ;",
+      "b . lift = b . lift / 2 + 11 ;",
+      "t . knot ^= 0x0F0F_F0F0 ;",
+      "msg ! (\"load: lift adjust & knot flip\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitYard",
     "node_type": "struct",
     "fields": [
       {
-        "name": "first",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "yard",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , YardCore >"
       },
       {
-        "name": "second",
+        "name": "balloon_a",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Balloon >"
+      },
+      {
+        "name": "balloon_b",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Balloon >"
+      },
+      {
+        "name": "tether",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 8 + 4)]",
+        "field_type": "Account < 'info , Tether >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "marshal",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Ballast",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "yard",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , YardCore >"
+      },
+      {
+        "name": "balloon_a",
+        "attribute": "# [account (mut , has_one = yard , constraint = balloon_a . mast != balloon_b . mast @ YardErr :: Dup)]",
+        "field_type": "Account < 'info , Balloon >"
+      },
+      {
+        "name": "balloon_b",
+        "attribute": "# [account (mut , has_one = yard , constraint = balloon_b . mast != tether . mast @ YardErr :: Dup)]",
+        "field_type": "Account < 'info , Balloon >"
+      },
+      {
+        "name": "tether",
+        "attribute": "# [account (mut , has_one = yard)]",
+        "field_type": "Account < 'info , Tether >"
+      },
+      {
+        "name": "marshal",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "YardCore",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "capacity",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "phase",
+        "attribute": null,
+        "field_type": "YardPhase"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Balloon",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "yard",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "mast",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "lift",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Tether",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "yard",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "mast",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "strain",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "knot",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

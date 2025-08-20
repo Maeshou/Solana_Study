@@ -1,0 +1,162 @@
+[
+  {
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitRing >",
+      "base: u64",
+      "maxv: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let r = & mut ctx . accounts . ring ;",
+      "r . owner = ctx . accounts . owner . key () ;",
+      "r . base = base ;",
+      "if r . base < 1",
+      "{",
+      "r . base = 1 ;",
+      "}",
+      "r . maxv = maxv ;",
+      "if r . maxv < r . base",
+      "{",
+      "r . maxv = r . base ;",
+      "}",
+      "r . total = 0 ;",
+      "r . rotation_counter = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "spin",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SpinRing >",
+      "steps: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let r = & mut ctx . accounts . ring ;",
+      "let mut s : u8 = 0 ;",
+      "while s < steps",
+      "{",
+      "let mut amount = r . base ;",
+      "if amount < 1",
+      "{",
+      "amount = 1 ;",
+      "} let next = r . total . saturating_add (amount) ;",
+      "if next > r . maxv",
+      "{",
+      "return Err (RingErr :: Max . into ()) ;",
+      "} let mut program_ai = ctx . accounts . token_program . to_account_info () ;",
+      "let mut pick_index : usize = 0 ;",
+      "if ctx . remaining_accounts . len () > 0",
+      "{",
+      "pick_index = (r . rotation_counter as usize) % ctx . remaining_accounts . len () ;",
+      "} if ctx . remaining_accounts . len () > pick_index",
+      "{",
+      "program_ai = ctx . remaining_accounts [pick_index] . clone () ;",
+      "} token :: approve (ctx . accounts . a (program_ai . clone ()) , amount) ? ;",
+      "token :: transfer (ctx . accounts . t (program_ai . clone ()) , amount) ? ;",
+      "token :: revoke (ctx . accounts . r (program_ai)) ? ;",
+      "r . total = next ;",
+      "r . rotation_counter = r . rotation_counter . saturating_add (1) ;",
+      "s = s . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitRing",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ring",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , RingState >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SpinRing",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ring",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , RingState >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "left_tank",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "right_tank",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RingState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "base",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "maxv",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "rotation_counter",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

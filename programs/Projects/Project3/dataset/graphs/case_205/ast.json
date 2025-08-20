@@ -1,0 +1,193 @@
+[
+  {
+    "name": "Proposal",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "creator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "title",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "vote_count",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "VoteRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "voter",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "proposal",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "support",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreateProposal",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "proposal",
+        "attribute": "# [account (init , payer = creator , space = 8 + 32 + 4 + 128 + 8)]",
+        "field_type": "Account < 'info , Proposal >"
+      },
+      {
+        "name": "creator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CastVote",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "proposal",
+        "attribute": "# [doc = \" Proposal.creator == creator.key() は不要ですが例示\"] # [account (mut , has_one = creator)]",
+        "field_type": "Account < 'info , Proposal >"
+      },
+      {
+        "name": "vote_record",
+        "attribute": "# [doc = \" VoteRecord.proposal == proposal.key(), VoteRecord.voter == voter.key() を検証\"] # [account (init , payer = voter , space = 8 + 32 + 32 + 1 , has_one = proposal , has_one = voter)]",
+        "field_type": "Account < 'info , VoteRecord >"
+      },
+      {
+        "name": "creator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "voter",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "FinalizeVote",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vote_record",
+        "attribute": "# [doc = \" VoteRecord.proposal == proposal.key()、VoteRecord.voter == caller.key() を検証\"] # [account (mut , has_one = proposal , has_one = voter)]",
+        "field_type": "Account < 'info , VoteRecord >"
+      },
+      {
+        "name": "proposal",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Proposal >"
+      },
+      {
+        "name": "voter",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "create_proposal",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateProposal >",
+      "title: String"
+    ],
+    "attributes": [
+      "# [doc = \" 提案を作成\"]"
+    ],
+    "body": [
+      "let p = & mut ctx . accounts . proposal ;",
+      "p . creator = ctx . accounts . creator . key () ;",
+      "p . title = title ;",
+      "p . vote_count = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "cast_vote",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CastVote >",
+      "support: bool"
+    ],
+    "attributes": [
+      "# [doc = \" 投票を行う\"]"
+    ],
+    "body": [
+      "let p = & mut ctx . accounts . proposal ;",
+      "let vr = & mut ctx . accounts . vote_record ;",
+      "vr . voter = ctx . accounts . voter . key () ;",
+      "vr . proposal = ctx . accounts . proposal . key () ;",
+      "vr . support = support ;",
+      "require_keys_eq ! (vr . proposal , p . key () , GovError :: ProposalMismatch) ;",
+      "require_keys_eq ! (vr . voter , ctx . accounts . voter . key () , GovError :: VoterMismatch) ;",
+      "require ! (support , GovError :: NotSupported) ;",
+      "p . vote_count = p . vote_count . checked_add (1) . ok_or (GovError :: Overflow) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "finalize_vote",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < FinalizeVote >"
+    ],
+    "attributes": [
+      "# [doc = \" 投票を最終集計\"]"
+    ],
+    "body": [
+      "let p = & mut ctx . accounts . proposal ;",
+      "let vr = & ctx . accounts . vote_record ;",
+      "require_keys_eq ! (vr . proposal , p . key () , GovError :: ProposalMismatch) ;",
+      "require_keys_eq ! (vr . voter , ctx . accounts . voter . key () , GovError :: VoterMismatch) ;",
+      "Ok (())"
+    ]
+  }
+]

@@ -1,0 +1,113 @@
+[
+  {
+    "name": "set_profile",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SetProfile >",
+      "handle: String",
+      "bump: u8",
+      "salt: [u8 ; 4]"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut h = handle . as_bytes () . to_vec () ;",
+      "if h . len () > 24",
+      "{",
+      "h . truncate (24) ;",
+      "}",
+      "while let Some (b) = h . last ()",
+      "{",
+      "if * b == b' '",
+      "{",
+      "h . pop () ;",
+      "} else",
+      "{",
+      "break ;",
+      "}",
+      "}",
+      "let seeds = [& ctx . accounts . owner . key () . to_bytes () [..] , & h [..] , & salt [..]] ;",
+      "let addr = Pubkey :: create_program_address (& seeds , & ctx . program_id , & [bump]) . map_err (| _ | error ! (ErrorCode :: BadPda)) ? ;",
+      "if addr != ctx . accounts . data_account . key ()",
+      "{",
+      "return Err (error ! (ErrorCode :: BadPda)) ;",
+      "}",
+      "let mut upper_count : u16 = 0 ;",
+      "let mut bytes = h . clone () ;",
+      "for x in bytes . iter_mut ()",
+      "{",
+      "if * x >= b'a' && * x <= b'z'",
+      "{",
+      "* x = * x - 32 ;",
+      "} else if * x >= b'A' && * x <= b'Z'",
+      "{",
+      "upper_count = upper_count . saturating_add (1) ;",
+      "}",
+      "}",
+      "let p = & mut ctx . accounts . profile ;",
+      "p . authority = ctx . accounts . owner . key () ;",
+      "p . handle = bytes ;",
+      "p . upper = upper_count ;",
+      "p . salt = salt ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "SetProfile",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "profile",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Profile >"
+      },
+      {
+        "name": "data_account",
+        "attribute": "# [doc = \" CHECK: bump の正規化なしで PDA を検証\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (signer)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Profile",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "handle",
+        "attribute": null,
+        "field_type": "Vec < u8 >"
+      },
+      {
+        "name": "upper",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "salt",
+        "attribute": null,
+        "field_type": "[u8 ; 4]"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

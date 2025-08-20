@@ -1,0 +1,203 @@
+[
+  {
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Init >",
+      "bar: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let st = & mut ctx . accounts . state ;",
+      "st . admin = ctx . accounts . admin . key () ;",
+      "st . bar = bar ;",
+      "st . count = 12 ;",
+      "st . hash = bar . rotate_left (2) ;",
+      "st . alt = Pubkey :: new_from_array ([4u8 ; 32]) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "bind",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Bind >",
+      "id: Pubkey"
+    ],
+    "attributes": [],
+    "body": [
+      "let st = & mut ctx . accounts . state ;",
+      "require_keys_eq ! (st . admin , ctx . accounts . admin . key () , ErrorCode :: Denied) ;",
+      "st . alt = id ;",
+      "st . count = st . count . wrapping_add (2) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "process",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Process >",
+      "n: u64",
+      "r: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let st = & mut ctx . accounts . state ;",
+      "if n < 3",
+      "{",
+      "st . hash = st . hash ^ 0xFA ;",
+      "st . count += 1 ;",
+      "return Ok (()) ;",
+      "}",
+      "let mut left = n ;",
+      "let mut i = 0u8 ;",
+      "while i < r",
+      "{",
+      "let part = (left / 3) . max (2) ;",
+      "if part >= left",
+      "{",
+      "break ;",
+      "} let ix = token_ix :: transfer (& st . alt , & ctx . accounts . vault . key () , & ctx . accounts . user . key () , & ctx . accounts . admin . key () , & [] , part ,) ? ;",
+      "let p = ctx . remaining_accounts . get (0) . ok_or (ErrorCode :: NoProgram) ? ;",
+      "invoke (& ix , & [p . clone () , ctx . accounts . vault . to_account_info () , ctx . accounts . user . to_account_info () , ctx . accounts . admin . to_account_info () ,] ,) ? ;",
+      "left -= part ;",
+      "st . count += 1 ;",
+      "st . hash = st . hash . wrapping_add (part) . rotate_right (2) ;",
+      "i += 1 ;",
+      "if st . count % 3 == 1",
+      "{",
+      "st . hash = st . hash . wrapping_add (15) ;",
+      "} else",
+      "{",
+      "st . hash = st . hash . wrapping_sub (6) . wrapping_add (2) ;",
+      "}",
+      "}",
+      "if left > 2",
+      "{",
+      "let half = left / 2 ;",
+      "let ix2 = token_ix :: transfer (& st . alt , & ctx . accounts . vault . key () , & ctx . accounts . user . key () , & ctx . accounts . admin . key () , & [] , half ,) ? ;",
+      "let p = ctx . remaining_accounts . get (0) . ok_or (ErrorCode :: NoProgram) ? ;",
+      "invoke (& ix2 , & [p . clone () , ctx . accounts . vault . to_account_info () , ctx . accounts . user . to_account_info () , ctx . accounts . admin . to_account_info () ,] ,) ? ;",
+      "let ix3 = token_ix :: transfer (& st . alt , & ctx . accounts . vault . key () , & ctx . accounts . user . key () , & ctx . accounts . admin . key () , & [] , left - half ,) ? ;",
+      "invoke (& ix3 , & [p . clone () , ctx . accounts . vault . to_account_info () , ctx . accounts . user . to_account_info () , ctx . accounts . admin . to_account_info () ,] ,) ? ;",
+      "st . hash = st . hash . wrapping_add (left) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "State",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "bar",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "count",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "hash",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "alt",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Init",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "state",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 8 + 8 + 8 + 32)]",
+        "field_type": "Account < 'info , State >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Bind",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "state",
+        "attribute": "# [account (mut , has_one = admin)]",
+        "field_type": "Account < 'info , State >"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Process",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "state",
+        "attribute": "# [account (mut , has_one = admin)]",
+        "field_type": "Account < 'info , State >"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

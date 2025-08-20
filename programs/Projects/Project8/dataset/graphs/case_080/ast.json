@@ -1,0 +1,109 @@
+[
+  {
+    "name": "deposit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Deposit >",
+      "amount: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let ix = system_instruction :: transfer (& ctx . accounts . player . key () , & ctx . accounts . escrow . key () , amount ,) ;",
+      "invoke (& ix , & [ctx . accounts . player . to_account_info () , ctx . accounts . escrow . to_account_info () , ctx . accounts . system_program . to_account_info () ,] ,) ? ;",
+      "ctx . accounts . bank_state . total_locked = ctx . accounts . bank_state . total_locked . saturating_add (amount) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "refund",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Refund >",
+      "amount: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "require ! (ctx . accounts . operator . is_signer , BankError :: OperatorRequired) ;",
+      "let bal = * * ctx . accounts . escrow . to_account_info () . lamports . borrow () ;",
+      "require ! (bal >= amount , BankError :: InsufficientEscrow) ;",
+      "* * ctx . accounts . escrow . to_account_info () . try_borrow_mut_lamports () ? -= amount ;",
+      "* * ctx . accounts . recipient . to_account_info () . try_borrow_mut_lamports () ? += amount ;",
+      "ctx . accounts . bank_state . total_locked = ctx . accounts . bank_state . total_locked . saturating_sub (amount) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Deposit",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "bank_state",
+        "attribute": "# [account (init , payer = player , space = 8 + BankState :: LEN , seeds = [b\"bank_state\" , player . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , BankState >"
+      },
+      {
+        "name": "player",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "escrow",
+        "attribute": "# [account (mut)]",
+        "field_type": "SystemAccount < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Refund",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "bank_state",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , BankState >"
+      },
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "escrow",
+        "attribute": "# [account (mut)]",
+        "field_type": "SystemAccount < 'info >"
+      },
+      {
+        "name": "recipient",
+        "attribute": "# [account (mut)]",
+        "field_type": "SystemAccount < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BankState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "total_locked",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

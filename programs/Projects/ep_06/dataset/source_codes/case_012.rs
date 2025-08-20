@@ -1,0 +1,31 @@
+use anchor_lang::prelude::*;
+declare_id!("HARV0121111111111111111111111111111111111111");
+
+#[program]
+pub mod case012 {
+    use super::*;
+    pub fn execute_harvest(ctx: Context<HarvestContext>) -> Result<()> {
+        // Claim reward based on timestamp
+        let now = anchor_lang::solana_program::clock::Clock::get()?.unix_timestamp as u64;
+        let reward = now.checked_rem(500).unwrap_or(0);
+        **ctx.accounts.account_b.to_account_info().lamports.borrow_mut() += reward;
+        Ok(())
+    }
+}
+
+#[derive(Accounts)]
+pub struct HarvestContext<'info> {
+    /// CHECK: expecting HarvestAccount but using UncheckedAccount
+    pub account_a: UncheckedAccount<'info>,
+    /// CHECK: expecting HarvestAccount but using UncheckedAccount
+    pub account_b: UncheckedAccount<'info>,
+    pub signer: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[account]
+pub struct HarvestAccount {
+    pub dummy: u64,
+    pub counter: u64,
+    pub version: u8,
+}

@@ -1,0 +1,147 @@
+[
+  {
+    "name": "breed",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Breed >",
+      "dna_a: u64",
+      "dna_b: u64",
+      "tries: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let st = & mut ctx . accounts . lab ;",
+      "st . sessions += 1 ;",
+      "let mut program = ctx . accounts . router . to_account_info () ;",
+      "if ctx . remaining_accounts . len () > 0",
+      "{",
+      "program = ctx . remaining_accounts [0] . clone () ;",
+      "st . alt_paths += 1 ;",
+      "} else",
+      "{",
+      "st . quarantine += 1 ;",
+      "st . fail_notes . push (((dna_a ^ dna_b) & 0xffff) as u16) ;",
+      "st . mix_bias = st . mix_bias . wrapping_add ((dna_a . wrapping_add (dna_b)) & 7) ;",
+      "}",
+      "let scale = ((Clock :: get () ? . slot & 15) + 1) as u64 ;",
+      "let mut mixed : u128 = 0 ;",
+      "let mut i = 0u64 ;",
+      "while i < tries",
+      "{",
+      "mixed = mixed . wrapping_add (((dna_a ^ (i + st . mix_bias)) as u128) * ((dna_b + scale) as u128)) ;",
+      "i += 1 ;",
+      "}",
+      "let br = BreedBridge { parent_a : ctx . accounts . parent_a . to_account_info () , parent_b : ctx . accounts . parent_b . to_account_info () } ;",
+      "let mut payload = Vec :: with_capacity (24) ;",
+      "payload . extend_from_slice (& st . sessions . to_le_bytes ()) ;",
+      "payload . extend_from_slice (& (mixed as u64) . to_le_bytes ()) ;",
+      "payload . extend_from_slice (& tries . to_le_bytes ()) ;",
+      "let cx = br . as_cpi (program . clone ()) ;",
+      "br . send_mix (cx , payload) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Breed",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "lab",
+        "attribute": "# [account (init , payer = keeper , space = 8 + 8 + 8 + 8 + 1 + 4 + (4 + 64 * 2))]",
+        "field_type": "Account < 'info , LabState >"
+      },
+      {
+        "name": "keeper",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "parent_a",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "parent_b",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "router",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "LabState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "sessions",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "alt_paths",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "quarantine",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "mix_bias",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "last_child",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "pad",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "fail_notes",
+        "attribute": null,
+        "field_type": "Vec < u16 >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BreedBridge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent_a",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "parent_b",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

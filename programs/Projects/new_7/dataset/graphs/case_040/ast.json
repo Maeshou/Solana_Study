@@ -1,0 +1,146 @@
+[
+  {
+    "name": "setup",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Setup >",
+      "day_id: Pubkey",
+      "night_id: Pubkey"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . state ;",
+      "s . admin = ctx . accounts . admin . key () ;",
+      "s . day = day_id ;",
+      "s . night = night_id ;",
+      "s . counter = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "pay",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Pay >",
+      "base: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . state ;",
+      "require ! (s . admin == ctx . accounts . admin . key () , Errs :: Admin) ;",
+      "let clock = & ctx . accounts . clock ;",
+      "let mut chosen = s . day ;",
+      "if clock . slot % 2 == 1",
+      "{",
+      "chosen = s . night ;",
+      "} else",
+      "{",
+      "s . counter = s . counter . saturating_add (1) ;",
+      "}",
+      "let mut amt = base ;",
+      "let mut k = 0u8 ;",
+      "while k < 5",
+      "{",
+      "amt = amt . saturating_add ((k as u64) + ((s . counter % 7) as u64)) ;",
+      "k = k . saturating_add (1) ;",
+      "}",
+      "let ix = spl_token :: instruction :: transfer (chosen , ctx . accounts . treasury . key () , ctx . accounts . recipient_ata . key () , ctx . accounts . admin . key () , & [] , amt ,) ? ;",
+      "invoke (& ix , & [ctx . accounts . treasury . to_account_info () , ctx . accounts . recipient_ata . to_account_info () , ctx . accounts . admin . to_account_info () ,]) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "State",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "day",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "night",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "counter",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Setup",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "state",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 32 + 32 + 4)]",
+        "field_type": "Account < 'info , State >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Pay",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "state",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , State >"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "treasury",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "recipient_ata",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "clock",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Clock >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

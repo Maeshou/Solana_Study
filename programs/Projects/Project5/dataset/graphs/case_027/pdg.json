@@ -1,9 +1,9 @@
 [
   {
-    "name": "cancel_bid",
+    "name": "init_track",
     "inputs": [
-      "ctx: Context < Ctx027 >",
-      "amount: u64"
+      "ctx: Context < InitTrack >",
+      "laps: u32"
     ],
     "nodes": [
       {
@@ -12,26 +12,22 @@
       },
       {
         "id": 1,
-        "label": "let src = & mut ctx . accounts . account_src ;"
+        "label": "let accs = & mut ctx . accounts ;"
       },
       {
         "id": 2,
-        "label": "let dst = & mut ctx . accounts . account_dst ;"
+        "label": "accs . track . host = accs . host . key () ;"
       },
       {
         "id": 3,
-        "label": "let before = * * src . to_account_info () . try_borrow_lamports () ? ;"
+        "label": "accs . track . laps = laps ;"
       },
       {
         "id": 4,
-        "label": "* * src . to_account_info () . try_borrow_mut_lamports () ? = before . saturating_sub (amount) ;"
+        "label": "accs . track . state = TrackState :: Active ;"
       },
       {
         "id": 5,
-        "label": "* * dst . to_account_info () . try_borrow_mut_lamports () ? += amount ;"
-      },
-      {
-        "id": 6,
         "label": "Ok (())"
       }
     ],
@@ -39,37 +35,354 @@
       {
         "from": 1,
         "to": 1,
-        "label": "def: src"
+        "label": "def: accs"
       },
       {
-        "from": 2,
+        "from": 1,
         "to": 2,
-        "label": "def: dst"
+        "label": "data_dep: accs"
       },
       {
-        "from": 3,
-        "to": 3,
-        "label": "def: before"
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: accs"
       },
       {
         "from": 1,
         "to": 3,
-        "label": "data_dep: src"
+        "label": "data_dep: accs"
       },
       {
         "from": 1,
         "to": 4,
-        "label": "data_dep: src"
+        "label": "data_dep: accs"
+      }
+    ]
+  },
+  {
+    "name": "run_heats",
+    "inputs": [
+      "ctx: Context < RunHeats >",
+      "tick: u32"
+    ],
+    "nodes": [
+      {
+        "id": 6,
+        "label": "Entry"
       },
       {
-        "from": 3,
-        "to": 4,
-        "label": "data_dep: before"
+        "id": 7,
+        "label": "let a = & mut ctx . accounts ;"
       },
       {
-        "from": 2,
-        "to": 5,
-        "label": "data_dep: dst"
+        "id": 8,
+        "label": "assert_ne ! (a . track . key () , a . stats . key () , \"track/stats must differ\") ;"
+      },
+      {
+        "id": 9,
+        "label": "let seed = [& a . track . host . as_ref () , & a . stats . total . to_le_bytes ()] . concat () ;"
+      },
+      {
+        "id": 10,
+        "label": "let bump = (hashv (& [& seed]) . 0 [0] as u32 % 9) + 3 ;"
+      },
+      {
+        "id": 11,
+        "label": "for _ in 0 .. tick { a . racer_a . lap = a . racer_a . lap . saturating_add (10 + bump) ; a . racer_b . lap = a . racer_b . lap . saturating_add (12 + bump) ; a . stats . total = a . stats . total . saturating_add (7 + bump as u64) ; }"
+      },
+      {
+        "id": 12,
+        "label": "a . racer_a . lap = a . racer_a . lap . saturating_add (10 + bump) ;"
+      },
+      {
+        "id": 13,
+        "label": "a . racer_b . lap = a . racer_b . lap . saturating_add (12 + bump) ;"
+      },
+      {
+        "id": 14,
+        "label": "a . stats . total = a . stats . total . saturating_add (7 + bump as u64) ;"
+      },
+      {
+        "id": 15,
+        "label": "if a . stats . total > (a . track . laps as u64) * 20 { a . track . state = TrackState :: Cooldown ; a . stats . heats = a . stats . heats . saturating_add (3 + (bump / 2)) ; a . racer_b . flags = a . racer_b . flags . saturating_add (2) ; msg ! (\"cooldown: heats & flags raised\") ; } else { a . track . state = TrackState :: Active ; a . stats . heats = a . stats . heats . saturating_add (1) ; a . racer_a . flags = a . racer_a . flags . saturating_add (1) ; msg ! (\"active: keep racing, heats/flags tick\") ; }"
+      },
+      {
+        "id": 16,
+        "label": "a . track . state = TrackState :: Cooldown ;"
+      },
+      {
+        "id": 17,
+        "label": "a . stats . heats = a . stats . heats . saturating_add (3 + (bump / 2)) ;"
+      },
+      {
+        "id": 18,
+        "label": "a . racer_b . flags = a . racer_b . flags . saturating_add (2) ;"
+      },
+      {
+        "id": 19,
+        "label": "msg ! (\"cooldown: heats & flags raised\") ;"
+      },
+      {
+        "id": 20,
+        "label": "a . track . state = TrackState :: Active ;"
+      },
+      {
+        "id": 21,
+        "label": "a . stats . heats = a . stats . heats . saturating_add (1) ;"
+      },
+      {
+        "id": 22,
+        "label": "a . racer_a . flags = a . racer_a . flags . saturating_add (1) ;"
+      },
+      {
+        "id": 23,
+        "label": "msg ! (\"active: keep racing, heats/flags tick\") ;"
+      },
+      {
+        "id": 24,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 7,
+        "to": 7,
+        "label": "def: a"
+      },
+      {
+        "from": 9,
+        "to": 9,
+        "label": "def: seed"
+      },
+      {
+        "from": 7,
+        "to": 9,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 9,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 10,
+        "to": 10,
+        "label": "def: bump"
+      },
+      {
+        "from": 9,
+        "to": 10,
+        "label": "data_dep: seed"
+      },
+      {
+        "from": 7,
+        "to": 11,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 11,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 10,
+        "to": 11,
+        "label": "data_dep: bump"
+      },
+      {
+        "from": 7,
+        "to": 11,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 11,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 10,
+        "to": 11,
+        "label": "data_dep: bump"
+      },
+      {
+        "from": 7,
+        "to": 11,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 11,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 10,
+        "to": 11,
+        "label": "data_dep: bump"
+      },
+      {
+        "from": 7,
+        "to": 12,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 12,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 10,
+        "to": 12,
+        "label": "data_dep: bump"
+      },
+      {
+        "from": 7,
+        "to": 13,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 13,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 10,
+        "to": 13,
+        "label": "data_dep: bump"
+      },
+      {
+        "from": 7,
+        "to": 14,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 14,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 10,
+        "to": 14,
+        "label": "data_dep: bump"
+      },
+      {
+        "from": 7,
+        "to": 15,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 15,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 15,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 15,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 15,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 10,
+        "to": 15,
+        "label": "data_dep: bump"
+      },
+      {
+        "from": 7,
+        "to": 15,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 15,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 15,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 15,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 15,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 15,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 15,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 16,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 10,
+        "to": 17,
+        "label": "data_dep: bump"
+      },
+      {
+        "from": 7,
+        "to": 18,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 18,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 20,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 21,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 21,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 22,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 22,
+        "label": "data_dep: a"
       }
     ]
   }

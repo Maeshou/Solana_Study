@@ -1,0 +1,140 @@
+[
+  {
+    "name": "enter_lottery",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < EnterLottery >",
+      "base_bps: u16"
+    ],
+    "attributes": [
+      "# [doc = \" 特定の NFT ミントの保有量に応じて当選確率を決定し、\"]",
+      "# [doc = \" 抽選を実行して結果を記録します。\"]",
+      "# [doc = \"\"]",
+      "# [doc = \" # 引数\"]",
+      "# [doc = \" - `base_bps`: 1 枚あたりの当選確率（basis points, 10000 = 100%）\"]"
+    ],
+    "body": [
+      "let clock = Clock :: get () ? ;",
+      "let rand_bps = (clock . unix_timestamp as u64 % 10_000) as u16 ;",
+      "let hold = ctx . accounts . user_nft_account . amount ;",
+      "let mut chance = hold . checked_mul (base_bps as u64) . unwrap () . min (10_000) as u16 ;",
+      "let win = rand_bps < chance ;",
+      "let result = & mut ctx . accounts . result ;",
+      "result . user = * ctx . accounts . user . key ;",
+      "result . hold_amount = hold ;",
+      "result . chance_bps = chance ;",
+      "result . random_bps = rand_bps ;",
+      "result . won = win ;",
+      "emit ! (LotteryEvent { user : * ctx . accounts . user . key , hold : hold , chance_bps : chance , random_bps : rand_bps , won : win , }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "EnterLottery",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 抽選に参加するユーザー（署名必須）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "user_nft_account",
+        "attribute": "# [doc = \" 指定の NFT ミントを保有する TokenAccount\"] # [account (constraint = user_nft_account . owner == * user . key , constraint = user_nft_account . mint == nft_mint . key () ,)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "nft_mint",
+        "attribute": "# [doc = \" 対象 NFT の Mint アドレス\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "result",
+        "attribute": "# [doc = \" 結果を保存するアカウント（PDA）\"] # [account (init_if_needed , payer = user , space = 8 + 32 + 8 + 2 + 2 + 1 , seeds = [b\"lottery\" , user . key () . as_ref ()] , bump ,)]",
+        "field_type": "Account < 'info , LotteryResult >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "rent",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Rent >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "LotteryResult",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": "# [doc = \" ユーザー\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "hold_amount",
+        "attribute": "# [doc = \" 保有枚数\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "chance_bps",
+        "attribute": "# [doc = \" トータル当選確率（bps）\"]",
+        "field_type": "u16"
+      },
+      {
+        "name": "random_bps",
+        "attribute": "# [doc = \" 生成された乱数（bps）\"]",
+        "field_type": "u16"
+      },
+      {
+        "name": "won",
+        "attribute": "# [doc = \" 当選フラグ\"]",
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "LotteryEvent",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "hold",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "chance_bps",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "random_bps",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "won",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

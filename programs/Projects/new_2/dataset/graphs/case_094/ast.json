@@ -1,0 +1,62 @@
+[
+  {
+    "name": "create_offer",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateOffer >",
+      "offered_nfts: Vec < Pubkey >",
+      "wanted_nfts: Vec < Pubkey >"
+    ],
+    "attributes": [
+      "# [doc = \" NFTトレードオファーを作成する  \"]",
+      "# [doc = \" (`trade_account` の owner チェックを全く行っていないため、  \"]",
+      "# [doc = \" 攻撃者が他人のオファーアカウントを指定して好き勝手に\"]",
+      "# [doc = \" 提案内容を上書きできる脆弱性があります)\"]"
+    ],
+    "body": [
+      "let acct = & mut ctx . accounts . trade_account . to_account_info () ;",
+      "let buf = & mut acct . data . borrow_mut () ;",
+      "let o = offered_nfts . len () . min (8) as u8 ;",
+      "let w = wanted_nfts . len () . min (8) as u8 ;",
+      "let mut record = Vec :: with_capacity (1 + 32 * (o as usize) + 1 + 32 * (w as usize) + 32) ;",
+      "record . push (o) ;",
+      "for & pk in offered_nfts . iter () . take (o as usize)",
+      "{",
+      "record . extend_from_slice (& pk . to_bytes ()) ;",
+      "}",
+      "record . push (w) ;",
+      "for & pk in wanted_nfts . iter () . take (w as usize)",
+      "{",
+      "record . extend_from_slice (& pk . to_bytes ()) ;",
+      "}",
+      "record . extend_from_slice (ctx . accounts . proposer . key . as_ref ()) ;",
+      "if buf . len () < record . len ()",
+      "{",
+      "return err ! (ErrorCode :: DataTooShort) ;",
+      "}",
+      "buf . iter_mut () . zip (record . iter ()) . for_each (| (dst , & src) | * dst = src) ;",
+      "msg ! (\"Offer {} created by {}: offers {} items, wants {} items\" , acct . key () , ctx . accounts . proposer . key () , o , w) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CreateOffer",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "trade_account",
+        "attribute": "# [doc = \" CHECK: owner == program_id の検証を一切行っていない AccountInfo\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "proposer",
+        "attribute": "# [doc = \" オファー提案者の署名のみ検証\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

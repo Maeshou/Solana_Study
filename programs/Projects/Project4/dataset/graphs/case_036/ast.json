@@ -1,33 +1,75 @@
 [
   {
-    "name": "initialize_treasury_account",
+    "name": "setup_user",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Initialize036 >",
-      "param: u64"
+      "ctx: Context < SetupUser >",
+      "nickname: String",
+      "theme: String",
+      "notify_email: bool"
     ],
     "attributes": [],
     "body": [
-      "let mut data = TreasuryAccountData :: try_from_slice (& ctx . accounts . data_account . data . borrow ()) ? ;",
-      "data . value = param ;",
-      "data . serialize (& mut * ctx . accounts . data_account . data . borrow_mut ()) ? ;",
+      "let banned = [\"admin\" , \"root\" , \"sys\"] ;",
+      "for & b in banned . iter ()",
+      "{",
+      "if nickname . to_lowercase () . contains (b)",
+      "{",
+      "return Err (error ! (ProgramError :: InvalidArgument)) ;",
+      "}",
+      "}",
+      "let profile = & mut ctx . accounts . profile ;",
+      "profile . owner = ctx . accounts . user . key () ;",
+      "profile . nickname = nickname . clone () ;",
+      "let settings = & mut ctx . accounts . settings ;",
+      "if nickname . len () % 2 == 0",
+      "{",
+      "settings . theme = theme . to_uppercase () ;",
+      "} else",
+      "{",
+      "settings . theme = theme . to_lowercase () ;",
+      "}",
+      "let first = nickname . chars () . next () . unwrap_or ('x') . to_ascii_lowercase () ;",
+      "settings . privacy_level = match first { 'a' | 'e' | 'i' | 'o' | 'u' => 3 , _ => 1 , } ;",
+      "let notifications = & mut ctx . accounts . notifications ;",
+      "notifications . email = notify_email ;",
+      "notifications . sms = ! notify_email ;",
+      "if ! notifications . email && ! notifications . sms",
+      "{",
+      "notifications . email = true ;",
+      "}",
       "Ok (())"
     ]
   },
   {
-    "name": "Initialize036",
+    "name": "SetupUser",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "profile",
+        "attribute": "# [account (init , payer = user , space = 8 + 32 + 64)]",
+        "field_type": "Account < 'info , ProfileData >"
       },
       {
-        "name": "authority",
-        "attribute": null,
+        "name": "settings",
+        "attribute": "# [account (init , payer = user , space = 8 + 64 + 1)]",
+        "field_type": "Account < 'info , SettingsData >"
+      },
+      {
+        "name": "notifications",
+        "attribute": "# [account (init , payer = user , space = 8 + 1 + 1)]",
+        "field_type": "Account < 'info , NotificationsData >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -35,13 +77,56 @@
     "body": null
   },
   {
-    "name": "TreasuryAccountData",
+    "name": "ProfileData",
     "node_type": "struct",
     "fields": [
       {
-        "name": "value",
+        "name": "owner",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "nickname",
+        "attribute": null,
+        "field_type": "String"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SettingsData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "theme",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "privacy_level",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "NotificationsData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "email",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "sms",
+        "attribute": null,
+        "field_type": "bool"
       }
     ],
     "inputs": null,

@@ -1,33 +1,62 @@
 [
   {
-    "name": "initialize_insurance_pool",
+    "name": "init_stock",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Initialize014 >",
-      "param: u64"
+      "ctx: Context < InitStock >",
+      "initial: u32"
     ],
     "attributes": [],
     "body": [
-      "let mut data = InsurancePoolData :: try_from_slice (& ctx . accounts . data_account . data . borrow ()) ? ;",
-      "data . value = param ;",
-      "data . serialize (& mut * ctx . accounts . data_account . data . borrow_mut ()) ? ;",
+      "let s = & mut ctx . accounts . stock ;",
+      "s . quantity = initial ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Initialize014",
+    "name": "consume",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Consume >",
+      "amount: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut left = ctx . accounts . stock . quantity ;",
+      "let mut to_take = amount ;",
+      "while to_take > 0",
+      "{",
+      "if left == 0",
+      "{",
+      "break ;",
+      "} left -= 1 ;",
+      "to_take -= 1 ;",
+      "}",
+      "let c = & mut ctx . accounts . consumption ;",
+      "c . taken = amount - to_take ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitStock",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "stock",
+        "attribute": "# [account (init , payer = manager , space = 8 + 4)]",
+        "field_type": "Account < 'info , StockData >"
       },
       {
-        "name": "authority",
-        "attribute": null,
+        "name": "manager",
+        "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -35,13 +64,56 @@
     "body": null
   },
   {
-    "name": "InsurancePoolData",
+    "name": "Consume",
     "node_type": "struct",
     "fields": [
       {
-        "name": "value",
+        "name": "stock",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "Account < 'info , StockData >"
+      },
+      {
+        "name": "consumption",
+        "attribute": "# [account (mut , init , payer = manager , space = 8 + 4)]",
+        "field_type": "Account < 'info , ConsumptionData >"
+      },
+      {
+        "name": "manager",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "StockData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "quantity",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ConsumptionData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "taken",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

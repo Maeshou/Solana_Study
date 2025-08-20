@@ -1,0 +1,150 @@
+[
+  {
+    "name": "init_board",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitBoard >",
+      "seed: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let b = & mut ctx . accounts . board ;",
+      "b . owner = ctx . accounts . organizer . key () ;",
+      "b . progress = seed . rotate_right (1) . wrapping_add (27) ;",
+      "b . capacity = 3 ;",
+      "b . tier = 1 ;",
+      "for grp in [5u64 , 8 , 12 , 19 , 31 , 50] . chunks (2)",
+      "{",
+      "let mut local = 0u64 ;",
+      "for x in grp",
+      "{",
+      "local = local . wrapping_add (* x) ;",
+      "} b . progress = b . progress . wrapping_add (local ^ b . progress) ;",
+      "b . capacity = b . capacity . saturating_add (((local % 3) as u16) + 1) ;",
+      "}",
+      "let acc = [3u64 , 4 , 6] . iter () . fold (0u64 , | a , v | a . wrapping_add (* v)) ;",
+      "let mut s = 1u8 ;",
+      "loop { b . tier = b . tier . saturating_add (1) ; b . progress = b . progress . wrapping_add (acc ^ (s as u64 * 9)) ; if s > 2 { break ; } s = s . saturating_add (1) ; }",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "post_reward",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PostReward >",
+      "base: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let b = & mut ctx . accounts . board ;",
+      "for (i , v) in [7u64 , 11 , 18] . iter () . enumerate ()",
+      "{",
+      "let delta = v . rotate_left ((i + 2) as u32) ;",
+      "if delta > 10",
+      "{",
+      "b . capacity = b . capacity . saturating_add (1) ;",
+      "} b . progress = b . progress . wrapping_add (delta) ;",
+      "}",
+      "let seeds : & [& [u8]] = & [b\"board\" , ctx . accounts . organizer . key . as_ref () , ctx . accounts . world . key () . as_ref () , & [ctx . bumps [\"board\"]] ,] ;",
+      "let out = base . saturating_add ((b . progress % 91) + 6) ;",
+      "let ix = system_instruction :: transfer (& ctx . accounts . board . key () , & ctx . accounts . treasury . key () , out) ;",
+      "invoke_signed (& ix , & [ctx . accounts . board . to_account_info () , ctx . accounts . treasury . to_account_info () , ctx . accounts . system_program . to_account_info () ,] , & [seeds] ,) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitBoard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "board",
+        "attribute": "# [account (init , payer = organizer , space = 8 + 32 + 8 + 2 + 1 , seeds = [b\"board\" , organizer . key () . as_ref () , world . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Board >"
+      },
+      {
+        "name": "organizer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "world",
+        "attribute": "# [doc = \" CHECK\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PostReward",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "board",
+        "attribute": "# [account (mut , seeds = [b\"board\" , organizer . key () . as_ref () , world . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Board >"
+      },
+      {
+        "name": "treasury",
+        "attribute": "# [account (mut)]",
+        "field_type": "SystemAccount < 'info >"
+      },
+      {
+        "name": "organizer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "world",
+        "attribute": "# [doc = \" CHECK\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Board",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "progress",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "capacity",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "tier",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

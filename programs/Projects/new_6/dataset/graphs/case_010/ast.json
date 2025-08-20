@@ -1,0 +1,253 @@
+[
+  {
+    "name": "init_escrow_service",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitEscrowService >"
+    ],
+    "attributes": [],
+    "body": [
+      "let service = & mut ctx . accounts . escrow_service ;",
+      "service . operator = ctx . accounts . operator . key () ;",
+      "service . total_escrows = 0 ;",
+      "service . total_volume = 0 ;",
+      "service . fee_rate = 2 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "create_escrow",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateEscrow >",
+      "amount: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let escrow = & mut ctx . accounts . escrow_account ;",
+      "escrow . service = ctx . accounts . escrow_service . key () ;",
+      "escrow . buyer = ctx . accounts . buyer . key () ;",
+      "escrow . seller = ctx . accounts . seller . key () ;",
+      "escrow . amount = amount ;",
+      "escrow . released = false ;",
+      "escrow . disputed = false ;",
+      "let service = & mut ctx . accounts . escrow_service ;",
+      "service . total_escrows = service . total_escrows . checked_add (1) . unwrap_or (u64 :: MAX) ;",
+      "service . total_volume = service . total_volume . checked_add (amount) . unwrap_or (u64 :: MAX) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "vulnerable_release",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < VulnerableRelease >"
+    ],
+    "attributes": [],
+    "body": [
+      "let service = & mut ctx . accounts . escrow_service ;",
+      "let party_a_info = & ctx . accounts . party_a ;",
+      "let party_b_info = & ctx . accounts . party_b ;",
+      "let mediator_info = & ctx . accounts . mediator ;",
+      "let party_a_balance = * * party_a_info . lamports . borrow () ;",
+      "let party_b_balance = * * party_b_info . lamports . borrow () ;",
+      "let mediator_balance = * * mediator_info . lamports . borrow () ;",
+      "while service . total_escrows > 0 && service . total_volume > 0",
+      "{",
+      "if party_a_balance > party_b_balance + mediator_balance",
+      "{",
+      "let release_amount = (party_a_balance >> 16) & 0xFFFF ;",
+      "service . total_volume = service . total_volume . saturating_sub (release_amount) ;",
+      "let fee = (release_amount * service . fee_rate as u64) / 100 ;",
+      "service . total_volume = service . total_volume . checked_add (fee) . unwrap_or (u64 :: MAX) ;",
+      "let compound_rate = (service . fee_rate as u64 * release_amount) / 1000 ;",
+      "service . total_escrows = service . total_escrows . checked_add (compound_rate) . unwrap_or (u64 :: MAX) ;",
+      "msg ! (\"Party A release: amount=",
+      "{",
+      "}, fee={}\" , release_amount , fee) ;",
+      "if release_amount < 100",
+      "{",
+      "break ;",
+      "} } else",
+      "{",
+      "let combined_power = party_b_balance ^ mediator_balance ;",
+      "let dispute_resolution = (combined_power >> 20) & 0xFFF ;",
+      "service . total_volume = service . total_volume . saturating_sub (dispute_resolution) ;",
+      "service . fee_rate = (service . fee_rate + 1) . min (10) ;",
+      "let adjustment = (dispute_resolution << 2) | 0x03 ;",
+      "service . total_escrows = service . total_escrows . checked_add (adjustment) . unwrap_or (u64 :: MAX) ;",
+      "msg ! (\"Dispute resolution: amount=",
+      "{",
+      "}\" , dispute_resolution) ;",
+      "if dispute_resolution == 0",
+      "{",
+      "break ;",
+      "} }",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitEscrowService",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "escrow_service",
+        "attribute": "# [account (init , payer = operator , space = 8 + 32 + 8 + 8 + 4)]",
+        "field_type": "Account < 'info , EscrowService >"
+      },
+      {
+        "name": "operator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreateEscrow",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "escrow_service",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , EscrowService >"
+      },
+      {
+        "name": "escrow_account",
+        "attribute": "# [account (init , payer = buyer , space = 8 + 32 + 32 + 32 + 8 + 1 + 1)]",
+        "field_type": "Account < 'info , EscrowAccount >"
+      },
+      {
+        "name": "buyer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "seller",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "VulnerableRelease",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "escrow_service",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , EscrowService >"
+      },
+      {
+        "name": "party_a",
+        "attribute": "# [doc = \" CHECK: 脆弱性 - パーティA検証なし\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "party_b",
+        "attribute": "# [doc = \" CHECK: 脆弱性 - パーティB検証なし  \"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "mediator",
+        "attribute": "# [doc = \" CHECK: 脆弱性 - 仲裁人検証なし\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EscrowService",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "total_escrows",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_volume",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "fee_rate",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EscrowAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "service",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "buyer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "seller",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "released",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "disputed",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

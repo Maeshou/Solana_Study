@@ -1,0 +1,120 @@
+[
+  {
+    "name": "stake_nft",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < StakeNft >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" NFT をステークして報酬アカウントを更新するが、\"]",
+      "# [doc = \" 同一アカウントチェックが抜けている Duplicate Mutable Account 脆弱性あり\"]"
+    ],
+    "body": [
+      "let stake_acc = & mut ctx . accounts . stake_acc ;",
+      "let reward_acc = & mut ctx . accounts . reward_acc ;",
+      "stake_acc . total_staked = stake_acc . total_staked . saturating_add (amount) ;",
+      "reward_acc . pending_rewards |= amount ;",
+      "reward_acc . multiplier = reward_acc . multiplier . saturating_mul (2) ;",
+      "stake_acc . last_stake = ctx . accounts . clock . unix_timestamp ;",
+      "reward_acc . last_update = ctx . accounts . clock . unix_timestamp ;",
+      "stake_acc . note . push_str (\"-staked\") ;",
+      "reward_acc . note . push_str (\"-rewarded\") ;",
+      "msg ! (\"User {} staked {} tokens → total_staked={}, pending_rewards={}\" , ctx . accounts . user . key () , amount , stake_acc . total_staked , reward_acc . pending_rewards) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "StakeNft",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "stake_acc",
+        "attribute": "# [doc = \" ユーザーのステーク情報\"] # [account (mut)]",
+        "field_type": "Account < 'info , StakeAccount >"
+      },
+      {
+        "name": "reward_acc",
+        "attribute": "# [doc = \" 報酬集計用アカウント\"] # [account (mut)]",
+        "field_type": "Account < 'info , RewardAccount >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 実行ユーザー\"] # [account (signer)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": "# [doc = \" 現在時刻取得用\"]",
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": "# [doc = \" システムプログラム\"]",
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "StakeAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" アカウント所有者\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "total_staked",
+        "attribute": "# [doc = \" 累積ステーク量\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "last_stake",
+        "attribute": "# [doc = \" 最終ステーク時刻\"]",
+        "field_type": "i64"
+      },
+      {
+        "name": "note",
+        "attribute": "# [doc = \" 任意メタデータ\"]",
+        "field_type": "String"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RewardAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pending_rewards",
+        "attribute": "# [doc = \" 未配布報酬量（ビット演算で管理）\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "multiplier",
+        "attribute": "# [doc = \" 報酬倍率\"]",
+        "field_type": "u8"
+      },
+      {
+        "name": "last_update",
+        "attribute": "# [doc = \" 最終更新時刻\"]",
+        "field_type": "i64"
+      },
+      {
+        "name": "note",
+        "attribute": "# [doc = \" 任意メタデータ\"]",
+        "field_type": "String"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

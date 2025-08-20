@@ -1,0 +1,241 @@
+[
+  {
+    "name": "init_scout",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitScout >",
+      "seat: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . scout ;",
+      "s . parent = ctx . accounts . result_board . key () ;",
+      "s . seat = seat ;",
+      "s . power = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_result",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitResult >"
+    ],
+    "attributes": [],
+    "body": [
+      "let r = & mut ctx . accounts . result_board ;",
+      "let st = & mut ctx . accounts . stats ;",
+      "r . owner = ctx . accounts . owner . key () ;",
+      "r . last = 0 ;",
+      "r . hist = [0 ; 6] ;",
+      "st . owner = ctx . accounts . owner . key () ;",
+      "st . win = 0 ;",
+      "st . lose = 0 ;",
+      "st . score = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "process_raid",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ProcessRaid >",
+      "energy: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let a = & mut ctx . accounts . scout_a ;",
+      "let b = & mut ctx . accounts . scout_b ;",
+      "let r = & mut ctx . accounts . result_board ;",
+      "let st = & mut ctx . accounts . stats ;",
+      "for i in 0 .. 6",
+      "{",
+      "let e = (energy as u64) . rotate_left ((i as u32) & 31) ^ (a . power ^ b . power) ;",
+      "let gain = ((e & 0xFFFF) as u32) % 1000 ;",
+      "r . hist [i] = r . hist [i] . saturating_add (gain) ;",
+      "r . last = r . hist [i] ;",
+      "}",
+      "if (r . last & 1) == 0",
+      "{",
+      "a . power = a . power . saturating_add ((r . last / 3) as u64) ;",
+      "st . win = st . win . saturating_add (1) ;",
+      "st . score = st . score . saturating_add (r . last as u64) ;",
+      "msg ! (\"A boosted\") ;",
+      "} else",
+      "{",
+      "b . power = b . power . saturating_add ((r . last / 2) as u64) ;",
+      "st . lose = st . lose . saturating_add (1) ;",
+      "st . score = st . score . saturating_add ((r . last / 2) as u64) ;",
+      "msg ! (\"B boosted\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitResult",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "result_board",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 4 + 4 * 6)]",
+        "field_type": "Account < 'info , ResultBoard >"
+      },
+      {
+        "name": "stats",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , RaidStats >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitScout",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "result_board",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , ResultBoard >"
+      },
+      {
+        "name": "scout",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 1 + 8)]",
+        "field_type": "Account < 'info , Scout >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ProcessRaid",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "result_board",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , ResultBoard >"
+      },
+      {
+        "name": "scout_a",
+        "attribute": "# [account (mut , constraint = scout_a . parent == result_board . key () @ RaidErr :: Cosplay , constraint = scout_a . seat != scout_b . seat @ RaidErr :: Cosplay)]",
+        "field_type": "Account < 'info , Scout >"
+      },
+      {
+        "name": "scout_b",
+        "attribute": "# [account (mut , constraint = scout_b . parent == result_board . key () @ RaidErr :: Cosplay)]",
+        "field_type": "Account < 'info , Scout >"
+      },
+      {
+        "name": "stats",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , RaidStats >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ResultBoard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "last",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "hist",
+        "attribute": null,
+        "field_type": "[u32 ; 6]"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Scout",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "seat",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "power",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RaidStats",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "win",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "lose",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "score",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

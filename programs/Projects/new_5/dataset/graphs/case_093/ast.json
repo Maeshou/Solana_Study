@@ -1,0 +1,240 @@
+[
+  {
+    "name": "init_circle",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitCircle >",
+      "circle_id: u64",
+      "initial_aether: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let circle = & mut ctx . accounts . magic_circle ;",
+      "circle . circle_id = circle_id + CIRCLE_ID_BONUS ;",
+      "circle . aether_pool = initial_aether * INITIAL_AETHER_MULTIPLIER ;",
+      "circle . active_casters = 0 ;",
+      "circle . is_active = circle . aether_pool > INITIAL_AETHER_THRESHOLD ;",
+      "msg ! (\"Magic Circle {} created with {} aether.\" , circle . circle_id , circle . aether_pool) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_caster",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitCaster >",
+      "caster_id: u64",
+      "caster_type: CasterType"
+    ],
+    "attributes": [],
+    "body": [
+      "let caster = & mut ctx . accounts . spellcaster ;",
+      "caster . parent_circle = ctx . accounts . magic_circle . key () ;",
+      "caster . caster_id = caster_id ^ 0xFF00FF00FF00FF00 ;",
+      "caster . caster_type = caster_type ;",
+      "caster . mastery_level = 0 ;",
+      "caster . is_casting = false ;",
+      "msg ! (\"Spellcaster {} of type {:?} joins the circle.\" , caster . caster_id , caster . caster_type) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "cast_spells",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CastSpells >",
+      "cycles: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let circle = & mut ctx . accounts . magic_circle ;",
+      "let master_caster = & mut ctx . accounts . master_caster ;",
+      "let apprentice_caster = & mut ctx . accounts . apprentice_caster ;",
+      "for _i in 0 .. cycles",
+      "{",
+      "match master_caster . caster_type",
+      "{",
+      "CasterType :: Elementalist => { circle . aether_pool = circle . aether_pool . saturating_sub (AETHER_COST_ELEMENTALIST) ;",
+      "master_caster . mastery_level = master_caster . mastery_level . saturating_add (MASTERY_GAIN_ELEMENTALIST) ;",
+      "master_caster . is_casting = master_caster . mastery_level < MASTERY_THRESHOLD_ELEMENTALIST ;",
+      "} , CasterType :: Illusionist =>",
+      "{",
+      "circle . aether_pool = circle . aether_pool . saturating_sub (AETHER_COST_ILLUSIONIST) ;",
+      "master_caster . mastery_level = master_caster . mastery_level . saturating_add (MASTERY_GAIN_ILLUSIONIST) ;",
+      "master_caster . is_casting = master_caster . mastery_level < MASTERY_THRESHOLD_ILLUSIONIST ;",
+      "} , CasterType :: Necromancer =>",
+      "{",
+      "circle . aether_pool = circle . aether_pool . saturating_sub (AETHER_COST_NECROMANCER) ;",
+      "master_caster . mastery_level = master_caster . mastery_level . saturating_add (MASTERY_GAIN_NECROMANCER) ;",
+      "master_caster . is_casting = master_caster . mastery_level < MASTERY_THRESHOLD_NECROMANCER ;",
+      "} , } match apprentice_caster . caster_type",
+      "{",
+      "CasterType :: Elementalist => { circle . aether_pool = circle . aether_pool . saturating_sub (AETHER_COST_ELEMENTALIST) ;",
+      "apprentice_caster . mastery_level = apprentice_caster . mastery_level . saturating_add (MASTERY_GAIN_ELEMENTALIST) ;",
+      "apprentice_caster . is_casting = apprentice_caster . mastery_level < MASTERY_THRESHOLD_ELEMENTALIST ;",
+      "} , CasterType :: Illusionist =>",
+      "{",
+      "circle . aether_pool = circle . aether_pool . saturating_sub (AETHER_COST_ILLUSIONIST) ;",
+      "apprentice_caster . mastery_level = apprentice_caster . mastery_level . saturating_add (MASTERY_GAIN_ILLUSIONIST) ;",
+      "apprentice_caster . is_casting = apprentice_caster . mastery_level < MASTERY_THRESHOLD_ILLUSIONIST ;",
+      "} , CasterType :: Necromancer =>",
+      "{",
+      "circle . aether_pool = circle . aether_pool . saturating_sub (AETHER_COST_NECROMANCER) ;",
+      "apprentice_caster . mastery_level = apprentice_caster . mastery_level . saturating_add (MASTERY_GAIN_NECROMANCER) ;",
+      "apprentice_caster . is_casting = apprentice_caster . mastery_level < MASTERY_THRESHOLD_NECROMANCER ;",
+      "} , } circle . active_casters = (master_caster . is_casting as u32) + (apprentice_caster . is_casting as u32) ;",
+      "}",
+      "circle . is_active = circle . aether_pool > INITIAL_AETHER_THRESHOLD ;",
+      "msg ! (\"Spellcasters performed {} cycles of casting. Master mastery: {}, Apprentice mastery: {}.\" , cycles , master_caster . mastery_level , apprentice_caster . mastery_level) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitCircle",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "magic_circle",
+        "attribute": "# [account (init , payer = signer , space = 8 + 8 + 8 + 4 + 1)]",
+        "field_type": "Account < 'info , MagicCircle >"
+      },
+      {
+        "name": "signer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitCaster",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "spellcaster",
+        "attribute": "# [account (init , payer = signer , space = 8 + 32 + 8 + 1 + 4 + 1)]",
+        "field_type": "Account < 'info , Spellcaster >"
+      },
+      {
+        "name": "magic_circle",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , MagicCircle >"
+      },
+      {
+        "name": "signer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CastSpells",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "magic_circle",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , MagicCircle >"
+      },
+      {
+        "name": "master_caster",
+        "attribute": "# [account (mut , has_one = parent_circle)]",
+        "field_type": "Account < 'info , Spellcaster >"
+      },
+      {
+        "name": "apprentice_caster",
+        "attribute": "# [account (mut , has_one = parent_circle)]",
+        "field_type": "Account < 'info , Spellcaster >"
+      },
+      {
+        "name": "signer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MagicCircle",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "circle_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "aether_pool",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "active_casters",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "is_active",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Spellcaster",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent_circle",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "caster_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "caster_type",
+        "attribute": null,
+        "field_type": "CasterType"
+      },
+      {
+        "name": "mastery_level",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "is_casting",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,238 @@
+[
+  {
+    "name": "init_quest_board",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitQuestBoard >",
+      "name: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let board = & mut ctx . accounts . board ;",
+      "board . admin = ctx . accounts . admin . key () ;",
+      "board . name = name ;",
+      "board . total_quests = 0 ;",
+      "board . is_open = true ;",
+      "msg ! (\"Quest board '{}' initialized.\" , board . name) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_quest",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitQuest >",
+      "quest_id: u32",
+      "difficulty: u8",
+      "reward_amount: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let quest = & mut ctx . accounts . quest ;",
+      "let board = & mut ctx . accounts . board ;",
+      "quest . quest_board = board . key () ;",
+      "quest . quest_id = quest_id ;",
+      "quest . difficulty = difficulty ;",
+      "quest . reward_amount = reward_amount ;",
+      "quest . is_completed = false ;",
+      "board . total_quests = board . total_quests . saturating_add (1) ;",
+      "msg ! (\"Quest {} added to board {}.\" , quest . quest_id , board . name) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "complete_quests",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CompleteQuests >",
+      "scores: Vec < u8 >"
+    ],
+    "attributes": [],
+    "body": [
+      "let quest_a = & mut ctx . accounts . quest_a ;",
+      "let quest_b = & mut ctx . accounts . quest_b ;",
+      "if ! ctx . accounts . board . is_open",
+      "{",
+      "return Err (ErrorCode :: BoardClosed . into ()) ;",
+      "}",
+      "let mut points_a : u64 = 0 ;",
+      "let mut points_b : u64 = 0 ;",
+      "let mut score_sum = 0 ;",
+      "for score in scores . iter ()",
+      "{",
+      "score_sum = score_sum . saturating_add (* score) ;",
+      "let success_factor = if * score > 80",
+      "{",
+      "1.5 } else { 1.0 } ;",
+      "if quest_a . difficulty > quest_b . difficulty",
+      "{",
+      "points_a = points_a . saturating_add ((quest_a . reward_amount as f64 * success_factor) as u64) ;",
+      "points_b = points_b . saturating_add (quest_b . reward_amount . saturating_sub (10)) ;",
+      "msg ! (\"Quest A is harder, giving it bonus points.\") ;",
+      "} else",
+      "{",
+      "points_b = points_b . saturating_add ((quest_b . reward_amount as f64 * success_factor) as u64) ;",
+      "points_a = points_a . saturating_add (quest_a . reward_amount . saturating_sub (10)) ;",
+      "msg ! (\"Quest B is harder, giving it bonus points.\") ;",
+      "}",
+      "}",
+      "if score_sum > 200",
+      "{",
+      "quest_a . is_completed = true ;",
+      "quest_b . is_completed = true ;",
+      "quest_a . reward_amount = quest_a . reward_amount . saturating_add (points_a) ;",
+      "quest_b . reward_amount = quest_b . reward_amount . saturating_add (points_b) ;",
+      "msg ! (\"Both quests completed! Final rewards: A:",
+      "{",
+      "}, B: {}\" , quest_a . reward_amount , quest_b . reward_amount) ;",
+      "} else",
+      "{",
+      "msg ! (\"Scores too low, neither quest completed.\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitQuestBoard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "board",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , QuestBoard >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitQuest",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "quest_board",
+        "attribute": "# [account (mut , has_one = quest_board)]",
+        "field_type": "Account < 'info , QuestBoard >"
+      },
+      {
+        "name": "quest",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 4 + 1 + 8 + 1)]",
+        "field_type": "Account < 'info , Quest >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CompleteQuests",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "board",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , QuestBoard >"
+      },
+      {
+        "name": "quest_a",
+        "attribute": "# [account (mut , has_one = quest_board)]",
+        "field_type": "Account < 'info , Quest >"
+      },
+      {
+        "name": "quest_b",
+        "attribute": "# [account (mut , has_one = quest_board)]",
+        "field_type": "Account < 'info , Quest >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "QuestBoard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "total_quests",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "is_open",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Quest",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "quest_board",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "quest_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "difficulty",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "reward_amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "is_completed",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

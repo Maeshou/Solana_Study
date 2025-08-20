@@ -1,0 +1,740 @@
+[
+  {
+    "name": "init_escrow_service",
+    "inputs": [
+      "ctx: Context < InitEscrowService >"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let service = & mut ctx . accounts . escrow_service ;"
+      },
+      {
+        "id": 2,
+        "label": "service . operator = ctx . accounts . operator . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "service . total_escrows = 0 ;"
+      },
+      {
+        "id": 4,
+        "label": "service . total_volume = 0 ;"
+      },
+      {
+        "id": 5,
+        "label": "service . fee_rate = 2 ;"
+      },
+      {
+        "id": 6,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: service"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: service"
+      }
+    ]
+  },
+  {
+    "name": "create_escrow",
+    "inputs": [
+      "ctx: Context < CreateEscrow >",
+      "amount: u64"
+    ],
+    "nodes": [
+      {
+        "id": 7,
+        "label": "Entry"
+      },
+      {
+        "id": 8,
+        "label": "let escrow = & mut ctx . accounts . escrow_account ;"
+      },
+      {
+        "id": 9,
+        "label": "escrow . service = ctx . accounts . escrow_service . key () ;"
+      },
+      {
+        "id": 10,
+        "label": "escrow . buyer = ctx . accounts . buyer . key () ;"
+      },
+      {
+        "id": 11,
+        "label": "escrow . seller = ctx . accounts . seller . key () ;"
+      },
+      {
+        "id": 12,
+        "label": "escrow . amount = amount ;"
+      },
+      {
+        "id": 13,
+        "label": "escrow . released = false ;"
+      },
+      {
+        "id": 14,
+        "label": "escrow . disputed = false ;"
+      },
+      {
+        "id": 15,
+        "label": "let service = & mut ctx . accounts . escrow_service ;"
+      },
+      {
+        "id": 16,
+        "label": "service . total_escrows = service . total_escrows . checked_add (1) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 17,
+        "label": "service . total_volume = service . total_volume . checked_add (amount) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 18,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 8,
+        "to": 8,
+        "label": "def: escrow"
+      },
+      {
+        "from": 8,
+        "to": 9,
+        "label": "data_dep: escrow"
+      },
+      {
+        "from": 8,
+        "to": 10,
+        "label": "data_dep: escrow"
+      },
+      {
+        "from": 8,
+        "to": 11,
+        "label": "data_dep: escrow"
+      },
+      {
+        "from": 8,
+        "to": 12,
+        "label": "data_dep: escrow"
+      },
+      {
+        "from": 8,
+        "to": 13,
+        "label": "data_dep: escrow"
+      },
+      {
+        "from": 8,
+        "to": 14,
+        "label": "data_dep: escrow"
+      },
+      {
+        "from": 15,
+        "to": 15,
+        "label": "def: service"
+      },
+      {
+        "from": 15,
+        "to": 16,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 15,
+        "to": 16,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 15,
+        "to": 17,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 15,
+        "to": 17,
+        "label": "data_dep: service"
+      }
+    ]
+  },
+  {
+    "name": "vulnerable_release",
+    "inputs": [
+      "ctx: Context < VulnerableRelease >"
+    ],
+    "nodes": [
+      {
+        "id": 19,
+        "label": "Entry"
+      },
+      {
+        "id": 20,
+        "label": "let service = & mut ctx . accounts . escrow_service ;"
+      },
+      {
+        "id": 21,
+        "label": "let party_a_info = & ctx . accounts . party_a ;"
+      },
+      {
+        "id": 22,
+        "label": "let party_b_info = & ctx . accounts . party_b ;"
+      },
+      {
+        "id": 23,
+        "label": "let mediator_info = & ctx . accounts . mediator ;"
+      },
+      {
+        "id": 24,
+        "label": "let party_a_balance = * * party_a_info . lamports . borrow () ;"
+      },
+      {
+        "id": 25,
+        "label": "let party_b_balance = * * party_b_info . lamports . borrow () ;"
+      },
+      {
+        "id": 26,
+        "label": "let mediator_balance = * * mediator_info . lamports . borrow () ;"
+      },
+      {
+        "id": 27,
+        "label": "while service . total_escrows > 0 && service . total_volume > 0 { if party_a_balance > party_b_balance + mediator_balance { let release_amount = (party_a_balance >> 16) & 0xFFFF ; service . total_volume = service . total_volume . saturating_sub (release_amount) ; let fee = (release_amount * service . fee_rate as u64) / 100 ; service . total_volume = service . total_volume . checked_add (fee) . unwrap_or (u64 :: MAX) ; let compound_rate = (service . fee_rate as u64 * release_amount) / 1000 ; service . total_escrows = service . total_escrows . checked_add (compound_rate) . unwrap_or (u64 :: MAX) ; msg ! (\"Party A release: amount={}, fee={}\" , release_amount , fee) ; if release_amount < 100 { break ; } } else { let combined_power = party_b_balance ^ mediator_balance ; let dispute_resolution = (combined_power >> 20) & 0xFFF ; service . total_volume = service . total_volume . saturating_sub (dispute_resolution) ; service . fee_rate = (service . fee_rate + 1) . min (10) ; let adjustment = (dispute_resolution << 2) | 0x03 ; service . total_escrows = service . total_escrows . checked_add (adjustment) . unwrap_or (u64 :: MAX) ; msg ! (\"Dispute resolution: amount={}\" , dispute_resolution) ; if dispute_resolution == 0 { break ; } } }"
+      },
+      {
+        "id": 28,
+        "label": "if party_a_balance > party_b_balance + mediator_balance { let release_amount = (party_a_balance >> 16) & 0xFFFF ; service . total_volume = service . total_volume . saturating_sub (release_amount) ; let fee = (release_amount * service . fee_rate as u64) / 100 ; service . total_volume = service . total_volume . checked_add (fee) . unwrap_or (u64 :: MAX) ; let compound_rate = (service . fee_rate as u64 * release_amount) / 1000 ; service . total_escrows = service . total_escrows . checked_add (compound_rate) . unwrap_or (u64 :: MAX) ; msg ! (\"Party A release: amount={}, fee={}\" , release_amount , fee) ; if release_amount < 100 { break ; } } else { let combined_power = party_b_balance ^ mediator_balance ; let dispute_resolution = (combined_power >> 20) & 0xFFF ; service . total_volume = service . total_volume . saturating_sub (dispute_resolution) ; service . fee_rate = (service . fee_rate + 1) . min (10) ; let adjustment = (dispute_resolution << 2) | 0x03 ; service . total_escrows = service . total_escrows . checked_add (adjustment) . unwrap_or (u64 :: MAX) ; msg ! (\"Dispute resolution: amount={}\" , dispute_resolution) ; if dispute_resolution == 0 { break ; } }"
+      },
+      {
+        "id": 29,
+        "label": "let release_amount = (party_a_balance >> 16) & 0xFFFF ;"
+      },
+      {
+        "id": 30,
+        "label": "service . total_volume = service . total_volume . saturating_sub (release_amount) ;"
+      },
+      {
+        "id": 31,
+        "label": "let fee = (release_amount * service . fee_rate as u64) / 100 ;"
+      },
+      {
+        "id": 32,
+        "label": "service . total_volume = service . total_volume . checked_add (fee) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 33,
+        "label": "let compound_rate = (service . fee_rate as u64 * release_amount) / 1000 ;"
+      },
+      {
+        "id": 34,
+        "label": "service . total_escrows = service . total_escrows . checked_add (compound_rate) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 35,
+        "label": "msg ! (\"Party A release: amount={}, fee={}\" , release_amount , fee) ;"
+      },
+      {
+        "id": 36,
+        "label": "if release_amount < 100 { break ; }"
+      },
+      {
+        "id": 37,
+        "label": "break ;"
+      },
+      {
+        "id": 38,
+        "label": "let combined_power = party_b_balance ^ mediator_balance ;"
+      },
+      {
+        "id": 39,
+        "label": "let dispute_resolution = (combined_power >> 20) & 0xFFF ;"
+      },
+      {
+        "id": 40,
+        "label": "service . total_volume = service . total_volume . saturating_sub (dispute_resolution) ;"
+      },
+      {
+        "id": 41,
+        "label": "service . fee_rate = (service . fee_rate + 1) . min (10) ;"
+      },
+      {
+        "id": 42,
+        "label": "let adjustment = (dispute_resolution << 2) | 0x03 ;"
+      },
+      {
+        "id": 43,
+        "label": "service . total_escrows = service . total_escrows . checked_add (adjustment) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 44,
+        "label": "msg ! (\"Dispute resolution: amount={}\" , dispute_resolution) ;"
+      },
+      {
+        "id": 45,
+        "label": "if dispute_resolution == 0 { break ; }"
+      },
+      {
+        "id": 46,
+        "label": "break ;"
+      },
+      {
+        "id": 47,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 20,
+        "to": 20,
+        "label": "def: service"
+      },
+      {
+        "from": 21,
+        "to": 21,
+        "label": "def: party_a_info"
+      },
+      {
+        "from": 22,
+        "to": 22,
+        "label": "def: party_b_info"
+      },
+      {
+        "from": 23,
+        "to": 23,
+        "label": "def: mediator_info"
+      },
+      {
+        "from": 24,
+        "to": 24,
+        "label": "def: party_a_balance"
+      },
+      {
+        "from": 21,
+        "to": 24,
+        "label": "data_dep: party_a_info"
+      },
+      {
+        "from": 25,
+        "to": 25,
+        "label": "def: party_b_balance"
+      },
+      {
+        "from": 22,
+        "to": 25,
+        "label": "data_dep: party_b_info"
+      },
+      {
+        "from": 26,
+        "to": 26,
+        "label": "def: mediator_balance"
+      },
+      {
+        "from": 23,
+        "to": 26,
+        "label": "data_dep: mediator_info"
+      },
+      {
+        "from": 20,
+        "to": 27,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 20,
+        "to": 27,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 24,
+        "to": 27,
+        "label": "data_dep: party_a_balance"
+      },
+      {
+        "from": 25,
+        "to": 27,
+        "label": "data_dep: party_b_balance"
+      },
+      {
+        "from": 26,
+        "to": 27,
+        "label": "data_dep: mediator_balance"
+      },
+      {
+        "from": 24,
+        "to": 27,
+        "label": "data_dep: party_a_balance"
+      },
+      {
+        "from": 20,
+        "to": 27,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 20,
+        "to": 27,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 20,
+        "to": 27,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 20,
+        "to": 27,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 20,
+        "to": 27,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 20,
+        "to": 27,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 20,
+        "to": 27,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 20,
+        "to": 27,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 25,
+        "to": 27,
+        "label": "data_dep: party_b_balance"
+      },
+      {
+        "from": 26,
+        "to": 27,
+        "label": "data_dep: mediator_balance"
+      },
+      {
+        "from": 20,
+        "to": 27,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 20,
+        "to": 27,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 20,
+        "to": 27,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 20,
+        "to": 27,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 20,
+        "to": 27,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 20,
+        "to": 27,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 24,
+        "to": 28,
+        "label": "data_dep: party_a_balance"
+      },
+      {
+        "from": 25,
+        "to": 28,
+        "label": "data_dep: party_b_balance"
+      },
+      {
+        "from": 26,
+        "to": 28,
+        "label": "data_dep: mediator_balance"
+      },
+      {
+        "from": 24,
+        "to": 28,
+        "label": "data_dep: party_a_balance"
+      },
+      {
+        "from": 20,
+        "to": 28,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 20,
+        "to": 28,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 20,
+        "to": 28,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 20,
+        "to": 28,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 20,
+        "to": 28,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 20,
+        "to": 28,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 20,
+        "to": 28,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 20,
+        "to": 28,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 25,
+        "to": 28,
+        "label": "data_dep: party_b_balance"
+      },
+      {
+        "from": 26,
+        "to": 28,
+        "label": "data_dep: mediator_balance"
+      },
+      {
+        "from": 20,
+        "to": 28,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 20,
+        "to": 28,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 20,
+        "to": 28,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 20,
+        "to": 28,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 20,
+        "to": 28,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 20,
+        "to": 28,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 29,
+        "to": 29,
+        "label": "def: release_amount"
+      },
+      {
+        "from": 24,
+        "to": 29,
+        "label": "data_dep: party_a_balance"
+      },
+      {
+        "from": 20,
+        "to": 30,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 20,
+        "to": 30,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 29,
+        "to": 30,
+        "label": "data_dep: release_amount"
+      },
+      {
+        "from": 31,
+        "to": 31,
+        "label": "def: fee"
+      },
+      {
+        "from": 29,
+        "to": 31,
+        "label": "data_dep: release_amount"
+      },
+      {
+        "from": 20,
+        "to": 31,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 20,
+        "to": 32,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 20,
+        "to": 32,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 31,
+        "to": 32,
+        "label": "data_dep: fee"
+      },
+      {
+        "from": 33,
+        "to": 33,
+        "label": "def: compound_rate"
+      },
+      {
+        "from": 20,
+        "to": 33,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 29,
+        "to": 33,
+        "label": "data_dep: release_amount"
+      },
+      {
+        "from": 20,
+        "to": 34,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 20,
+        "to": 34,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 33,
+        "to": 34,
+        "label": "data_dep: compound_rate"
+      },
+      {
+        "from": 29,
+        "to": 36,
+        "label": "data_dep: release_amount"
+      },
+      {
+        "from": 38,
+        "to": 38,
+        "label": "def: combined_power"
+      },
+      {
+        "from": 25,
+        "to": 38,
+        "label": "data_dep: party_b_balance"
+      },
+      {
+        "from": 26,
+        "to": 38,
+        "label": "data_dep: mediator_balance"
+      },
+      {
+        "from": 39,
+        "to": 39,
+        "label": "def: dispute_resolution"
+      },
+      {
+        "from": 38,
+        "to": 39,
+        "label": "data_dep: combined_power"
+      },
+      {
+        "from": 20,
+        "to": 40,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 20,
+        "to": 40,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 39,
+        "to": 40,
+        "label": "data_dep: dispute_resolution"
+      },
+      {
+        "from": 20,
+        "to": 41,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 20,
+        "to": 41,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 42,
+        "to": 42,
+        "label": "def: adjustment"
+      },
+      {
+        "from": 39,
+        "to": 42,
+        "label": "data_dep: dispute_resolution"
+      },
+      {
+        "from": 20,
+        "to": 43,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 20,
+        "to": 43,
+        "label": "data_dep: service"
+      },
+      {
+        "from": 42,
+        "to": 43,
+        "label": "data_dep: adjustment"
+      },
+      {
+        "from": 39,
+        "to": 45,
+        "label": "data_dep: dispute_resolution"
+      }
+    ]
+  }
+]

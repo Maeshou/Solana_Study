@@ -1,0 +1,210 @@
+[
+  {
+    "name": "initialize_plan",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializePlan >",
+      "price_per_period: u64"
+    ],
+    "attributes": [
+      "# [doc = \" サービス管理者だけが呼べる：サブスクプラン設定\"]"
+    ],
+    "body": [
+      "let plan = & mut ctx . accounts . plan ;",
+      "plan . admin = ctx . accounts . admin . key () ;",
+      "plan . price = price_per_period ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "subscribe",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Subscribe >",
+      "periods: u8"
+    ],
+    "attributes": [
+      "# [doc = \" ユーザーは署名付きで契約を開始\"]"
+    ],
+    "body": [
+      "let cost = ctx . accounts . plan . price . checked_mul (periods as u64) . unwrap () ;",
+      "require ! (ctx . accounts . payer . to_account_info () . lamports () >= cost , ErrorCode :: InsufficientFunds) ;",
+      "* * ctx . accounts . payer . to_account_info () . try_borrow_mut_lamports () ? -= cost ;",
+      "* * ctx . accounts . plan . to_account_info () . try_borrow_mut_lamports () ? += cost ;",
+      "let sub = & mut ctx . accounts . subscription ;",
+      "sub . user = ctx . accounts . payer . key () ;",
+      "sub . periods = periods ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "view_subscription",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ViewSubscription >"
+    ],
+    "attributes": [
+      "# [doc = \" ユーザーのサブスク情報を表示\"]"
+    ],
+    "body": [
+      "let sub = & ctx . accounts . subscription ;",
+      "msg ! (\"User {} has {} period(s) remaining\" , sub . user , sub . periods) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "update_price",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < UpdatePrice >",
+      "new_price: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 管理者が価格を更新\"]"
+    ],
+    "body": [
+      "require ! (ctx . accounts . admin . is_signer , ErrorCode :: Unauthorized) ;",
+      "ctx . accounts . plan . price = new_price ;",
+      "msg ! (\"Plan price updated to {}\" , new_price) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializePlan",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "plan",
+        "attribute": "# [doc = \" PDA でプランアカウントを初期化\"] # [account (init , payer = admin , space = 8 + 32 + 8 , seeds = [b\"plan\" , admin . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , PlanAccount >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Subscribe",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "plan",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , PlanAccount >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [doc = \" ユーザー署名付き\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "subscription",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 , seeds = [b\"sub\" , plan . key () . as_ref () , payer . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , SubscriptionAccount >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ViewSubscription",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "subscription",
+        "attribute": "# [account (seeds = [b\"sub\" , plan . key () . as_ref () , user . key () . as_ref ()] , bump , has_one = user)]",
+        "field_type": "Account < 'info , SubscriptionAccount >"
+      },
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "plan",
+        "attribute": null,
+        "field_type": "Account < 'info , PlanAccount >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "UpdatePrice",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "plan",
+        "attribute": "# [account (mut , seeds = [b\"plan\" , admin . key () . as_ref ()] , bump , has_one = admin)]",
+        "field_type": "Account < 'info , PlanAccount >"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PlanAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "price",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SubscriptionAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "periods",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

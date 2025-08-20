@@ -1,0 +1,206 @@
+[
+  {
+    "name": "mint_badge",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < MintBadge >",
+      "title: Vec < u8 >",
+      "tier: u8",
+      "bump: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut t = title . clone () ;",
+      "if t . len () > 24",
+      "{",
+      "t . truncate (24) ;",
+      "let mut padding = vec ! [b'#' ;",
+      "4] ;",
+      "t . extend_from_slice (& padding) ;",
+      "msg ! (\"Title too long, truncated and padded with #\") ;",
+      "}",
+      "if t . len () < 3",
+      "{",
+      "let filler = vec ! [b'*' ;",
+      "3 - t . len ()] ;",
+      "t . extend_from_slice (& filler) ;",
+      "msg ! (\"Title too short, filled with *\") ;",
+      "let ascii_sum : u32 = t . iter () . map (| x | * x as u32) . sum () ;",
+      "msg ! (\"Current ASCII sum of title:",
+      "{",
+      "}\" , ascii_sum) ;",
+      "}",
+      "let mut weight : u32 = 7 ;",
+      "for (i , b) in t . iter () . enumerate ()",
+      "{",
+      "weight = weight . wrapping_mul (131) . wrapping_add ((* b as u32) . wrapping_add (i as u32 + 11)) ;",
+      "if * b == b'!'",
+      "{",
+      "msg ! (\"Special character ! found at index {}\" , i) ;",
+      "weight = weight . saturating_add (500) ;",
+      "msg ! (\"Weight boosted due to special character\") ;",
+      "}",
+      "}",
+      "let seeds = [& ctx . accounts . member . key () . to_bytes () [..] , & t [..]] ;",
+      "let addr = Pubkey :: create_program_address (& seeds , & ctx . program_id , & [bump]) . map_err (| _ | error ! (GErr :: Cell)) ? ;",
+      "if addr != ctx . accounts . badge_cell . key ()",
+      "{",
+      "msg ! (\"PDA mismatch detected: expected",
+      "{",
+      "} but got {}\" , ctx . accounts . badge_cell . key () , addr) ;",
+      "return Err (error ! (GErr :: Cell)) ;",
+      "}",
+      "let b = & mut ctx . accounts . badge ;",
+      "b . member = ctx . accounts . member . key () ;",
+      "b . title = t ;",
+      "if tier > 9",
+      "{",
+      "b . tier = 9 ;",
+      "msg ! (\"Tier capped to 9\") ;",
+      "} else",
+      "{",
+      "b . tier = tier ;",
+      "msg ! (\"Tier set to",
+      "{",
+      "}\" , tier) ;",
+      "}",
+      "b . value = b . value . wrapping_add (weight) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "rename_badge",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RenameBadge >",
+      "new_title: Vec < u8 >",
+      "bump: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut t = new_title . clone () ;",
+      "if t . len () < 3",
+      "{",
+      "msg ! (\"New title too short, adding filler symbols...\") ;",
+      "t . extend_from_slice (b\"@@\") ;",
+      "let mut total : u32 = 0 ;",
+      "for ch in t . iter ()",
+      "{",
+      "total = total . wrapping_add (* ch as u32) ;",
+      "if * ch == b'@'",
+      "{",
+      "msg ! (\"Found filler symbol @, total so far {}\" , total) ;",
+      "} } msg ! (\"Final ASCII sum of new title:",
+      "{",
+      "}\" , total) ;",
+      "}",
+      "if t . len () > 20",
+      "{",
+      "msg ! (\"New title too long, trimming...\") ;",
+      "let dropped : usize = t . len () - 20 ;",
+      "t . truncate (20) ;",
+      "msg ! (\"",
+      "{",
+      "} characters dropped from the new title\" , dropped) ;",
+      "}",
+      "let seeds = [& ctx . accounts . member . key () . to_bytes () [..] , & t [..]] ;",
+      "let addr = Pubkey :: create_program_address (& seeds , & ctx . program_id , & [bump]) . map_err (| _ | error ! (GErr :: Cell)) ? ;",
+      "if addr != ctx . accounts . badge_cell . key ()",
+      "{",
+      "msg ! (\"Badge rename PDA mismatch\") ;",
+      "return Err (error ! (GErr :: Cell)) ;",
+      "}",
+      "let b = & mut ctx . accounts . badge ;",
+      "b . title = t ;",
+      "let mut bonus = 0u32 ;",
+      "for (i , _) in b . title . iter () . enumerate ()",
+      "{",
+      "bonus = bonus . wrapping_add ((i * 3) as u32) ;",
+      "msg ! (\"Bonus accumulation step",
+      "{",
+      "} => {}\" , i , bonus) ;",
+      "}",
+      "b . value = b . value . wrapping_add (bonus) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "MintBadge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "badge",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Badge >"
+      },
+      {
+        "name": "badge_cell",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "member",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RenameBadge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "badge",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Badge >"
+      },
+      {
+        "name": "badge_cell",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "member",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Badge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "member",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "title",
+        "attribute": null,
+        "field_type": "Vec < u8 >"
+      },
+      {
+        "name": "tier",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "value",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

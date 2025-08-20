@@ -1,0 +1,293 @@
+[
+  {
+    "name": "init_guild_treasury",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitGuildTreasury >",
+      "monthly_fee: u64",
+      "refund_period_slots: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let treasury = & mut ctx . accounts . guild_treasury ;",
+      "treasury . guild_leader = ctx . accounts . guild_leader . key () ;",
+      "treasury . fee_token_mint = ctx . accounts . fee_mint . key () ;",
+      "treasury . monthly_fee = monthly_fee ;",
+      "treasury . refund_period_slots = refund_period_slots ;",
+      "treasury . total_collected = 0 ;",
+      "treasury . total_refunded = 0 ;",
+      "treasury . member_count = 0 ;",
+      "treasury . treasury_status = TreasuryStatus :: Open ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "process_fee_collection",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ProcessFeeCollection >"
+    ],
+    "attributes": [],
+    "body": [
+      "let treasury = & mut ctx . accounts . guild_treasury ;",
+      "let current_slot = Clock :: get () ? . slot ;",
+      "if treasury . treasury_status == TreasuryStatus :: Closed",
+      "{",
+      "return Ok (()) ;",
+      "}",
+      "let fee_amount = treasury . monthly_fee ;",
+      "let member_data = & mut ctx . accounts . member_data ;",
+      "if member_data . last_payment_slot + 432000 < current_slot",
+      "{",
+      "member_data . payment_status = PaymentStatus :: Overdue ;",
+      "}",
+      "if member_data . payment_status == PaymentStatus :: Current",
+      "{",
+      "return Ok (()) ;",
+      "}",
+      "transfer (ctx . accounts . collect_fee_ctx () , fee_amount ,) ? ;",
+      "member_data . last_payment_slot = current_slot ;",
+      "member_data . payment_status = PaymentStatus :: Current ;",
+      "member_data . total_paid += fee_amount ;",
+      "treasury . total_collected += fee_amount ;",
+      "if member_data . is_first_payment",
+      "{",
+      "treasury . member_count += 1 ;",
+      "member_data . is_first_payment = false ;",
+      "}",
+      "if treasury . member_count >= 100",
+      "{",
+      "treasury . treasury_status = TreasuryStatus :: Full ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "process_refund_request",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ProcessRefundRequest >"
+    ],
+    "attributes": [],
+    "body": [
+      "let treasury = & mut ctx . accounts . guild_treasury ;",
+      "let member_data = & mut ctx . accounts . member_data ;",
+      "let current_slot = Clock :: get () ? . slot ;",
+      "if member_data . last_payment_slot + treasury . refund_period_slots > current_slot",
+      "{",
+      "let refund_amount = treasury . monthly_fee ;",
+      "let mut remaining_refund = refund_amount ;",
+      "while remaining_refund > 0",
+      "{",
+      "let chunk = std :: cmp :: min (remaining_refund , 100_000 * 10u64 . pow (6)) ;",
+      "transfer (ctx . accounts . refund_ctx () , chunk ,) ? ;",
+      "remaining_refund -= chunk ;",
+      "} member_data . payment_status = PaymentStatus :: Refunded ;",
+      "treasury . total_refunded += refund_amount ;",
+      "if member_data . total_paid >= refund_amount",
+      "{",
+      "member_data . total_paid -= refund_amount ;",
+      "}",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitGuildTreasury",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild_leader",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "guild_treasury",
+        "attribute": "# [account (init , payer = guild_leader , space = 8 + GuildTreasury :: INIT_SPACE , seeds = [b\"treasury\" , guild_leader . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , GuildTreasury >"
+      },
+      {
+        "name": "fee_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ProcessFeeCollection",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "member",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "guild_treasury",
+        "attribute": "# [account (mut , seeds = [b\"treasury\" , guild_treasury . guild_leader . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , GuildTreasury >"
+      },
+      {
+        "name": "member_data",
+        "attribute": "# [account (init_if_needed , payer = member , space = 8 + MemberData :: INIT_SPACE , seeds = [b\"member\" , guild_treasury . key () . as_ref () , member . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , MemberData >"
+      },
+      {
+        "name": "member_token_account",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "guild_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ProcessRefundRequest",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "member",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "guild_treasury",
+        "attribute": "# [account (mut , seeds = [b\"treasury\" , guild_treasury . guild_leader . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , GuildTreasury >"
+      },
+      {
+        "name": "member_data",
+        "attribute": "# [account (mut , seeds = [b\"member\" , guild_treasury . key () . as_ref () , member . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , MemberData >"
+      },
+      {
+        "name": "member_token_account",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "guild_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GuildTreasury",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild_leader",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "fee_token_mint",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "monthly_fee",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "refund_period_slots",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_collected",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_refunded",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "member_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "treasury_status",
+        "attribute": null,
+        "field_type": "TreasuryStatus"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MemberData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "last_payment_slot",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_paid",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "payment_status",
+        "attribute": null,
+        "field_type": "PaymentStatus"
+      },
+      {
+        "name": "is_first_payment",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

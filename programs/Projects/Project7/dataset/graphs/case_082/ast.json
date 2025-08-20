@@ -1,0 +1,164 @@
+[
+  {
+    "name": "init_station",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitStation >",
+      "chunk_input: u64",
+      "daily_limit_input: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . station ;",
+      "s . manager = ctx . accounts . manager . key () ;",
+      "s . chunk = chunk_input ;",
+      "if s . chunk < 2",
+      "{",
+      "s . chunk = 2 ;",
+      "}",
+      "s . daily_limit = daily_limit_input ;",
+      "if s . daily_limit < s . chunk",
+      "{",
+      "s . daily_limit = s . chunk ;",
+      "}",
+      "s . sent_today = 0 ;",
+      "s . cool_grade = 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_topup",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActTopup >",
+      "bursts: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . station ;",
+      "let mut i : u8 = 0 ;",
+      "while i < bursts",
+      "{",
+      "let divider = s . cool_grade + 1 ;",
+      "let mut amount = s . chunk / divider ;",
+      "if amount < 1",
+      "{",
+      "amount = 1 ;",
+      "} let next = s . sent_today + amount ;",
+      "if next > s . daily_limit",
+      "{",
+      "s . cool_grade = s . cool_grade + 1 ;",
+      "return Err (TopupErr :: Daily . into ()) ;",
+      "} token :: approve (ctx . accounts . approve_ctx () , amount) ? ;",
+      "token :: transfer (ctx . accounts . transfer_ctx () , amount) ? ;",
+      "token :: revoke (ctx . accounts . revoke_ctx ()) ? ;",
+      "s . sent_today = next ;",
+      "let relief_step = s . chunk * 4 ;",
+      "if relief_step > 0",
+      "{",
+      "if s . sent_today % relief_step == 0 { if s . cool_grade > 0 { s . cool_grade = s . cool_grade - 1 ;",
+      "} } } i = i + 1 ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitStation",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "station",
+        "attribute": "# [account (init , payer = manager , space = 8 + 32 + 8 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , BikeStation >"
+      },
+      {
+        "name": "manager",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActTopup",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "station",
+        "attribute": "# [account (mut , has_one = manager)]",
+        "field_type": "Account < 'info , BikeStation >"
+      },
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "payment_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "user_wallet_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "delegate",
+        "attribute": "# [doc = \" CHECK: 任意委任先\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BikeStation",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "chunk",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "daily_limit",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "sent_today",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "cool_grade",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

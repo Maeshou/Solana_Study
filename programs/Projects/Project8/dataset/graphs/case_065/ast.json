@@ -1,0 +1,363 @@
+[
+  {
+    "name": "establish_guild_territory",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < EstablishTerritory >",
+      "guild_name: String",
+      "territory_coordinates: TerritoryCoordinates",
+      "initial_defense_budget: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let guild_account = & mut ctx . accounts . guild_account ;",
+      "let current_time = Clock :: get () ? . unix_timestamp ;",
+      "guild_account . guild_master = ctx . accounts . guild_master . key () ;",
+      "guild_account . name = guild_name ;",
+      "guild_account . establishment_date = current_time ;",
+      "guild_account . member_count = 1 ;",
+      "guild_account . territory = territory_coordinates ;",
+      "guild_account . treasury_balance = initial_defense_budget ;",
+      "let territory_size = territory_coordinates . calculate_area () ;",
+      "require ! (territory_size >= 100 , GuildError :: TerritoryTooSmall) ;",
+      "require ! (territory_size <= 10000 , GuildError :: TerritoryTooLarge) ;",
+      "let mut defense_structures = Vec :: new () ;",
+      "let structure_count = match territory_size { size if size >= 5000 => { guild_account . max_member_capacity = 50 ; guild_account . daily_resource_generation = 1000 ; guild_account . territory_tier = TerritoryTier :: Capital ; for structure_id in 0 .. 8 { defense_structures . push (DefenseStructure { structure_id , structure_type : match structure_id % 4 { 0 => StructureType :: Watchtower , 1 => StructureType :: BarricadeWall , 2 => StructureType :: MagicBarrier , _ => StructureType :: TrapField , } , health_points : 2000 , defense_power : 300 , maintenance_cost : 50 , last_upgrade : current_time , }) ; } 8 } , size if size >= 2000 => { guild_account . max_member_capacity = 30 ; guild_account . daily_resource_generation = 500 ; guild_account . territory_tier = TerritoryTier :: City ; for structure_id in 0 .. 5 { defense_structures . push (DefenseStructure { structure_id , structure_type : match structure_id % 3 { 0 => StructureType :: Watchtower , 1 => StructureType :: BarricadeWall , _ => StructureType :: MagicBarrier , } , health_points : 1500 , defense_power : 200 , maintenance_cost : 30 , last_upgrade : current_time , }) ; } 5 } , _ => { guild_account . max_member_capacity = 15 ; guild_account . daily_resource_generation = 200 ; guild_account . territory_tier = TerritoryTier :: Outpost ; for structure_id in 0 .. 3 { defense_structures . push (DefenseStructure { structure_id , structure_type : match structure_id { 0 => StructureType :: Watchtower , 1 => StructureType :: BarricadeWall , _ => StructureType :: TrapField , } , health_points : 1000 , defense_power : 150 , maintenance_cost : 20 , last_upgrade : current_time , }) ; } 3 } } ;",
+      "guild_account . defense_structures = defense_structures ;",
+      "let mut resource_nodes = Vec :: new () ;",
+      "let available_resources = [ResourceType :: Gold , ResourceType :: Crystal , ResourceType :: Wood , ResourceType :: Stone , ResourceType :: MagicEssence] ;",
+      "for (node_index , resource_type) in available_resources . iter () . enumerate ()",
+      "{",
+      "let generation_rate = match guild_account . territory_tier",
+      "{",
+      "TerritoryTier :: Capital => 100 + (node_index as u32 * 20) , TerritoryTier :: City => 60 + (node_index as u32 * 15) , TerritoryTier :: Outpost => 30 + (node_index as u32 * 10) , } ;",
+      "resource_nodes . push (ResourceNode",
+      "{",
+      "resource_type : resource_type . clone () , current_amount : 0 , generation_rate , capacity : generation_rate * 24 , last_harvest : current_time , enhancement_level : 0 , }) ;",
+      "}",
+      "guild_account . resource_nodes = resource_nodes ;",
+      "guild_account . alliance_relationships = Vec :: new () ;",
+      "guild_account . war_declarations = Vec :: new () ;",
+      "guild_account . territory_disputes = Vec :: new () ;",
+      "guild_account . guild_bonuses = GuildBonuses { experience_multiplier : 110 , resource_bonus : 105 , defense_bonus : 100 , attack_bonus : 100 , } ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "EstablishTerritory",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild_account",
+        "attribute": "# [account (init , payer = guild_master , space = 8 + GuildAccount :: LEN , seeds = [b\"guild\" , guild_master . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , GuildAccount >"
+      },
+      {
+        "name": "guild_master",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GuildAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild_master",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "establishment_date",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "member_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "max_member_capacity",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "territory",
+        "attribute": null,
+        "field_type": "TerritoryCoordinates"
+      },
+      {
+        "name": "territory_tier",
+        "attribute": null,
+        "field_type": "TerritoryTier"
+      },
+      {
+        "name": "treasury_balance",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "daily_resource_generation",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "defense_structures",
+        "attribute": null,
+        "field_type": "Vec < DefenseStructure >"
+      },
+      {
+        "name": "resource_nodes",
+        "attribute": null,
+        "field_type": "Vec < ResourceNode >"
+      },
+      {
+        "name": "alliance_relationships",
+        "attribute": null,
+        "field_type": "Vec < AllianceRecord >"
+      },
+      {
+        "name": "war_declarations",
+        "attribute": null,
+        "field_type": "Vec < WarDeclaration >"
+      },
+      {
+        "name": "territory_disputes",
+        "attribute": null,
+        "field_type": "Vec < TerritoryDispute >"
+      },
+      {
+        "name": "guild_bonuses",
+        "attribute": null,
+        "field_type": "GuildBonuses"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TerritoryCoordinates",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "north_boundary",
+        "attribute": null,
+        "field_type": "i32"
+      },
+      {
+        "name": "south_boundary",
+        "attribute": null,
+        "field_type": "i32"
+      },
+      {
+        "name": "east_boundary",
+        "attribute": null,
+        "field_type": "i32"
+      },
+      {
+        "name": "west_boundary",
+        "attribute": null,
+        "field_type": "i32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DefenseStructure",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "structure_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "structure_type",
+        "attribute": null,
+        "field_type": "StructureType"
+      },
+      {
+        "name": "health_points",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "defense_power",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "maintenance_cost",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "last_upgrade",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ResourceNode",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "resource_type",
+        "attribute": null,
+        "field_type": "ResourceType"
+      },
+      {
+        "name": "current_amount",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "generation_rate",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "capacity",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "last_harvest",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "enhancement_level",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AllianceRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "allied_guild",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "alliance_type",
+        "attribute": null,
+        "field_type": "AllianceType"
+      },
+      {
+        "name": "established_date",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "WarDeclaration",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "enemy_guild",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "declaration_date",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "war_reason",
+        "attribute": null,
+        "field_type": "String"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TerritoryDispute",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "disputed_coordinates",
+        "attribute": null,
+        "field_type": "TerritoryCoordinates"
+      },
+      {
+        "name": "disputing_guild",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "dispute_start",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GuildBonuses",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "experience_multiplier",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "resource_bonus",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "defense_bonus",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "attack_bonus",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

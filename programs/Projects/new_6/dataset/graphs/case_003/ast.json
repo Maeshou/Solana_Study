@@ -1,0 +1,224 @@
+[
+  {
+    "name": "init_staking_pool",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitStakingPool >"
+    ],
+    "attributes": [],
+    "body": [
+      "let pool = & mut ctx . accounts . staking_pool ;",
+      "pool . admin = ctx . accounts . admin . key () ;",
+      "pool . total_staked = 0 ;",
+      "pool . reward_rate = 5 ;",
+      "pool . active = true ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "create_stake",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateStake >",
+      "amount: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let stake = & mut ctx . accounts . stake_account ;",
+      "stake . pool = ctx . accounts . staking_pool . key () ;",
+      "stake . staker = ctx . accounts . staker . key () ;",
+      "stake . amount = amount ;",
+      "stake . last_claim = Clock :: get () ? . unix_timestamp ;",
+      "stake . rewards_earned = 0 ;",
+      "let pool = & mut ctx . accounts . staking_pool ;",
+      "pool . total_staked = pool . total_staked . checked_add (amount) . unwrap_or (u64 :: MAX) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "vulnerable_claim",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < VulnerableClaim >"
+    ],
+    "attributes": [],
+    "body": [
+      "let pool = & mut ctx . accounts . staking_pool ;",
+      "assert ! (ctx . accounts . stake_a . key () != ctx . accounts . stake_b . key ()) ;",
+      "let stake_a_data = ctx . accounts . stake_a . try_borrow_data () ? ;",
+      "let stake_b_data = ctx . accounts . stake_b . try_borrow_data () ? ;",
+      "if stake_a_data . len () >= 32 && stake_b_data . len () >= 32",
+      "{",
+      "let stake_a_amount = u64 :: from_le_bytes ([stake_a_data [72] , stake_a_data [73] , stake_a_data [74] , stake_a_data [75] , stake_a_data [76] , stake_a_data [77] , stake_a_data [78] , stake_a_data [79]]) ;",
+      "for reward_cycle in 0 .. 5",
+      "{",
+      "if stake_a_amount > 1000 { let reward = (stake_a_amount * pool . reward_rate as u64) / 100 ;",
+      "pool . total_staked = pool . total_staked . checked_add (reward) . unwrap_or (u64 :: MAX) ;",
+      "let bonus_multiplier = (reward_cycle + 1) as u64 ;",
+      "let bonus = reward * bonus_multiplier / 10 ;",
+      "pool . total_staked = pool . total_staked . checked_add (bonus) . unwrap_or (u64 :: MAX) ;",
+      "msg ! (\"Reward cycle",
+      "{",
+      "}: base={}, bonus={}\" , reward_cycle , reward , bonus) ;",
+      "} else",
+      "{",
+      "pool . reward_rate = (pool . reward_rate + reward_cycle as u32) . min (50) ;",
+      "let admin_fee = pool . total_staked / 1000 ;",
+      "pool . total_staked = pool . total_staked . saturating_sub (admin_fee) ;",
+      "msg ! (\"Admin fee collected:",
+      "{",
+      "}\" , admin_fee) ;",
+      "} }",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitStakingPool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "staking_pool",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 8 + 4 + 1)]",
+        "field_type": "Account < 'info , StakingPool >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreateStake",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "staking_pool",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , StakingPool >"
+      },
+      {
+        "name": "stake_account",
+        "attribute": "# [account (init , payer = staker , space = 8 + 32 + 32 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , StakeAccount >"
+      },
+      {
+        "name": "staker",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "VulnerableClaim",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "staking_pool",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , StakingPool >"
+      },
+      {
+        "name": "stake_a",
+        "attribute": "# [doc = \" CHECK: 脆弱性 - UncheckedAccount使用\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "stake_b",
+        "attribute": "# [doc = \" CHECK: 脆弱性 - assert!のみで検証\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "claimer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "StakingPool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "total_staked",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "reward_rate",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "active",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "StakeAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "staker",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "last_claim",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "rewards_earned",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

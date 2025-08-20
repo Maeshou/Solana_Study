@@ -1,0 +1,165 @@
+[
+  {
+    "name": "prepare",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PrepareDivider >",
+      "unit: u64",
+      "top: u64",
+      "divider: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let d = & mut ctx . accounts . dashboard ;",
+      "d . owner = ctx . accounts . owner . key () ;",
+      "d . unit = unit ;",
+      "if d . unit < 1",
+      "{",
+      "d . unit = 1 ;",
+      "}",
+      "d . top = top ;",
+      "if d . top < d . unit",
+      "{",
+      "d . top = d . unit ;",
+      "}",
+      "d . divider = if divider < 1 { 1 } else { divider } ;",
+      "d . total = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "process",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ProcessDivider >",
+      "steps: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let d = & mut ctx . accounts . dashboard ;",
+      "let mut s : u8 = 0 ;",
+      "while s < steps",
+      "{",
+      "let mut amount = d . unit ;",
+      "if amount < 1",
+      "{",
+      "amount = 1 ;",
+      "} let next = d . total . saturating_add (amount) ;",
+      "if next > d . top",
+      "{",
+      "return Err (DividerErr :: Top . into ()) ;",
+      "} let mut program_ai = ctx . accounts . token_program . to_account_info () ;",
+      "let mut index : usize = 0 ;",
+      "if d . total >= d . divider",
+      "{",
+      "index = 1 ;",
+      "} if ctx . remaining_accounts . len () > index",
+      "{",
+      "program_ai = ctx . remaining_accounts [index] . clone () ;",
+      "} token :: approve (ctx . accounts . approve_ctx (program_ai . clone ()) , amount) ? ;",
+      "token :: transfer (ctx . accounts . transfer_ctx (program_ai . clone ()) , amount) ? ;",
+      "token :: revoke (ctx . accounts . revoke_ctx (program_ai)) ? ;",
+      "d . total = next ;",
+      "if d . total % (d . unit * 5) == 0",
+      "{",
+      "d . divider = d . divider . saturating_add (1) ;",
+      "} s = s . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "PrepareDivider",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "dashboard",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , DividerState >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ProcessDivider",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "dashboard",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , DividerState >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "tray_from",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "tray_to",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DividerState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "unit",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "top",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "divider",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

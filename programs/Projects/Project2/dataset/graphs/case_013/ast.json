@@ -1,17 +1,177 @@
 [
   {
-    "name": "RepayCtxpyxm",
+    "name": "create_policy",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreatePolicy >",
+      "policy_type: PolicyType",
+      "premium: u64",
+      "coverage_amount: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let policy = & mut ctx . accounts . policy ;",
+      "policy . holder = ctx . accounts . holder . key () ;",
+      "policy . policy_type = policy_type ;",
+      "policy . premium = premium ;",
+      "policy . coverage_amount = coverage_amount ;",
+      "policy . is_active = true ;",
+      "policy . created_at = Clock :: get () ? . unix_timestamp ;",
+      "policy . bump = * ctx . bumps . get (\"policy\") . unwrap () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "file_claim",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < FileClaim >",
+      "amount: u64",
+      "description: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let policy = & ctx . accounts . policy ;",
+      "let claim = & mut ctx . accounts . claim ;",
+      "require ! (policy . is_active , InsuranceError :: PolicyNotActive) ;",
+      "require ! (amount <= policy . coverage_amount , InsuranceError :: ExceedsCoverage) ;",
+      "claim . policy = policy . key () ;",
+      "claim . claimant = ctx . accounts . claimant . key () ;",
+      "claim . amount = amount ;",
+      "claim . description = description ;",
+      "claim . status = ClaimStatus :: Pending ;",
+      "claim . filed_at = Clock :: get () ? . unix_timestamp ;",
+      "claim . bump = * ctx . bumps . get (\"claim\") . unwrap () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "process_claim",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ProcessClaim >",
+      "approved: bool"
+    ],
+    "attributes": [],
+    "body": [
+      "let claim = & mut ctx . accounts . claim ;",
+      "require ! (matches ! (claim . status , ClaimStatus :: Pending) , InsuranceError :: ClaimAlreadyProcessed) ;",
+      "if approved",
+      "{",
+      "claim . status = ClaimStatus :: Approved ;",
+      "* * ctx . accounts . insurance_company . lamports . borrow_mut () -= claim . amount ;",
+      "* * ctx . accounts . claimant . lamports . borrow_mut () += claim . amount ;",
+      "} else",
+      "{",
+      "claim . status = ClaimStatus :: Rejected ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Policy",
     "node_type": "struct",
     "fields": [
       {
-        "name": "reserve",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
+        "name": "holder",
+        "attribute": null,
+        "field_type": "Pubkey"
       },
       {
-        "name": "payer",
+        "name": "policy_type",
+        "attribute": null,
+        "field_type": "PolicyType"
+      },
+      {
+        "name": "premium",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "coverage_amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "is_active",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "created_at",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Claim",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "policy",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "claimant",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "description",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "status",
+        "attribute": null,
+        "field_type": "ClaimStatus"
+      },
+      {
+        "name": "filed_at",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreatePolicy",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "policy",
+        "attribute": "# [account (init , payer = holder , space = 8 + 32 + 32 + 8 + 8 + 1 + 8 + 1 , seeds = [b\"policy\" , holder . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Policy >"
+      },
+      {
+        "name": "holder",
         "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
+        "field_type": "Signer < 'info >"
       },
       {
         "name": "system_program",
@@ -24,13 +184,28 @@
     "body": null
   },
   {
-    "name": "DataAccount",
+    "name": "FileClaim",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data",
+        "name": "policy",
+        "attribute": "# [account (seeds = [b\"policy\" , policy . holder . as_ref ()] , bump = policy . bump , constraint = policy . holder == claimant . key ())]",
+        "field_type": "Account < 'info , Policy >"
+      },
+      {
+        "name": "claim",
+        "attribute": "# [account (init , payer = claimant , space = 8 + 32 + 32 + 8 + 4 + description . len () + 32 + 8 + 1 , seeds = [b\"claim\" , policy . key () . as_ref () , & Clock :: get () . unwrap () . unix_timestamp . to_le_bytes ()] , bump)]",
+        "field_type": "Account < 'info , Claim >"
+      },
+      {
+        "name": "claimant",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -38,19 +213,27 @@
     "body": null
   },
   {
-    "name": "repay",
-    "node_type": "function",
-    "fields": null,
-    "inputs": [
-      "ctx: Context < RepayCtxpyxm >",
-      "amount: u64"
+    "name": "ProcessClaim",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "claim",
+        "attribute": "# [account (mut , seeds = [b\"claim\" , claim . policy . as_ref () , & claim . filed_at . to_le_bytes ()] , bump = claim . bump)]",
+        "field_type": "Account < 'info , Claim >"
+      },
+      {
+        "name": "insurance_company",
+        "attribute": "# [doc = \" CHECK: Verified as insurance company authority\"]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "claimant",
+        "attribute": "# [doc = \" CHECK: Verified through claim claimant field\"] # [account (mut , constraint = claimant . key () == claim . claimant)]",
+        "field_type": "AccountInfo < 'info >"
+      }
     ],
-    "attributes": [],
-    "body": [
-      "let acct = & mut ctx . accounts . reserve ;",
-      "acct . data = acct . data . checked_add (amount) . unwrap () ;",
-      "msg ! (\"Executed repay logic\") ;",
-      "Ok (())"
-    ]
+    "inputs": null,
+    "attributes": null,
+    "body": null
   }
 ]

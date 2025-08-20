@@ -1,0 +1,214 @@
+[
+  {
+    "name": "init_arena",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitArena >"
+    ],
+    "attributes": [],
+    "body": [
+      "let arena = & mut ctx . accounts . arena ;",
+      "arena . owner = ctx . accounts . owner . key () ;",
+      "arena . total_battles = 0 ;",
+      "arena . prize_pool = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "register_fighter",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RegisterFighter >",
+      "fighter_type: FighterType"
+    ],
+    "attributes": [],
+    "body": [
+      "let fighter = & mut ctx . accounts . fighter ;",
+      "fighter . arena = ctx . accounts . arena . key () ;",
+      "fighter . owner = ctx . accounts . owner . key () ;",
+      "fighter . fighter_type = fighter_type ;",
+      "fighter . power = 100 ;",
+      "fighter . wins = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "battle_exploit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < VulnerableBattle >"
+    ],
+    "attributes": [],
+    "body": [
+      "let attacker_info = & ctx . accounts . attacker ;",
+      "let defender_info = & ctx . accounts . defender ;",
+      "let arena = & mut ctx . accounts . arena ;",
+      "let attacker_data = attacker_info . try_borrow_data () ? ;",
+      "let defender_data = defender_info . try_borrow_data () ? ;",
+      "if attacker_data . len () >= 41 && defender_data . len () >= 41",
+      "{",
+      "let attacker_power = u32 :: from_le_bytes ([attacker_data [33] , attacker_data [34] , attacker_data [35] , attacker_data [36]]) ;",
+      "let defender_power = u32 :: from_le_bytes ([defender_data [33] , defender_data [34] , defender_data [35] , defender_data [36]]) ;",
+      "for round in 0 .. 3",
+      "{",
+      "if attacker_power > defender_power { arena . prize_pool = arena . prize_pool . checked_add ((round + 1) as u64 * 100) . unwrap_or (u64 :: MAX) ;",
+      "arena . total_battles = arena . total_battles . checked_add (1) . unwrap_or (u64 :: MAX) ;",
+      "msg ! (\"Attacker wins round",
+      "{",
+      "}\" , round) ;",
+      "} else",
+      "{",
+      "arena . total_battles = arena . total_battles . checked_add (2) . unwrap_or (u64 :: MAX) ;",
+      "arena . prize_pool = arena . prize_pool . checked_add (50) . unwrap_or (u64 :: MAX) ;",
+      "msg ! (\"Defender wins round",
+      "{",
+      "}\" , round) ;",
+      "} }",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitArena",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "arena",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 8)]",
+        "field_type": "Account < 'info , Arena >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RegisterFighter",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "arena",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Arena >"
+      },
+      {
+        "name": "fighter",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 32 + 1 + 4 + 4)]",
+        "field_type": "Account < 'info , Fighter >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "VulnerableBattle",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "arena",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Arena >"
+      },
+      {
+        "name": "attacker",
+        "attribute": "# [doc = \" CHECK: 脆弱性 - 型検証なしのAccountInfo使用\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "defender",
+        "attribute": "# [doc = \" CHECK: 脆弱性 - 型検証なしのAccountInfo使用  \"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Arena",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "total_battles",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "prize_pool",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Fighter",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "arena",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "fighter_type",
+        "attribute": null,
+        "field_type": "FighterType"
+      },
+      {
+        "name": "power",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "wins",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

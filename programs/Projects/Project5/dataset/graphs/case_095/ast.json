@@ -1,33 +1,245 @@
 [
   {
-    "name": "init_license",
+    "name": "interleave",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx095 >"
+      "mut x: u32",
+      "mut y: u32"
     ],
     "attributes": [],
     "body": [
-      "let a = & ctx . accounts . first ;",
-      "let b = & ctx . accounts . second ;",
-      "msg ! (\"Account A: {}\" , a . key ()) ;",
-      "msg ! (\"Account B: {}\" , b . key ()) ;",
+      "let mut z = 0u32 ;",
+      "for i in 0 .. 8",
+      "{",
+      "z |= ((x >> i) & 1) << (2 * i) ;",
+      "z |= ((y >> i) & 1) << (2 * i + 1) ;",
+      "}",
+      "z"
+    ]
+  },
+  {
+    "name": "init_studio",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitStudio >",
+      "w: u32",
+      "h: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . studio ;",
+      "s . owner = ctx . accounts . artist . key () ;",
+      "s . cap = (w + h) * 10 + 300 ;",
+      "s . state = Idle ;",
+      "let code = interleave (w , h) ;",
+      "let la = & mut ctx . accounts . layer_a ;",
+      "la . studio = s . key () ;",
+      "la . plane = (w & 7) as u8 ;",
+      "la . ink = (code & 1023) + 33 ;",
+      "let lb = & mut ctx . accounts . layer_b ;",
+      "lb . studio = s . key () ;",
+      "lb . plane = (h & 7) as u8 ;",
+      "lb . ink = ((code . rotate_left (5)) & 1023) + 37 ;",
+      "let at = & mut ctx . accounts . atlas ;",
+      "at . studio = s . key () ;",
+      "at . plane = 9 ;",
+      "at . frames = 0 ;",
+      "at . crc = code ^ 0xA5A5_5A5A ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx095",
+    "name": "paint",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PaintSprite >",
+      "iters: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . studio ;",
+      "let a = & mut ctx . accounts . layer_a ;",
+      "let b = & mut ctx . accounts . layer_b ;",
+      "let at = & mut ctx . accounts . atlas ;",
+      "for i in 0 .. iters",
+      "{",
+      "let mix = ((a . ink ^ b . ink) as u64) . wrapping_mul (780291637) ;",
+      "a . ink = a . ink . checked_add (((mix & 31) as u32) + 2) . unwrap_or (u32 :: MAX) ;",
+      "b . ink = b . ink . saturating_add ((((mix >> 5) & 31) as u32) + 3) ;",
+      "at . frames = at . frames . saturating_add (1) ;",
+      "at . crc ^= (mix as u32) . rotate_left ((i % 13) as u32) ;",
+      "}",
+      "let sum = a . ink + b . ink + (at . frames as u32 & 0x3FF) ;",
+      "if sum > s . cap",
+      "{",
+      "s . state = Export ;",
+      "a . plane ^= 1 ;",
+      "b . plane = b . plane . saturating_add (1) ;",
+      "at . plane = at . plane . saturating_add (1) ;",
+      "msg ! (\"export: plane tweaks & atlas move\") ;",
+      "} else",
+      "{",
+      "s . state = Paint ;",
+      "a . ink = a . ink . saturating_add (9) ;",
+      "b . ink = b . ink / 2 + 11 ;",
+      "at . crc ^= 0x0F0F_F0F0 ;",
+      "msg ! (\"paint: ink adjust & crc flip\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitStudio",
     "node_type": "struct",
     "fields": [
       {
-        "name": "first",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "studio",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Studio >"
       },
       {
-        "name": "second",
+        "name": "layer_a",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Layer >"
+      },
+      {
+        "name": "layer_b",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Layer >"
+      },
+      {
+        "name": "atlas",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 8 + 4)]",
+        "field_type": "Account < 'info , Atlas >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "artist",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PaintSprite",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "studio",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Studio >"
+      },
+      {
+        "name": "layer_a",
+        "attribute": "# [account (mut , has_one = studio , constraint = layer_a . plane != layer_b . plane @ PixelErr :: Dup)]",
+        "field_type": "Account < 'info , Layer >"
+      },
+      {
+        "name": "layer_b",
+        "attribute": "# [account (mut , has_one = studio , constraint = layer_b . plane != atlas . plane @ PixelErr :: Dup)]",
+        "field_type": "Account < 'info , Layer >"
+      },
+      {
+        "name": "atlas",
+        "attribute": "# [account (mut , has_one = studio)]",
+        "field_type": "Account < 'info , Atlas >"
+      },
+      {
+        "name": "artist",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Studio",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "cap",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "state",
+        "attribute": null,
+        "field_type": "PixelState"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Layer",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "studio",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "plane",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "ink",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Atlas",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "studio",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "plane",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "frames",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "crc",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

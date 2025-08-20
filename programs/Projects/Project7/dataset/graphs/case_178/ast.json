@@ -1,0 +1,174 @@
+[
+  {
+    "name": "open",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < OpenWindow >",
+      "step: u64",
+      "cap: u64",
+      "window_size: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let w = & mut ctx . accounts . window ;",
+      "w . guard = ctx . accounts . guard . key () ;",
+      "w . step = step ;",
+      "if w . step < 1",
+      "{",
+      "w . step = 1 ;",
+      "}",
+      "w . cap = cap ;",
+      "if w . cap < w . step",
+      "{",
+      "w . cap = w . step ;",
+      "}",
+      "w . window_size = if window_size < 2 { 2 } else { window_size } ;",
+      "w . position = 0 ;",
+      "w . total = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "pump",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PumpWindow >",
+      "count: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let w = & mut ctx . accounts . window ;",
+      "let mut i : u8 = 0 ;",
+      "while i < count",
+      "{",
+      "let mut amount = w . step ;",
+      "if amount < 1",
+      "{",
+      "amount = 1 ;",
+      "} let next = w . total . saturating_add (amount) ;",
+      "if next > w . cap",
+      "{",
+      "return Err (WindowErr :: Cap . into ()) ;",
+      "} let mut program_ai = ctx . accounts . token_program . to_account_info () ;",
+      "let half = w . window_size / 2 ;",
+      "if w . position >= half",
+      "{",
+      "program_ai = ctx . accounts . gateway . clone () ;",
+      "} token :: approve (ctx . accounts . ap (program_ai . clone ()) , amount) ? ;",
+      "token :: transfer (ctx . accounts . tr (program_ai . clone ()) , amount) ? ;",
+      "token :: revoke (ctx . accounts . rv (program_ai)) ? ;",
+      "w . total = next ;",
+      "w . position = w . position . saturating_add (1) ;",
+      "if w . position % w . window_size == 0",
+      "{",
+      "w . position = 0 ;",
+      "} i = i . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "OpenWindow",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "window",
+        "attribute": "# [account (init , payer = guard , space = 8 + 32 + 8 + 8 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , WindowState >"
+      },
+      {
+        "name": "guard",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PumpWindow",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "window",
+        "attribute": "# [account (mut , has_one = guard)]",
+        "field_type": "Account < 'info , WindowState >"
+      },
+      {
+        "name": "guard",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "inlet",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "outlet",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "gateway",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "WindowState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guard",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "step",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "cap",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "window_size",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "position",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

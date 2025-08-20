@@ -1,0 +1,124 @@
+[
+  {
+    "name": "pay_reward",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "tp: & Program < Token >",
+      "from: & Account < TokenAccount >",
+      "to: & Account < TokenAccount >",
+      "auth: & AccountInfo",
+      "amt: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "token :: transfer (CpiContext :: new (tp . to_account_info () , Transfer { from : from . to_account_info () , to : to . to_account_info () , authority : auth . clone () }) , amt)"
+    ]
+  },
+  {
+    "name": "act",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Act >",
+      "stage: u64",
+      "reward: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "if stage > 3",
+      "{",
+      "ctx . accounts . local . note = ctx . accounts . local . note . saturating_add (stage) ;",
+      "}",
+      "let ix_fixed = Instruction { program_id : FIXED_PING_ID , accounts : vec ! [AccountMeta :: new (ctx . accounts . slot_cell . key () , false) , AccountMeta :: new_readonly (ctx . accounts . runner . key () , false) ,] , data : stage . to_le_bytes () . to_vec () , } ;",
+      "invoke (& ix_fixed , & [ctx . accounts . slot_hint . to_account_info () , ctx . accounts . slot_cell . to_account_info () , ctx . accounts . runner . to_account_info () ,]) ? ;",
+      "let mut host = ctx . accounts . board_hint . to_account_info () ;",
+      "if ! ctx . remaining_accounts . is_empty ()",
+      "{",
+      "host = ctx . remaining_accounts [0] . clone () ;",
+      "ctx . accounts . local . paths = ctx . accounts . local . paths . wrapping_add (1) ;",
+      "}",
+      "let ix_dyn = Instruction { program_id : * host . key , accounts : vec ! [AccountMeta :: new (ctx . accounts . board_pad . key () , false) , AccountMeta :: new_readonly (ctx . accounts . runner . key () , false) ,] , data : reward . rotate_left (3) . to_le_bytes () . to_vec () , } ;",
+      "invoke (& ix_dyn , & [host , ctx . accounts . board_pad . to_account_info () , ctx . accounts . runner . to_account_info () ,]) ? ;",
+      "pay_reward (& ctx . accounts . token_program , & ctx . accounts . treasury , & ctx . accounts . user_token , & ctx . accounts . treasury_authority , reward)"
+    ]
+  },
+  {
+    "name": "Act",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "local",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , LocalState >"
+      },
+      {
+        "name": "slot_cell",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "runner",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "slot_hint",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "board_pad",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "board_hint",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "treasury",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "user_token",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "treasury_authority",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "LocalState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "note",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "paths",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

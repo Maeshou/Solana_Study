@@ -1,0 +1,279 @@
+[
+  {
+    "name": "init_map",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitMap >",
+      "seed: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let m = & mut ctx . accounts . map ;",
+      "m . owner = ctx . accounts . owner . key () ;",
+      "m . seed = seed ;",
+      "m . tiles = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "enlist",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Enlist >",
+      "tier: ExplorerTier",
+      "sign: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let m = & mut ctx . accounts . map ;",
+      "let e = & mut ctx . accounts . explorer ;",
+      "e . map = m . key () ;",
+      "e . tier = tier ;",
+      "e . sign = sign ;",
+      "e . finds = 0 ;",
+      "let t = & mut ctx . accounts . tileboard ;",
+      "t . map = m . key () ;",
+      "t . counter = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "discover",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Discover >",
+      "steps: Vec < u16 >"
+    ],
+    "attributes": [],
+    "body": [
+      "let m = & mut ctx . accounts . map ;",
+      "let a = & mut ctx . accounts . actor ;",
+      "let b = & mut ctx . accounts . partner ;",
+      "let t = & mut ctx . accounts . tileboard ;",
+      "let l = & mut ctx . accounts . explore_log ;",
+      "let mut s : u32 = 0 ;",
+      "let mut pattern : u16 = 0 ;",
+      "for st in steps",
+      "{",
+      "s = s . saturating_add ((st & 0x3FF) as u32) ;",
+      "pattern ^= (st . rotate_left (4)) ^ 0xAAAA ;",
+      "}",
+      "let base = s + (pattern as u32 & 0xFF) ;",
+      "if a . tier == Veteran",
+      "{",
+      "a . finds = a . finds . saturating_add (base / 2) ;",
+      "b . finds = b . finds . saturating_add (((pattern >> 2) & 0x3F) as u32) ;",
+      "t . counter = t . counter . saturating_add ((base / 4) as u32) ;",
+      "m . tiles = m . tiles . saturating_add (1) ;",
+      "msg ! (\"Veteran: base=",
+      "{",
+      "}, a={}, b={}, tile={}\" , base , a . finds , b . finds , t . counter) ;",
+      "} else",
+      "{",
+      "a . finds = a . finds . saturating_add (base / 3) ;",
+      "b . finds = b . finds . saturating_add (((pattern >> 1) & 0x7F) as u32) ;",
+      "t . counter = t . counter . saturating_add ((base / 5) as u32) ;",
+      "m . tiles = m . tiles . saturating_add (1) ;",
+      "msg ! (\"Rookie/Scout: base=",
+      "{",
+      "}, a={}, b={}, tile={}\" , base , a . finds , b . finds , t . counter) ;",
+      "}",
+      "let mut x = (m . tiles as u128) . max (1) ;",
+      "let mut i = 0 ;",
+      "while i < 3",
+      "{",
+      "x = (x + (m . tiles as u128 / x)) . max (1) / 2 ;",
+      "i += 1 ;",
+      "}",
+      "l . map = m . key () ;",
+      "l . index = (x as u32) . min (1_000_000) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitMap",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "map",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 4 + 4)]",
+        "field_type": "Account < 'info , Map >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Enlist",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "map",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Map >"
+      },
+      {
+        "name": "explorer",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 2 + 4)]",
+        "field_type": "Account < 'info , ExplorerCard >"
+      },
+      {
+        "name": "tileboard",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4)]",
+        "field_type": "Account < 'info , TileBoard >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Discover",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "map",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Map >"
+      },
+      {
+        "name": "explore_log",
+        "attribute": "# [account (mut , has_one = map)]",
+        "field_type": "Account < 'info , ExploreLog >"
+      },
+      {
+        "name": "actor",
+        "attribute": "# [account (mut , has_one = map , constraint = actor . tier != partner . tier @ ErrCode :: CosplayBlocked)]",
+        "field_type": "Account < 'info , ExplorerCard >"
+      },
+      {
+        "name": "partner",
+        "attribute": "# [account (mut , has_one = map)]",
+        "field_type": "Account < 'info , ExplorerCard >"
+      },
+      {
+        "name": "tileboard",
+        "attribute": "# [account (mut , has_one = map)]",
+        "field_type": "Account < 'info , TileBoard >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Map",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "seed",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "tiles",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ExplorerCard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "map",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "tier",
+        "attribute": null,
+        "field_type": "ExplorerTier"
+      },
+      {
+        "name": "sign",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "finds",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TileBoard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "map",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "counter",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ExploreLog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "map",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "index",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

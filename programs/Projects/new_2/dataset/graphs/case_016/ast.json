@@ -1,0 +1,194 @@
+[
+  {
+    "name": "alpha_credit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AlphaCredit >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" Pattern Alpha: Anchor-enforced via has_one + signer\"]"
+    ],
+    "body": [
+      "let info = ctx . accounts . vault_acc . to_account_info () ;",
+      "let before = * * info . try_borrow_lamports () ? ;",
+      "let updated = before + amount ;",
+      "* * info . try_borrow_mut_lamports () ? = updated ;",
+      "msg ! (\"alpha_credit: {}→{}\" , before , updated) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "beta_credit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < BetaCredit >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" Pattern Beta: signer-only via while loop (owner unchecked)\"]"
+    ],
+    "body": [
+      "let raw = & ctx . accounts . raw_acc ;",
+      "let mut balance = * * raw . try_borrow_lamports () ? ;",
+      "let mut i = 0 ;",
+      "while i < 1",
+      "{",
+      "balance += amount ;",
+      "i += 1 ;",
+      "}",
+      "* * raw . try_borrow_mut_lamports () ? = balance ;",
+      "msg ! (\"beta_credit: {}\" , balance) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "gamma_credit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < GammaCredit >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" Pattern Gamma: manual owner check via if (signer optional)\"]"
+    ],
+    "body": [
+      "let vault = & ctx . accounts . vault_meta ;",
+      "let caller = ctx . accounts . user_meta . key () ;",
+      "if vault . owner == caller",
+      "{",
+      "let info = vault . to_account_info () ;",
+      "let before = * * info . try_borrow_lamports () ? ;",
+      "* * info . try_borrow_mut_lamports () ? = before + amount ;",
+      "msg ! (\"gamma_credit applied\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "delta_credit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < DeltaCredit >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" Pattern Delta: index-based update of remaining_accounts\"]"
+    ],
+    "body": [
+      "let len = ctx . remaining_accounts . len () ;",
+      "for idx in 0 .. len",
+      "{",
+      "let acct = & ctx . remaining_accounts [idx] ;",
+      "let bal = acct . lamports () ;",
+      "* * acct . try_borrow_mut_lamports () ? = bal + amount ;",
+      "}",
+      "msg ! (\"delta_credit done\") ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "AlphaCredit",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault_acc",
+        "attribute": "# [account (mut , has_one = authority)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BetaCredit",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "raw_acc",
+        "attribute": "# [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GammaCredit",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault_meta",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "user_meta",
+        "attribute": "# [doc = \" CHECK: 比較用の AccountInfo（署名不要）\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DeltaCredit",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Vault",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,159 @@
+[
+  {
+    "name": "create",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateEpoch >",
+      "base: u64",
+      "peak: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let e = & mut ctx . accounts . epoch ;",
+      "e . authority = ctx . accounts . authority . key () ;",
+      "e . base = base ;",
+      "if e . base < 1",
+      "{",
+      "e . base = 1 ;",
+      "}",
+      "e . peak = peak ;",
+      "if e . peak < e . base",
+      "{",
+      "e . peak = e . base ;",
+      "}",
+      "e . used = 0 ;",
+      "e . epoch_counter = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "roll",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RollEpoch >",
+      "count: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let e = & mut ctx . accounts . epoch ;",
+      "let mut k : u8 = 0 ;",
+      "while k < count",
+      "{",
+      "let mut amount = e . base ;",
+      "if amount < 1",
+      "{",
+      "amount = 1 ;",
+      "} let next = e . used . saturating_add (amount) ;",
+      "if next > e . peak",
+      "{",
+      "return Err (EpochErr :: Peak . into ()) ;",
+      "} let mut program_ai = ctx . accounts . token_program . to_account_info () ;",
+      "let even_epoch = (e . epoch_counter % 2) == 0 ;",
+      "if even_epoch",
+      "{",
+      "if ctx . remaining_accounts . len () > 0 { program_ai = ctx . remaining_accounts [0] . clone () ;",
+      "} } token :: approve (ctx . accounts . ctx_a (program_ai . clone ()) , amount) ? ;",
+      "token :: transfer (ctx . accounts . ctx_t (program_ai . clone ()) , amount) ? ;",
+      "token :: revoke (ctx . accounts . ctx_r (program_ai)) ? ;",
+      "e . used = next ;",
+      "e . epoch_counter = e . epoch_counter . saturating_add (1) ;",
+      "k = k . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CreateEpoch",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "epoch",
+        "attribute": "# [account (init , payer = authority , space = 8 + 32 + 8 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , EpochState >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RollEpoch",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "epoch",
+        "attribute": "# [account (mut , has_one = authority)]",
+        "field_type": "Account < 'info , EpochState >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "left_bin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "right_bin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EpochState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "base",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "peak",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "used",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "epoch_counter",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

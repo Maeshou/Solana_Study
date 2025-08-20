@@ -1,33 +1,82 @@
 [
   {
-    "name": "initialize_version_control",
+    "name": "init_poll",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Initialize062 >",
-      "param: u64"
+      "ctx: Context < InitPoll >",
+      "votes_a: u32",
+      "votes_b: u32"
     ],
     "attributes": [],
     "body": [
-      "let mut data = VersionControlData :: try_from_slice (& ctx . accounts . data_account . data . borrow ()) ? ;",
-      "data . value = param ;",
-      "data . serialize (& mut * ctx . accounts . data_account . data . borrow_mut ()) ? ;",
+      "let poll = & mut ctx . accounts . poll ;",
+      "poll . total = votes_a + votes_b ;",
+      "let count_a = & mut ctx . accounts . count_a ;",
+      "count_a . votes = votes_a ;",
+      "if votes_a % 2 == 0",
+      "{",
+      "count_a . votes += 2 ;",
+      "}",
+      "let count_b = & mut ctx . accounts . count_b ;",
+      "count_b . votes = votes_b ;",
+      "if votes_b % 2 == 1",
+      "{",
+      "count_b . votes += 1 ;",
+      "}",
       "Ok (())"
     ]
   },
   {
-    "name": "Initialize062",
+    "name": "cast_vote",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CastVote >",
+      "vote_for_a: bool"
+    ],
+    "attributes": [],
+    "body": [
+      "let poll = & mut ctx . accounts . poll ;",
+      "if vote_for_a",
+      "{",
+      "ctx . accounts . count_a . votes += 1 ;",
+      "} else",
+      "{",
+      "ctx . accounts . count_b . votes += 1 ;",
+      "}",
+      "poll . total += 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitPoll",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "poll",
+        "attribute": "# [account (init , payer = user , space = 8 + 4)]",
+        "field_type": "Account < 'info , PollData >"
       },
       {
-        "name": "authority",
-        "attribute": null,
+        "name": "count_a",
+        "attribute": "# [account (init , payer = user , space = 8 + 4)]",
+        "field_type": "Account < 'info , VoteCount >"
+      },
+      {
+        "name": "count_b",
+        "attribute": "# [account (init , payer = user , space = 8 + 4)]",
+        "field_type": "Account < 'info , VoteCount >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -35,13 +84,51 @@
     "body": null
   },
   {
-    "name": "VersionControlData",
+    "name": "CastVote",
     "node_type": "struct",
     "fields": [
       {
-        "name": "value",
+        "name": "poll",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , PollData >"
+      },
+      {
+        "name": "count_a",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , VoteCount >"
+      },
+      {
+        "name": "count_b",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , VoteCount >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PollData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "total",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "VoteCount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "votes",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

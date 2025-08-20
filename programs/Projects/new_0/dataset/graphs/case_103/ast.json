@@ -1,0 +1,129 @@
+[
+  {
+    "name": "initialize",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeAccount >"
+    ],
+    "attributes": [
+      "# [doc = \" 銀行口座(PDA)の初期化\"]"
+    ],
+    "body": [
+      "let acct = & mut ctx . accounts . bank_account ;",
+      "acct . authority = ctx . accounts . authority . key () ;",
+      "acct . balance = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "deposit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyAccount >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 入金：Lamportsを移動し、状態も増加\"]"
+    ],
+    "body": [
+      "let acct_info = ctx . accounts . bank_account . to_account_info () ;",
+      "let auth_info = ctx . accounts . authority . to_account_info () ;",
+      "let auth_lamports = * * auth_info . lamports . borrow () ;",
+      "require ! (auth_lamports >= amount , ErrorCode :: InsufficientFunds) ;",
+      "* * auth_info . try_borrow_mut_lamports () ? -= amount ;",
+      "* * acct_info . try_borrow_mut_lamports () ? -= 0 ;",
+      "* * acct_info . try_borrow_mut_lamports () ? += amount ;",
+      "let acct = & mut ctx . accounts . bank_account ;",
+      "acct . balance = acct . balance . checked_add (amount) . ok_or (ErrorCode :: Overflow) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "withdraw",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyAccount >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 出金：状態とLamportsの両方をチェック＆移動\"]"
+    ],
+    "body": [
+      "let acct = & mut ctx . accounts . bank_account ;",
+      "let acct_info = ctx . accounts . bank_account . to_account_info () ;",
+      "let auth_info = ctx . accounts . authority . to_account_info () ;",
+      "require ! (acct . balance >= amount , ErrorCode :: InsufficientFunds) ;",
+      "let pda_lamports = * * acct_info . lamports . borrow () ;",
+      "require ! (pda_lamports >= amount , ErrorCode :: InsufficientFunds) ;",
+      "* * acct_info . try_borrow_mut_lamports () ? -= amount ;",
+      "* * auth_info . try_borrow_mut_lamports () ? += amount ;",
+      "acct . balance = acct . balance . checked_sub (amount) . ok_or (ErrorCode :: Underflow) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializeAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "bank_account",
+        "attribute": "# [doc = \" PDA：[\\\"bank\\\", authority], bump付き\"] # [account (init , seeds = [b\"bank\" , authority . key () . as_ref ()] , bump , payer = authority , space = 8 + 32 + 8)]",
+        "field_type": "Account < 'info , BankAccount >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ModifyAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "bank_account",
+        "attribute": "# [doc = \" has_one + seeds でPDAを完全に固定\"] # [account (mut , seeds = [b\"bank\" , authority . key () . as_ref ()] , bump , has_one = authority)]",
+        "field_type": "Account < 'info , BankAccount >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BankAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "authority",
+        "attribute": "# [doc = \" 操作を許可されたユーザー\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "balance",
+        "attribute": "# [doc = \" 状態上の残高\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

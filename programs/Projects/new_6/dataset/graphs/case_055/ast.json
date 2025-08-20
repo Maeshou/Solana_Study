@@ -1,0 +1,161 @@
+[
+  {
+    "name": "init_staking_pool",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitStakingPool >",
+      "commission_rate: u16",
+      "min_stake: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let pool = & mut ctx . accounts . staking_pool ;",
+      "pool . validator = ctx . accounts . validator . key () ;",
+      "pool . commission_rate = commission_rate ;",
+      "pool . minimum_stake = min_stake ;",
+      "pool . total_staked = 0 ;",
+      "pool . total_rewards = 0 ;",
+      "pool . delegator_count = 0 ;",
+      "pool . epoch_rewards = [0 ; 10] ;",
+      "pool . is_active = true ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "distribute_rewards",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < DistributeRewards >",
+      "epoch_reward: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let pool = & mut ctx . accounts . staking_pool ;",
+      "let distributor = & ctx . accounts . distributor ;",
+      "pool . total_rewards += epoch_reward ;",
+      "let validator_commission = (epoch_reward * pool . commission_rate as u64) / 10000 ;",
+      "let delegator_rewards = epoch_reward - validator_commission ;",
+      "for i in 1 .. 10",
+      "{",
+      "pool . epoch_rewards [i - 1] = pool . epoch_rewards [i] ;",
+      "}",
+      "pool . epoch_rewards [9] = epoch_reward ;",
+      "if pool . delegator_count > 0 && pool . total_staked > 0",
+      "{",
+      "let reward_per_token = (delegator_rewards * 1_000_000) / pool . total_staked ;",
+      "for delegator_idx in 0 .. pool . delegator_count . min (50)",
+      "{",
+      "let delegator_stake = pool . total_staked / pool . delegator_count as u64 ;",
+      "let delegator_reward = (delegator_stake * reward_per_token) / 1_000_000 ;",
+      "pool . pending_rewards += delegator_reward ;",
+      "}",
+      "}",
+      "pool . validator_earnings += validator_commission ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitStakingPool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "staking_pool",
+        "attribute": "# [account (init , payer = validator , space = 8 + 500)]",
+        "field_type": "Account < 'info , StakingPoolData >"
+      },
+      {
+        "name": "validator",
+        "attribute": "# [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DistributeRewards",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "staking_pool",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , StakingPoolData >"
+      },
+      {
+        "name": "distributor",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "StakingPoolData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "validator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "commission_rate",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "minimum_stake",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_staked",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_rewards",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "delegator_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "epoch_rewards",
+        "attribute": null,
+        "field_type": "[u64 ; 10]"
+      },
+      {
+        "name": "pending_rewards",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "validator_earnings",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "is_active",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

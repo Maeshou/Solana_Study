@@ -1,43 +1,228 @@
 [
   {
-    "name": "liquidate_borrow",
+    "name": "init_market",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx052 >",
-      "amount: u64"
+      "ctx: Context < InitMarket >",
+      "k_q16: u32"
     ],
     "attributes": [],
     "body": [
-      "let cpi_accounts = Transfer { from : ctx . accounts . from_token . to_account_info () , to : ctx . accounts . to_token . to_account_info () , authority : ctx . accounts . authority . to_account_info () , } ;",
-      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
-      "token :: transfer (cpi_ctx , amount) ? ;",
+      "let m = & mut ctx . accounts ;",
+      "m . listing . seller = m . seller . key () ;",
+      "m . listing . k_q16 = k_q16 . max (1) ;",
+      "m . listing . state = Live ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx052",
+    "name": "quote",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Quote >",
+      "steps: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let m = & mut ctx . accounts ;",
+      "for i in 0 .. steps",
+      "{",
+      "let x = m . curve . x_q16 as u128 ;",
+      "let k = m . listing . k_q16 as u128 ;",
+      "let one = 1u128 << 16 ;",
+      "let term = (x * (one - x)) >> 16 ;",
+      "let nx = x + ((k * term) >> 16) ;",
+      "m . curve . x_q16 = nx . min (u128 :: from (u32 :: MAX)) as u32 ;",
+      "m . stats . ticks = m . stats . ticks . wrapping_add ((i & 3) as u32 + 1) ;",
+      "}",
+      "if m . curve . x_q16 > (one_u32 () * 3 / 4)",
+      "{",
+      "m . listing . state = Shut ;",
+      "m . stats . flags = m . stats . flags . wrapping_add (1) ;",
+      "m . curve . x_q16 = (m . curve . x_q16 / 2) . max (1 << 8) ;",
+      "m . wallet . balance = m . wallet . balance . saturating_add (5) ;",
+      "msg ! (\"shut: x halved, flags+1, balance+5\") ;",
+      "} else",
+      "{",
+      "m . listing . state = Cool ;",
+      "m . stats . trades = m . stats . trades . wrapping_add (2) ;",
+      "m . curve . x_q16 = m . curve . x_q16 + 77 ;",
+      "m . wallet . lock = m . wallet . lock . wrapping_add (1) ;",
+      "msg ! (\"cool: trades+2, x+77, lock+1\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "one_u32",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [],
+    "attributes": [],
+    "body": [
+      "1 << 16"
+    ]
+  },
+  {
+    "name": "InitMarket",
     "node_type": "struct",
     "fields": [
       {
-        "name": "from_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "listing",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , ListingCfg >"
       },
       {
-        "name": "to_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "curve",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4)]",
+        "field_type": "Account < 'info , CurveQ16 >"
       },
       {
-        "name": "authority",
+        "name": "wallet",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 8 + 1)]",
+        "field_type": "Account < 'info , Wallet >"
+      },
+      {
+        "name": "stats",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4 + 8)]",
+        "field_type": "Account < 'info , MktStats >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "seller",
         "attribute": null,
         "field_type": "Signer < 'info >"
       },
       {
-        "name": "token_program",
+        "name": "system_program",
         "attribute": null,
-        "field_type": "Program < 'info , Token >"
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Quote",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "listing",
+        "attribute": "# [account (mut , has_one = seller)]",
+        "field_type": "Account < 'info , ListingCfg >"
+      },
+      {
+        "name": "curve",
+        "attribute": "# [account (mut , constraint = curve . key () != listing . key () @ MkdsErr :: Dup , constraint = curve . key () != wallet . key () @ MkdsErr :: Dup)]",
+        "field_type": "Account < 'info , CurveQ16 >"
+      },
+      {
+        "name": "wallet",
+        "attribute": "# [account (mut , constraint = wallet . key () != listing . key () @ MkdsErr :: Dup)]",
+        "field_type": "Account < 'info , Wallet >"
+      },
+      {
+        "name": "stats",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , MktStats >"
+      },
+      {
+        "name": "seller",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ListingCfg",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "seller",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "k_q16",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "state",
+        "attribute": null,
+        "field_type": "MarketState"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CurveQ16",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "x_q16",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Wallet",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "balance",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "lock",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MktStats",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ticks",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "trades",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "flags",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

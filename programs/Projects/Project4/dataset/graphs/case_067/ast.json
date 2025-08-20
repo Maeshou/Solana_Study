@@ -1,33 +1,66 @@
 [
   {
-    "name": "initialize_revenue_share",
+    "name": "init_pipeline",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Initialize067 >",
-      "param: u64"
+      "ctx: Context < InitPipeline >",
+      "stages: u8"
     ],
-    "attributes": [],
+    "attributes": [
+      "# [doc = \" パイプラインを初期化\"]"
+    ],
     "body": [
-      "let mut data = RevenueShareData :: try_from_slice (& ctx . accounts . data_account . data . borrow ()) ? ;",
-      "data . value = param ;",
-      "data . serialize (& mut * ctx . accounts . data_account . data . borrow_mut ()) ? ;",
+      "let p = & mut ctx . accounts . pipeline ;",
+      "p . stages = stages ;",
+      "p . completed = 0 ;",
+      "p . errors = 0 ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Initialize067",
+    "name": "process_stage",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ProcessStage >",
+      "success: bool"
+    ],
+    "attributes": [
+      "# [doc = \" ステージを実行しエラーをカウント\"]"
+    ],
+    "body": [
+      "let p = & mut ctx . accounts . pipeline ;",
+      "if success",
+      "{",
+      "if p . completed < p . stages",
+      "{",
+      "p . completed += 1 ;",
+      "} } else",
+      "{",
+      "p . errors += 1 ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitPipeline",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "pipeline",
+        "attribute": "# [account (init , payer = user , space = 8 + 1 * 3)]",
+        "field_type": "Account < 'info , PipelineData >"
       },
       {
-        "name": "authority",
-        "attribute": null,
+        "name": "user",
+        "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -35,13 +68,37 @@
     "body": null
   },
   {
-    "name": "RevenueShareData",
+    "name": "ProcessStage",
     "node_type": "struct",
     "fields": [
       {
-        "name": "value",
+        "name": "pipeline",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , PipelineData >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PipelineData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "stages",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "u8"
+      },
+      {
+        "name": "completed",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "errors",
+        "attribute": null,
+        "field_type": "u8"
       }
     ],
     "inputs": null,

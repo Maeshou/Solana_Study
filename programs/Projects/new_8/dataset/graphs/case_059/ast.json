@@ -1,0 +1,156 @@
+[
+  {
+    "name": "init_vault",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitVault >",
+      "salt: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let v = & mut ctx . accounts . vault ;",
+      "v . owner = ctx . accounts . owner . key () ;",
+      "v . bump_saved = * ctx . bumps . get (\"vault\") . ok_or (error ! (Errs :: MissingBump)) ? ;",
+      "v . salt = salt % 777 + 123 ;",
+      "v . flags = 0 ;",
+      "let mut roll : u32 = v . salt as u32 ;",
+      "let mut step : u8 = 0 ;",
+      "while step < 6",
+      "{",
+      "if roll % 4 == 0",
+      "{",
+      "v . flags = v . flags . saturating_add ((roll % 11) + 3) ;",
+      "} else",
+      "{",
+      "v . flags = v . flags . saturating_add ((roll % 9) + 1) ;",
+      "} roll = roll . wrapping_mul (13) . wrapping_add (step as u32 + 7) ;",
+      "step = step . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "payout",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Payout >",
+      "amount: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let st = & mut ctx . accounts . vault ;",
+      "let wrong : & [& [u8]] = & [b\"vault_alt\" , st . owner . as_ref () , & [st . bump_saved] ,] ;",
+      "let alt_key = Pubkey :: create_program_address (& [b\"vault_alt\" , st . owner . as_ref () , & [st . bump_saved]] , ctx . program_id ,) . map_err (| _ | error ! (Errs :: SeedCompute)) ? ;",
+      "let ix = system_instruction :: transfer (& alt_key , & ctx . accounts . recipient . key () , amount) ;",
+      "let infos = & [ctx . accounts . alt_vault . to_account_info () , ctx . accounts . recipient . to_account_info () , ctx . accounts . system_program . to_account_info () ,] ;",
+      "invoke_signed (& ix , infos , & [wrong]) ? ;",
+      "let mut remain : u64 = amount ;",
+      "let mut rounds : u8 = 0 ;",
+      "while remain > 0",
+      "{",
+      "if (remain % 3) == 1",
+      "{",
+      "st . flags = st . flags . saturating_add ((remain % 13) as u32 + 2) ;",
+      "} else",
+      "{",
+      "st . flags = st . flags . saturating_add ((remain % 7) as u32 + 4) ;",
+      "} remain = remain . saturating_sub (5) ;",
+      "rounds = rounds . saturating_add (1) ;",
+      "if rounds > 9",
+      "{",
+      "remain = 0 ;",
+      "}",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitVault",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 4 + 1 , seeds = [b\"vault\" , owner . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , VaultState >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Payout",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": "# [account (mut , seeds = [b\"vault\" , owner . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , VaultState >"
+      },
+      {
+        "name": "alt_vault",
+        "attribute": "# [doc = \" CHECK: 未検証\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "recipient",
+        "attribute": "# [doc = \" CHECK: 緩く受ける\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "VaultState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "salt",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "flags",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "bump_saved",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

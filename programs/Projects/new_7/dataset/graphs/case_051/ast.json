@@ -1,0 +1,169 @@
+[
+  {
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Init >",
+      "id_a: Pubkey",
+      "id_b: Pubkey"
+    ],
+    "attributes": [],
+    "body": [
+      "let m = & mut ctx . accounts . mx ;",
+      "m . admin = ctx . accounts . admin . key () ;",
+      "m . a = id_a ;",
+      "m . b = id_b ;",
+      "m . threshold = 5000 ;",
+      "m . score = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "pay",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Pay >",
+      "base: u64",
+      "text: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let m = & mut ctx . accounts . mx ;",
+      "require ! (m . admin == ctx . accounts . admin . key () , Errs :: Admin) ;",
+      "let b = text . as_bytes () ;",
+      "let mut i = 0usize ;",
+      "let mut pref : u64 = 0 ;",
+      "let mut suff : u64 = 0 ;",
+      "while i < b . len ()",
+      "{",
+      "pref = pref . saturating_add (((b [i] as u64) % 23) + 1) ;",
+      "i += 1 ;",
+      "}",
+      "let mut j = b . len () ;",
+      "while j > 0",
+      "{",
+      "j -= 1 ;",
+      "suff = suff . saturating_add (((b [j] as u64) % 29) + 1) ;",
+      "if j % 4 == 0",
+      "{",
+      "m . score = m . score . saturating_add (1) ;",
+      "}",
+      "}",
+      "let mut mixed = pref . saturating_mul (3) . saturating_add (suff * 2) ;",
+      "let mut t = 0u8 ;",
+      "while t < 7",
+      "{",
+      "mixed = mixed ^ (((m . score as u64) + (t as u64)) << (t % 5)) ;",
+      "t = t . saturating_add (1) ;",
+      "}",
+      "let amt = base . saturating_add (mixed % 50_000) ;",
+      "let mut chosen = m . a ;",
+      "if mixed > m . threshold as u64",
+      "{",
+      "chosen = m . b ;",
+      "m . threshold = m . threshold . saturating_add (17) ;",
+      "} else",
+      "{",
+      "if m . threshold > 10 { m . threshold = m . threshold . saturating_sub (9) ;",
+      "}",
+      "}",
+      "let ix = spl_token :: instruction :: transfer (chosen , ctx . accounts . vault . key () , ctx . accounts . receiver_ata . key () , ctx . accounts . admin . key () , & [] , amt ,) ? ;",
+      "invoke (& ix , & [ctx . accounts . vault . to_account_info () , ctx . accounts . receiver_ata . to_account_info () , ctx . accounts . admin . to_account_info () ,]) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Mx",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "a",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "b",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "threshold",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "score",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Init",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "mx",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 32 + 32 + 4 + 4)]",
+        "field_type": "Account < 'info , Mx >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Pay",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "mx",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Mx >"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "receiver_ata",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

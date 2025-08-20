@@ -1,22 +1,167 @@
 [
   {
-    "name": "BurnTokenCtxvuto",
+    "name": "create_multisig",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateMultisig >",
+      "owners: Vec < Pubkey >",
+      "threshold: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let multisig = & mut ctx . accounts . multisig ;",
+      "multisig . owners = owners ;",
+      "multisig . threshold = threshold ;",
+      "multisig . nonce = 0 ;",
+      "multisig . bump = * ctx . bumps . get (\"multisig\") . unwrap () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "create_transaction",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateTransaction >",
+      "data: Vec < u8 >",
+      "accounts: Vec < TransactionAccount >"
+    ],
+    "attributes": [],
+    "body": [
+      "let multisig = & mut ctx . accounts . multisig ;",
+      "let transaction = & mut ctx . accounts . transaction ;",
+      "transaction . multisig = multisig . key () ;",
+      "transaction . data = data ;",
+      "transaction . accounts = accounts ;",
+      "transaction . signers = vec ! [false ; multisig . owners . len ()] ;",
+      "transaction . executed = false ;",
+      "transaction . bump = * ctx . bumps . get (\"transaction\") . unwrap () ;",
+      "multisig . nonce += 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "approve",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Approve >"
+    ],
+    "attributes": [],
+    "body": [
+      "let multisig = & ctx . accounts . multisig ;",
+      "let transaction = & mut ctx . accounts . transaction ;",
+      "let owner_index = multisig . owners . iter () . position (| a | * a == ctx . accounts . owner . key ()) . ok_or (MultisigError :: InvalidOwner) ? ;",
+      "transaction . signers [owner_index] = true ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Multisig",
     "node_type": "struct",
     "fields": [
       {
-        "name": "burn_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
+        "name": "owners",
+        "attribute": null,
+        "field_type": "Vec < Pubkey >"
       },
       {
-        "name": "owner",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
+        "name": "threshold",
+        "attribute": null,
+        "field_type": "u8"
       },
       {
-        "name": "token_program",
+        "name": "nonce",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Transaction",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "multisig",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "data",
+        "attribute": null,
+        "field_type": "Vec < u8 >"
+      },
+      {
+        "name": "accounts",
+        "attribute": null,
+        "field_type": "Vec < TransactionAccount >"
+      },
+      {
+        "name": "signers",
+        "attribute": null,
+        "field_type": "Vec < bool >"
+      },
+      {
+        "name": "executed",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TransactionAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pubkey",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "is_signer",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "is_writable",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreateMultisig",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "multisig",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4 + (32 * owners . len ()) + 1 + 8 + 1 , seeds = [b\"multisig\" , payer . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Multisig >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
+        "field_type": "Signer < 'info >"
       },
       {
         "name": "system_program",
@@ -29,13 +174,28 @@
     "body": null
   },
   {
-    "name": "DataAccount",
+    "name": "CreateTransaction",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data",
+        "name": "multisig",
+        "attribute": "# [account (mut , seeds = [b\"multisig\" , multisig . owners [0] . as_ref ()] , bump = multisig . bump)]",
+        "field_type": "Account < 'info , Multisig >"
+      },
+      {
+        "name": "transaction",
+        "attribute": "# [account (init , payer = proposer , space = 8 + 32 + 4 + data . len () + 4 + (accounts . len () * 40) + 4 + multisig . owners . len () + 1 + 1 , seeds = [b\"transaction\" , multisig . key () . as_ref () , & multisig . nonce . to_le_bytes ()] , bump)]",
+        "field_type": "Account < 'info , Transaction >"
+      },
+      {
+        "name": "proposer",
+        "attribute": "# [account (mut , constraint = multisig . owners . contains (& proposer . key ()) @ MultisigError :: InvalidOwner)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -43,19 +203,27 @@
     "body": null
   },
   {
-    "name": "burn_token",
-    "node_type": "function",
-    "fields": null,
-    "inputs": [
-      "ctx: Context < BurnTokenCtxvuto >",
-      "amount: u64"
+    "name": "Approve",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "multisig",
+        "attribute": "# [account (seeds = [b\"multisig\" , multisig . owners [0] . as_ref ()] , bump = multisig . bump)]",
+        "field_type": "Account < 'info , Multisig >"
+      },
+      {
+        "name": "transaction",
+        "attribute": "# [account (mut , seeds = [b\"transaction\" , multisig . key () . as_ref () , & (multisig . nonce - 1) . to_le_bytes ()] , bump = transaction . bump , constraint = transaction . multisig == multisig . key ())]",
+        "field_type": "Account < 'info , Transaction >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (constraint = multisig . owners . contains (& owner . key ()) @ MultisigError :: InvalidOwner)]",
+        "field_type": "Signer < 'info >"
+      }
     ],
-    "attributes": [],
-    "body": [
-      "let acct = & mut ctx . accounts . burn_account ;",
-      "for _ in 0 .. amount { acct . data += 1 ; }",
-      "msg ! (\"Executed burn_token logic\") ;",
-      "Ok (())"
-    ]
+    "inputs": null,
+    "attributes": null,
+    "body": null
   }
 ]

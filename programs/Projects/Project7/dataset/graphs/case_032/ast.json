@@ -1,0 +1,168 @@
+[
+  {
+    "name": "init_machine",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitMachine >",
+      "jackpot_bps: u16",
+      "pity_increment: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let machine = & mut ctx . accounts . machine ;",
+      "machine . owner_key = ctx . accounts . owner . key () ;",
+      "machine . jackpot_bps = jackpot_bps . min (1000) . max (50) ;",
+      "machine . pity_counter = pity_increment . max (1) ;",
+      "machine . roll_count = (pity_increment as u64) . saturating_add (2) ;",
+      "machine . jackpot_hits = 2 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_roll",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActRoll >",
+      "ticket_cost: u64",
+      "entropy_seed: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let machine = & mut ctx . accounts . machine ;",
+      "token :: burn (ctx . accounts . burn_ctx () , ticket_cost . max (1)) ? ;",
+      "let mut weighted_score = 0u64 ;",
+      "let mut bit_index = 0u8 ;",
+      "while bit_index < 12",
+      "{",
+      "let bit = (entropy_seed >> bit_index) & 1 ;",
+      "let weight = (12 - bit_index as u64) ;",
+      "weighted_score = weighted_score . saturating_add (bit . saturating_mul (weight)) ;",
+      "bit_index = bit_index . saturating_add (1) ;",
+      "}",
+      "if machine . pity_counter >= 8",
+      "{",
+      "weighted_score = weighted_score . saturating_add (10) ;",
+      "}",
+      "let threshold = (machine . jackpot_bps as u64) . saturating_div (6) . max (4) ;",
+      "let win_flag = weighted_score > threshold ;",
+      "if win_flag",
+      "{",
+      "let prize_units = ticket_cost . saturating_mul (15) ;",
+      "token :: mint_to (ctx . accounts . mint_ctx () , prize_units) ? ;",
+      "machine . jackpot_hits = machine . jackpot_hits . saturating_add (1) ;",
+      "machine . pity_counter = 1 ;",
+      "} else",
+      "{",
+      "let consolation = ticket_cost . saturating_div (6) . max (1) ;",
+      "token :: mint_to (ctx . accounts . mint_ctx () , consolation) ? ;",
+      "machine . pity_counter = machine . pity_counter . saturating_add (1) ;",
+      "}",
+      "machine . roll_count = machine . roll_count . saturating_add (1) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitMachine",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "machine",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 2 + 1 + 8 + 8)]",
+        "field_type": "Account < 'info , MachineState >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActRoll",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "machine",
+        "attribute": "# [account (mut , has_one = owner_key)]",
+        "field_type": "Account < 'info , MachineState >"
+      },
+      {
+        "name": "owner_key",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "ticket_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "user_ticket_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "prize_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "user_prize_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MachineState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner_key",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "jackpot_bps",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "pity_counter",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "roll_count",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "jackpot_hits",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

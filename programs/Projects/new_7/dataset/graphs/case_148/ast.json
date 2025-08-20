@@ -1,0 +1,123 @@
+[
+  {
+    "name": "pass",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Pass >",
+      "toll: u64",
+      "stamp: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "if stamp & 1 == 1",
+      "{",
+      "ctx . accounts . road . flags ^= stamp ;",
+      "}",
+      "let mut logger = ctx . accounts . log_program . to_account_info () ;",
+      "if ctx . remaining_accounts . len () > 0",
+      "{",
+      "logger = ctx . remaining_accounts [0] . clone () ;",
+      "ctx . accounts . road . routes += 1 ;",
+      "}",
+      "let lb = TollLogBridge { book : ctx . accounts . log_book . to_account_info () , user : ctx . accounts . traveler_wallet . to_account_info () } ;",
+      "let cx = lb . as_cpi (logger . clone ()) ;",
+      "lb . write (cx , stamp . to_le_bytes () . to_vec ()) ? ;",
+      "let t = Transfer { from : ctx . accounts . traveler_token . to_account_info () , to : ctx . accounts . treasury_token . to_account_info () , authority : ctx . accounts . traveler_wallet . to_account_info () , } ;",
+      "let tctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , t) ;",
+      "token :: transfer (tctx , toll) ? ;",
+      "for _ in 0 .. (toll % 3)",
+      "{",
+      "ctx . accounts . road . hash = ctx . accounts . road . hash . rotate_left (5) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Pass",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "road",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , RoadState >"
+      },
+      {
+        "name": "log_book",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "log_program",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "traveler_token",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "treasury_token",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "traveler_wallet",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RoadState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "flags",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "routes",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "hash",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TollLogBridge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "book",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

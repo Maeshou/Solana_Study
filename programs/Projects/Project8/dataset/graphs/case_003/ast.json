@@ -1,0 +1,295 @@
+[
+  {
+    "name": "pay_from_store",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PayFromStore >",
+      "lamports: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let ix = system_instruction :: transfer (& ctx . accounts . store . key () , & ctx . accounts . receiver . key () , lamports ,) ;",
+      "let bump = * ctx . bumps . get (\"store\") . ok_or (error ! (Errs :: MissingBump)) ? ;",
+      "let seeds : & [& [u8]] = & [b\"store\" , ctx . accounts . merchant . key . as_ref () , ctx . accounts . store . mint . as_ref () , & [bump] ,] ;",
+      "invoke_signed (& ix , & [ctx . accounts . store . to_account_info () , ctx . accounts . receiver . to_account_info () , ctx . accounts . system_program . to_account_info () ,] , & [seeds] ,) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "pay_from_coupon",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PayFromCoupon >",
+      "coupon_id: u64",
+      "lamports: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let ix = system_instruction :: transfer (& ctx . accounts . coupon . key () , & ctx . accounts . receiver . key () , lamports ,) ;",
+      "let bump = * ctx . bumps . get (\"coupon\") . ok_or (error ! (Errs :: MissingBump)) ? ;",
+      "let seeds : & [& [u8]] = & [b\"coupon\" , ctx . accounts . merchant . key . as_ref () , & coupon_id . to_le_bytes () , & [bump] ,] ;",
+      "invoke_signed (& ix , & [ctx . accounts . coupon . to_account_info () , ctx . accounts . receiver . to_account_info () , ctx . accounts . system_program . to_account_info () ,] , & [seeds] ,) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "token_transfer_fixed",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < TokenTransferFixed >",
+      "amount: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let bump = * ctx . bumps . get (\"store\") . ok_or (error ! (Errs :: MissingBump)) ? ;",
+      "let seeds : & [& [u8]] = & [b\"store\" , ctx . accounts . merchant . key . as_ref () , ctx . accounts . store . mint . as_ref () , & [bump] ,] ;",
+      "let cpi_accounts = Transfer { from : ctx . accounts . store_token . to_account_info () , to : ctx . accounts . user_token . to_account_info () , authority : ctx . accounts . store . to_account_info () , } ;",
+      "let cpi_ctx = CpiContext :: new_with_signer (ctx . accounts . token_program . to_account_info () , cpi_accounts , & [seeds] ,) ;",
+      "token :: transfer (cpi_ctx , amount) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "create_ata_for_store",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateAtaForStore >"
+    ],
+    "attributes": [],
+    "body": [
+      "let bump = * ctx . bumps . get (\"store\") . ok_or (error ! (Errs :: MissingBump)) ? ;",
+      "let seeds : & [& [u8]] = & [b\"store\" , ctx . accounts . merchant . key . as_ref () , ctx . accounts . store . mint . as_ref () , & [bump] ,] ;",
+      "let cpi_ctx = CpiContext :: new_with_signer (ctx . accounts . associated_token_program . to_account_info () , anchor_spl :: associated_token :: Create { payer : ctx . accounts . merchant . to_account_info () , associated_token : ctx . accounts . store_token . to_account_info () , authority : ctx . accounts . store . to_account_info () , mint : ctx . accounts . mint . to_account_info () , system_program : ctx . accounts . system_program . to_account_info () , token_program : ctx . accounts . token_program . to_account_info () , } , & [seeds] ,) ;",
+      "anchor_spl :: associated_token :: create (cpi_ctx) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "rotate_store_owner",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RotateStoreOwner >",
+      "new_owner: Pubkey"
+    ],
+    "attributes": [],
+    "body": [
+      "let state = & mut ctx . accounts . store ;",
+      "let mut counter : u32 = 0 ;",
+      "let mut acc : u64 = state . power . rotate_left (1) . wrapping_add (17) ;",
+      "while counter < 3",
+      "{",
+      "let t = acc ^ state . rounds as u64 ;",
+      "acc = acc . rotate_right (2) . wrapping_add (t) . wrapping_mul (3) ;",
+      "counter = counter . saturating_add (1) ;",
+      "}",
+      "state . owner = new_owner ;",
+      "state . power = acc ;",
+      "state . rounds = state . rounds . saturating_add (5) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "PayFromStore",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "store",
+        "attribute": "# [account (mut , seeds = [b\"store\" , merchant . key () . as_ref () , store . mint . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , StoreState >"
+      },
+      {
+        "name": "receiver",
+        "attribute": "# [account (mut)]",
+        "field_type": "SystemAccount < 'info >"
+      },
+      {
+        "name": "merchant",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PayFromCoupon",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "coupon",
+        "attribute": "# [account (mut , seeds = [b\"coupon\" , merchant . key () . as_ref () , coupon_id . to_le_bytes () . as_ref ()] , bump)]",
+        "field_type": "SystemAccount < 'info >"
+      },
+      {
+        "name": "coupon_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "receiver",
+        "attribute": "# [account (mut)]",
+        "field_type": "SystemAccount < 'info >"
+      },
+      {
+        "name": "merchant",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TokenTransferFixed",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "store",
+        "attribute": "# [account (mut , seeds = [b\"store\" , merchant . key () . as_ref () , store . mint . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , StoreState >"
+      },
+      {
+        "name": "store_token",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "user_token",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "merchant",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreateAtaForStore",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "store",
+        "attribute": "# [account (mut , seeds = [b\"store\" , merchant . key () . as_ref () , store . mint . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , StoreState >"
+      },
+      {
+        "name": "merchant",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "mint",
+        "attribute": "# [doc = \" CHECK: AnchorのATA CPIがmintを検証するためここではUncheckedでも実運用はMint型推奨\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "store_token",
+        "attribute": "# [doc = \" CHECK: ATAはCPIで作成される\"] # [account (mut)]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "associated_token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , AssociatedToken >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RotateStoreOwner",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "store",
+        "attribute": "# [account (mut , seeds = [b\"store\" , merchant . key () . as_ref () , store . mint . key () . as_ref ()] , bump , has_one = owner @ Errs :: OwnerMismatch)]",
+        "field_type": "Account < 'info , StoreState >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" CHECK: 所有者の実在チェックは用途に応じて追加\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "merchant",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "StoreState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "mint",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "power",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "rounds",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

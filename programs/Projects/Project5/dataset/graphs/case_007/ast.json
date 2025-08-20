@@ -1,43 +1,198 @@
 [
   {
-    "name": "create_escrow",
+    "name": "init_bin",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx007 >",
-      "amount: u64"
+      "ctx: Context < InitBin >",
+      "slot: u32"
     ],
     "attributes": [],
     "body": [
-      "let cpi_accounts = Transfer { from : ctx . accounts . from_token . to_account_info () , to : ctx . accounts . to_token . to_account_info () , authority : ctx . accounts . authority . to_account_info () , } ;",
-      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
-      "token :: transfer (cpi_ctx , amount) ? ;",
+      "ctx . accounts . bin . owner = ctx . accounts . manager . key () ;",
+      "ctx . accounts . bin . slot = slot ;",
+      "ctx . accounts . bin . count = 0 ;",
+      "ctx . accounts . log . moves = 0 ;",
+      "ctx . accounts . log . ok = true ;",
+      "ctx . accounts . log . bump = * ctx . bumps . get (\"log\") . unwrap () ;",
+      "ctx . accounts . policy . max_per_move = 50 ;",
+      "ctx . accounts . policy . strict = true ;",
+      "ctx . accounts . policy . version = 1 ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx007",
+    "name": "move_goods",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < MoveGoods >",
+      "qty: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "assert_ne ! (ctx . accounts . log . key () , ctx . accounts . policy . key () , \"accounts must differ\") ;",
+      "let mut moved = 0u32 ;",
+      "while moved < qty",
+      "{",
+      "ctx . accounts . bin . count = ctx . accounts . bin . count . saturating_add (1) ;",
+      "ctx . accounts . log . moves = ctx . accounts . log . moves . saturating_add (1) ;",
+      "moved += 1 ;",
+      "}",
+      "if qty > ctx . accounts . policy . max_per_move",
+      "{",
+      "ctx . accounts . policy . version = ctx . accounts . policy . version . saturating_add (1) ;",
+      "ctx . accounts . log . ok = false ;",
+      "msg ! (\"excess move: qty=",
+      "{",
+      "} limit={}\" , qty , ctx . accounts . policy . max_per_move) ;",
+      "ctx . accounts . bin . slot = ctx . accounts . bin . slot . saturating_add (1) ;",
+      "} else",
+      "{",
+      "ctx . accounts . log . ok = true ;",
+      "ctx . accounts . policy . strict = true ;",
+      "msg ! (\"move ok: count=",
+      "{",
+      "} moves={}\" , ctx . accounts . bin . count , ctx . accounts . log . moves) ;",
+      "ctx . accounts . bin . slot = ctx . accounts . bin . slot . saturating_add (0) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitBin",
     "node_type": "struct",
     "fields": [
       {
-        "name": "from_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "bin",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 8)]",
+        "field_type": "Account < 'info , BinRecord >"
       },
       {
-        "name": "to_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "log",
+        "attribute": "# [account (init , seeds = [b\"log\" , payer . key () . as_ref ()] , bump , payer = payer , space = 8 + 4 + 1 + 1)]",
+        "field_type": "Account < 'info , MoveLog >"
       },
       {
-        "name": "authority",
+        "name": "policy",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4 + 1 + 4)]",
+        "field_type": "Account < 'info , Policy >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "manager",
         "attribute": null,
         "field_type": "Signer < 'info >"
       },
       {
-        "name": "token_program",
+        "name": "system_program",
         "attribute": null,
-        "field_type": "Program < 'info , Token >"
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MoveGoods",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "bin",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , BinRecord >"
+      },
+      {
+        "name": "log",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , MoveLog >"
+      },
+      {
+        "name": "policy",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Policy >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BinRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "slot",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "count",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MoveLog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "moves",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "ok",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Policy",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "max_per_move",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "strict",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "version",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

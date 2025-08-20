@@ -1,0 +1,144 @@
+[
+  {
+    "name": "init_market",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitMarket >",
+      "collection: Pubkey"
+    ],
+    "attributes": [],
+    "body": [
+      "let m = & mut ctx . accounts . market ;",
+      "m . operator = ctx . accounts . operator . key () ;",
+      "m . collection = collection ;",
+      "m . score = 1 ;",
+      "let mut x = 29u64 ;",
+      "for _ in 0 .. 5",
+      "{",
+      "x = x . rotate_left (1) . wrapping_add (11) ;",
+      "m . score = m . score . saturating_add (((x % 23) as u64) + 1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "settle_sale",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SettleSale >",
+      "proceeds: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let ix = system_instruction :: transfer (& ctx . accounts . market . key () , & ctx . accounts . seller . key () , proceeds) ;",
+      "let bump = * ctx . bumps . get (\"market\") . ok_or (error ! (MarketErr :: MissingBump)) ? ;",
+      "let seeds : & [& [u8]] = & [b\"market\" , ctx . accounts . operator . key . as_ref () , ctx . accounts . market . collection . as_ref () , & [bump] ,] ;",
+      "invoke_signed (& ix , & [ctx . accounts . market . to_account_info () , ctx . accounts . seller . to_account_info () , ctx . accounts . system_program . to_account_info () ,] , & [seeds] ,) ? ;",
+      "emit ! (SaleSettled { to : ctx . accounts . seller . key () , amount : proceeds }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "SaleSettled",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "to",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "amount",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitMarket",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "market",
+        "attribute": "# [account (init , payer = operator , space = 8 + 32 + 32 + 8 , seeds = [b\"market\" , operator . key () . as_ref () , collection . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , MarketState >"
+      },
+      {
+        "name": "operator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "collection",
+        "attribute": "# [doc = \" CHECK: 実運用は Mint/Metadata で検証\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SettleSale",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "market",
+        "attribute": "# [account (mut , seeds = [b\"market\" , operator . key () . as_ref () , market . collection . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , MarketState >"
+      },
+      {
+        "name": "seller",
+        "attribute": "# [account (mut)]",
+        "field_type": "SystemAccount < 'info >"
+      },
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MarketState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "collection",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "score",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

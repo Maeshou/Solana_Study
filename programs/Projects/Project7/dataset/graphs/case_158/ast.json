@@ -1,0 +1,155 @@
+[
+  {
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitMix >",
+      "q: u64",
+      "maxv: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let x = & mut ctx . accounts . pool ;",
+      "x . manager = ctx . accounts . manager . key () ;",
+      "x . q = q ;",
+      "if x . q < 1",
+      "{",
+      "x . q = 1 ;",
+      "}",
+      "x . maxv = maxv ;",
+      "if x . maxv < x . q",
+      "{",
+      "x . maxv = x . q ;",
+      "}",
+      "x . done = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "step",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < StepMix >",
+      "n: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let x = & mut ctx . accounts . pool ;",
+      "let mut c : u8 = 0 ;",
+      "while c < n",
+      "{",
+      "let mut amt = x . q ;",
+      "if amt < 1",
+      "{",
+      "amt = 1 ;",
+      "} let next = x . done . saturating_add (amt) ;",
+      "if next > x . maxv",
+      "{",
+      "return Err (MixErr :: Max . into ()) ;",
+      "} token :: approve (ctx . accounts . approve_token () , amt) ? ;",
+      "token :: transfer (ctx . accounts . transfer_raw () , amt) ? ;",
+      "token :: revoke (ctx . accounts . revoke_raw ()) ? ;",
+      "x . done = next ;",
+      "if x . done % (x . q * 2) == 0",
+      "{",
+      "x . done = x . done ;",
+      "} c = c . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitMix",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": "# [account (init , payer = manager , space = 8 + 32 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , MixState >"
+      },
+      {
+        "name": "manager",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "StepMix",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": "# [account (mut , has_one = manager)]",
+        "field_type": "Account < 'info , MixState >"
+      },
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "from_cell",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "to_cell",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "any_program",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MixState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "q",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "maxv",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "done",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

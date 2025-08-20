@@ -1,40 +1,218 @@
 [
   {
-    "name": "transfer_collectible",
+    "name": "init_bay",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx069 >",
-      "amount: u64"
+      "ctx: Context < InitBay >",
+      "seed: u64"
     ],
     "attributes": [],
     "body": [
-      "let src = & mut ctx . accounts . account_src ;",
-      "let dst = & mut ctx . accounts . account_dst ;",
-      "let before = * * src . to_account_info () . try_borrow_lamports () ? ;",
-      "* * src . to_account_info () . try_borrow_mut_lamports () ? = before . saturating_sub (amount) ;",
-      "* * dst . to_account_info () . try_borrow_mut_lamports () ? += amount ;",
+      "let a = & mut ctx . accounts . module_a ;",
+      "let b = & mut ctx . accounts . module_b ;",
+      "let t = & mut ctx . accounts . tracker ;",
+      "let mut s = seed . wrapping_mul (6364136223846793005) . wrapping_add (1) ;",
+      "a . slot = (s as u8) & 7 ;",
+      "a . parent = ctx . accounts . bay . key () ;",
+      "a . torque = (s & 127) as u32 + 10 ;",
+      "s = s . wrapping_mul (6364136223846793005) . wrapping_add (1) ;",
+      "b . slot = (s as u8) & 7 ;",
+      "b . parent = ctx . accounts . bay . key () ;",
+      "b . torque = ((s >> 7) & 255) as u32 + 12 ;",
+      "t . parent = ctx . accounts . bay . key () ;",
+      "t . ring = 9 ;",
+      "t . counter = (seed as u32) ^ 0x1357_2468 ;",
+      "let bay = & mut ctx . accounts . bay ;",
+      "bay . owner = ctx . accounts . chief . key () ;",
+      "bay . limit = ((seed as u32) & 1023) + 200 ;",
+      "bay . mode = Idle ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx069",
+    "name": "tune",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Tune >",
+      "rounds: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let bay = & mut ctx . accounts . bay ;",
+      "let a = & mut ctx . accounts . module_a ;",
+      "let b = & mut ctx . accounts . module_b ;",
+      "let t = & mut ctx . accounts . tracker ;",
+      "for i in 0 .. rounds",
+      "{",
+      "t . counter = t . counter . rotate_left ((i % 7) as u32) . wrapping_add (0x9E37) ;",
+      "a . torque = a . torque . checked_add ((t . counter as u32 & 15) + 1) . unwrap_or (u32 :: MAX) ;",
+      "b . torque = b . torque . saturating_add (((t . counter >> 4) & 31) + 2) ;",
+      "}",
+      "let sum = a . torque + b . torque ;",
+      "if sum > bay . limit",
+      "{",
+      "bay . mode = Lock ;",
+      "a . torque = a . torque / 2 + 13 ;",
+      "b . torque = b . torque / 2 + 11 ;",
+      "t . ring ^= 0x3 ;",
+      "msg ! (\"lock: halves + ring flip\") ;",
+      "} else",
+      "{",
+      "bay . mode = Tune ;",
+      "a . slot = a . slot . saturating_add (1) ;",
+      "b . slot ^= 0x1 ;",
+      "t . counter ^= 0x00FF_F0F0 ;",
+      "msg ! (\"tune: slot shift + counter flip\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitBay",
     "node_type": "struct",
     "fields": [
       {
-        "name": "account_src",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "bay",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , BayCore >"
       },
       {
-        "name": "account_dst",
+        "name": "module_a",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Module >"
+      },
+      {
+        "name": "module_b",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Module >"
+      },
+      {
+        "name": "tracker",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Tracker >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "chief",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
       },
       {
         "name": "system_program",
         "attribute": null,
         "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Tune",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "bay",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , BayCore >"
+      },
+      {
+        "name": "module_a",
+        "attribute": "# [account (mut , has_one = bay , constraint = module_a . slot != module_b . slot @ MechErr :: Dup)]",
+        "field_type": "Account < 'info , Module >"
+      },
+      {
+        "name": "module_b",
+        "attribute": "# [account (mut , has_one = bay , constraint = module_b . slot != tracker . ring @ MechErr :: Dup)]",
+        "field_type": "Account < 'info , Module >"
+      },
+      {
+        "name": "tracker",
+        "attribute": "# [account (mut , has_one = bay)]",
+        "field_type": "Account < 'info , Tracker >"
+      },
+      {
+        "name": "chief",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BayCore",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "limit",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "mode",
+        "attribute": null,
+        "field_type": "BayMode"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Module",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "slot",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "torque",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Tracker",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "ring",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "counter",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

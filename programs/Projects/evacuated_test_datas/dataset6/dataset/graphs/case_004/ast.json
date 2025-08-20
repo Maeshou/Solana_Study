@@ -1,0 +1,82 @@
+[
+  {
+    "name": "mint_and_override_metadata",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < MintAndOverrideMetadata >",
+      "initial_supply: u64",
+      "override_name: [u8 ; 32]"
+    ],
+    "attributes": [
+      "# [doc = \" 1) `NftAccount` を初期化する（すでに初期化済みであっても再初期化可能）  \"]",
+      "# [doc = \" 2) NFT メタデータを上書きするが、account_matching を行わず任意のアカウントを読み書きしてしまう\"]"
+    ],
+    "body": [
+      "let nft_acc = & ctx . accounts . nft_account ;",
+      "let metadata_acc = & ctx . accounts . metadata_account ;",
+      "let fee_acc = & ctx . accounts . fee_account ;",
+      "{ let mut raw = nft_acc . try_borrow_mut_data () ? ; raw [0] = 1 ; let bytes = initial_supply . to_le_bytes () ; for i in 0 .. 8 { raw [1 + i] = bytes [i] ; } msg ! (\"[STEP1] nft_account を再初期化: supply = {}\" , initial_supply) ; }",
+      "let mut stored_supply : u64 = { let raw = nft_acc . try_borrow_data () ? ; let mut b = [0u8 ; 8] ; b . copy_from_slice (& raw [1 .. 9]) ; let s = u64 :: from_le_bytes (b) ; msg ! (\"[STEP2] stored_supply = {}\" , s) ; s } ;",
+      "{ let mut raw_meta = metadata_acc . try_borrow_mut_data () ? ; for i in 0 .. 32 { raw_meta [i] = override_name [i] ; } msg ! (\"[STEP3] metadata_account.name を {:?} に上書き\" , override_name) ; }",
+      "let fee = stored_supply / 20 ;",
+      "{ * * nft_acc . try_borrow_mut_lamports () ? -= fee ; * * fee_acc . try_borrow_mut_lamports () ? += fee ; msg ! (\"[STEP4] 手数料 {} を fee_acc に送金\" , fee) ; }",
+      "stored_supply = 0 ;",
+      "{ let mut raw = nft_acc . try_borrow_mut_data () ? ; let zero_bytes = 0u64 . to_le_bytes () ; for i in 0 .. 8 { raw [1 + i] = zero_bytes [i] ; } msg ! (\"[STEP5] nft_account の stored_supply を 0 にリセット\") ; }",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "NftAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "initialized",
+        "attribute": "# [doc = \" 初期化フラグ: 0 = 未初期化, 1 = 初期化済み\"]",
+        "field_type": "u8"
+      },
+      {
+        "name": "supply",
+        "attribute": "# [doc = \" NFT の供給量\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MintAndOverrideMetadata",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "nft_account",
+        "attribute": "# [doc = \" AccountMatching をせず再初期化可能\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "metadata_account",
+        "attribute": "# [doc = \" NFT メタデータアカウント（owner / PDA チェックなし）\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "fee_account",
+        "attribute": "# [doc = \" 手数料受取先（owner チェック省略）\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

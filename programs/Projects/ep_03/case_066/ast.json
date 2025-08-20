@@ -1,0 +1,94 @@
+[
+  {
+    "name": "apply_late_fee",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ApplyLateFee >"
+    ],
+    "attributes": [
+      "# [doc = \" 返却期限超過時に遅延ペナルティを課すが、\"]",
+      "# [doc = \" rental_account.owner と請求ユーザーの照合チェックがない\"]"
+    ],
+    "body": [
+      "let rental = & mut ctx . accounts . rental_account ;",
+      "let config = & ctx . accounts . config ;",
+      "let user = & mut ctx . accounts . user ;",
+      "let pool = & mut ctx . accounts . penalty_pool . to_account_info () ;",
+      "let now = Clock :: get () ? . unix_timestamp ;",
+      "let overdue = (now - rental . end_time) . max (0) as u64 ;",
+      "let penalty = overdue . checked_mul (config . late_fee_per_second) . unwrap () ;",
+      "rental . total_late_fees = rental . total_late_fees . checked_add (penalty) . unwrap () ;",
+      "* * user . to_account_info () . lamports . borrow_mut () -= penalty ;",
+      "* * pool . lamports . borrow_mut () += penalty ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "ApplyLateFee",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "rental_account",
+        "attribute": "# [account (mut)] # [doc = \" 本来は #[account(has_one = owner)] を指定して\"] # [doc = \" rental_account.owner と請求ユーザーの一致検証を行うべき\"]",
+        "field_type": "Account < 'info , RentalAccount >"
+      },
+      {
+        "name": "penalty_pool",
+        "attribute": "# [doc = \" 遅延ペナルティを収納するプールアカウント\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" ペナルティを支払うユーザー（署名者）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "config",
+        "attribute": "# [doc = \" 遅延単価を保持する設定アカウント\"]",
+        "field_type": "Account < 'info , RentalConfig >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RentalAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 本来この契約を所有するべきユーザーの Pubkey\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "end_time",
+        "attribute": "# [doc = \" レンタル終了予定時刻 (UNIXタイム)\"]",
+        "field_type": "i64"
+      },
+      {
+        "name": "total_late_fees",
+        "attribute": "# [doc = \" 累計で課された遅延ペナルティ (Lamports)\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RentalConfig",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "late_fee_per_second",
+        "attribute": "# [doc = \" 遅延 1 秒あたりのペナルティ (Lamports)\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

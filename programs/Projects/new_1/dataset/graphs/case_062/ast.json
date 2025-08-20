@@ -1,0 +1,165 @@
+[
+  {
+    "name": "register_skin",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RegisterSkin >",
+      "name: String",
+      "uri: String"
+    ],
+    "attributes": [
+      "# [doc = \" オリジナルスキン情報をオンチェーンに登録します。\"]",
+      "# [doc = \" - `name` : スキン名称（ハッシュ化して保存）\"]",
+      "# [doc = \" - `uri`  : メタデータ URI\"]",
+      "# [doc = \" ※ `user` は AccountInfo<'info> のまま、署名チェックなし\"]"
+    ],
+    "body": [
+      "let skin = & mut ctx . accounts . skin_info ;",
+      "skin . creator = * ctx . accounts . user . key ;",
+      "skin . name_hash = hash (name . as_bytes ()) . to_bytes () ;",
+      "skin . uri = uri ;"
+    ]
+  },
+  {
+    "name": "mint_genesis",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < MintGenesis >"
+    ],
+    "attributes": [
+      "# [doc = \" 登録済みスキンをもとにジェネシス情報を PDA に保存します。\"]"
+    ],
+    "body": [
+      "let info = & mut ctx . accounts . genesis_info ;",
+      "info . owner = * ctx . accounts . user . key ;",
+      "info . skin = ctx . accounts . skin_info . key () ;",
+      "let bytes = ctx . accounts . genesis_info . key () . to_bytes () ;",
+      "let mut arr = [0u8 ; 8] ;",
+      "arr . copy_from_slice (& bytes [.. 8]) ;",
+      "info . serial = u64 :: from_le_bytes (arr) ;"
+    ]
+  },
+  {
+    "name": "SkinInfo",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "creator",
+        "attribute": "# [doc = \" 本来は検証すべきクリエイター\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "name_hash",
+        "attribute": "# [doc = \" スキン名称の keccak256 ハッシュ\"]",
+        "field_type": "[u8 ; 32]"
+      },
+      {
+        "name": "uri",
+        "attribute": "# [doc = \" メタデータ URI\"]",
+        "field_type": "String"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GenesisInfo",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" ジェネシス NFT の所有者\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "skin",
+        "attribute": "# [doc = \" 対応する SkinInfo PDA の key\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "serial",
+        "attribute": "# [doc = \" 発行シリアル番号\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RegisterSkin",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "fee_payer",
+        "attribute": "# [doc = \" 手数料支払い用（署名必須）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 登録対象ユーザー（署名チェック omitted intentionally）\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "skin_info",
+        "attribute": "# [doc = \" スキン情報を保持する PDA\"] # [account (init_if_needed , payer = fee_payer , seeds = [b\"skin\" , user . key () . as_ref ()] , bump , space = 8 + 32 + 32 + 4 + 200)]",
+        "field_type": "Account < 'info , SkinInfo >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "rent",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Rent >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MintGenesis",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "fee_payer",
+        "attribute": "# [doc = \" 手数料支払い用（署名必須）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" ミント実行ユーザー（署名チェック omitted intentionally）\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "skin_info",
+        "attribute": "# [doc = \" 登録済み SkinInfo PDA\"] # [account (seeds = [b\"skin\" , user . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , SkinInfo >"
+      },
+      {
+        "name": "genesis_info",
+        "attribute": "# [doc = \" ジェネシス情報を保持する PDA\"] # [account (init , payer = fee_payer , seeds = [b\"genesis\" , user . key () . as_ref () , skin_info . key () . as_ref ()] , bump , space = 8 + 32 + 32 + 8)]",
+        "field_type": "Account < 'info , GenesisInfo >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "rent",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Rent >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,245 @@
+[
+  {
+    "name": "init_board",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitBoard >"
+    ],
+    "attributes": [],
+    "body": [
+      "let b = & mut ctx . accounts . board ;",
+      "b . owner = ctx . accounts . owner . key () ;",
+      "b . seed = 0xABCD ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_ticket",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitTicket >",
+      "lane: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let t = & mut ctx . accounts . ticket ;",
+      "t . parent = ctx . accounts . board . key () ;",
+      "t . lane = lane ;",
+      "t . used = false ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "run",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Run >",
+      "bonus: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "require ! (ctx . accounts . reward_ta . mint == ctx . accounts . reward_mint . key () , QuestErr :: MintMismatch) ;",
+      "require ! (ctx . accounts . reward_ta . owner == ctx . accounts . owner . key () , QuestErr :: OwnerMismatch) ;",
+      "let b = & mut ctx . accounts . board ;",
+      "let a = & mut ctx . accounts . ticket_a ;",
+      "let c = & mut ctx . accounts . ticket_c ;",
+      "let r = & mut ctx . accounts . record ;",
+      "let mut sum = 0u32 ;",
+      "for i in 0 .. 6",
+      "{",
+      "let v = ((bonus as u32) ^ (i as u32 * 17)) & 0x7FF ;",
+      "r . steps [i] = r . steps [i] . saturating_add (v) ;",
+      "sum = sum . saturating_add (v) ;",
+      "}",
+      "if (a . lane ^ c . lane) & 1 == 0",
+      "{",
+      "a . used = true ;",
+      "r . ok = r . ok . saturating_add (sum / 8) ;",
+      "b . seed = b . seed . rotate_left ((sum % 16) as u32) ;",
+      "} else",
+      "{",
+      "c . used = true ;",
+      "r . ng = r . ng . saturating_add (sum / 9) ;",
+      "b . seed = b . seed . rotate_right ((sum % 13) as u32) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitBoard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "board",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 4)]",
+        "field_type": "Account < 'info , Board >"
+      },
+      {
+        "name": "record",
+        "attribute": "# [account (init , payer = owner , space = 8 + 4 * 6 + 8 + 8)]",
+        "field_type": "Account < 'info , QRecord >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitTicket",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "board",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Board >"
+      },
+      {
+        "name": "ticket",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 1 + 1)]",
+        "field_type": "Account < 'info , TicketQ >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Run",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "board",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Board >"
+      },
+      {
+        "name": "ticket_a",
+        "attribute": "# [account (mut , has_one = parent , constraint = ticket_a . lane != ticket_c . lane @ QuestErr :: CosplayBlocked)]",
+        "field_type": "Account < 'info , TicketQ >"
+      },
+      {
+        "name": "ticket_c",
+        "attribute": "# [account (mut , has_one = parent)]",
+        "field_type": "Account < 'info , TicketQ >"
+      },
+      {
+        "name": "record",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , QRecord >"
+      },
+      {
+        "name": "reward_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "reward_ta",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Board",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "seed",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TicketQ",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "lane",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "used",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "QRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "steps",
+        "attribute": null,
+        "field_type": "[u32 ; 6]"
+      },
+      {
+        "name": "ok",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "ng",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

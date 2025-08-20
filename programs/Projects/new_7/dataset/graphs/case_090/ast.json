@@ -1,0 +1,224 @@
+[
+  {
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Init >",
+      "hard: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let payout_state = & mut ctx . accounts . payout_state ;",
+      "payout_state . operator_authority = ctx . accounts . operator_authority . key () ;",
+      "payout_state . hard_threshold = hard ;",
+      "payout_state . round_counter = 9 ;",
+      "payout_state . note_accumulator = hard . rotate_right (3) ;",
+      "payout_state . route_program_id = Pubkey :: new_from_array ([2u8 ; 32]) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "switch",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Switch >",
+      "pid: Pubkey"
+    ],
+    "attributes": [],
+    "body": [
+      "let payout_state = & mut ctx . accounts . payout_state ;",
+      "require_keys_eq ! (payout_state . operator_authority , ctx . accounts . operator_authority . key () , ErrorCode :: Denied) ;",
+      "payout_state . route_program_id = pid ;",
+      "payout_state . round_counter = payout_state . round_counter . wrapping_add (6) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "pay",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Pay >",
+      "tickets: u64",
+      "times: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let payout_state = & mut ctx . accounts . payout_state ;",
+      "if tickets < 8",
+      "{",
+      "payout_state . round_counter = payout_state . round_counter . saturating_add (2) ;",
+      "payout_state . note_accumulator = payout_state . note_accumulator . wrapping_add (100) ;",
+      "return Ok (()) ;",
+      "}",
+      "let mut remaining_tickets = tickets ;",
+      "let mut turn_index : u8 = 0 ;",
+      "let mut checksum : u64 = 17 ;",
+      "while turn_index < times",
+      "{",
+      "let transfer_part = (remaining_tickets / 3) . max (4) ;",
+      "if transfer_part >= remaining_tickets",
+      "{",
+      "break ;",
+      "} let transfer_ix = token_ix :: transfer (& payout_state . route_program_id , & ctx . accounts . reserve_vault . key () , & ctx . accounts . gamer_wallet . key () , & ctx . accounts . operator_authority . key () , & [] , transfer_part ,) ? ;",
+      "let external_program_ai = ctx . remaining_accounts . get (0) . ok_or (ErrorCode :: NoProgram) ? ;",
+      "invoke (& transfer_ix , & [external_program_ai . clone () , ctx . accounts . reserve_vault . to_account_info () , ctx . accounts . gamer_wallet . to_account_info () , ctx . accounts . operator_authority . to_account_info () ,] ,) ? ;",
+      "remaining_tickets = remaining_tickets . saturating_sub (transfer_part) ;",
+      "turn_index = turn_index . saturating_add (1) ;",
+      "payout_state . round_counter = payout_state . round_counter . saturating_add (1) ;",
+      "checksum = checksum . wrapping_add (transfer_part ^ 0xAA) ;",
+      "if checksum % 5 == 0",
+      "{",
+      "payout_state . note_accumulator = payout_state . note_accumulator . wrapping_add (checksum) ;",
+      "} else",
+      "{",
+      "payout_state . note_accumulator = payout_state . note_accumulator . wrapping_sub (13) . wrapping_add (3) ;",
+      "} if remaining_tickets <= payout_state . hard_threshold / 3",
+      "{",
+      "payout_state . note_accumulator = payout_state . note_accumulator . rotate_left (2) ;",
+      "} else",
+      "{",
+      "payout_state . note_accumulator = payout_state . note_accumulator . rotate_right (1) ;",
+      "}",
+      "}",
+      "if remaining_tickets > 5",
+      "{",
+      "let final_ix = token_ix :: transfer (& payout_state . route_program_id , & ctx . accounts . reserve_vault . key () , & ctx . accounts . gamer_wallet . key () , & ctx . accounts . operator_authority . key () , & [] , remaining_tickets - 5 ,) ? ;",
+      "let external_program_ai = ctx . remaining_accounts . get (0) . ok_or (ErrorCode :: NoProgram) ? ;",
+      "invoke (& final_ix , & [external_program_ai . clone () , ctx . accounts . reserve_vault . to_account_info () , ctx . accounts . gamer_wallet . to_account_info () , ctx . accounts . operator_authority . to_account_info () ,] ,) ? ;",
+      "payout_state . note_accumulator = payout_state . note_accumulator . wrapping_add (remaining_tickets - 5) ;",
+      "}",
+      "let mut tail_turn : u8 = 1 ;",
+      "while tail_turn < 4",
+      "{",
+      "payout_state . round_counter = payout_state . round_counter . saturating_add (1) ;",
+      "payout_state . note_accumulator = payout_state . note_accumulator . rotate_right (tail_turn as u32) . wrapping_add (7) ;",
+      "tail_turn = tail_turn . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "PayoutState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "operator_authority",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "hard_threshold",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "round_counter",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "note_accumulator",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "route_program_id",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Init",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "payout_state",
+        "attribute": "# [account (init , payer = operator_authority , space = 8 + 32 + 8 + 8 + 8 + 32)]",
+        "field_type": "Account < 'info , PayoutState >"
+      },
+      {
+        "name": "operator_authority",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "reserve_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "gamer_wallet",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Switch",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "payout_state",
+        "attribute": "# [account (mut , has_one = operator_authority)]",
+        "field_type": "Account < 'info , PayoutState >"
+      },
+      {
+        "name": "operator_authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Pay",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "payout_state",
+        "attribute": "# [account (mut , has_one = operator_authority)]",
+        "field_type": "Account < 'info , PayoutState >"
+      },
+      {
+        "name": "operator_authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "reserve_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "gamer_wallet",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

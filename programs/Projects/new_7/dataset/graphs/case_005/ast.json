@@ -1,0 +1,181 @@
+[
+  {
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Init >",
+      "floor: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . smithy ;",
+      "s . manager = ctx . accounts . manager . key () ;",
+      "s . floor = floor ;",
+      "s . energy = 100 ;",
+      "s . sessions = 0 ;",
+      "s . total_bonus = 0 ;",
+      "let mut i = 0 ;",
+      "while i < 2",
+      "{",
+      "s . energy = s . energy . saturating_add (5) ;",
+      "i += 1 ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "craft_and_tip",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CraftAndTip >",
+      "base: u64",
+      "rounds: u8",
+      "label: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . smithy ;",
+      "require ! (s . manager == ctx . accounts . manager . key () , Errs :: BadManager) ;",
+      "if s . energy > 10",
+      "{",
+      "let mut k = 0 ;",
+      "while k < rounds",
+      "{",
+      "s . energy = s . energy . saturating_sub (1) ;",
+      "s . sessions = s . sessions . saturating_add (1) ;",
+      "k = k . saturating_add (1) ;",
+      "} if label . len () > 5",
+      "{",
+      "s . total_bonus = s . total_bonus . saturating_add ((label . len () as u64) * 2) ;",
+      "} } else",
+      "{",
+      "let mut r = 0 ;",
+      "while r < 4",
+      "{",
+      "s . energy = s . energy . saturating_add (3) ;",
+      "r = r . saturating_add (1) ;",
+      "} if s . floor > 0",
+      "{",
+      "s . floor = s . floor . saturating_sub (1) ;",
+      "}",
+      "}",
+      "let mut reward = base ;",
+      "if reward < s . floor",
+      "{",
+      "let mut acc = 0u64 ;",
+      "let mut z = 0 ;",
+      "while z < 3",
+      "{",
+      "acc = acc . saturating_add (s . floor / 3) ;",
+      "z += 1 ;",
+      "} reward = acc ;",
+      "} else",
+      "{",
+      "let mut gain = 0u64 ;",
+      "let mut w = 0 ;",
+      "while w < rounds",
+      "{",
+      "gain = gain . saturating_add ((w as u64) + 1) ;",
+      "w = w . saturating_add (1) ;",
+      "} reward = reward . saturating_add (gain) ;",
+      "}",
+      "let ix = spl_token :: instruction :: transfer (ctx . accounts . token_program . key () , ctx . accounts . pool . key () , ctx . accounts . crafter_ata . key () , ctx . accounts . manager . key () , & [] , reward ,) ? ;",
+      "invoke (& ix , & [ctx . accounts . pool . to_account_info () , ctx . accounts . crafter_ata . to_account_info () , ctx . accounts . manager . to_account_info () ,]) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Smithy",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "floor",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "energy",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "sessions",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "total_bonus",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Init",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "smithy",
+        "attribute": "# [account (init , payer = manager , space = 8 + 32 + 8 + 4 + 4 + 8)]",
+        "field_type": "Account < 'info , Smithy >"
+      },
+      {
+        "name": "manager",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CraftAndTip",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "smithy",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Smithy >"
+      },
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "pool",
+        "attribute": "# [doc = \" CHECK: 任意\"] # [account (mut)]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "crafter_ata",
+        "attribute": "# [doc = \" CHECK: 任意\"] # [account (mut)]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": "# [doc = \" CHECK: 任意\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

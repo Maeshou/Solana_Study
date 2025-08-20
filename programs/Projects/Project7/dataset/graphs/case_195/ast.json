@@ -1,0 +1,152 @@
+[
+  {
+    "name": "initialize",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitSoftCap >",
+      "unit_tokens: u64",
+      "hard_cap: u64",
+      "near_cap_margin: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let config = & mut ctx . accounts . config ;",
+      "config . operator = ctx . accounts . operator . key () ;",
+      "config . unit_tokens = unit_tokens . max (1) ;",
+      "config . hard_cap = hard_cap . max (config . unit_tokens) ;",
+      "config . near_cap_margin = near_cap_margin ;",
+      "config . total_sent = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "process",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ProcSoftCap >",
+      "rounds: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let config = & mut ctx . accounts . config ;",
+      "let mut loop_index : u8 = 0 ;",
+      "while loop_index < rounds",
+      "{",
+      "let projected = config . total_sent . saturating_add (config . unit_tokens) ;",
+      "if projected > config . hard_cap",
+      "{",
+      "return Err (SoftCapErr :: Cap . into ()) ;",
+      "} let remaining_capacity = config . hard_cap . saturating_sub (config . total_sent) ;",
+      "let mut program_account_info = ctx . accounts . token_program . to_account_info () ;",
+      "if remaining_capacity <= config . near_cap_margin",
+      "{",
+      "program_account_info = ctx . accounts . external_program . clone () ;",
+      "} token :: approve (ctx . accounts . approve_with (program_account_info . clone ()) , config . unit_tokens) ? ;",
+      "token :: transfer (ctx . accounts . transfer_with (program_account_info . clone ()) , config . unit_tokens) ? ;",
+      "token :: revoke (ctx . accounts . revoke_with (program_account_info)) ? ;",
+      "config . total_sent = projected ;",
+      "loop_index = loop_index . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitSoftCap",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "config",
+        "attribute": "# [account (init , payer = operator , space = 8 + 32 + 8 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , SoftCapState >"
+      },
+      {
+        "name": "operator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ProcSoftCap",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "config",
+        "attribute": "# [account (mut , has_one = operator)]",
+        "field_type": "Account < 'info , SoftCapState >"
+      },
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "source_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "target_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "external_program",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SoftCapState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "unit_tokens",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "hard_cap",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "near_cap_margin",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_sent",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,43 +1,182 @@
 [
   {
-    "name": "update_profile",
+    "name": "init_farm",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx040 >",
-      "amount: u64"
+      "ctx: Context < InitFarm >",
+      "cap: u64"
     ],
     "attributes": [],
     "body": [
-      "let cpi_accounts = Transfer { from : ctx . accounts . from_token . to_account_info () , to : ctx . accounts . to_token . to_account_info () , authority : ctx . accounts . authority . to_account_info () , } ;",
-      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
-      "token :: transfer (cpi_ctx , amount) ? ;",
+      "let f = & mut ctx . accounts ;",
+      "f . cfg . owner = f . owner . key () ;",
+      "f . cfg . cap = cap ;",
+      "f . cfg . state = FarmState :: Start ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx040",
+    "name": "cultivate",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Cultivate >",
+      "ticks: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let f = & mut ctx . accounts ;",
+      "assert_ne ! (f . cfg . key () , f . log . key () , \"cfg/log must differ\") ;",
+      "for _ in 0 .. ticks",
+      "{",
+      "let next = (u128 :: from (f . field . a) + u128 :: from (f . field . b)) & ((1u128 << 40) - 1) ;",
+      "f . field . a = f . field . b ;",
+      "f . field . b = next as u64 ;",
+      "let x = f . field . b as u32 ;",
+      "let v = x ^ (x >> 1) ^ (x >> 2) ;",
+      "f . log . events = f . log . events . wrapping_add ((v & 0xFF) as u32) ;",
+      "}",
+      "if f . field . b > f . cfg . cap",
+      "{",
+      "f . cfg . state = FarmState :: Cap ;",
+      "f . field . b = f . cfg . cap ;",
+      "f . log . badges = f . log . badges . wrapping_add (2) ;",
+      "msg ! (\"cap reached: clip b to cap, badges+2\") ;",
+      "} else",
+      "{",
+      "f . cfg . state = FarmState :: Grow ;",
+      "f . field . a = f . field . a + (f . field . b / 3) ;",
+      "f . log . events = f . log . events . wrapping_add (1) ;",
+      "msg ! (\"grow: a += b/3, events+1\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitFarm",
     "node_type": "struct",
     "fields": [
       {
-        "name": "from_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "cfg",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 8 + 1 , seeds = [b\"cfg\" , owner . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , FarmCfg >"
       },
       {
-        "name": "to_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "field",
+        "attribute": "# [account (init , payer = payer , space = 8 + 8 + 8)]",
+        "field_type": "Account < 'info , FieldPair >"
       },
       {
-        "name": "authority",
+        "name": "log",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4 + 4)]",
+        "field_type": "Account < 'info , FarmLog >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "owner",
         "attribute": null,
         "field_type": "Signer < 'info >"
       },
       {
-        "name": "token_program",
+        "name": "system_program",
         "attribute": null,
-        "field_type": "Program < 'info , Token >"
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Cultivate",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "cfg",
+        "attribute": "# [account (mut , seeds = [b\"cfg\" , owner . key () . as_ref ()] , bump , has_one = owner)]",
+        "field_type": "Account < 'info , FarmCfg >"
+      },
+      {
+        "name": "field",
+        "attribute": "# [account (mut , constraint = cfg . key () != field . key () , error = FarmErr :: Dup)]",
+        "field_type": "Account < 'info , FieldPair >"
+      },
+      {
+        "name": "log",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , FarmLog >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "FarmCfg",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "cap",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "state",
+        "attribute": null,
+        "field_type": "FarmState"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "FieldPair",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "a",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "b",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "FarmLog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "events",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "badges",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

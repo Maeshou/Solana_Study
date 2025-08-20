@@ -1,33 +1,74 @@
 [
   {
-    "name": "initialize_margin_account",
+    "name": "init_event",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Initialize055 >",
-      "param: u64"
+      "ctx: Context < InitEvent >",
+      "capacity: u32"
     ],
     "attributes": [],
     "body": [
-      "let mut data = MarginAccountData :: try_from_slice (& ctx . accounts . data_account . data . borrow ()) ? ;",
-      "data . value = param ;",
-      "data . serialize (& mut * ctx . accounts . data_account . data . borrow_mut ()) ? ;",
+      "let ev = & mut ctx . accounts . event ;",
+      "ev . capacity = capacity ;",
+      "ev . sold = 0 ;",
+      "let tickets = & mut ctx . accounts . tickets ;",
+      "tickets . count = 0 ;",
+      "let soldout = & mut ctx . accounts . soldout ;",
+      "soldout . flag = false ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Initialize055",
+    "name": "sell_tickets",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SellTickets >",
+      "to_sell: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let ev = & mut ctx . accounts . event ;",
+      "let available = ev . capacity . saturating_sub (ev . sold) ;",
+      "let actual = to_sell . min (available) ;",
+      "for _ in 0 .. actual",
+      "{",
+      "ev . sold += 1 ;",
+      "ctx . accounts . tickets . count += 1 ;",
+      "}",
+      "ctx . accounts . soldout . flag = ev . sold == ev . capacity ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitEvent",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "event",
+        "attribute": "# [account (init , payer = user , space = 8 + 4 + 4)]",
+        "field_type": "Account < 'info , EventData >"
       },
       {
-        "name": "authority",
-        "attribute": null,
+        "name": "tickets",
+        "attribute": "# [account (init , payer = user , space = 8 + 4)]",
+        "field_type": "Account < 'info , TicketData >"
+      },
+      {
+        "name": "soldout",
+        "attribute": "# [account (init , payer = user , space = 8 + 1)]",
+        "field_type": "Account < 'info , SoldOutData >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -35,13 +76,70 @@
     "body": null
   },
   {
-    "name": "MarginAccountData",
+    "name": "SellTickets",
     "node_type": "struct",
     "fields": [
       {
-        "name": "value",
+        "name": "event",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , EventData >"
+      },
+      {
+        "name": "tickets",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TicketData >"
+      },
+      {
+        "name": "soldout",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , SoldOutData >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EventData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "capacity",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "u32"
+      },
+      {
+        "name": "sold",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TicketData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "count",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SoldOutData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "flag",
+        "attribute": null,
+        "field_type": "bool"
       }
     ],
     "inputs": null,

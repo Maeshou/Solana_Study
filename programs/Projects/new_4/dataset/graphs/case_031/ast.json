@@ -1,0 +1,106 @@
+[
+  {
+    "name": "issue_voucher",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < IssueVoucher >",
+      "code: String",
+      "expiry: i64"
+    ],
+    "attributes": [],
+    "body": [
+      "require ! (expiry > Clock :: get () ?. unix_timestamp , ErrorCode3 :: InvalidExpiry) ;",
+      "let vc = & mut ctx . accounts . voucher ;",
+      "vc . code = code ;",
+      "vc . valid_till = expiry ;",
+      "vc . redeemed = false ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "redeem_voucher",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < IssueVoucher >",
+      "user: Pubkey"
+    ],
+    "attributes": [],
+    "body": [
+      "let vc = & mut ctx . accounts . voucher ;",
+      "require ! (vc . valid_till > Clock :: get () ?. unix_timestamp , ErrorCode3 :: Expired) ;",
+      "vc . redeemed = true ;",
+      "let log = & mut ctx . accounts . redemption_log ;",
+      "log . entries . push ((user , Clock :: get () ? . unix_timestamp)) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "IssueVoucher",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "voucher",
+        "attribute": "# [account (init , payer = authority , space = 8 + (4 + 32) + 8 + 1)]",
+        "field_type": "Account < 'info , VoucherAccount >"
+      },
+      {
+        "name": "redemption_log",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , RedemptionLog >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "VoucherAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "code",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "valid_till",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "redeemed",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RedemptionLog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "entries",
+        "attribute": null,
+        "field_type": "Vec < (Pubkey , i64) >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

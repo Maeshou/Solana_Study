@@ -1,0 +1,217 @@
+[
+  {
+    "name": "init_registry",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitRegistry >",
+      "registry_id: u64",
+      "verification_count: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let registry = & mut ctx . accounts . registry_core ;",
+      "registry . registry_id = registry_id * 9 ;",
+      "registry . verification_count = verification_count ;",
+      "registry . matched_records = 0 ;",
+      "registry . is_valid = registry . verification_count > 0 ;",
+      "msg ! (\"Nexus Registry {} initialized with {} verifications.\" , registry . registry_id , registry . verification_count) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_record",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitRecord >",
+      "record_id: u64",
+      "data_hash: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let record = & mut ctx . accounts . registry_record ;",
+      "record . parent_registry = ctx . accounts . registry_core . key () ;",
+      "record . record_id = record_id + 555 ;",
+      "record . data_hash = data_hash ;",
+      "record . is_verified = false ;",
+      "msg ! (\"New record {} created with hash {}.\" , record . record_id , record . data_hash) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "compare_records",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CompareRecords >"
+    ],
+    "attributes": [],
+    "body": [
+      "let registry = & mut ctx . accounts . registry_core ;",
+      "let record_alpha = & mut ctx . accounts . record_alpha ;",
+      "let record_beta = & mut ctx . accounts . record_beta ;",
+      "if record_alpha . is_verified && record_beta . is_verified",
+      "{",
+      "return Err (ProgramError :: Custom (1) . into ()) ;",
+      "}",
+      "if record_alpha . data_hash == record_beta . data_hash",
+      "{",
+      "registry . matched_records = registry . matched_records . saturating_add (RECORD_MATCH_BONUS) ;",
+      "record_alpha . is_verified = true ;",
+      "record_beta . is_verified = true ;",
+      "msg ! (\"Records Alpha (",
+      "{",
+      "}) and Beta ({}) matched!\" , record_alpha . record_id , record_beta . record_id) ;",
+      "} else",
+      "{",
+      "registry . verification_count = registry . verification_count . saturating_sub (RECORD_MISMATCH_PENALTY) ;",
+      "msg ! (\"Records Alpha (",
+      "{",
+      "}) and Beta ({}) do not match. Verification count reduced.\" , record_alpha . record_id , record_beta . record_id) ;",
+      "}",
+      "registry . is_valid = registry . matched_records >= MIN_MATCH_COUNT_FOR_VALIDITY ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitRegistry",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "registry_core",
+        "attribute": "# [account (init , payer = signer , space = 8 + 8 + 4 + 4 + 1)]",
+        "field_type": "Account < 'info , RegistryCore >"
+      },
+      {
+        "name": "signer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "registry_record",
+        "attribute": "# [account (init , payer = signer , space = 8 + 32 + 8 + 8 + 1)]",
+        "field_type": "Account < 'info , RegistryRecord >"
+      },
+      {
+        "name": "registry_core",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , RegistryCore >"
+      },
+      {
+        "name": "signer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CompareRecords",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "registry_core",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , RegistryCore >"
+      },
+      {
+        "name": "record_alpha",
+        "attribute": "# [account (mut , has_one = parent_registry)]",
+        "field_type": "Account < 'info , RegistryRecord >"
+      },
+      {
+        "name": "record_beta",
+        "attribute": "# [account (mut , has_one = parent_registry)]",
+        "field_type": "Account < 'info , RegistryRecord >"
+      },
+      {
+        "name": "signer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RegistryCore",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "registry_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "verification_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "matched_records",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "is_valid",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RegistryRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent_registry",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "record_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "data_hash",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "is_verified",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

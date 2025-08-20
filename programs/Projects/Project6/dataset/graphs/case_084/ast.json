@@ -1,0 +1,263 @@
+[
+  {
+    "name": "init_board",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitBoard >",
+      "is_open: bool"
+    ],
+    "attributes": [],
+    "body": [
+      "let board = & mut ctx . accounts . board ;",
+      "board . manager = ctx . accounts . manager . key () ;",
+      "board . is_open = is_open ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "submit_artwork",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SubmitArtwork >",
+      "category: u8",
+      "lane: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let art = & mut ctx . accounts . artwork ;",
+      "art . owner = ctx . accounts . artist . key () ;",
+      "art . board = ctx . accounts . board . key () ;",
+      "art . lane = lane ;",
+      "art . category = category ;",
+      "art . score_total = 0 ;",
+      "art . review_count = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "judge_artwork",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < JudgeArtwork >",
+      "scores: Vec < u8 >"
+    ],
+    "attributes": [],
+    "body": [
+      "let artwork = & mut ctx . accounts . artwork ;",
+      "let judge = & mut ctx . accounts . judge ;",
+      "let log = & mut ctx . accounts . log ;",
+      "for s in scores . iter ()",
+      "{",
+      "let score = * s as u64 ;",
+      "artwork . score_total = artwork . score_total . checked_add (score) . unwrap_or (u64 :: MAX) ;",
+      "artwork . review_count = artwork . review_count . checked_add (1) . unwrap_or (255) ;",
+      "}",
+      "if judge . role == Head",
+      "{",
+      "log . flags = log . flags ^ 0b0000_0011 ;",
+      "log . notes = judge . role as u8 + artwork . category ;",
+      "} else",
+      "{",
+      "log . flags = log . flags | 0b0000_1000 ;",
+      "log . notes = judge . role as u8 + 1 ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitBoard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "board",
+        "attribute": "# [account (init , payer = manager , space = 8 + 1 + 32)]",
+        "field_type": "Account < 'info , Board >"
+      },
+      {
+        "name": "manager",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SubmitArtwork",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "board",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Board >"
+      },
+      {
+        "name": "artwork",
+        "attribute": "# [account (init , payer = artist , space = 8 + 32 + 32 + 1 + 1 + 8 + 1)]",
+        "field_type": "Account < 'info , Artwork >"
+      },
+      {
+        "name": "artist",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "JudgeArtwork",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "artwork",
+        "attribute": "# [account (mut , has_one = board)]",
+        "field_type": "Account < 'info , Artwork >"
+      },
+      {
+        "name": "judge",
+        "attribute": "# [account (mut , has_one = board , constraint = artwork . lane != judge . lane @ ErrCode :: CosplayBlocked , owner = crate :: ID)]",
+        "field_type": "Account < 'info , JudgeCard >"
+      },
+      {
+        "name": "log",
+        "attribute": "# [account (mut , has_one = board , constraint = judge . role != log . expected_role @ ErrCode :: CosplayBlocked)]",
+        "field_type": "Account < 'info , JudgeLog >"
+      },
+      {
+        "name": "board",
+        "attribute": null,
+        "field_type": "Account < 'info , Board >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Board",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "is_open",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Artwork",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "board",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "lane",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "category",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "score_total",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "review_count",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "JudgeCard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "board",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "lane",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "role",
+        "attribute": null,
+        "field_type": "JudgeRole"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "JudgeLog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "board",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "expected_role",
+        "attribute": null,
+        "field_type": "JudgeRole"
+      },
+      {
+        "name": "flags",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "notes",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

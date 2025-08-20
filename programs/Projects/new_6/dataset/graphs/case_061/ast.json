@@ -1,0 +1,235 @@
+[
+  {
+    "name": "init_yield_farm",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitYieldFarm >",
+      "reward_token_per_block: u64",
+      "bonus_multiplier: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let farm = & mut ctx . accounts . yield_farm ;",
+      "farm . farm_owner = ctx . accounts . owner . key () ;",
+      "farm . reward_per_block = reward_token_per_block ;",
+      "farm . bonus_multiplier = bonus_multiplier ;",
+      "farm . total_staked = 0 ;",
+      "farm . total_rewards_distributed = 0 ;",
+      "farm . start_block = Clock :: get () ? . slot ;",
+      "farm . last_reward_block = Clock :: get () ? . slot ;",
+      "farm . accumulated_reward_per_share = 0 ;",
+      "farm . emission_rate = 100 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "harvest_rewards",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < HarvestRewards >",
+      "user_address: Pubkey",
+      "force_compound: bool"
+    ],
+    "attributes": [],
+    "body": [
+      "let farm = & mut ctx . accounts . yield_farm ;",
+      "let user_info = & mut ctx . accounts . user_farming_info ;",
+      "let harvester = & ctx . accounts . harvester ;",
+      "let current_block = Clock :: get () ? . slot ;",
+      "let blocks_elapsed = current_block - farm . last_reward_block ;",
+      "if blocks_elapsed > 0 && farm . total_staked > 0",
+      "{",
+      "let reward = blocks_elapsed * farm . reward_per_block ;",
+      "farm . accumulated_reward_per_share += (reward * 1e12 as u64) / farm . total_staked ;",
+      "farm . last_reward_block = current_block ;",
+      "}",
+      "let user_accumulated_reward = (user_info . staked_amount * farm . accumulated_reward_per_share) / 1e12 as u64 ;",
+      "let pending_reward = user_accumulated_reward - user_info . reward_debt ;",
+      "if pending_reward > 0",
+      "{",
+      "user_info . total_harvested += pending_reward ;",
+      "farm . total_rewards_distributed += pending_reward ;",
+      "if force_compound",
+      "{",
+      "user_info . staked_amount += pending_reward ;",
+      "farm . total_staked += pending_reward ;",
+      "user_info . compound_count += 1 ;",
+      "let compound_bonus = (pending_reward * farm . bonus_multiplier as u64) / 10000 ;",
+      "user_info . bonus_rewards += compound_bonus ;",
+      "farm . total_bonus_distributed += compound_bonus ;",
+      "} let farming_duration = current_block - user_info . first_stake_block ;",
+      "if farming_duration > 100000",
+      "{",
+      "user_info . loyalty_multiplier = (user_info . loyalty_multiplier + 5) . min (200) ;",
+      "} for week in 0 .. 4",
+      "{",
+      "if farming_duration > (week + 1) as u64 * 10080 { user_info . weekly_multipliers [week] = 110 + (week as u16 * 10) ;",
+      "} } user_info . reward_debt = (user_info . staked_amount * farm . accumulated_reward_per_share) / 1e12 as u64 ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitYieldFarm",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "yield_farm",
+        "attribute": "# [account (init , payer = owner , space = 8 + 400)]",
+        "field_type": "Account < 'info , YieldFarmData >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "HarvestRewards",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "yield_farm",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , YieldFarmData >"
+      },
+      {
+        "name": "user_farming_info",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , UserFarmingInfo >"
+      },
+      {
+        "name": "harvester",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "YieldFarmData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "farm_owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "reward_per_block",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "bonus_multiplier",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "total_staked",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_rewards_distributed",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_bonus_distributed",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "start_block",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "last_reward_block",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "accumulated_reward_per_share",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "emission_rate",
+        "attribute": null,
+        "field_type": "u16"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "UserFarmingInfo",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "farmer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "staked_amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "reward_debt",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_harvested",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "bonus_rewards",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "compound_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "first_stake_block",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "loyalty_multiplier",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "weekly_multipliers",
+        "attribute": null,
+        "field_type": "[u16 ; 4]"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

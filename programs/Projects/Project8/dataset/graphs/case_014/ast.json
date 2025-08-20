@@ -1,0 +1,149 @@
+[
+  {
+    "name": "init_pool",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitPool >",
+      "era: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . stage ;",
+      "s . curator = ctx . accounts . curator . key () ;",
+      "s . era = era . rotate_left (3) . wrapping_add (17) ;",
+      "s . pitch = s . era . rotate_right (1) . wrapping_add (11) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "stream_and_tip",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < StreamAndTip >",
+      "tokens: u64",
+      "lamports: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let bump = * ctx . bumps . get (\"stage\") . ok_or (error ! (E :: MissingBump)) ? ;",
+      "let seeds : & [& [u8]] = & [b\"stage\" , ctx . accounts . curator . key . as_ref () , & ctx . accounts . stage . era . to_le_bytes () , & [bump]] ;",
+      "let cpi_accounts = Transfer { from : ctx . accounts . stage_token . to_account_info () , to : ctx . accounts . artist_token . to_account_info () , authority : ctx . accounts . stage . to_account_info () , } ;",
+      "let cpi_ctx = CpiContext :: new_with_signer (ctx . accounts . token_program . to_account_info () , cpi_accounts , & [seeds]) ;",
+      "let mut delivered = 0u64 ;",
+      "let mut step = (tokens / 4) . max (1) ;",
+      "while delivered < tokens",
+      "{",
+      "let send = (tokens - delivered) . min (step) ;",
+      "token :: transfer (cpi_ctx . clone () , send) ? ;",
+      "delivered = delivered . saturating_add (send) ;",
+      "step = step . rotate_left (1) . wrapping_add (1) ;",
+      "if step > (tokens - delivered) && (tokens - delivered) > 5",
+      "{",
+      "step = (tokens - delivered) - 2 ;",
+      "}",
+      "}",
+      "let ix = system_instruction :: transfer (& ctx . accounts . stage . key () , & ctx . accounts . artist_wallet . key () , lamports) ;",
+      "invoke_signed (& ix , & [ctx . accounts . stage . to_account_info () , ctx . accounts . artist_wallet . to_account_info () , ctx . accounts . system_program . to_account_info () ,] , & [seeds] ,) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitPool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "stage",
+        "attribute": "# [account (init , payer = curator , space = 8 + 32 + 8 + 8 , seeds = [b\"stage\" , curator . key () . as_ref () , era . to_le_bytes () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Stage >"
+      },
+      {
+        "name": "curator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "era",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "StreamAndTip",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "stage",
+        "attribute": "# [account (mut , seeds = [b\"stage\" , curator . key () . as_ref () , stage . era . to_le_bytes () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Stage >"
+      },
+      {
+        "name": "stage_token",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "artist_token",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "artist_wallet",
+        "attribute": "# [account (mut)]",
+        "field_type": "SystemAccount < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "curator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Stage",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "curator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "era",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "pitch",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

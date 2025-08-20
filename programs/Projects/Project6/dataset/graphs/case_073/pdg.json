@@ -1,0 +1,628 @@
+[
+  {
+    "name": "init_farm",
+    "inputs": [
+      "ctx: Context < InitFarm >",
+      "code: u32"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let f = & mut ctx . accounts . farm ;"
+      },
+      {
+        "id": 2,
+        "label": "f . owner = ctx . accounts . owner . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "f . code = code ;"
+      },
+      {
+        "id": 4,
+        "label": "f . harvests = 0 ;"
+      },
+      {
+        "id": 5,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: f"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: f"
+      }
+    ]
+  },
+  {
+    "name": "recruit",
+    "inputs": [
+      "ctx: Context < Recruit >",
+      "w: Worker",
+      "tag: u8"
+    ],
+    "nodes": [
+      {
+        "id": 6,
+        "label": "Entry"
+      },
+      {
+        "id": 7,
+        "label": "let f = & mut ctx . accounts . farm ;"
+      },
+      {
+        "id": 8,
+        "label": "let a = & mut ctx . accounts . worker_a ;"
+      },
+      {
+        "id": 9,
+        "label": "a . farm = f . key () ;"
+      },
+      {
+        "id": 10,
+        "label": "a . kind = w ;"
+      },
+      {
+        "id": 11,
+        "label": "a . tag = tag ;"
+      },
+      {
+        "id": 12,
+        "label": "a . skill = 0 ;"
+      },
+      {
+        "id": 13,
+        "label": "let s = & mut ctx . accounts . silo ;"
+      },
+      {
+        "id": 14,
+        "label": "s . farm = f . key () ;"
+      },
+      {
+        "id": 15,
+        "label": "s . grain = 0 ;"
+      },
+      {
+        "id": 16,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 7,
+        "to": 7,
+        "label": "def: f"
+      },
+      {
+        "from": 8,
+        "to": 8,
+        "label": "def: a"
+      },
+      {
+        "from": 8,
+        "to": 9,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 9,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 8,
+        "to": 10,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 8,
+        "to": 11,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 8,
+        "to": 12,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 13,
+        "to": 13,
+        "label": "def: s"
+      },
+      {
+        "from": 13,
+        "to": 14,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 7,
+        "to": 14,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 13,
+        "to": 15,
+        "label": "data_dep: s"
+      }
+    ]
+  },
+  {
+    "name": "harvest",
+    "inputs": [
+      "ctx: Context < Harvest >",
+      "plots: Vec < u16 >"
+    ],
+    "nodes": [
+      {
+        "id": 17,
+        "label": "Entry"
+      },
+      {
+        "id": 18,
+        "label": "let f = & mut ctx . accounts . farm ;"
+      },
+      {
+        "id": 19,
+        "label": "let x = & mut ctx . accounts . actor ;"
+      },
+      {
+        "id": 20,
+        "label": "let y = & mut ctx . accounts . partner ;"
+      },
+      {
+        "id": 21,
+        "label": "let s = & mut ctx . accounts . silo ;"
+      },
+      {
+        "id": 22,
+        "label": "let l = & mut ctx . accounts . farm_log ;"
+      },
+      {
+        "id": 23,
+        "label": "let mut sum : u32 = 0 ;"
+      },
+      {
+        "id": 24,
+        "label": "let mut mix : u16 = 0 ;"
+      },
+      {
+        "id": 25,
+        "label": "for p in plots { sum = sum . saturating_add ((p & 0x3FF) as u32) ; mix ^= p . rotate_left (1) ^ 0x3333 ; }"
+      },
+      {
+        "id": 26,
+        "label": "sum = sum . saturating_add ((p & 0x3FF) as u32) ;"
+      },
+      {
+        "id": 27,
+        "label": "mix ^= p . rotate_left (1) ^ 0x3333 ;"
+      },
+      {
+        "id": 28,
+        "label": "let base = sum + (mix as u32 & 0xFF) ;"
+      },
+      {
+        "id": 29,
+        "label": "if x . kind == Harvester { x . skill = x . skill . saturating_add ((base / 2) as u16) ; y . skill = y . skill . saturating_add (((mix >> 2) & 0x3F) as u16) ; s . grain = s . grain . saturating_add ((base / 4) as u32) ; f . harvests = f . harvests . saturating_add (1) ; msg ! (\"Harvester: base={}, xS={}, yS={}, grain={}\" , base , x . skill , y . skill , s . grain) ; } else { x . skill = x . skill . saturating_add ((base / 3) as u16) ; y . skill = y . skill . saturating_add (((mix >> 1) & 0x7F) as u16) ; s . grain = s . grain . saturating_add ((base / 5) as u32) ; f . harvests = f . harvests . saturating_add (1) ; msg ! (\"Planter/Waterer: base={}, xS={}, yS={}, grain={}\" , base , x . skill , y . skill , s . grain) ; }"
+      },
+      {
+        "id": 30,
+        "label": "x . skill = x . skill . saturating_add ((base / 2) as u16) ;"
+      },
+      {
+        "id": 31,
+        "label": "y . skill = y . skill . saturating_add (((mix >> 2) & 0x3F) as u16) ;"
+      },
+      {
+        "id": 32,
+        "label": "s . grain = s . grain . saturating_add ((base / 4) as u32) ;"
+      },
+      {
+        "id": 33,
+        "label": "f . harvests = f . harvests . saturating_add (1) ;"
+      },
+      {
+        "id": 34,
+        "label": "msg ! (\"Harvester: base={}, xS={}, yS={}, grain={}\" , base , x . skill , y . skill , s . grain) ;"
+      },
+      {
+        "id": 35,
+        "label": "x . skill = x . skill . saturating_add ((base / 3) as u16) ;"
+      },
+      {
+        "id": 36,
+        "label": "y . skill = y . skill . saturating_add (((mix >> 1) & 0x7F) as u16) ;"
+      },
+      {
+        "id": 37,
+        "label": "s . grain = s . grain . saturating_add ((base / 5) as u32) ;"
+      },
+      {
+        "id": 38,
+        "label": "f . harvests = f . harvests . saturating_add (1) ;"
+      },
+      {
+        "id": 39,
+        "label": "msg ! (\"Planter/Waterer: base={}, xS={}, yS={}, grain={}\" , base , x . skill , y . skill , s . grain) ;"
+      },
+      {
+        "id": 40,
+        "label": "let mut t = (f . harvests as u128) . max (1) ;"
+      },
+      {
+        "id": 41,
+        "label": "let mut i = 0 ;"
+      },
+      {
+        "id": 42,
+        "label": "while i < 3 { t = (t + (f . harvests as u128 / t)) . max (1) / 2 ; i += 1 ; }"
+      },
+      {
+        "id": 43,
+        "label": "t = (t + (f . harvests as u128 / t)) . max (1) / 2 ;"
+      },
+      {
+        "id": 44,
+        "label": "i += 1 ;"
+      },
+      {
+        "id": 45,
+        "label": "l . farm = f . key () ;"
+      },
+      {
+        "id": 46,
+        "label": "l . index = (t as u32) . min (1_000_000) ;"
+      },
+      {
+        "id": 47,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 18,
+        "to": 18,
+        "label": "def: f"
+      },
+      {
+        "from": 19,
+        "to": 19,
+        "label": "def: x"
+      },
+      {
+        "from": 20,
+        "to": 20,
+        "label": "def: y"
+      },
+      {
+        "from": 21,
+        "to": 21,
+        "label": "def: s"
+      },
+      {
+        "from": 22,
+        "to": 22,
+        "label": "def: l"
+      },
+      {
+        "from": 28,
+        "to": 28,
+        "label": "def: base"
+      },
+      {
+        "from": 19,
+        "to": 29,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 19,
+        "to": 29,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 19,
+        "to": 29,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 28,
+        "to": 29,
+        "label": "data_dep: base"
+      },
+      {
+        "from": 20,
+        "to": 29,
+        "label": "data_dep: y"
+      },
+      {
+        "from": 20,
+        "to": 29,
+        "label": "data_dep: y"
+      },
+      {
+        "from": 21,
+        "to": 29,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 21,
+        "to": 29,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 28,
+        "to": 29,
+        "label": "data_dep: base"
+      },
+      {
+        "from": 18,
+        "to": 29,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 18,
+        "to": 29,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 19,
+        "to": 29,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 19,
+        "to": 29,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 28,
+        "to": 29,
+        "label": "data_dep: base"
+      },
+      {
+        "from": 20,
+        "to": 29,
+        "label": "data_dep: y"
+      },
+      {
+        "from": 20,
+        "to": 29,
+        "label": "data_dep: y"
+      },
+      {
+        "from": 21,
+        "to": 29,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 21,
+        "to": 29,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 28,
+        "to": 29,
+        "label": "data_dep: base"
+      },
+      {
+        "from": 18,
+        "to": 29,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 18,
+        "to": 29,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 19,
+        "to": 30,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 19,
+        "to": 30,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 28,
+        "to": 30,
+        "label": "data_dep: base"
+      },
+      {
+        "from": 20,
+        "to": 31,
+        "label": "data_dep: y"
+      },
+      {
+        "from": 20,
+        "to": 31,
+        "label": "data_dep: y"
+      },
+      {
+        "from": 21,
+        "to": 32,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 21,
+        "to": 32,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 28,
+        "to": 32,
+        "label": "data_dep: base"
+      },
+      {
+        "from": 18,
+        "to": 33,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 18,
+        "to": 33,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 19,
+        "to": 35,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 19,
+        "to": 35,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 28,
+        "to": 35,
+        "label": "data_dep: base"
+      },
+      {
+        "from": 20,
+        "to": 36,
+        "label": "data_dep: y"
+      },
+      {
+        "from": 20,
+        "to": 36,
+        "label": "data_dep: y"
+      },
+      {
+        "from": 21,
+        "to": 37,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 21,
+        "to": 37,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 28,
+        "to": 37,
+        "label": "data_dep: base"
+      },
+      {
+        "from": 18,
+        "to": 38,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 18,
+        "to": 38,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 40,
+        "to": 40,
+        "label": "def: t"
+      },
+      {
+        "from": 18,
+        "to": 40,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 41,
+        "to": 41,
+        "label": "def: i"
+      },
+      {
+        "from": 41,
+        "to": 42,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 40,
+        "to": 42,
+        "label": "data_dep: t"
+      },
+      {
+        "from": 40,
+        "to": 42,
+        "label": "data_dep: t"
+      },
+      {
+        "from": 18,
+        "to": 42,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 40,
+        "to": 42,
+        "label": "data_dep: t"
+      },
+      {
+        "from": 41,
+        "to": 42,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 40,
+        "to": 43,
+        "label": "data_dep: t"
+      },
+      {
+        "from": 40,
+        "to": 43,
+        "label": "data_dep: t"
+      },
+      {
+        "from": 18,
+        "to": 43,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 40,
+        "to": 43,
+        "label": "data_dep: t"
+      },
+      {
+        "from": 41,
+        "to": 44,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 22,
+        "to": 45,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 18,
+        "to": 45,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 22,
+        "to": 46,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 40,
+        "to": 46,
+        "label": "data_dep: t"
+      }
+    ]
+  }
+]

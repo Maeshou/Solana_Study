@@ -1,0 +1,306 @@
+[
+  {
+    "name": "init_pool",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitPool >",
+      "seed_amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" プールを初期化：CPI を使って lamports を移動し、統計を初期化\"]"
+    ],
+    "body": [
+      "let payer = ctx . accounts . payer . to_account_info () ;",
+      "let pool = ctx . accounts . pool . to_account_info () ;",
+      "let stats = & mut ctx . accounts . stats ;",
+      "let init = & ctx . accounts . initializer ;",
+      "let ix = system_instruction :: transfer (payer . key , pool . key , seed_amount ,) ;",
+      "invoke (& ix , & [payer . clone () , pool . clone () , ctx . accounts . system_program . to_account_info () ,] ,) ? ;",
+      "stats . total_seeded = seed_amount ;",
+      "stats . operations_count = 1 ;",
+      "stats . last_amount = seed_amount ;",
+      "emit ! (PoolInitEvent { initializer : * init . key , amount : seed_amount , }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "refill",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RefillPool >",
+      "top_up: u64",
+      "fee_bips: u16"
+    ],
+    "attributes": [
+      "# [doc = \" プール補充：手数料と実際の補充額をそれぞれ CPI で送金\"]"
+    ],
+    "body": [
+      "let funder = ctx . accounts . funder . to_account_info () ;",
+      "let pool = ctx . accounts . pool . to_account_info () ;",
+      "let maintenance = ctx . accounts . maintenance . to_account_info () ;",
+      "let stats = & mut ctx . accounts . stats ;",
+      "let fee_amount = top_up . checked_mul (fee_bips as u64) . unwrap () . checked_div (10_000) . unwrap () ;",
+      "let actual_fund = top_up . checked_sub (fee_amount) . unwrap () ;",
+      "let fee_ix = system_instruction :: transfer (funder . key , maintenance . key , fee_amount ,) ;",
+      "invoke (& fee_ix , & [funder . clone () , maintenance . clone () , ctx . accounts . system_program . to_account_info ()] ,) ? ;",
+      "let top_up_ix = system_instruction :: transfer (funder . key , pool . key , actual_fund ,) ;",
+      "invoke (& top_up_ix , & [funder . clone () , pool . clone () , ctx . accounts . system_program . to_account_info ()] ,) ? ;",
+      "stats . total_refilled = stats . total_refilled . checked_add (top_up) . unwrap () ;",
+      "stats . operations_count += 1 ;",
+      "stats . last_amount = top_up ;",
+      "emit ! (RefillEvent { funder : * ctx . accounts . funder . key , topped_up : top_up , fee : fee_amount , }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "payout",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Payout >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 一括出金：CPI を 3 回呼び出して各受取先へ分配\"]"
+    ],
+    "body": [
+      "let pool = ctx . accounts . pool . to_account_info () ;",
+      "let r1 = ctx . accounts . recipient_one . to_account_info () ;",
+      "let r2 = ctx . accounts . recipient_two . to_account_info () ;",
+      "let r3 = ctx . accounts . recipient_three . to_account_info () ;",
+      "let stats = & mut ctx . accounts . stats ;",
+      "let share = amount . checked_div (3) . unwrap () ;",
+      "let ix1 = system_instruction :: transfer (pool . key , r1 . key , share) ;",
+      "invoke (& ix1 , & [pool . clone () , r1 . clone () , ctx . accounts . system_program . to_account_info ()]) ? ;",
+      "let ix2 = system_instruction :: transfer (pool . key , r2 . key , share) ;",
+      "invoke (& ix2 , & [pool . clone () , r2 . clone () , ctx . accounts . system_program . to_account_info ()]) ? ;",
+      "let ix3 = system_instruction :: transfer (pool . key , r3 . key , share) ;",
+      "invoke (& ix3 , & [pool . clone () , r3 . clone () , ctx . accounts . system_program . to_account_info ()]) ? ;",
+      "stats . total_payouts = stats . total_payouts . checked_add (amount) . unwrap () ;",
+      "stats . operations_count += 1 ;",
+      "stats . last_amount = amount ;",
+      "emit ! (PayoutEvent { origin : * ctx . accounts . pool . key , total : amount , each : share , }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitPool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "pool",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 8 + 8 + 8)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "stats",
+        "attribute": "# [account (init , payer = payer , space = 8 + 8 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , PoolStats >"
+      },
+      {
+        "name": "initializer",
+        "attribute": "# [doc = \" CHECK: 署名者チェックを省略\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RefillPool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "funder",
+        "attribute": "# [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "pool",
+        "attribute": "# [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "maintenance",
+        "attribute": "# [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "stats",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , PoolStats >"
+      },
+      {
+        "name": "backup",
+        "attribute": "# [doc = \" CHECK: バックアップ用（unused）\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Payout",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": "# [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "recipient_one",
+        "attribute": "# [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "recipient_two",
+        "attribute": "# [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "recipient_three",
+        "attribute": "# [account (mut)]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "stats",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , PoolStats >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [doc = \" CHECK: authority 検証 omitted\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PoolStats",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "operations_count",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_seeded",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_refilled",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_payouts",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "last_amount",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PoolInitEvent",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "initializer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "amount",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RefillEvent",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "funder",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "topped_up",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "fee",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PayoutEvent",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "origin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "total",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "each",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

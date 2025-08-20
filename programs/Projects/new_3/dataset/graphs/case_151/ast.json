@@ -1,0 +1,189 @@
+[
+  {
+    "name": "Bounty",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "reward",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "submissions",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Submission",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "submitter",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "bounty_id",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "accepted",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreateBounty",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "bounty",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 8)]",
+        "field_type": "Account < 'info , Bounty >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SubmitBounty",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "bounty",
+        "attribute": "# [doc = \" Bounty.owner == submitter.key() の検証は不要\"] # [account (mut)]",
+        "field_type": "Account < 'info , Bounty >"
+      },
+      {
+        "name": "submission",
+        "attribute": "# [account (init , payer = submitter , space = 8 + 32 + 32 + 1)]",
+        "field_type": "Account < 'info , Submission >"
+      },
+      {
+        "name": "submitter",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AcceptSubmission",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "bounty",
+        "attribute": "# [doc = \" Bounty.owner == owner.key() は検証される\"] # [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Bounty >"
+      },
+      {
+        "name": "submission",
+        "attribute": "# [doc = \" Submission.bounty_id == bounty.key() の検証がないため、\"] # [doc = \" 別のバウンティ用の Submission を渡しても通ってしまう\"] # [account (mut)]",
+        "field_type": "Account < 'info , Submission >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "create_bounty",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateBounty >",
+      "reward: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 新しいバウンティを作成\"]"
+    ],
+    "body": [
+      "let b = & mut ctx . accounts . bounty ;",
+      "b . owner = ctx . accounts . owner . key () ;",
+      "b . reward = reward ;",
+      "b . submissions = 0 ;",
+      "msg ! (\"Created bounty {} with reward {}\" , b . key () , b . reward) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "submit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SubmitBounty >",
+      "details: String"
+    ],
+    "attributes": [
+      "# [doc = \" バウンティへの提出\"]"
+    ],
+    "body": [
+      "let b = & mut ctx . accounts . bounty ;",
+      "let s = & mut ctx . accounts . submission ;",
+      "s . submitter = ctx . accounts . submitter . key () ;",
+      "s . bounty_id = b . key () ;",
+      "s . accepted = false ;",
+      "b . submissions = b . submissions . checked_add (1) . unwrap () ;",
+      "msg ! (\"Submission {} recorded for bounty {} (total submissions: {})\" , s . key () , b . key () , b . submissions) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "accept",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AcceptSubmission >"
+    ],
+    "attributes": [
+      "# [doc = \" 提出を採用して報酬支払い\"]"
+    ],
+    "body": [
+      "let b = & mut ctx . accounts . bounty ;",
+      "let s = & mut ctx . accounts . submission ;",
+      "s . accepted = true ;",
+      "* * b . to_account_info () . try_borrow_mut_lamports () ? -= b . reward ;",
+      "* * ctx . accounts . owner . to_account_info () . try_borrow_mut_lamports () ? += b . reward ;",
+      "msg ! (\"Submission {} accepted for bounty {}; {} paid {} lamports\" , s . key () , b . key () , b . owner , b . reward) ;",
+      "Ok (())"
+    ]
+  }
+]

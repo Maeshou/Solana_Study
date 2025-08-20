@@ -1,33 +1,69 @@
 [
   {
-    "name": "initialize_permissions",
+    "name": "init_accumulator",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Initialize086 >",
-      "param: u64"
+      "ctx: Context < InitAccumulator >",
+      "initial_price: u32",
+      "count: u32"
     ],
     "attributes": [],
     "body": [
-      "let mut data = PermissionsData :: try_from_slice (& ctx . accounts . data_account . data . borrow ()) ? ;",
-      "data . value = param ;",
-      "data . serialize (& mut * ctx . accounts . data_account . data . borrow_mut ()) ? ;",
+      "let a = & mut ctx . accounts . accum ;",
+      "a . sum_price = initial_price . saturating_mul (count) ;",
+      "a . entries_count = count ;",
+      "a . above_avg = false ;",
+      "let avg = if count > 0 { a . sum_price / count } else { 0 } ;",
+      "if initial_price > avg",
+      "{",
+      "a . above_avg = true ;",
+      "}",
       "Ok (())"
     ]
   },
   {
-    "name": "Initialize086",
+    "name": "add_price",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AddPrice >",
+      "price: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let a = & mut ctx . accounts . accum ;",
+      "a . sum_price = a . sum_price . saturating_add (price) ;",
+      "a . entries_count = a . entries_count . saturating_add (1) ;",
+      "let avg = a . sum_price / a . entries_count ;",
+      "if price > avg",
+      "{",
+      "a . above_avg = true ;",
+      "} else",
+      "{",
+      "a . above_avg = false ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitAccumulator",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "accum",
+        "attribute": "# [account (init , payer = user , space = 8 + 4 + 4 + 1)]",
+        "field_type": "Account < 'info , PriceAccumulatorData >"
       },
       {
-        "name": "authority",
-        "attribute": null,
+        "name": "user",
+        "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -35,13 +71,37 @@
     "body": null
   },
   {
-    "name": "PermissionsData",
+    "name": "AddPrice",
     "node_type": "struct",
     "fields": [
       {
-        "name": "value",
+        "name": "accum",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , PriceAccumulatorData >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PriceAccumulatorData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "sum_price",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "u32"
+      },
+      {
+        "name": "entries_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "above_avg",
+        "attribute": null,
+        "field_type": "bool"
       }
     ],
     "inputs": null,

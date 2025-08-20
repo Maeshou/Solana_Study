@@ -1,0 +1,238 @@
+[
+  {
+    "name": "init_hall",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitHall >",
+      "code: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let h = & mut ctx . accounts . hall ;",
+      "h . admin = ctx . accounts . admin . key () ;",
+      "h . code = code ;",
+      "h . events = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "register_player",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RegisterPlayer >",
+      "tag: RoleTag"
+    ],
+    "attributes": [],
+    "body": [
+      "let h = & mut ctx . accounts . hall ;",
+      "let p = & mut ctx . accounts . player ;",
+      "p . hall = h . key () ;",
+      "p . tag = tag ;",
+      "p . score = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "reward",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Reward >",
+      "notes: Vec < u8 >",
+      "amount_limit: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let h = & mut ctx . accounts . hall ;",
+      "let a = & mut ctx . accounts . actor ;",
+      "let b = & mut ctx . accounts . partner ;",
+      "let mut s : u32 = 0 ;",
+      "let mut mix : u32 = 0 ;",
+      "for n in notes",
+      "{",
+      "s = s . saturating_add ((n & 0x3F) as u32) ;",
+      "mix = mix . rotate_left (3) ^ (n as u32) ;",
+      "}",
+      "let base = (s + (mix & 0xFF)) as u64 ;",
+      "let amt = base . min (amount_limit) ;",
+      "if a . tag == Leader",
+      "{",
+      "a . score = a . score . saturating_add ((amt / 2) as u32) ;",
+      "b . score = b . score . saturating_add ((amt / 4) as u32) ;",
+      "h . events = h . events . saturating_add (1) ;",
+      "msg ! (\"Leader reward path: amt=",
+      "{",
+      "}, a={}, b={}, ev={}\" , amt , a . score , b . score , h . events) ;",
+      "} else",
+      "{",
+      "a . score = a . score . saturating_add ((amt / 3) as u32) ;",
+      "b . score = b . score . saturating_add (((mix & 0x7F) as u32)) ;",
+      "h . events = h . events . saturating_add (1) ;",
+      "msg ! (\"Member/Guest reward path: amt=",
+      "{",
+      "}, a={}, b={}, ev={}\" , amt , a . score , b . score , h . events) ;",
+      "}",
+      "if amt > 0",
+      "{",
+      "let cpi_accounts = Transfer",
+      "{",
+      "from : ctx . accounts . treasury_vault . to_account_info () , to : ctx . accounts . recipient_vault . to_account_info () , authority : ctx . accounts . treasurer . to_account_info () , } ;",
+      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
+      "token :: transfer (cpi_ctx , amt) ? ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitHall",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "hall",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 8 + 4)]",
+        "field_type": "Account < 'info , Hall >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RegisterPlayer",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "hall",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Hall >"
+      },
+      {
+        "name": "player",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , PlayerCard >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Reward",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "hall",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Hall >"
+      },
+      {
+        "name": "actor",
+        "attribute": "# [account (mut , has_one = hall , constraint = actor . tag != partner . tag @ ErrCode :: CosplayBlocked)]",
+        "field_type": "Account < 'info , PlayerCard >"
+      },
+      {
+        "name": "partner",
+        "attribute": "# [account (mut , has_one = hall)]",
+        "field_type": "Account < 'info , PlayerCard >"
+      },
+      {
+        "name": "treasury_vault",
+        "attribute": "# [account (mut , token :: mint = reward_mint , token :: authority = treasurer)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "recipient_vault",
+        "attribute": "# [account (mut , token :: mint = reward_mint)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "reward_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "treasurer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Hall",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "code",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "events",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PlayerCard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "hall",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "tag",
+        "attribute": null,
+        "field_type": "RoleTag"
+      },
+      {
+        "name": "score",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

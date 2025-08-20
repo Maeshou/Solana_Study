@@ -1,0 +1,153 @@
+[
+  {
+    "name": "initialize_badge",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeBadge >",
+      "name: String"
+    ],
+    "attributes": [
+      "# [doc = \" バッジを PDA アカウントとして初期化し、名前を保存します。\"]"
+    ],
+    "body": [
+      "let badge = & mut ctx . accounts . badge ;",
+      "badge . owner = ctx . accounts . user . key () ;",
+      "badge . name_bytes = name . as_bytes () [.. name . as_bytes () . len () . min (32)] . try_into () . unwrap_or ([0 ; 32]) ;",
+      "badge . redeemed = false ;",
+      "badge . redeemed_ts = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "redeem_badge",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RedeemBadge >"
+    ],
+    "attributes": [
+      "# [doc = \" まだ未引換のバッジを「引換済み」にマークし、タイムスタンプを記録します。\"]"
+    ],
+    "body": [
+      "let badge = & mut ctx . accounts . badge ;",
+      "let flag = badge . redeemed as u8 ;",
+      "let can = 1u8 . saturating_sub (flag) ;",
+      "badge . redeemed = can == 1 ;",
+      "let now = Clock :: get () ? . unix_timestamp ;",
+      "badge . redeemed_ts = now . saturating_mul (can as i64) ;",
+      "msg ! (\"Badge '{}' redeemed at {} (was redeemed={}).\" , String :: from_utf8_lossy (& badge . name_bytes) , badge . redeemed_ts , badge . redeemed ,) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "view_badge",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ViewBadge >"
+    ],
+    "attributes": [
+      "# [doc = \" バッジの状態をログ出力します。\"]"
+    ],
+    "body": [
+      "let badge = & ctx . accounts . badge ;",
+      "msg ! (\"Owner       : {:?}\" , badge . owner) ;",
+      "msg ! (\"Name        : {}\" , String :: from_utf8_lossy (& badge . name_bytes)) ;",
+      "msg ! (\"Redeemed    : {}\" , badge . redeemed) ;",
+      "msg ! (\"Redeemed TS : {}\" , badge . redeemed_ts) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializeBadge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "badge",
+        "attribute": "# [doc = \" 初回のみ PDA アカウントを作成・初期化\"] # [account (init , payer = user , space = 8 + 32 + 32 + 1 + 8 , seeds = [b\"badge\" , user . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Badge >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 操作にはユーザーの署名が必要\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RedeemBadge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "badge",
+        "attribute": "# [doc = \" PDA と所有者チェックで不正アクセス防止\"] # [account (seeds = [b\"badge\" , user . key () . as_ref ()] , bump , has_one = owner)]",
+        "field_type": "Account < 'info , Badge >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 操作にはユーザーの署名が必要\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ViewBadge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "badge",
+        "attribute": "# [doc = \" 誰でも自分のバッジを見ることが可能\"] # [account (seeds = [b\"badge\" , user . key () . as_ref ()] , bump , has_one = owner)]",
+        "field_type": "Account < 'info , Badge >"
+      },
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Badge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" バッジ所有者\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "name_bytes",
+        "attribute": "# [doc = \" バッジ名（最大32バイト、残りは0埋め）\"]",
+        "field_type": "[u8 ; 32]"
+      },
+      {
+        "name": "redeemed",
+        "attribute": "# [doc = \" 引換済みフラグ\"]",
+        "field_type": "bool"
+      },
+      {
+        "name": "redeemed_ts",
+        "attribute": "# [doc = \" 引換時刻（Unix epoch）\"]",
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

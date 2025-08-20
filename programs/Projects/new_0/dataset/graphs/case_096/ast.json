@@ -1,0 +1,142 @@
+[
+  {
+    "name": "init_allowance",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitAllowance >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 管理者がデリゲート（代理）に使用上限を設定\"]"
+    ],
+    "body": [
+      "require ! (ctx . accounts . owner . is_signer , ErrorCode :: Unauthorized) ;",
+      "let a = & mut ctx . accounts . allowance ;",
+      "a . owner = ctx . accounts . owner . key () ;",
+      "a . delegate = ctx . accounts . delegate . key () ;",
+      "a . amount = amount ;",
+      "a . used = 0 ;",
+      "msg ! (\"Allowance: owner {} delegated {} lamports to {}\" , a . owner , a . amount , a . delegate) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "redeem_allowance",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RedeemAllowance >",
+      "to: Pubkey",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" デリゲートが残高内で第三者へ送金\"]"
+    ],
+    "body": [
+      "require ! (ctx . accounts . delegate . is_signer , ErrorCode :: Unauthorized) ;",
+      "let a = & mut ctx . accounts . allowance ;",
+      "let remaining = a . amount . checked_sub (a . used) . unwrap () ;",
+      "require ! (amount <= remaining , ErrorCode :: InsufficientAllowance) ;",
+      "let vault = & ctx . accounts . vault . to_account_info () ;",
+      "* * vault . try_borrow_mut_lamports () ? = vault . lamports () . checked_sub (amount) . unwrap () ;",
+      "let recipient = & ctx . accounts . recipient . to_account_info () ;",
+      "* * recipient . try_borrow_mut_lamports () ? = recipient . lamports () . checked_add (amount) . unwrap () ;",
+      "a . used = a . used . checked_add (amount) . unwrap () ;",
+      "msg ! (\"{} redeemed {} (used {}/{})\" , a . delegate , amount , a . used , a . amount) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitAllowance",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "allowance",
+        "attribute": "# [doc = \" allowance account (PDA)\"] # [account (init , payer = owner , space = 8 + 32 * 2 + 8 * 2 , seeds = [b\"allow\" , owner . key () . as_ref () , delegate . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Allowance >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "delegate",
+        "attribute": "# [doc = \" 代理人（使用者）\"]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RedeemAllowance",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "allowance",
+        "attribute": "# [account (mut , seeds = [b\"allow\" , allowance . owner . as_ref () , allowance . delegate . as_ref ()] , bump , has_one = delegate)]",
+        "field_type": "Account < 'info , Allowance >"
+      },
+      {
+        "name": "vault",
+        "attribute": "# [doc = \" PDA vault holds lamports for allowance\"] # [account (mut , seeds = [b\"vault\" , allowance . key () . as_ref ()] , bump)]",
+        "field_type": "SystemAccount < 'info >"
+      },
+      {
+        "name": "recipient",
+        "attribute": "# [doc = \" 送金先\"] # [account (mut)]",
+        "field_type": "SystemAccount < 'info >"
+      },
+      {
+        "name": "delegate",
+        "attribute": "# [doc = \" 代理人（使用者）\"]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Allowance",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "delegate",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "used",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

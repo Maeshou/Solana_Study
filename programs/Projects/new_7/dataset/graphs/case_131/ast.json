@@ -1,0 +1,111 @@
+[
+  {
+    "name": "distribute",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Distribute >",
+      "points: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let g = & mut ctx . accounts . ledger ;",
+      "g . tally += points ;",
+      "let mut prg = ctx . accounts . reward_program . to_account_info () ;",
+      "if ctx . remaining_accounts . len () > 0",
+      "{",
+      "prg = ctx . remaining_accounts [0] . clone () ;",
+      "g . fast_path += 1 ;",
+      "}",
+      "let bridge = RewardBridge { guild_vault : ctx . accounts . guild_vault . to_account_info () , member_wallet : ctx . accounts . member_wallet . to_account_info () , } ;",
+      "let payload = points . to_le_bytes () . to_vec () ;",
+      "let cx = bridge . as_cpi (prg . clone ()) ;",
+      "bridge . send (cx , payload) ? ;",
+      "if g . tally > g . milestone",
+      "{",
+      "g . bonus_count += 1 ;",
+      "let bonus = (g . tally % 7) as u64 + 3 ;",
+      "let cx2 = bridge . as_cpi (prg . clone ()) ;",
+      "bridge . send (cx2 , bonus . to_le_bytes () . to_vec ()) ? ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Distribute",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ledger",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Ledger >"
+      },
+      {
+        "name": "guild_vault",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "member_wallet",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "reward_program",
+        "attribute": "# [doc = \" CHECK: 呼び先を外から受ける\"]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Ledger",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "tally",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "milestone",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "bonus_count",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "fast_path",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RewardBridge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild_vault",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "member_wallet",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

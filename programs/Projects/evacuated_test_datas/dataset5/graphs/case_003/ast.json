@@ -1,0 +1,75 @@
+[
+  {
+    "name": "withdraw_and_reassign",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < WithdrawAndReassign >",
+      "withdraw_amount: u64",
+      "new_delegate_a: Pubkey",
+      "new_delegate_b: Pubkey"
+    ],
+    "attributes": [
+      "# [doc = \" 1) lamports の引き出し（Owner Check を行わず）\"]",
+      "# [doc = \" 2) 2 つの同じ型アカウントを委任先として受け取り、キー重複検証なしで両方再設定\"]"
+    ],
+    "body": [
+      "let vault_acc = & ctx . accounts . vault_account ;",
+      "let receiver = & ctx . accounts . receiver ;",
+      "let delegate1 = & ctx . accounts . delegate_account1 ;",
+      "let delegate2 = & ctx . accounts . delegate_account2 ;",
+      "let admin = & ctx . accounts . admin ;",
+      "let (fee , net) = { let mut f = withdraw_amount / 100 ; if f < 2 { f = 2 ; } let net_amt = withdraw_amount . checked_sub (f) . ok_or (ProgramError :: InvalidArgument) ? ; msg ! (\"[STEP1] withdraw_amount: {}, fee: {}, net: {}\" , withdraw_amount , f , net_amt) ; (f , net_amt) } ;",
+      "* * vault_acc . try_borrow_mut_lamports () ? -= withdraw_amount ;",
+      "* * receiver . try_borrow_mut_lamports () ? += net ;",
+      "* * admin . try_borrow_mut_lamports () ? += fee ;",
+      "{ let mut d1 = delegate1 . try_borrow_mut_data () ? ; let arr1 = new_delegate_a . to_bytes () ; for i in 0 .. 32 { d1 [i] = arr1 [i] ; } msg ! (\"[STEP2] delegate1 を {}\" , new_delegate_a) ; }",
+      "{ let mut d2 = delegate2 . try_borrow_mut_data () ? ; let arr2 = new_delegate_b . to_bytes () ; for i in 0 .. 32 { d2 [i] = arr2 [i] ; } msg ! (\"[STEP2] delegate2 を {}\" , new_delegate_b) ; }",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "WithdrawAndReassign",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault_account",
+        "attribute": "# [doc = \" lamports 保管先（owner チェック省略）\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "receiver",
+        "attribute": "# [doc = \" lamports 送金先\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "delegate_account1",
+        "attribute": "# [doc = \" 同じ型アカウントを2つ受け取るが重複チェックせず\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "delegate_account2",
+        "attribute": "# [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [doc = \" 手数料受取先（owner チェック省略）\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 実行者の署名アカウント\"]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

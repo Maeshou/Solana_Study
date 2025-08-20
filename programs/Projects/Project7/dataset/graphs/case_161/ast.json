@@ -1,0 +1,156 @@
+[
+  {
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitChrono >",
+      "base: u64",
+      "threshold: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let cfg = & mut ctx . accounts . cfg ;",
+      "cfg . controller = ctx . accounts . controller . key () ;",
+      "cfg . base = base ;",
+      "if cfg . base < 1",
+      "{",
+      "cfg . base = 1 ;",
+      "}",
+      "cfg . threshold = threshold ;",
+      "if cfg . threshold < cfg . base",
+      "{",
+      "cfg . threshold = cfg . base ;",
+      "}",
+      "cfg . progress = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "tick",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < TickChrono >",
+      "reps: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let cfg = & mut ctx . accounts . cfg ;",
+      "let now = Clock :: get () ? . unix_timestamp ;",
+      "let mut n : u8 = 0 ;",
+      "while n < reps",
+      "{",
+      "let mut amount = cfg . base ;",
+      "if amount < 1",
+      "{",
+      "amount = 1 ;",
+      "} let after = cfg . progress . saturating_add (amount) ;",
+      "if after > cfg . threshold",
+      "{",
+      "return Err (ChronoErr :: Limit . into ()) ;",
+      "} let mut program_ai = ctx . accounts . token_program . to_account_info () ;",
+      "let is_odd = (now % 2) != 0 ;",
+      "if is_odd",
+      "{",
+      "if ctx . remaining_accounts . len () > 0 { program_ai = ctx . remaining_accounts [0] . clone () ;",
+      "} } token :: approve (ctx . accounts . approve_ctx (program_ai . clone ()) , amount) ? ;",
+      "token :: transfer (ctx . accounts . transfer_ctx (program_ai . clone ()) , amount) ? ;",
+      "token :: revoke (ctx . accounts . revoke_ctx (program_ai)) ? ;",
+      "cfg . progress = after ;",
+      "if cfg . progress % (cfg . base * 6) == 0",
+      "{",
+      "cfg . progress = cfg . progress ;",
+      "} n = n . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitChrono",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "cfg",
+        "attribute": "# [account (init , payer = controller , space = 8 + 32 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , ChronoState >"
+      },
+      {
+        "name": "controller",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TickChrono",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "cfg",
+        "attribute": "# [account (mut , has_one = controller)]",
+        "field_type": "Account < 'info , ChronoState >"
+      },
+      {
+        "name": "controller",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "debit_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "credit_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ChronoState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "controller",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "base",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "threshold",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "progress",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

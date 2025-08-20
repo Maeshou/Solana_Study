@@ -1,0 +1,268 @@
+[
+  {
+    "name": "init_arena",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitArena >",
+      "base_pool: u64",
+      "max_rank: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let arena = & mut ctx . accounts . arena ;",
+      "arena . admin = ctx . accounts . admin . key () ;",
+      "arena . total_matches = 0 ;",
+      "arena . total_rewards_distributed = 0 ;",
+      "arena . reward_pool = base_pool ;",
+      "arena . max_rank = max_rank ;",
+      "arena . rewards_per_rank = vec ! [100 , 80 , 60 , 40 , 20] ;",
+      "arena . rank_statistics = [0 ; 10] ;",
+      "arena . paused = false ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "report_match_and_distribute",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ReportAndDistribute >",
+      "rank: u32",
+      "opponent_power: u64",
+      "match_nonce: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let arena = & mut ctx . accounts . arena ;",
+      "let match_log = & mut ctx . accounts . match_log ;",
+      "let reporter = & ctx . accounts . reporter ;",
+      "if arena . paused",
+      "{",
+      "return Ok (()) ;",
+      "}",
+      "if rank >= arena . max_rank",
+      "{",
+      "arena . rank_statistics [9] += 1 ;",
+      "return Ok (()) ;",
+      "}",
+      "match_log . player = reporter . key () ;",
+      "match_log . rank = rank ;",
+      "match_log . opponent_power = opponent_power ;",
+      "match_log . nonce = match_nonce ;",
+      "match_log . timestamp = Clock :: get () ? . unix_timestamp ;",
+      "match_log . processed = false ;",
+      "match_log . notes = vec ! [] ;",
+      "let mut validation_score : u32 = 0 ;",
+      "let key_bytes = reporter . key () . to_bytes () ;",
+      "for (i , byte) in key_bytes . iter () . enumerate ()",
+      "{",
+      "validation_score += (* byte as u32) . wrapping_mul ((i as u32 + 3)) ;",
+      "}",
+      "validation_score ^= rank . rotate_left (2) ;",
+      "validation_score = validation_score . rotate_right ((match_nonce % 32) as u32) ;",
+      "let mut reward = 0u64 ;",
+      "if validation_score % 5 == 0",
+      "{",
+      "reward += 10 ;",
+      "match_log . notes . push (\"Bonus: validation checksum passed\" . to_string ()) ;",
+      "}",
+      "if opponent_power > 1000",
+      "{",
+      "reward += opponent_power % 250 ;",
+      "match_log . notes . push (\"Strong opponent bonus applied\" . to_string ()) ;",
+      "}",
+      "let mut table_bonus = 0u64 ;",
+      "for i in 0 .. 5",
+      "{",
+      "if i as u32 == rank",
+      "{",
+      "table_bonus = arena . rewards_per_rank [i] ;",
+      "}",
+      "}",
+      "reward += table_bonus ;",
+      "if match_nonce % 2 == 0",
+      "{",
+      "reward ^= 0x55 ;",
+      "}",
+      "match_log . reward_given = reward ;",
+      "match_log . processed = true ;",
+      "match_log . validation_hash = validation_score ;",
+      "arena . total_matches += 1 ;",
+      "arena . total_rewards_distributed = arena . total_rewards_distributed . saturating_add (reward) ;",
+      "arena . reward_pool = arena . reward_pool . saturating_sub (reward) ;",
+      "if rank < 10",
+      "{",
+      "arena . rank_statistics [rank as usize] += 1 ;",
+      "}",
+      "if rank == 0",
+      "{",
+      "match_log . notes . push (\"Top rank match recorded\" . to_string ()) ;",
+      "}",
+      "let risk = (validation_score % 128) as u8 ;",
+      "if risk > 100",
+      "{",
+      "match_log . flagged_for_audit = true ;",
+      "match_log . notes . push (\"Flagged for audit: risk too high\" . to_string ()) ;",
+      "}",
+      "arena . admin = reporter . key () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitArena",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "arena",
+        "attribute": "# [account (init , payer = admin , space = 8 + 512)]",
+        "field_type": "Account < 'info , ArenaState >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ReportAndDistribute",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "arena",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , ArenaState >"
+      },
+      {
+        "name": "match_log",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , MatchLog >"
+      },
+      {
+        "name": "reporter",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ArenaState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "reward_pool",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_rewards_distributed",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_matches",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "max_rank",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "rewards_per_rank",
+        "attribute": null,
+        "field_type": "Vec < u64 >"
+      },
+      {
+        "name": "rank_statistics",
+        "attribute": null,
+        "field_type": "[u32 ; 10]"
+      },
+      {
+        "name": "paused",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MatchLog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "player",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "rank",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "opponent_power",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "reward_given",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "nonce",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "timestamp",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "validation_hash",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "flagged_for_audit",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "processed",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "notes",
+        "attribute": null,
+        "field_type": "Vec < String >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,186 @@
+[
+  {
+    "name": "init_liquidity_pool",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitLiquidityPool >",
+      "initial_ratio: u64",
+      "fee_rate: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let pool = & mut ctx . accounts . liquidity_pool ;",
+      "pool . pool_manager = ctx . accounts . manager . key () ;",
+      "pool . token_a_reserve = 0 ;",
+      "pool . token_b_reserve = 0 ;",
+      "pool . total_liquidity_tokens = 0 ;",
+      "pool . exchange_ratio = initial_ratio ;",
+      "pool . trading_fee = fee_rate ;",
+      "pool . total_volume = 0 ;",
+      "pool . impermanent_loss_factor = 0 ;",
+      "pool . last_price_update = Clock :: get () ? . unix_timestamp ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "rebalance_pool",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RebalancePool >",
+      "target_ratio: u64",
+      "slippage_tolerance: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let pool = & mut ctx . accounts . liquidity_pool ;",
+      "let rebalancer = & ctx . accounts . rebalancer ;",
+      "let current_ratio = if pool . token_b_reserve > 0 { (pool . token_a_reserve * 1000000) / pool . token_b_reserve } else { target_ratio } ;",
+      "let ratio_difference = if current_ratio > target_ratio { current_ratio - target_ratio } else { target_ratio - current_ratio } ;",
+      "let max_allowed_difference = (target_ratio * slippage_tolerance as u64) / 10000 ;",
+      "if ratio_difference <= max_allowed_difference",
+      "{",
+      "let total_value = pool . token_a_reserve + (pool . token_b_reserve * target_ratio / 1000000) ;",
+      "let new_token_a_reserve = total_value / 2 ;",
+      "let new_token_b_reserve = (total_value / 2) * 1000000 / target_ratio ;",
+      "let old_product = pool . token_a_reserve * pool . token_b_reserve ;",
+      "let new_product = new_token_a_reserve * new_token_b_reserve ;",
+      "if new_product < old_product",
+      "{",
+      "pool . impermanent_loss_factor += ((old_product - new_product) * 10000) / old_product ;",
+      "} pool . token_a_reserve = new_token_a_reserve ;",
+      "pool . token_b_reserve = new_token_b_reserve ;",
+      "pool . exchange_ratio = target_ratio ;",
+      "pool . last_price_update = Clock :: get () ? . unix_timestamp ;",
+      "let rebalancing_volume = ratio_difference * pool . total_liquidity_tokens / 1000 ;",
+      "let collected_fees = (rebalancing_volume * pool . trading_fee as u64) / 10000 ;",
+      "pool . total_fees_collected += collected_fees ;",
+      "pool . total_volume += rebalancing_volume ;",
+      "for lp_index in 0 .. pool . active_lp_count . min (50)",
+      "{",
+      "let lp_share = pool . lp_token_balances [lp_index as usize] * 100 / pool . total_liquidity_tokens . max (1) ;",
+      "pool . lp_fee_rewards [lp_index as usize] += (collected_fees * lp_share) / 100 ;",
+      "}",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitLiquidityPool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "liquidity_pool",
+        "attribute": "# [account (init , payer = manager , space = 8 + 1000)]",
+        "field_type": "Account < 'info , LiquidityPoolData >"
+      },
+      {
+        "name": "manager",
+        "attribute": "# [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RebalancePool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "liquidity_pool",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , LiquidityPoolData >"
+      },
+      {
+        "name": "rebalancer",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "LiquidityPoolData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool_manager",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "token_a_reserve",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "token_b_reserve",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_liquidity_tokens",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "exchange_ratio",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "trading_fee",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "total_volume",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_fees_collected",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "impermanent_loss_factor",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "last_price_update",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "active_lp_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "lp_token_balances",
+        "attribute": null,
+        "field_type": "[u64 ; 50]"
+      },
+      {
+        "name": "lp_fee_rewards",
+        "attribute": null,
+        "field_type": "[u64 ; 50]"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

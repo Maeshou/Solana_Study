@@ -1,0 +1,79 @@
+[
+  {
+    "name": "refund_deposit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RefundDeposit >"
+    ],
+    "attributes": [
+      "# [doc = \" 保証金を返却するが、\"]",
+      "# [doc = \" has_one = owner のみ検証され、\"]",
+      "# [doc = \" deposit_pool と実際の返却ユーザー（ctx.accounts.user）との一致チェックがないため、\"]",
+      "# [doc = \" 攻撃者が他人のプールやアカウントを指定して資金を引き出せてしまう\"]"
+    ],
+    "body": [
+      "let acct = & mut ctx . accounts . deposit_account ;",
+      "let pool = & mut ctx . accounts . deposit_pool . to_account_info () ;",
+      "let user = & mut ctx . accounts . user . to_account_info () ;",
+      "let amt = acct . amount ;",
+      "acct . refund_count = acct . refund_count + 1 ;",
+      "* * pool . lamports . borrow_mut () = pool . lamports () . checked_sub (amt) . unwrap () ;",
+      "* * user . lamports . borrow_mut () = user . lamports () . checked_add (amt) . unwrap () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "RefundDeposit",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "deposit_account",
+        "attribute": "# [account (mut , has_one = owner)] # [doc = \" 本来は has_one = deposit_pool、has_one = user も指定して\"] # [doc = \" deposit_account.deposit_pool と ctx.accounts.deposit_pool.key()、\"] # [doc = \" deposit_account.owner と ctx.accounts.user.key() の照合を行うべき\"]",
+        "field_type": "Account < 'info , DepositAccount >"
+      },
+      {
+        "name": "deposit_pool",
+        "attribute": "# [doc = \" 保証金を保管しているプール（照合なし）\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 返却先ユーザー（署名者・照合なし）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DepositAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 本来このアカウントを所有するべきユーザーの Pubkey\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "deposit_pool",
+        "attribute": "# [doc = \" 保証金プールの Pubkey\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "amount",
+        "attribute": "# [doc = \" プールに預けられた保証金量\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "refund_count",
+        "attribute": "# [doc = \" 返却実行回数\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,159 @@
+[
+  {
+    "name": "setup_raffle",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SetupRaffle >",
+      "winner_count: u32",
+      "prize_amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" ラッフルの設定：抽選当選者数と賞品数量を記録  \"]",
+      "# [doc = \" ⚠\\u{fe0f} 設定者の署名チェックは一切行われない脆弱性あり\"]"
+    ],
+    "body": [
+      "let config = & mut ctx . accounts . config ;",
+      "config . winner_count = winner_count ;",
+      "config . prize_amount = prize_amount ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "register_winner",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RegisterWinner >",
+      "winner: Pubkey"
+    ],
+    "attributes": [
+      "# [doc = \" 当選者を登録：当選者リストに追加  \"]",
+      "# [doc = \" ⚠\\u{fe0f} `operator` と `raffle_account` の署名チェックがなく、誰でも実行可能\"]"
+    ],
+    "body": [
+      "let config = & mut ctx . accounts . config ;",
+      "config . winners . push (winner) ;",
+      "msg ! (\"Winner registered: {}\" , winner) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "claim_prize",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ClaimPrize >"
+    ],
+    "attributes": [
+      "# [doc = \" 賞金請求：賞金を直接 vault から winner_account へ lamports で移動  \"]",
+      "# [doc = \" CPI は使わず、AccountInfo のみで直接操作。署名検証もなし\"]"
+    ],
+    "body": [
+      "let config = & ctx . accounts . config ;",
+      "let vault = ctx . accounts . vault . to_account_info () ;",
+      "let recipient = ctx . accounts . winner_account . to_account_info () ;",
+      "let amount = config . prize_amount ;",
+      "* * vault . lamports . borrow_mut () -= amount ;",
+      "* * recipient . lamports . borrow_mut () += amount ;",
+      "msg ! (\"Prize of {} lamports claimed by {}\" , amount , recipient . key ()) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "RaffleConfig",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "winner_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "prize_amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "winners",
+        "attribute": null,
+        "field_type": "Vec < Pubkey >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SetupRaffle",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "config",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4 + 8 + 4 + 32 * 100)]",
+        "field_type": "Account < 'info , RaffleConfig >"
+      },
+      {
+        "name": "operator",
+        "attribute": "# [doc = \" CHECK: 設定者の署名検証なし\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RegisterWinner",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "config",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , RaffleConfig >"
+      },
+      {
+        "name": "raffle_account",
+        "attribute": "# [doc = \" CHECK: raffle アカウントの署名検証なし\"]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ClaimPrize",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "config",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , RaffleConfig >"
+      },
+      {
+        "name": "winner_account",
+        "attribute": "# [doc = \" CHECK: 当選者アカウントの署名検証なし\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "vault",
+        "attribute": "# [doc = \" lamports 保管用 vault（署名検証なし）\"]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

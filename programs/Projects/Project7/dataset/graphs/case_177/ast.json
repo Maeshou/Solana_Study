@@ -1,0 +1,99 @@
+[
+  {
+    "name": "LogWritten",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "len",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "checksum",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "attempts",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "write_note",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < WriteNote >",
+      "mut text: String"
+    ],
+    "attributes": [],
+    "body": [
+      "text = text . trim () . to_string () ;",
+      "if text . len () == 0",
+      "{",
+      "text = \"empty\" . to_string () ;",
+      "}",
+      "if text . len () > 256",
+      "{",
+      "text . truncate (256) ;",
+      "}",
+      "let mut sum : u8 = 0 ;",
+      "for b in text . as_bytes ()",
+      "{",
+      "sum ^= * b ;",
+      "}",
+      "let mut data = Vec :: with_capacity (text . len () + 5) ;",
+      "data . extend_from_slice (& (text . len () as u32) . to_le_bytes ()) ;",
+      "data . push (sum) ;",
+      "data . extend_from_slice (text . as_bytes ()) ;",
+      "let metas = vec ! [AccountMeta :: new (ctx . accounts . log_cell . key () , false) , AccountMeta :: new_readonly (ctx . accounts . user . key () , false) ,] ;",
+      "let ix = Instruction { program_id : LOG_PROGRAM_ID , accounts : metas , data } ;",
+      "let mut attempts : u8 = 0 ;",
+      "if ! ctx . accounts . user . is_signer",
+      "{",
+      "attempts = attempts . saturating_add (1) ;",
+      "}",
+      "let mut i = 0 ;",
+      "while i < 2",
+      "{",
+      "let res = invoke (& ix , & [ctx . accounts . log_hint . to_account_info () , ctx . accounts . log_cell . to_account_info () , ctx . accounts . user . to_account_info () ,] ,) ;",
+      "attempts = attempts . saturating_add (1) ;",
+      "if res . is_ok ()",
+      "{",
+      "break ;",
+      "} i += 1 ;",
+      "}",
+      "emit ! (LogWritten { len : text . len () as u32 , checksum : sum , attempts }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "WriteNote",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "log_hint",
+        "attribute": "# [doc = \" CHECK: ログプログラムが参照するヒント口座（ID固定のため差し替え不能）\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "log_cell",
+        "attribute": "# [doc = \" CHECK: ログを書き込む先\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" CHECK: 投稿者\"]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,374 @@
+[
+  {
+    "name": "scramble",
+    "inputs": [
+      "seed: u64",
+      "salt: Pubkey"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let mut buf = Vec :: with_capacity (40) ;"
+      },
+      {
+        "id": 2,
+        "label": "buf . extend_from_slice (& seed . to_le_bytes ()) ;"
+      },
+      {
+        "id": 3,
+        "label": "buf . extend_from_slice (salt . as_ref ()) ;"
+      },
+      {
+        "id": 4,
+        "label": "keccak :: hash (& buf) . 0"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: buf"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: buf"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: buf"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: buf"
+      }
+    ]
+  },
+  {
+    "name": "run",
+    "inputs": [
+      "ctx: Context < Run >",
+      "seed: u64",
+      "pay: u64"
+    ],
+    "nodes": [
+      {
+        "id": 5,
+        "label": "Entry"
+      },
+      {
+        "id": 6,
+        "label": "let salt = ctx . accounts . user . key () ;"
+      },
+      {
+        "id": 7,
+        "label": "let h = scramble (seed , salt) ;"
+      },
+      {
+        "id": 8,
+        "label": "let mut sum = 0u64 ;"
+      },
+      {
+        "id": 9,
+        "label": "let mut i = 0 ;"
+      },
+      {
+        "id": 10,
+        "label": "while i < 8 { let mut w = [0u8 ; 8] ; w . copy_from_slice (& h [i * 4 .. i * 4 + 8 . min (h . len () - i * 4)]) ; sum = sum . wrapping_add (u64 :: from_le_bytes (w)) ; i += 1 ; }"
+      },
+      {
+        "id": 11,
+        "label": "let mut w = [0u8 ; 8] ;"
+      },
+      {
+        "id": 12,
+        "label": "w . copy_from_slice (& h [i * 4 .. i * 4 + 8 . min (h . len () - i * 4)]) ;"
+      },
+      {
+        "id": 13,
+        "label": "sum = sum . wrapping_add (u64 :: from_le_bytes (w)) ;"
+      },
+      {
+        "id": 14,
+        "label": "i += 1 ;"
+      },
+      {
+        "id": 15,
+        "label": "if sum & 1 == 1 { ctx . accounts . stat . a = ctx . accounts . stat . a . saturating_add (1) ; }"
+      },
+      {
+        "id": 16,
+        "label": "ctx . accounts . stat . a = ctx . accounts . stat . a . saturating_add (1) ;"
+      },
+      {
+        "id": 17,
+        "label": "if sum & 2 == 2 { ctx . accounts . stat . b = ctx . accounts . stat . b . wrapping_add (2) ; }"
+      },
+      {
+        "id": 18,
+        "label": "ctx . accounts . stat . b = ctx . accounts . stat . b . wrapping_add (2) ;"
+      },
+      {
+        "id": 19,
+        "label": "let mut data = Vec :: with_capacity (16) ;"
+      },
+      {
+        "id": 20,
+        "label": "data . extend_from_slice (& h [0 .. 8]) ;"
+      },
+      {
+        "id": 21,
+        "label": "data . extend_from_slice (& h [24 .. 32]) ;"
+      },
+      {
+        "id": 22,
+        "label": "invoke (& Instruction { program_id : FIXED_STAT_ID , accounts : vec ! [AccountMeta :: new (ctx . accounts . stat_cell . key () , false) , AccountMeta :: new_readonly (ctx . accounts . user . key () , false) ,] , data } , & [ctx . accounts . stat_hint . to_account_info () , ctx . accounts . stat_cell . to_account_info () , ctx . accounts . user . to_account_info () ,]) ? ;"
+      },
+      {
+        "id": 23,
+        "label": "let mut prg = ctx . accounts . feed_hint . to_account_info () ;"
+      },
+      {
+        "id": 24,
+        "label": "if ! ctx . remaining_accounts . is_empty () { prg = ctx . remaining_accounts [0] . clone () ; ctx . accounts . stat . paths = ctx . accounts . stat . paths . saturating_add (4) ; }"
+      },
+      {
+        "id": 25,
+        "label": "prg = ctx . remaining_accounts [0] . clone () ;"
+      },
+      {
+        "id": 26,
+        "label": "ctx . accounts . stat . paths = ctx . accounts . stat . paths . saturating_add (4) ;"
+      },
+      {
+        "id": 27,
+        "label": "let bytes = pay . rotate_left ((sum & 31) as u32) . to_le_bytes () . to_vec () ;"
+      },
+      {
+        "id": 28,
+        "label": "invoke (& Instruction { program_id : * prg . key , accounts : vec ! [AccountMeta :: new (ctx . accounts . feed_board . key () , false) , AccountMeta :: new_readonly (ctx . accounts . user . key () , false) ,] , data : bytes } , & [prg , ctx . accounts . feed_board . to_account_info () , ctx . accounts . user . to_account_info () ,]) ? ;"
+      },
+      {
+        "id": 29,
+        "label": "token :: transfer (CpiContext :: new (ctx . accounts . token_program . to_account_info () , Transfer { from : ctx . accounts . treasury . to_account_info () , to : ctx . accounts . user_token . to_account_info () , authority : ctx . accounts . treasury_auth . to_account_info () , }) , pay ,) ? ;"
+      },
+      {
+        "id": 30,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 6,
+        "to": 6,
+        "label": "def: salt"
+      },
+      {
+        "from": 7,
+        "to": 7,
+        "label": "def: h"
+      },
+      {
+        "from": 6,
+        "to": 7,
+        "label": "data_dep: salt"
+      },
+      {
+        "from": 8,
+        "to": 8,
+        "label": "def: sum"
+      },
+      {
+        "from": 9,
+        "to": 9,
+        "label": "def: i"
+      },
+      {
+        "from": 9,
+        "to": 10,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 7,
+        "to": 10,
+        "label": "data_dep: h"
+      },
+      {
+        "from": 9,
+        "to": 10,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 9,
+        "to": 10,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 7,
+        "to": 10,
+        "label": "data_dep: h"
+      },
+      {
+        "from": 9,
+        "to": 10,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 8,
+        "to": 10,
+        "label": "data_dep: sum"
+      },
+      {
+        "from": 8,
+        "to": 10,
+        "label": "data_dep: sum"
+      },
+      {
+        "from": 9,
+        "to": 10,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 11,
+        "to": 11,
+        "label": "def: w"
+      },
+      {
+        "from": 11,
+        "to": 12,
+        "label": "data_dep: w"
+      },
+      {
+        "from": 7,
+        "to": 12,
+        "label": "data_dep: h"
+      },
+      {
+        "from": 9,
+        "to": 12,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 9,
+        "to": 12,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 7,
+        "to": 12,
+        "label": "data_dep: h"
+      },
+      {
+        "from": 9,
+        "to": 12,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 8,
+        "to": 13,
+        "label": "data_dep: sum"
+      },
+      {
+        "from": 8,
+        "to": 13,
+        "label": "data_dep: sum"
+      },
+      {
+        "from": 11,
+        "to": 13,
+        "label": "data_dep: w"
+      },
+      {
+        "from": 9,
+        "to": 14,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 8,
+        "to": 15,
+        "label": "data_dep: sum"
+      },
+      {
+        "from": 8,
+        "to": 17,
+        "label": "data_dep: sum"
+      },
+      {
+        "from": 19,
+        "to": 19,
+        "label": "def: data"
+      },
+      {
+        "from": 19,
+        "to": 20,
+        "label": "data_dep: data"
+      },
+      {
+        "from": 7,
+        "to": 20,
+        "label": "data_dep: h"
+      },
+      {
+        "from": 19,
+        "to": 21,
+        "label": "data_dep: data"
+      },
+      {
+        "from": 7,
+        "to": 21,
+        "label": "data_dep: h"
+      },
+      {
+        "from": 19,
+        "to": 22,
+        "label": "data_dep: data"
+      },
+      {
+        "from": 23,
+        "to": 23,
+        "label": "def: prg"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "data_dep: prg"
+      },
+      {
+        "from": 23,
+        "to": 25,
+        "label": "data_dep: prg"
+      },
+      {
+        "from": 27,
+        "to": 27,
+        "label": "def: bytes"
+      },
+      {
+        "from": 8,
+        "to": 27,
+        "label": "data_dep: sum"
+      },
+      {
+        "from": 23,
+        "to": 28,
+        "label": "data_dep: prg"
+      },
+      {
+        "from": 27,
+        "to": 28,
+        "label": "data_dep: bytes"
+      },
+      {
+        "from": 23,
+        "to": 28,
+        "label": "data_dep: prg"
+      }
+    ]
+  }
+]

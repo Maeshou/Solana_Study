@@ -1,0 +1,167 @@
+[
+  {
+    "name": "initialize_staking_pool",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeStakingPool >",
+      "daily_rate: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let pool = & mut ctx . accounts . staking_pool ;",
+      "pool . daily_reward_rate = daily_rate ;",
+      "pool . last_claim_timestamp = Clock :: get () ? . unix_timestamp ;",
+      "pool . admin = ctx . accounts . admin . key () ;",
+      "pool . reward_token_mint = ctx . accounts . reward_token_mint . key () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "claim_rewards",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ClaimRewards >"
+    ],
+    "attributes": [],
+    "body": [
+      "let pool = & mut ctx . accounts . staking_pool ;",
+      "let now_timestamp = Clock :: get () ? . unix_timestamp ;",
+      "let last_claim = pool . last_claim_timestamp ;",
+      "let mut days_passed = 0 ;",
+      "for _ in 0 .. 100",
+      "{",
+      "if last_claim + (days_passed + 1) * 86400 < now_timestamp",
+      "{",
+      "days_passed += 1 ;",
+      "} else",
+      "{",
+      "break ;",
+      "}",
+      "}",
+      "if days_passed == 0",
+      "{",
+      "return Err (ErrorCode :: NoRewardsToClaim . into ()) ;",
+      "}",
+      "let total_rewards = pool . daily_reward_rate * days_passed as u64 ;",
+      "if total_rewards > ctx . accounts . pool_reward_token_account . amount",
+      "{",
+      "return Err (ErrorCode :: InsufficientPoolFunds . into ()) ;",
+      "}",
+      "if ctx . accounts . staked_token_account . amount > 0",
+      "{",
+      "let cpi_accounts = Transfer",
+      "{",
+      "from : ctx . accounts . pool_reward_token_account . to_account_info () , to : ctx . accounts . claimer_reward_token_account . to_account_info () , authority : ctx . accounts . admin . to_account_info () , } ;",
+      "let cpi_program = ctx . accounts . token_program . to_account_info () ;",
+      "let cpi_context = CpiContext :: new (cpi_program , cpi_accounts) ;",
+      "token :: transfer (cpi_context , total_rewards) ? ;",
+      "}",
+      "pool . last_claim_timestamp = now_timestamp ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializeStakingPool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "staking_pool",
+        "attribute": "# [account (init , payer = admin , space = 8 + 8 + 8 + 32 + 32)]",
+        "field_type": "Account < 'info , StakingPool >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "reward_token_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ClaimRewards",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "staking_pool",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , StakingPool >"
+      },
+      {
+        "name": "pool_reward_token_account",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "staked_token_account",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "claimer_reward_token_account",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [doc = \" CHECK: This is the authority for the pool's reward token account.\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "StakingPool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "daily_reward_rate",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "last_claim_timestamp",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "reward_token_mint",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

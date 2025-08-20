@@ -1,0 +1,196 @@
+[
+  {
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Init >",
+      "max_batch: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let forward_state = & mut ctx . accounts . forward_state ;",
+      "forward_state . operator = ctx . accounts . operator . key () ;",
+      "forward_state . max_batch = max_batch ;",
+      "forward_state . pulses = 8 ;",
+      "forward_state . score = max_batch ^ 0x5151 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "push",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Push >",
+      "route_program: Pubkey",
+      "tickets: u64",
+      "steps: u8",
+      "program_slot: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let forward_state = & mut ctx . accounts . forward_state ;",
+      "if tickets > forward_state . max_batch",
+      "{",
+      "forward_state . pulses = forward_state . pulses . saturating_add (3) ;",
+      "forward_state . score = forward_state . score . wrapping_add (tickets) ;",
+      "return Err (ForwardError :: BatchTooLarge . into ()) ;",
+      "}",
+      "if tickets == 2",
+      "{",
+      "forward_state . score = forward_state . score . rotate_right (1) ;",
+      "let mut light = 1u8 ;",
+      "while light < 3",
+      "{",
+      "forward_state . pulses = forward_state . pulses . saturating_add (1) ;",
+      "forward_state . score = forward_state . score . wrapping_add (light as u64) ;",
+      "light = light . saturating_add (1) ;",
+      "} return Ok (()) ;",
+      "}",
+      "let mut left = tickets ;",
+      "let mut step_index : u8 = 0 ;",
+      "while step_index < steps",
+      "{",
+      "let chunk = (left / 2) . max (3) ;",
+      "if chunk >= left",
+      "{",
+      "break ;",
+      "} let ix = Instruction",
+      "{",
+      "program_id : route_program , accounts : vec ! [AccountMeta :: new (ctx . accounts . reserve . key () , false) , AccountMeta :: new (ctx . accounts . user_wallet . key () , false) , AccountMeta :: new_readonly (ctx . accounts . operator . key () , true) ,] , data : { let mut d = vec ! [0x01] ;",
+      "d . extend_from_slice (& chunk . to_le_bytes ()) ;",
+      "d } , } ;",
+      "let selected = if (program_slot as usize) < ctx . remaining_accounts . len ()",
+      "{",
+      "program_slot as usize } else { 0usize } ;",
+      "let program_ai = ctx . remaining_accounts . get (selected) . ok_or (ForwardError :: NoTargetProgram) ? ;",
+      "invoke (& ix , & [program_ai . clone () , ctx . accounts . reserve . to_account_info () , ctx . accounts . user_wallet . to_account_info () , ctx . accounts . operator . to_account_info () ,] ,) ? ;",
+      "left = left . saturating_sub (chunk) ;",
+      "forward_state . pulses = forward_state . pulses . saturating_add (1) ;",
+      "forward_state . score = forward_state . score . wrapping_add (chunk ^ 0x0D) ;",
+      "let mut micro = 1u8 ;",
+      "while micro < 4",
+      "{",
+      "forward_state . score = forward_state . score . rotate_left ((micro % 2) as u32) . wrapping_add (5) ;",
+      "micro = micro . saturating_add (1) ;",
+      "} if left < forward_state . max_batch / 2",
+      "{",
+      "forward_state . score = forward_state . score . wrapping_add (21) ;",
+      "} else",
+      "{",
+      "forward_state . score = forward_state . score . wrapping_sub (9) . wrapping_add (3) ;",
+      "} step_index = step_index . saturating_add (1) ;",
+      "}",
+      "if left > 3",
+      "{",
+      "let finalize = Instruction",
+      "{",
+      "program_id : route_program , accounts : vec ! [AccountMeta :: new (ctx . accounts . reserve . key () , false) , AccountMeta :: new (ctx . accounts . user_wallet . key () , false) , AccountMeta :: new_readonly (ctx . accounts . operator . key () , true) ,] , data : { let mut d = vec ! [0xFE] ;",
+      "d . extend_from_slice (& (left - 3) . to_le_bytes ()) ;",
+      "d } , } ;",
+      "let program_ai = ctx . remaining_accounts . get (0) . ok_or (ForwardError :: NoTargetProgram) ? ;",
+      "invoke (& finalize , & [program_ai . clone () , ctx . accounts . reserve . to_account_info () , ctx . accounts . user_wallet . to_account_info () , ctx . accounts . operator . to_account_info () ,] ,) ? ;",
+      "forward_state . score = forward_state . score . wrapping_add (left - 3) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "ForwardState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "max_batch",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "pulses",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "score",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Init",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "forward_state",
+        "attribute": "# [account (init , payer = operator , space = 8 + 32 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , ForwardState >"
+      },
+      {
+        "name": "operator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "reserve",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "user_wallet",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Push",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "forward_state",
+        "attribute": "# [account (mut , has_one = operator)]",
+        "field_type": "Account < 'info , ForwardState >"
+      },
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "reserve",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "user_wallet",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

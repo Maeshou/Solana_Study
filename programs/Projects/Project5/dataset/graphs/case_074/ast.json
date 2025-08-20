@@ -1,33 +1,226 @@
 [
   {
-    "name": "init_vesting",
+    "name": "init_wing",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx074 >"
+      "ctx: Context < InitWing >",
+      "x: u32",
+      "y: u32"
     ],
     "attributes": [],
     "body": [
-      "let a = & ctx . accounts . first ;",
-      "let b = & ctx . accounts . second ;",
-      "msg ! (\"Account A: {}\" , a . key ()) ;",
-      "msg ! (\"Account B: {}\" , b . key ()) ;",
+      "let w = & mut ctx . accounts . wing ;",
+      "w . owner = ctx . accounts . curator . key () ;",
+      "w . max = x + y + 200 ;",
+      "w . mode = Build ;",
+      "let a = & mut ctx . accounts . case_a ;",
+      "let b = & mut ctx . accounts . case_b ;",
+      "let l = & mut ctx . accounts . labeler ;",
+      "let r = x . max (y) + y . min (x) / 2 ;",
+      "a . parent = w . key () ;",
+      "a . case = (x & 7) as u8 ;",
+      "a . code = r + 5 ;",
+      "b . parent = w . key () ;",
+      "b . case = (y & 7) as u8 ;",
+      "b . code = r . rotate_left (3) + 9 ;",
+      "l . parent = w . key () ;",
+      "l . wing = 9 ;",
+      "l . count = 0 ;",
+      "l . mix = (x as u64) << 16 | y as u64 ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx074",
+    "name": "label",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Label >",
+      "n: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let w = & mut ctx . accounts . wing ;",
+      "let a = & mut ctx . accounts . case_a ;",
+      "let b = & mut ctx . accounts . case_b ;",
+      "let l = & mut ctx . accounts . labeler ;",
+      "for i in 0 .. n",
+      "{",
+      "let r = ((a . code ^ b . code) as u64) . wrapping_mul (1099511628211) ;",
+      "a . code = a . code . checked_add (((r & 31) as u32) + 1) . unwrap_or (u32 :: MAX) ;",
+      "b . code = b . code . saturating_add ((((r >> 5) & 31) as u32) + 2) ;",
+      "l . count = l . count . saturating_add (1) ;",
+      "l . mix ^= r . rotate_left ((i % 17) as u32) ;",
+      "}",
+      "let mean = if l . count == 0 { 0 } else { (l . mix as u128 / l . count as u128) as u32 } ;",
+      "if mean > w . max",
+      "{",
+      "w . mode = Close ;",
+      "a . case ^= 1 ;",
+      "b . case = b . case . saturating_add (1) ;",
+      "l . wing = l . wing . saturating_add (1) ;",
+      "msg ! (\"close: wing++ & case tweak\") ;",
+      "} else",
+      "{",
+      "w . mode = Open ;",
+      "a . code = a . code . saturating_add (7) ;",
+      "b . code = b . code / 2 + 11 ;",
+      "l . mix ^= 0x0F0F_F0F0 ;",
+      "msg ! (\"open: adjust codes & mix\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitWing",
     "node_type": "struct",
     "fields": [
       {
-        "name": "first",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "wing",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Wing >"
       },
       {
-        "name": "second",
+        "name": "case_a",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , ExhibitCase >"
+      },
+      {
+        "name": "case_b",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , ExhibitCase >"
+      },
+      {
+        "name": "labeler",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 8 + 8)]",
+        "field_type": "Account < 'info , Labeler >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "curator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Label",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "wing",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Wing >"
+      },
+      {
+        "name": "case_a",
+        "attribute": "# [account (mut , has_one = wing , constraint = case_a . case != case_b . case @ MuseumErr :: Dup)]",
+        "field_type": "Account < 'info , ExhibitCase >"
+      },
+      {
+        "name": "case_b",
+        "attribute": "# [account (mut , has_one = wing , constraint = case_b . case != labeler . wing @ MuseumErr :: Dup)]",
+        "field_type": "Account < 'info , ExhibitCase >"
+      },
+      {
+        "name": "labeler",
+        "attribute": "# [account (mut , has_one = wing)]",
+        "field_type": "Account < 'info , Labeler >"
+      },
+      {
+        "name": "curator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Wing",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "max",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "mode",
+        "attribute": null,
+        "field_type": "WingMode"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ExhibitCase",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "case",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "code",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Labeler",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "wing",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "count",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "mix",
+        "attribute": null,
+        "field_type": "u64"
       }
     ],
     "inputs": null,

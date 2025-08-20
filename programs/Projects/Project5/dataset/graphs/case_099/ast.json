@@ -1,40 +1,226 @@
 [
   {
-    "name": "register_entity",
+    "name": "radical_inverse_base2",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx099 >",
-      "amount: u64"
+      "mut x: u32"
     ],
     "attributes": [],
     "body": [
-      "let src = & mut ctx . accounts . account_src ;",
-      "let dst = & mut ctx . accounts . account_dst ;",
-      "let before = * * src . to_account_info () . try_borrow_lamports () ? ;",
-      "* * src . to_account_info () . try_borrow_mut_lamports () ? = before . saturating_sub (amount) ;",
-      "* * dst . to_account_info () . try_borrow_mut_lamports () ? += amount ;",
+      "let mut y = 0u32 ;",
+      "for _ in 0 .. 16",
+      "{",
+      "y = (y << 1) | (x & 1) ;",
+      "x >>= 1 ;",
+      "}",
+      "y"
+    ]
+  },
+  {
+    "name": "init_mosaic",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitMosaic >",
+      "w: u32",
+      "h: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . studio ;",
+      "s . owner = ctx . accounts . glazier . key () ;",
+      "s . target = (w + h) * 6 + 240 ;",
+      "s . phase = Plan ;",
+      "let code_a = radical_inverse_base2 (w) ^ 0x5A5A ;",
+      "let code_b = radical_inverse_base2 (h) ^ 0xA5A5 ;",
+      "let a = & mut ctx . accounts . pane_a ;",
+      "a . parent = s . key () ;",
+      "a . frame = (w & 7) as u8 ;",
+      "a . hue = (code_a & 1023) + 41 ;",
+      "let b = & mut ctx . accounts . pane_b ;",
+      "b . parent = s . key () ;",
+      "b . frame = (h & 7) as u8 ;",
+      "b . hue = (code_b . rotate_left (3) & 1023) + 37 ;",
+      "let r = & mut ctx . accounts . rack ;",
+      "r . parent = s . key () ;",
+      "r . frame = 9 ;",
+      "r . count = 0 ;",
+      "r . blend = ((code_a as u64) << 20) ^ (code_b as u64) ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx099",
+    "name": "assemble",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AssembleGlass >"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . studio ;",
+      "let a = & mut ctx . accounts . pane_a ;",
+      "let b = & mut ctx . accounts . pane_b ;",
+      "let r = & mut ctx . accounts . rack ;",
+      "let mix = ((a . hue ^ b . hue) as u64) . wrapping_mul (1099511628211) ;",
+      "a . hue = a . hue . checked_add (((mix & 63) as u32) + 5) . unwrap_or (u32 :: MAX) ;",
+      "b . hue = b . hue . saturating_add ((((mix >> 6) & 63) as u32) + 7) ;",
+      "r . count = r . count . saturating_add (3) ;",
+      "r . blend ^= mix . rotate_left (11) ;",
+      "s . phase = Cut ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitMosaic",
     "node_type": "struct",
     "fields": [
       {
-        "name": "account_src",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "studio",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , StudioGlass >"
       },
       {
-        "name": "account_dst",
+        "name": "pane_a",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Pane >"
+      },
+      {
+        "name": "pane_b",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Pane >"
+      },
+      {
+        "name": "rack",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 8 + 8)]",
+        "field_type": "Account < 'info , Rack >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "glazier",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
       },
       {
         "name": "system_program",
         "attribute": null,
         "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AssembleGlass",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "studio",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , StudioGlass >"
+      },
+      {
+        "name": "pane_a",
+        "attribute": "# [account (mut , has_one = studio , constraint = pane_a . frame != pane_b . frame @ GlassErr :: Dup)]",
+        "field_type": "Account < 'info , Pane >"
+      },
+      {
+        "name": "pane_b",
+        "attribute": "# [account (mut , has_one = studio , constraint = pane_b . frame != rack . frame @ GlassErr :: Dup)]",
+        "field_type": "Account < 'info , Pane >"
+      },
+      {
+        "name": "rack",
+        "attribute": "# [account (mut , has_one = studio)]",
+        "field_type": "Account < 'info , Rack >"
+      },
+      {
+        "name": "glazier",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "StudioGlass",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "target",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "phase",
+        "attribute": null,
+        "field_type": "GlassPhase"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Pane",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "frame",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "hue",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Rack",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "frame",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "count",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "blend",
+        "attribute": null,
+        "field_type": "u64"
       }
     ],
     "inputs": null,

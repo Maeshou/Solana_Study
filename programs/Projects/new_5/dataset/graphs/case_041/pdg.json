@@ -1,0 +1,686 @@
+[
+  {
+    "name": "init_guild",
+    "inputs": [
+      "ctx: Context < InitGuild >",
+      "name: String",
+      "max_members: u8"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let guild = & mut ctx . accounts . guild ;"
+      },
+      {
+        "id": 2,
+        "label": "guild . founder = ctx . accounts . founder . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "guild . name = name ;"
+      },
+      {
+        "id": 4,
+        "label": "guild . max_members = max_members ;"
+      },
+      {
+        "id": 5,
+        "label": "guild . current_members = 0 ;"
+      },
+      {
+        "id": 6,
+        "label": "guild . total_contribution_points = 0 ;"
+      },
+      {
+        "id": 7,
+        "label": "guild . is_active = true ;"
+      },
+      {
+        "id": 8,
+        "label": "msg ! (\"Guild initialized: {}\" , guild . name) ;"
+      },
+      {
+        "id": 9,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: guild"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: guild"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: guild"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: guild"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: guild"
+      },
+      {
+        "from": 1,
+        "to": 6,
+        "label": "data_dep: guild"
+      },
+      {
+        "from": 1,
+        "to": 7,
+        "label": "data_dep: guild"
+      }
+    ]
+  },
+  {
+    "name": "init_contribution_log",
+    "inputs": [
+      "ctx: Context < InitContributionLog >",
+      "log_id: u32",
+      "base_points: u32"
+    ],
+    "nodes": [
+      {
+        "id": 10,
+        "label": "Entry"
+      },
+      {
+        "id": 11,
+        "label": "let log = & mut ctx . accounts . log ;"
+      },
+      {
+        "id": 12,
+        "label": "let guild = & mut ctx . accounts . guild ;"
+      },
+      {
+        "id": 13,
+        "label": "log . guild = guild . key () ;"
+      },
+      {
+        "id": 14,
+        "label": "log . contributor = ctx . accounts . contributor . key () ;"
+      },
+      {
+        "id": 15,
+        "label": "log . log_id = log_id ;"
+      },
+      {
+        "id": 16,
+        "label": "log . base_points = base_points ;"
+      },
+      {
+        "id": 17,
+        "label": "log . is_processed = false ;"
+      },
+      {
+        "id": 18,
+        "label": "msg ! (\"Contribution log created for guild {} by {}\" , guild . name , log . contributor) ;"
+      },
+      {
+        "id": 19,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 11,
+        "to": 11,
+        "label": "def: log"
+      },
+      {
+        "from": 12,
+        "to": 12,
+        "label": "def: guild"
+      },
+      {
+        "from": 11,
+        "to": 13,
+        "label": "data_dep: log"
+      },
+      {
+        "from": 12,
+        "to": 13,
+        "label": "data_dep: guild"
+      },
+      {
+        "from": 11,
+        "to": 14,
+        "label": "data_dep: log"
+      },
+      {
+        "from": 11,
+        "to": 15,
+        "label": "data_dep: log"
+      },
+      {
+        "from": 11,
+        "to": 16,
+        "label": "data_dep: log"
+      },
+      {
+        "from": 11,
+        "to": 17,
+        "label": "data_dep: log"
+      }
+    ]
+  },
+  {
+    "name": "process_contributions",
+    "inputs": [
+      "ctx: Context < ProcessContributions >"
+    ],
+    "nodes": [
+      {
+        "id": 20,
+        "label": "Entry"
+      },
+      {
+        "id": 21,
+        "label": "let guild = & mut ctx . accounts . guild ;"
+      },
+      {
+        "id": 22,
+        "label": "let logs = & mut ctx . accounts . logs ;"
+      },
+      {
+        "id": 23,
+        "label": "let mut processed_count = 0 ;"
+      },
+      {
+        "id": 24,
+        "label": "let mut total_points_gained : u64 = 0 ;"
+      },
+      {
+        "id": 25,
+        "label": "let mut base_points_sum : u32 = 0 ;"
+      },
+      {
+        "id": 26,
+        "label": "let mut log_indices_to_remove = Vec :: new () ;"
+      },
+      {
+        "id": 27,
+        "label": "let num_logs = logs . data . len () ;"
+      },
+      {
+        "id": 28,
+        "label": "let loop_limit = (num_logs as u8) . min (10) ;"
+      },
+      {
+        "id": 29,
+        "label": "for i in 0 .. (loop_limit as usize) { let log = & mut logs . data [i] ; if ! log . is_processed { let bonus_multiplier : u64 = if log . base_points > 1000 { 150 } else { 100 } ; let final_points = (log . base_points as u64) * bonus_multiplier / 100 ; if final_points > 5000 { guild . total_contribution_points = guild . total_contribution_points . saturating_add (5000) ; msg ! (\"Points capped at 5000 for log {}\" , log . log_id) ; log . is_processed = true ; total_points_gained += 5000 ; base_points_sum = base_points_sum . saturating_add (log . base_points) ; log_indices_to_remove . push (i) ; processed_count += 1 ; } else { guild . total_contribution_points = guild . total_contribution_points . saturating_add (final_points) ; log . is_processed = true ; total_points_gained += final_points ; base_points_sum = base_points_sum . saturating_add (log . base_points) ; log_indices_to_remove . push (i) ; processed_count += 1 ; } } }"
+      },
+      {
+        "id": 30,
+        "label": "let log = & mut logs . data [i] ;"
+      },
+      {
+        "id": 31,
+        "label": "if ! log . is_processed { let bonus_multiplier : u64 = if log . base_points > 1000 { 150 } else { 100 } ; let final_points = (log . base_points as u64) * bonus_multiplier / 100 ; if final_points > 5000 { guild . total_contribution_points = guild . total_contribution_points . saturating_add (5000) ; msg ! (\"Points capped at 5000 for log {}\" , log . log_id) ; log . is_processed = true ; total_points_gained += 5000 ; base_points_sum = base_points_sum . saturating_add (log . base_points) ; log_indices_to_remove . push (i) ; processed_count += 1 ; } else { guild . total_contribution_points = guild . total_contribution_points . saturating_add (final_points) ; log . is_processed = true ; total_points_gained += final_points ; base_points_sum = base_points_sum . saturating_add (log . base_points) ; log_indices_to_remove . push (i) ; processed_count += 1 ; } }"
+      },
+      {
+        "id": 32,
+        "label": "let bonus_multiplier : u64 = if log . base_points > 1000 { 150 } else { 100 } ;"
+      },
+      {
+        "id": 33,
+        "label": "150"
+      },
+      {
+        "id": 34,
+        "label": "100"
+      },
+      {
+        "id": 35,
+        "label": "let final_points = (log . base_points as u64) * bonus_multiplier / 100 ;"
+      },
+      {
+        "id": 36,
+        "label": "if final_points > 5000 { guild . total_contribution_points = guild . total_contribution_points . saturating_add (5000) ; msg ! (\"Points capped at 5000 for log {}\" , log . log_id) ; log . is_processed = true ; total_points_gained += 5000 ; base_points_sum = base_points_sum . saturating_add (log . base_points) ; log_indices_to_remove . push (i) ; processed_count += 1 ; } else { guild . total_contribution_points = guild . total_contribution_points . saturating_add (final_points) ; log . is_processed = true ; total_points_gained += final_points ; base_points_sum = base_points_sum . saturating_add (log . base_points) ; log_indices_to_remove . push (i) ; processed_count += 1 ; }"
+      },
+      {
+        "id": 37,
+        "label": "guild . total_contribution_points = guild . total_contribution_points . saturating_add (5000) ;"
+      },
+      {
+        "id": 38,
+        "label": "msg ! (\"Points capped at 5000 for log {}\" , log . log_id) ;"
+      },
+      {
+        "id": 39,
+        "label": "log . is_processed = true ;"
+      },
+      {
+        "id": 40,
+        "label": "total_points_gained += 5000 ;"
+      },
+      {
+        "id": 41,
+        "label": "base_points_sum = base_points_sum . saturating_add (log . base_points) ;"
+      },
+      {
+        "id": 42,
+        "label": "log_indices_to_remove . push (i) ;"
+      },
+      {
+        "id": 43,
+        "label": "processed_count += 1 ;"
+      },
+      {
+        "id": 44,
+        "label": "guild . total_contribution_points = guild . total_contribution_points . saturating_add (final_points) ;"
+      },
+      {
+        "id": 45,
+        "label": "log . is_processed = true ;"
+      },
+      {
+        "id": 46,
+        "label": "total_points_gained += final_points ;"
+      },
+      {
+        "id": 47,
+        "label": "base_points_sum = base_points_sum . saturating_add (log . base_points) ;"
+      },
+      {
+        "id": 48,
+        "label": "log_indices_to_remove . push (i) ;"
+      },
+      {
+        "id": 49,
+        "label": "processed_count += 1 ;"
+      },
+      {
+        "id": 50,
+        "label": "log_indices_to_remove . sort_by (| a , b | b . cmp (a)) ;"
+      },
+      {
+        "id": 51,
+        "label": "for index in log_indices_to_remove { logs . data . remove (index) ; }"
+      },
+      {
+        "id": 52,
+        "label": "logs . data . remove (index) ;"
+      },
+      {
+        "id": 53,
+        "label": "msg ! (\"Processed {} logs, adding {} points to guild. New total: {}\" , processed_count , total_points_gained , guild . total_contribution_points) ;"
+      },
+      {
+        "id": 54,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 21,
+        "to": 21,
+        "label": "def: guild"
+      },
+      {
+        "from": 22,
+        "to": 22,
+        "label": "def: logs"
+      },
+      {
+        "from": 23,
+        "to": 23,
+        "label": "def: processed_count"
+      },
+      {
+        "from": 26,
+        "to": 26,
+        "label": "def: log_indices_to_remove"
+      },
+      {
+        "from": 27,
+        "to": 27,
+        "label": "def: num_logs"
+      },
+      {
+        "from": 22,
+        "to": 27,
+        "label": "data_dep: logs"
+      },
+      {
+        "from": 28,
+        "to": 28,
+        "label": "def: loop_limit"
+      },
+      {
+        "from": 27,
+        "to": 28,
+        "label": "data_dep: num_logs"
+      },
+      {
+        "from": 28,
+        "to": 29,
+        "label": "data_dep: loop_limit"
+      },
+      {
+        "from": 22,
+        "to": 29,
+        "label": "data_dep: logs"
+      },
+      {
+        "from": 21,
+        "to": 29,
+        "label": "data_dep: guild"
+      },
+      {
+        "from": 21,
+        "to": 29,
+        "label": "data_dep: guild"
+      },
+      {
+        "from": 26,
+        "to": 29,
+        "label": "data_dep: log_indices_to_remove"
+      },
+      {
+        "from": 23,
+        "to": 29,
+        "label": "data_dep: processed_count"
+      },
+      {
+        "from": 21,
+        "to": 29,
+        "label": "data_dep: guild"
+      },
+      {
+        "from": 21,
+        "to": 29,
+        "label": "data_dep: guild"
+      },
+      {
+        "from": 26,
+        "to": 29,
+        "label": "data_dep: log_indices_to_remove"
+      },
+      {
+        "from": 23,
+        "to": 29,
+        "label": "data_dep: processed_count"
+      },
+      {
+        "from": 30,
+        "to": 30,
+        "label": "def: log"
+      },
+      {
+        "from": 22,
+        "to": 30,
+        "label": "data_dep: logs"
+      },
+      {
+        "from": 30,
+        "to": 31,
+        "label": "data_dep: log"
+      },
+      {
+        "from": 30,
+        "to": 31,
+        "label": "data_dep: log"
+      },
+      {
+        "from": 30,
+        "to": 31,
+        "label": "data_dep: log"
+      },
+      {
+        "from": 21,
+        "to": 31,
+        "label": "data_dep: guild"
+      },
+      {
+        "from": 21,
+        "to": 31,
+        "label": "data_dep: guild"
+      },
+      {
+        "from": 30,
+        "to": 31,
+        "label": "data_dep: log"
+      },
+      {
+        "from": 30,
+        "to": 31,
+        "label": "data_dep: log"
+      },
+      {
+        "from": 26,
+        "to": 31,
+        "label": "data_dep: log_indices_to_remove"
+      },
+      {
+        "from": 23,
+        "to": 31,
+        "label": "data_dep: processed_count"
+      },
+      {
+        "from": 21,
+        "to": 31,
+        "label": "data_dep: guild"
+      },
+      {
+        "from": 21,
+        "to": 31,
+        "label": "data_dep: guild"
+      },
+      {
+        "from": 30,
+        "to": 31,
+        "label": "data_dep: log"
+      },
+      {
+        "from": 30,
+        "to": 31,
+        "label": "data_dep: log"
+      },
+      {
+        "from": 26,
+        "to": 31,
+        "label": "data_dep: log_indices_to_remove"
+      },
+      {
+        "from": 23,
+        "to": 31,
+        "label": "data_dep: processed_count"
+      },
+      {
+        "from": 30,
+        "to": 32,
+        "label": "data_dep: log"
+      },
+      {
+        "from": 35,
+        "to": 35,
+        "label": "def: final_points"
+      },
+      {
+        "from": 30,
+        "to": 35,
+        "label": "data_dep: log"
+      },
+      {
+        "from": 35,
+        "to": 36,
+        "label": "data_dep: final_points"
+      },
+      {
+        "from": 21,
+        "to": 36,
+        "label": "data_dep: guild"
+      },
+      {
+        "from": 21,
+        "to": 36,
+        "label": "data_dep: guild"
+      },
+      {
+        "from": 30,
+        "to": 36,
+        "label": "data_dep: log"
+      },
+      {
+        "from": 30,
+        "to": 36,
+        "label": "data_dep: log"
+      },
+      {
+        "from": 26,
+        "to": 36,
+        "label": "data_dep: log_indices_to_remove"
+      },
+      {
+        "from": 23,
+        "to": 36,
+        "label": "data_dep: processed_count"
+      },
+      {
+        "from": 21,
+        "to": 36,
+        "label": "data_dep: guild"
+      },
+      {
+        "from": 21,
+        "to": 36,
+        "label": "data_dep: guild"
+      },
+      {
+        "from": 35,
+        "to": 36,
+        "label": "data_dep: final_points"
+      },
+      {
+        "from": 30,
+        "to": 36,
+        "label": "data_dep: log"
+      },
+      {
+        "from": 35,
+        "to": 36,
+        "label": "data_dep: final_points"
+      },
+      {
+        "from": 30,
+        "to": 36,
+        "label": "data_dep: log"
+      },
+      {
+        "from": 26,
+        "to": 36,
+        "label": "data_dep: log_indices_to_remove"
+      },
+      {
+        "from": 23,
+        "to": 36,
+        "label": "data_dep: processed_count"
+      },
+      {
+        "from": 21,
+        "to": 37,
+        "label": "data_dep: guild"
+      },
+      {
+        "from": 21,
+        "to": 37,
+        "label": "data_dep: guild"
+      },
+      {
+        "from": 30,
+        "to": 39,
+        "label": "data_dep: log"
+      },
+      {
+        "from": 30,
+        "to": 41,
+        "label": "data_dep: log"
+      },
+      {
+        "from": 26,
+        "to": 42,
+        "label": "data_dep: log_indices_to_remove"
+      },
+      {
+        "from": 23,
+        "to": 43,
+        "label": "data_dep: processed_count"
+      },
+      {
+        "from": 21,
+        "to": 44,
+        "label": "data_dep: guild"
+      },
+      {
+        "from": 21,
+        "to": 44,
+        "label": "data_dep: guild"
+      },
+      {
+        "from": 35,
+        "to": 44,
+        "label": "data_dep: final_points"
+      },
+      {
+        "from": 30,
+        "to": 45,
+        "label": "data_dep: log"
+      },
+      {
+        "from": 35,
+        "to": 46,
+        "label": "data_dep: final_points"
+      },
+      {
+        "from": 30,
+        "to": 47,
+        "label": "data_dep: log"
+      },
+      {
+        "from": 26,
+        "to": 48,
+        "label": "data_dep: log_indices_to_remove"
+      },
+      {
+        "from": 23,
+        "to": 49,
+        "label": "data_dep: processed_count"
+      },
+      {
+        "from": 26,
+        "to": 50,
+        "label": "data_dep: log_indices_to_remove"
+      },
+      {
+        "from": 26,
+        "to": 51,
+        "label": "data_dep: log_indices_to_remove"
+      },
+      {
+        "from": 22,
+        "to": 51,
+        "label": "data_dep: logs"
+      },
+      {
+        "from": 22,
+        "to": 52,
+        "label": "data_dep: logs"
+      }
+    ]
+  }
+]

@@ -1,0 +1,199 @@
+[
+  {
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Init >",
+      "quota: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let st = & mut ctx . accounts . state ;",
+      "st . owner = ctx . accounts . owner . key () ;",
+      "st . quota = quota ;",
+      "st . turn = 7 ;",
+      "st . metric = quota . wrapping_add (29) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "set_flag",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SetFlag >",
+      "tag: Pubkey"
+    ],
+    "attributes": [],
+    "body": [
+      "let st = & mut ctx . accounts . state ;",
+      "require_keys_eq ! (st . owner , ctx . accounts . owner . key () , ErrorCode :: Denied) ;",
+      "st . flag = tag ;",
+      "st . turn = st . turn . wrapping_add (5) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "route",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Route >",
+      "energy: u64",
+      "cycles: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let st = & mut ctx . accounts . state ;",
+      "if energy < 5",
+      "{",
+      "st . turn = st . turn . wrapping_mul (2) ;",
+      "st . metric = st . metric ^ 0x55 ;",
+      "return Ok (()) ;",
+      "}",
+      "let mut remain = energy ;",
+      "let mut i = 0u8 ;",
+      "while i < cycles",
+      "{",
+      "let part = (remain / 4) . max (5) ;",
+      "if part >= remain",
+      "{",
+      "break ;",
+      "} let ix = token_ix :: transfer (& st . flag , & ctx . accounts . tank . key () , & ctx . accounts . consumer . key () , & ctx . accounts . owner . key () , & [] , part ,) ? ;",
+      "let p = ctx . remaining_accounts . get (0) . ok_or (ErrorCode :: NoProgram) ? ;",
+      "invoke (& ix , & [p . clone () , ctx . accounts . tank . to_account_info () , ctx . accounts . consumer . to_account_info () , ctx . accounts . owner . to_account_info () ,] ,) ? ;",
+      "remain -= part ;",
+      "st . turn = st . turn . wrapping_add (1) ;",
+      "st . metric = st . metric . wrapping_add (part % 23) ;",
+      "i += 1 ;",
+      "if remain <= st . quota / 2",
+      "{",
+      "st . metric = st . metric . rotate_left (2) ;",
+      "} else",
+      "{",
+      "st . metric = st . metric . rotate_right (1) ;",
+      "}",
+      "}",
+      "if remain > 4",
+      "{",
+      "let ix2 = token_ix :: transfer (& st . flag , & ctx . accounts . tank . key () , & ctx . accounts . consumer . key () , & ctx . accounts . owner . key () , & [] , remain - 4 ,) ? ;",
+      "let p = ctx . remaining_accounts . get (0) . ok_or (ErrorCode :: NoProgram) ? ;",
+      "invoke (& ix2 , & [p . clone () , ctx . accounts . tank . to_account_info () , ctx . accounts . consumer . to_account_info () , ctx . accounts . owner . to_account_info () ,] ,) ? ;",
+      "st . metric = st . metric . wrapping_add (remain - 4) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "State",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "quota",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "turn",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "metric",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "flag",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Init",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "state",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 8 + 8 + 32)]",
+        "field_type": "Account < 'info , State >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SetFlag",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "state",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , State >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Route",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "state",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , State >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "tank",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "consumer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

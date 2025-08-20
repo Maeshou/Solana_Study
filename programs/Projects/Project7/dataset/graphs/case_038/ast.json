@@ -1,0 +1,176 @@
+[
+  {
+    "name": "init_guild",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitGuild >",
+      "monthly_due: u64",
+      "base_refund_bps: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let ledger_state = & mut ctx . accounts . ledger_state ;",
+      "ledger_state . leader = ctx . accounts . leader . key () ;",
+      "ledger_state . monthly_due = if monthly_due < 3 { 3 } else { monthly_due } ;",
+      "ledger_state . base_refund_bps = if base_refund_bps > 7000 { 7000 } else { base_refund_bps } ;",
+      "ledger_state . period_counter = 2 ;",
+      "ledger_state . net_collected = monthly_due + 5 ;",
+      "ledger_state . rollover_units = 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_cycle",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActCycle >",
+      "months: u8",
+      "request_refund: bool"
+    ],
+    "attributes": [],
+    "body": [
+      "let ledger_state = & mut ctx . accounts . ledger_state ;",
+      "let mut aggregate_due : u64 = ledger_state . monthly_due ;",
+      "let mut month_cursor : u8 = 1 ;",
+      "while month_cursor < months",
+      "{",
+      "let mut period_due : u64 = ledger_state . monthly_due ;",
+      "if month_cursor >= 3",
+      "{",
+      "period_due = period_due - (period_due / 20) ;",
+      "} if month_cursor >= 6",
+      "{",
+      "period_due = period_due - (period_due / 20) ;",
+      "} if month_cursor >= 9",
+      "{",
+      "period_due = period_due - (period_due / 20) ;",
+      "} aggregate_due = aggregate_due + period_due ;",
+      "month_cursor = month_cursor + 1 ;",
+      "}",
+      "if request_refund",
+      "{",
+      "let mut effective_bps : u64 = ledger_state . base_refund_bps as u64 ;",
+      "if ledger_state . period_counter % 2 == 0",
+      "{",
+      "effective_bps = effective_bps + 150 ;",
+      "} let refund_total : u64 = (aggregate_due as u128 * effective_bps as u128 / 10_000u128) as u64 ;",
+      "let rollover_part : u64 = refund_total / 10 ;",
+      "let immediate_refund : u64 = refund_total - rollover_part ;",
+      "token :: transfer (ctx . accounts . treasury_to_member_ctx () , immediate_refund) ? ;",
+      "ledger_state . rollover_units = ledger_state . rollover_units + rollover_part ;",
+      "ledger_state . net_collected = ledger_state . net_collected - immediate_refund ;",
+      "} else",
+      "{",
+      "let mut charge_amount : u64 = aggregate_due ;",
+      "if ledger_state . rollover_units > 0",
+      "{",
+      "let apply_units = core :: cmp :: min (ledger_state . rollover_units , charge_amount) ;",
+      "charge_amount = charge_amount - apply_units ;",
+      "ledger_state . rollover_units = ledger_state . rollover_units - apply_units ;",
+      "} token :: transfer (ctx . accounts . member_to_treasury_ctx () , charge_amount) ? ;",
+      "ledger_state . net_collected = ledger_state . net_collected + charge_amount ;",
+      "}",
+      "ledger_state . period_counter = ledger_state . period_counter + 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitGuild",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ledger_state",
+        "attribute": "# [account (init , payer = leader , space = 8 + 32 + 8 + 2 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , GuildLedger >"
+      },
+      {
+        "name": "leader",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActCycle",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ledger_state",
+        "attribute": "# [account (mut , has_one = leader)]",
+        "field_type": "Account < 'info , GuildLedger >"
+      },
+      {
+        "name": "leader",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "member_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "guild_treasury",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GuildLedger",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "leader",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "monthly_due",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "base_refund_bps",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "period_counter",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "net_collected",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "rollover_units",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

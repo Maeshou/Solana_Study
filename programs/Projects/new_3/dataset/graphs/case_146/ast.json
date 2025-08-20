@@ -1,0 +1,225 @@
+[
+  {
+    "name": "Dao",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "total_projects",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Project",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "creator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "dao",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "project_name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "funds_received",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "FundingRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "contributor",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "project",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "amount",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitializeDao",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "dao",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 8)]",
+        "field_type": "Account < 'info , Dao >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RegisterProject",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "dao",
+        "attribute": "# [doc = \" Dao.admin == admin.key() は検証される\"] # [account (mut , has_one = admin)]",
+        "field_type": "Account < 'info , Dao >"
+      },
+      {
+        "name": "project",
+        "attribute": "# [account (init , payer = creator , space = 8 + 32 + 32 + 4 + 64 + 8)]",
+        "field_type": "Account < 'info , Project >"
+      },
+      {
+        "name": "creator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AllocateFunds",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "dao",
+        "attribute": "# [doc = \" Dao.admin == admin.key() は検証される\"] # [account (mut , has_one = admin)]",
+        "field_type": "Account < 'info , Dao >"
+      },
+      {
+        "name": "project",
+        "attribute": "# [doc = \" Project.dao == dao.key() の検証が **ない**\"] # [account (mut)]",
+        "field_type": "Account < 'info , Project >"
+      },
+      {
+        "name": "funding",
+        "attribute": "# [doc = \" FundingRecord.project == project.key() の検証も **ない**\"] # [account (init_if_needed , payer = contributor , space = 8 + 32 + 32 + 8)]",
+        "field_type": "Account < 'info , FundingRecord >"
+      },
+      {
+        "name": "contributor",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "initialize_dao",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeDao >"
+    ],
+    "attributes": [
+      "# [doc = \" DAO を初期化\"]"
+    ],
+    "body": [
+      "let dao = & mut ctx . accounts . dao ;",
+      "dao . admin = ctx . accounts . admin . key () ;",
+      "dao . total_projects = 0 ;",
+      "msg ! (\"DAO initialized by {}\" , dao . admin) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "register_project",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RegisterProject >",
+      "name: String"
+    ],
+    "attributes": [
+      "# [doc = \" 新しいプロジェクトを登録\"]"
+    ],
+    "body": [
+      "let dao = & mut ctx . accounts . dao ;",
+      "let proj = & mut ctx . accounts . project ;",
+      "proj . creator = ctx . accounts . creator . key () ;",
+      "proj . dao = dao . key () ;",
+      "proj . project_name = name . clone () ;",
+      "proj . funds_received = 0 ;",
+      "dao . total_projects = dao . total_projects . checked_add (1) . unwrap () ;",
+      "msg ! (\"Project '{}' registered under DAO {}\" , name , dao . key ()) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "allocate_funds",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AllocateFunds >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" プロジェクトに資金を割り当て\"]"
+    ],
+    "body": [
+      "let dao = & mut ctx . accounts . dao ;",
+      "let proj = & mut ctx . accounts . project ;",
+      "let record = & mut ctx . accounts . funding ;",
+      "record . contributor = ctx . accounts . contributor . key () ;",
+      "record . project = proj . key () ;",
+      "record . amount = amount ;",
+      "proj . funds_received = proj . funds_received . checked_add (amount) . unwrap () ;",
+      "msg ! (\"DAO {} allocated {} lamports to project {}\" , dao . admin , amount , project . key ()) ;",
+      "Ok (())"
+    ]
+  }
+]

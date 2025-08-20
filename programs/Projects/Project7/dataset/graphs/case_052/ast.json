@@ -1,0 +1,141 @@
+[
+  {
+    "name": "init_monitor",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitMonitor >",
+      "step_units: u64",
+      "max_per_tx: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let monitor = & mut ctx . accounts . monitor ;",
+      "monitor . moderator = ctx . accounts . moderator . key () ;",
+      "monitor . step_units = if step_units < 1 { 1 } else { step_units } ;",
+      "monitor . max_per_tx = if max_per_tx < 2 { 2 } else { max_per_tx } ;",
+      "monitor . strike_count = 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_slash",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActSlash >",
+      "severity: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let monitor = & mut ctx . accounts . monitor ;",
+      "let mut computed = 0u64 ;",
+      "let mut s : u8 = 0 ;",
+      "while s < severity",
+      "{",
+      "computed = computed + monitor . step_units * (s as u64 + 1) ;",
+      "s = s + 1 ;",
+      "}",
+      "if computed > monitor . max_per_tx",
+      "{",
+      "computed = monitor . max_per_tx ;",
+      "}",
+      "if computed < 1",
+      "{",
+      "computed = 1 ;",
+      "}",
+      "token :: approve (ctx . accounts . approve_ctx () , computed) ? ;",
+      "token :: burn (ctx . accounts . burn_ctx () , computed) ? ;",
+      "token :: revoke (ctx . accounts . revoke_ctx ()) ? ;",
+      "monitor . strike_count = monitor . strike_count + 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitMonitor",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "monitor",
+        "attribute": "# [account (init , payer = moderator , space = 8 + 32 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , MonitorState >"
+      },
+      {
+        "name": "moderator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActSlash",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "monitor",
+        "attribute": "# [account (mut , has_one = moderator)]",
+        "field_type": "Account < 'info , MonitorState >"
+      },
+      {
+        "name": "moderator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "penalized_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "penalized_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MonitorState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "moderator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "step_units",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "max_per_tx",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "strike_count",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,15 +1,201 @@
 [
   {
-    "name": "InitPoolCtxbvdv",
+    "name": "create_service",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateService >",
+      "name: String",
+      "monthly_price: u64",
+      "features: Vec < String >"
+    ],
+    "attributes": [],
+    "body": [
+      "let service = & mut ctx . accounts . service ;",
+      "service . provider = ctx . accounts . provider . key () ;",
+      "service . name = name ;",
+      "service . monthly_price = monthly_price ;",
+      "service . features = features ;",
+      "service . is_active = true ;",
+      "service . subscriber_count = 0 ;",
+      "service . bump = * ctx . bumps . get (\"service\") . unwrap () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "subscribe",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Subscribe >",
+      "plan_duration: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let service = & mut ctx . accounts . service ;",
+      "let subscription = & mut ctx . accounts . subscription ;",
+      "require ! (service . is_active , SubscriptionError :: ServiceNotActive) ;",
+      "require ! (plan_duration > 0 && plan_duration <= 12 , SubscriptionError :: InvalidDuration) ;",
+      "let current_time = Clock :: get () ? . unix_timestamp ;",
+      "subscription . service = service . key () ;",
+      "subscription . subscriber = ctx . accounts . subscriber . key () ;",
+      "subscription . start_date = current_time ;",
+      "subscription . end_date = current_time + (plan_duration as i64 * 30 * 24 * 60 * 60) ;",
+      "subscription . monthly_price = service . monthly_price ;",
+      "subscription . is_active = true ;",
+      "subscription . auto_renew = false ;",
+      "subscription . bump = * ctx . bumps . get (\"subscription\") . unwrap () ;",
+      "service . subscriber_count += 1 ;",
+      "let total_cost = service . monthly_price * plan_duration as u64 ;",
+      "* * ctx . accounts . subscriber . lamports . borrow_mut () -= total_cost ;",
+      "* * ctx . accounts . provider . lamports . borrow_mut () += total_cost ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "renew_subscription",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RenewSubscription >",
+      "plan_duration: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let subscription = & mut ctx . accounts . subscription ;",
+      "let service = & ctx . accounts . service ;",
+      "require ! (subscription . is_active , SubscriptionError :: SubscriptionNotActive) ;",
+      "require ! (plan_duration > 0 && plan_duration <= 12 , SubscriptionError :: InvalidDuration) ;",
+      "let current_time = Clock :: get () ? . unix_timestamp ;",
+      "let new_end_date = if current_time > subscription . end_date { current_time + (plan_duration as i64 * 30 * 24 * 60 * 60) } else { subscription . end_date + (plan_duration as i64 * 30 * 24 * 60 * 60) } ;",
+      "subscription . end_date = new_end_date ;",
+      "let total_cost = service . monthly_price * plan_duration as u64 ;",
+      "* * ctx . accounts . subscriber . lamports . borrow_mut () -= total_cost ;",
+      "* * ctx . accounts . provider . lamports . borrow_mut () += total_cost ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "cancel_subscription",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CancelSubscription >"
+    ],
+    "attributes": [],
+    "body": [
+      "let subscription = & mut ctx . accounts . subscription ;",
+      "let service = & mut ctx . accounts . service ;",
+      "subscription . is_active = false ;",
+      "subscription . auto_renew = false ;",
+      "service . subscriber_count -= 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Service",
     "node_type": "struct",
     "fields": [
       {
-        "name": "pool_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
+        "name": "provider",
+        "attribute": null,
+        "field_type": "Pubkey"
       },
       {
-        "name": "authority",
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "monthly_price",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "features",
+        "attribute": null,
+        "field_type": "Vec < String >"
+      },
+      {
+        "name": "is_active",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "subscriber_count",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Subscription",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "service",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "subscriber",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "start_date",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "end_date",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "monthly_price",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "is_active",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "auto_renew",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreateService",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "service",
+        "attribute": "# [account (init , payer = provider , space = 8 + 32 + 4 + name . len () + 8 + 4 + (features . iter () . map (| f | 4 + f . len ()) . sum ::< usize > ()) + 1 + 8 + 1 , seeds = [b\"service\" , provider . key () . as_ref () , name . as_bytes ()] , bump)]",
+        "field_type": "Account < 'info , Service >"
+      },
+      {
+        "name": "provider",
         "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
       },
@@ -24,13 +210,33 @@
     "body": null
   },
   {
-    "name": "DataAccount",
+    "name": "Subscribe",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data",
+        "name": "service",
+        "attribute": "# [account (mut , seeds = [b\"service\" , service . provider . as_ref () , service . name . as_bytes ()] , bump = service . bump)]",
+        "field_type": "Account < 'info , Service >"
+      },
+      {
+        "name": "subscription",
+        "attribute": "# [account (init , payer = subscriber , space = 8 + 32 + 32 + 8 + 8 + 8 + 1 + 1 + 1 , seeds = [b\"subscription\" , service . key () . as_ref () , subscriber . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Subscription >"
+      },
+      {
+        "name": "subscriber",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "provider",
+        "attribute": "# [doc = \" CHECK: Verified through service provider field\"] # [account (mut , constraint = provider . key () == service . provider)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -38,19 +244,56 @@
     "body": null
   },
   {
-    "name": "init_pool",
-    "node_type": "function",
-    "fields": null,
-    "inputs": [
-      "ctx: Context < InitPoolCtxbvdv >",
-      "amount: u64"
+    "name": "RenewSubscription",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "service",
+        "attribute": "# [account (seeds = [b\"service\" , service . provider . as_ref () , service . name . as_bytes ()] , bump = service . bump)]",
+        "field_type": "Account < 'info , Service >"
+      },
+      {
+        "name": "subscription",
+        "attribute": "# [account (mut , seeds = [b\"subscription\" , service . key () . as_ref () , subscriber . key () . as_ref ()] , bump = subscription . bump , constraint = subscription . subscriber == subscriber . key ())]",
+        "field_type": "Account < 'info , Subscription >"
+      },
+      {
+        "name": "subscriber",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "provider",
+        "attribute": "# [doc = \" CHECK: Verified through service provider field\"] # [account (mut , constraint = provider . key () == service . provider)]",
+        "field_type": "AccountInfo < 'info >"
+      }
     ],
-    "attributes": [],
-    "body": [
-      "let acct = & mut ctx . accounts . pool_account ;",
-      "for _ in 0 .. amount { acct . data += 1 ; }",
-      "msg ! (\"Executed init_pool logic\") ;",
-      "Ok (())"
-    ]
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CancelSubscription",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "service",
+        "attribute": "# [account (mut , seeds = [b\"service\" , service . provider . as_ref () , service . name . as_bytes ()] , bump = service . bump)]",
+        "field_type": "Account < 'info , Service >"
+      },
+      {
+        "name": "subscription",
+        "attribute": "# [account (mut , seeds = [b\"subscription\" , service . key () . as_ref () , subscriber . key () . as_ref ()] , bump = subscription . bump , constraint = subscription . subscriber == subscriber . key ())]",
+        "field_type": "Account < 'info , Subscription >"
+      },
+      {
+        "name": "subscriber",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
   }
 ]

@@ -1,0 +1,181 @@
+[
+  {
+    "name": "Warehouse",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "capacity",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "StockEntry",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "item_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "warehouse",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "quantity",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AddWarehouse",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "warehouse",
+        "attribute": "# [account (init , payer = manager , space = 8 + 32 + 8)]",
+        "field_type": "Account < 'info , Warehouse >"
+      },
+      {
+        "name": "manager",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AddStock",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "warehouse",
+        "attribute": "# [doc = \" Warehouse.manager == manager.key() は検証される\"] # [account (mut , has_one = manager)]",
+        "field_type": "Account < 'info , Warehouse >"
+      },
+      {
+        "name": "stock_entry",
+        "attribute": "# [account (init , payer = manager , space = 8 + 8 + 32 + 8)]",
+        "field_type": "Account < 'info , StockEntry >"
+      },
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DispatchStock",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "warehouse",
+        "attribute": "# [doc = \" Warehouse.manager == manager.key() は検証される\"] # [account (mut , has_one = manager)]",
+        "field_type": "Account < 'info , Warehouse >"
+      },
+      {
+        "name": "stock_entry",
+        "attribute": "# [doc = \" StockEntry.warehouse == warehouse.key() の検証がないため、\"] # [doc = \" 任意の stock_entry を渡されるとすり抜けられる\"] # [account (mut)]",
+        "field_type": "Account < 'info , StockEntry >"
+      },
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "add_warehouse",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AddWarehouse >",
+      "capacity: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 倉庫を作成\"]"
+    ],
+    "body": [
+      "let w = & mut ctx . accounts . warehouse ;",
+      "w . manager = ctx . accounts . manager . key () ;",
+      "w . capacity = capacity ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "add_stock",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AddStock >",
+      "item_id: u64",
+      "quantity: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 在庫を追加\"]"
+    ],
+    "body": [
+      "let w = & mut ctx . accounts . warehouse ;",
+      "let s = & mut ctx . accounts . stock_entry ;",
+      "s . item_id = item_id ;",
+      "s . warehouse = w . key () ;",
+      "s . quantity = quantity ;",
+      "w . capacity = w . capacity . checked_sub (quantity) . unwrap () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "dispatch_stock",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < DispatchStock >",
+      "quantity: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 在庫を出庫\"]"
+    ],
+    "body": [
+      "let w = & mut ctx . accounts . warehouse ;",
+      "let s = & mut ctx . accounts . stock_entry ;",
+      "s . quantity = s . quantity . checked_sub (quantity) . unwrap () ;",
+      "w . capacity = w . capacity . checked_add (quantity) . unwrap () ;",
+      "Ok (())"
+    ]
+  }
+]

@@ -1,0 +1,165 @@
+[
+  {
+    "name": "start",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Start >",
+      "rate_per_hour: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let r = & mut ctx . accounts . rental ;",
+      "r . lessor = ctx . accounts . lessor . key () ;",
+      "r . rate = rate_per_hour ;",
+      "r . hours = 0 ;",
+      "r . collected = 0 ;",
+      "r . buffer = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "report_and_pay",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ReportAndPay >",
+      "used: u32",
+      "memo: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let r = & mut ctx . accounts . rental ;",
+      "require ! (r . lessor == ctx . accounts . lessor . key () , Errs :: Lessor) ;",
+      "if used > 0",
+      "{",
+      "let mut i = 0 ;",
+      "while i < used",
+      "{",
+      "r . hours = r . hours . saturating_add (1) ;",
+      "if i % 5 == 0",
+      "{",
+      "r . buffer = r . buffer . saturating_add (1) ;",
+      "} i = i . saturating_add (1) ;",
+      "} if memo . len () > 4",
+      "{",
+      "r . buffer = r . buffer . saturating_add (memo . len () as u32) ;",
+      "} } else",
+      "{",
+      "let mut j = 0 ;",
+      "while j < 3",
+      "{",
+      "if r . buffer > 0 { r . buffer = r . buffer . saturating_sub (1) ;",
+      "} j = j . saturating_add (1) ;",
+      "} r . hours = r . hours . saturating_add (1) ;",
+      "}",
+      "let mut due = (r . hours as u64) . saturating_mul (r . rate) ;",
+      "if r . buffer as u64 > due / 2",
+      "{",
+      "let mut addon = 0u64 ;",
+      "let mut k = 0 ;",
+      "while k < 4",
+      "{",
+      "addon = addon . saturating_add ((k + 1) as u64) ;",
+      "k = k . saturating_add (1) ;",
+      "} due = due . saturating_add (addon) ;",
+      "}",
+      "r . collected = r . collected . saturating_add (due) ;",
+      "let ix = spl_token :: instruction :: transfer (ctx . accounts . token_program . key () , ctx . accounts . vault . key () , ctx . accounts . rentee_ata . key () , ctx . accounts . lessor . key () , & [] , due ,) ? ;",
+      "invoke (& ix , & [ctx . accounts . vault . to_account_info () , ctx . accounts . rentee_ata . to_account_info () , ctx . accounts . lessor . to_account_info () ,]) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Rental",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "lessor",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "rate",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "hours",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "collected",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "buffer",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Start",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "rental",
+        "attribute": "# [account (init , payer = lessor , space = 8 + 32 + 8 + 4 + 8 + 4)]",
+        "field_type": "Account < 'info , Rental >"
+      },
+      {
+        "name": "lessor",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ReportAndPay",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "rental",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Rental >"
+      },
+      {
+        "name": "lessor",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "vault",
+        "attribute": "# [doc = \" CHECK:\"] # [account (mut)]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "rentee_ata",
+        "attribute": "# [doc = \" CHECK:\"] # [account (mut)]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

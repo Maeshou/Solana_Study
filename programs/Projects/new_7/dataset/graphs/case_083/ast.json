@@ -1,0 +1,209 @@
+[
+  {
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Init >",
+      "quota: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let router_state = & mut ctx . accounts . router_state ;",
+      "router_state . owner_authority = ctx . accounts . owner_authority . key () ;",
+      "router_state . energy_quota = quota ;",
+      "router_state . turn_counter = 7 ;",
+      "router_state . metric_accumulator = quota . wrapping_add (29) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "set_flag",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SetFlag >",
+      "tag: Pubkey"
+    ],
+    "attributes": [],
+    "body": [
+      "let router_state = & mut ctx . accounts . router_state ;",
+      "require_keys_eq ! (router_state . owner_authority , ctx . accounts . owner_authority . key () , ErrorCode :: Denied) ;",
+      "router_state . route_flag = tag ;",
+      "router_state . turn_counter = router_state . turn_counter . wrapping_add (5) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "route",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Route >",
+      "energy: u64",
+      "cycles: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let router_state = & mut ctx . accounts . router_state ;",
+      "if energy < 5",
+      "{",
+      "router_state . turn_counter = router_state . turn_counter . wrapping_mul (2) ;",
+      "router_state . metric_accumulator = router_state . metric_accumulator ^ 0x55 ;",
+      "return Ok (()) ;",
+      "}",
+      "let mut remaining_energy = energy ;",
+      "let mut cycle_index : u8 = 0 ;",
+      "while cycle_index < cycles",
+      "{",
+      "let transfer_part = (remaining_energy / 4) . max (5) ;",
+      "if transfer_part >= remaining_energy",
+      "{",
+      "break ;",
+      "} let transfer_ix = token_ix :: transfer (& router_state . route_flag , & ctx . accounts . energy_tank . key () , & ctx . accounts . consumer_wallet . key () , & ctx . accounts . owner_authority . key () , & [] , transfer_part ,) ? ;",
+      "let external_program_ai = ctx . remaining_accounts . get (0) . ok_or (ErrorCode :: NoProgram) ? ;",
+      "invoke (& transfer_ix , & [external_program_ai . clone () , ctx . accounts . energy_tank . to_account_info () , ctx . accounts . consumer_wallet . to_account_info () , ctx . accounts . owner_authority . to_account_info () ,] ,) ? ;",
+      "remaining_energy = remaining_energy . saturating_sub (transfer_part) ;",
+      "router_state . turn_counter = router_state . turn_counter . wrapping_add (1) ;",
+      "router_state . metric_accumulator = router_state . metric_accumulator . wrapping_add (transfer_part % 23) ;",
+      "cycle_index = cycle_index . saturating_add (1) ;",
+      "if remaining_energy <= router_state . energy_quota / 2",
+      "{",
+      "router_state . metric_accumulator = router_state . metric_accumulator . rotate_left (2) ;",
+      "} else",
+      "{",
+      "router_state . metric_accumulator = router_state . metric_accumulator . rotate_right (1) ;",
+      "}",
+      "}",
+      "if remaining_energy > 4",
+      "{",
+      "let final_ix = token_ix :: transfer (& router_state . route_flag , & ctx . accounts . energy_tank . key () , & ctx . accounts . consumer_wallet . key () , & ctx . accounts . owner_authority . key () , & [] , remaining_energy - 4 ,) ? ;",
+      "let external_program_ai = ctx . remaining_accounts . get (0) . ok_or (ErrorCode :: NoProgram) ? ;",
+      "invoke (& final_ix , & [external_program_ai . clone () , ctx . accounts . energy_tank . to_account_info () , ctx . accounts . consumer_wallet . to_account_info () , ctx . accounts . owner_authority . to_account_info () ,] ,) ? ;",
+      "router_state . metric_accumulator = router_state . metric_accumulator . wrapping_add (remaining_energy - 4) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "RouterState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner_authority",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "energy_quota",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "turn_counter",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "metric_accumulator",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "route_flag",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Init",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "router_state",
+        "attribute": "# [account (init , payer = owner_authority , space = 8 + 32 + 8 + 8 + 8 + 32)]",
+        "field_type": "Account < 'info , RouterState >"
+      },
+      {
+        "name": "owner_authority",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "energy_tank",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "consumer_wallet",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SetFlag",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "router_state",
+        "attribute": "# [account (mut , has_one = owner_authority)]",
+        "field_type": "Account < 'info , RouterState >"
+      },
+      {
+        "name": "owner_authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Route",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "router_state",
+        "attribute": "# [account (mut , has_one = owner_authority)]",
+        "field_type": "Account < 'info , RouterState >"
+      },
+      {
+        "name": "owner_authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "energy_tank",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "consumer_wallet",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

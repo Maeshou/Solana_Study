@@ -1,0 +1,187 @@
+[
+  {
+    "name": "BookmarkList",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "items",
+        "attribute": null,
+        "field_type": "Vec < String >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BookmarkRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "list",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "url",
+        "attribute": null,
+        "field_type": "String"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreateList",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "list",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 4 + 64 + 4 + (4 + 128) * 100)]",
+        "field_type": "Account < 'info , BookmarkList >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AddBookmark",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "list",
+        "attribute": "# [doc = \" BookmarkList.owner == owner.key() は検証される\"] # [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , BookmarkList >"
+      },
+      {
+        "name": "record",
+        "attribute": "# [doc = \" BookmarkRecord.list ⇔ list.key() の検証がないため、\"] # [doc = \" 偽のレコードで任意のリストに追加できてしまう\"] # [account (init , payer = user , space = 8 + 32 + 32 + 4 + 256)]",
+        "field_type": "Account < 'info , BookmarkRecord >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ClearBookmarks",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "record",
+        "attribute": "# [doc = \" BookmarkRecord.user == user.key() は検証される\"] # [account (mut , has_one = user)]",
+        "field_type": "Account < 'info , BookmarkRecord >"
+      },
+      {
+        "name": "list",
+        "attribute": "# [doc = \" list.key() ⇔ record.list の検証がないため、\"] # [doc = \" 偽物のレコードで別リストをクリアできる\"] # [account (mut)]",
+        "field_type": "Account < 'info , BookmarkList >"
+      },
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "create_list",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateList >",
+      "name: String"
+    ],
+    "attributes": [
+      "# [doc = \" ブックマークリストを作成\"]"
+    ],
+    "body": [
+      "let lst = & mut ctx . accounts . list ;",
+      "lst . owner = ctx . accounts . owner . key () ;",
+      "lst . name = name ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "add_bookmark",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AddBookmark >",
+      "url: String"
+    ],
+    "attributes": [
+      "# [doc = \" ブックマークURLを追加\"]"
+    ],
+    "body": [
+      "let lst = & mut ctx . accounts . list ;",
+      "let rec = & mut ctx . accounts . record ;",
+      "rec . user = ctx . accounts . user . key () ;",
+      "rec . list = lst . key () ;",
+      "rec . url = url . clone () ;",
+      "lst . items . push (url) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "clear_bookmarks",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ClearBookmarks >"
+    ],
+    "attributes": [
+      "# [doc = \" 全ブックマークをクリア\"]"
+    ],
+    "body": [
+      "let lst = & mut ctx . accounts . list ;",
+      "lst . items . clear () ;",
+      "Ok (())"
+    ]
+  }
+]

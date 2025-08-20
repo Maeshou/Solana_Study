@@ -1,0 +1,153 @@
+[
+  {
+    "name": "init_pass",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitPass >",
+      "daily_cap: u64",
+      "base_level: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let pass = & mut ctx . accounts . pass ;",
+      "pass . admin_key = ctx . accounts . admin . key () ;",
+      "pass . daily_cap = daily_cap . max (5) ;",
+      "pass . current_level = base_level . max (2) ;",
+      "pass . total_units_charged = daily_cap . saturating_div (3) . max (3) ;",
+      "pass . day_streak = 4 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_charge",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActCharge >",
+      "base_units: u64",
+      "extra_days: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let pass = & mut ctx . accounts . pass ;",
+      "let mut cursor = 0u16 ;",
+      "while cursor < extra_days",
+      "{",
+      "if pass . day_streak < 30",
+      "{",
+      "pass . day_streak = pass . day_streak . saturating_add (1) ;",
+      "} cursor = cursor . saturating_add (1) ;",
+      "}",
+      "let mut grant_units = base_units . max (1) ;",
+      "if pass . day_streak % 5 == 0",
+      "{",
+      "grant_units = grant_units . saturating_add (2) ;",
+      "}",
+      "if pass . day_streak % 10 == 0",
+      "{",
+      "grant_units = grant_units . saturating_add (3) ;",
+      "}",
+      "if grant_units > pass . daily_cap",
+      "{",
+      "grant_units = pass . daily_cap ;",
+      "pass . current_level = pass . current_level . saturating_add (1) ;",
+      "}",
+      "token :: mint_to (ctx . accounts . mint_ctx () , grant_units) ? ;",
+      "pass . total_units_charged = pass . total_units_charged . saturating_add (grant_units) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitPass",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pass",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 8 + 4 + 8 + 8)]",
+        "field_type": "Account < 'info , PassState >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActCharge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pass",
+        "attribute": "# [account (mut , has_one = admin_key)]",
+        "field_type": "Account < 'info , PassState >"
+      },
+      {
+        "name": "admin_key",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "pass_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "user_pass_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PassState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin_key",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "daily_cap",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "current_level",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "total_units_charged",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "day_streak",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

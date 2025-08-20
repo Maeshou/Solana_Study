@@ -1,8 +1,8 @@
 [
   {
-    "name": "set_oracle",
+    "name": "init_escrow",
     "inputs": [
-      "ctx: Context < SetOracleCtxvrmr >",
+      "ctx: Context < InitEscrow >",
       "amount: u64"
     ],
     "nodes": [
@@ -12,18 +12,26 @@
       },
       {
         "id": 1,
-        "label": "let acct = & mut ctx . accounts . oracle ;"
+        "label": "let esc = & mut ctx . accounts . escrow ;"
       },
       {
         "id": 2,
-        "label": "* * ctx . accounts . oracle . to_account_info () . try_borrow_mut_lamports () ? += amount ;"
+        "label": "esc . depositor = ctx . accounts . depositor . key () ;"
       },
       {
         "id": 3,
-        "label": "msg ! (\"Executed set_oracle logic\") ;"
+        "label": "esc . amount = amount ;"
       },
       {
         "id": 4,
+        "label": "esc . is_ready = false ;"
+      },
+      {
+        "id": 5,
+        "label": "emit ! (EscrowCreated { depositor : esc . depositor , amount }) ;"
+      },
+      {
+        "id": 6,
         "label": "Ok (())"
       }
     ],
@@ -31,7 +39,191 @@
       {
         "from": 1,
         "to": 1,
-        "label": "def: acct"
+        "label": "def: esc"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: esc"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: esc"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: esc"
+      }
+    ]
+  },
+  {
+    "name": "deposit",
+    "inputs": [
+      "ctx: Context < Deposit >"
+    ],
+    "nodes": [
+      {
+        "id": 7,
+        "label": "Entry"
+      },
+      {
+        "id": 8,
+        "label": "let esc = & mut ctx . accounts . escrow ;"
+      },
+      {
+        "id": 9,
+        "label": "let ix = anchor_lang :: solana_program :: system_instruction :: transfer (& ctx . accounts . depositor . key () , & ctx . accounts . escrow_acc . key () , esc . amount ,) ;"
+      },
+      {
+        "id": 10,
+        "label": "anchor_lang :: solana_program :: program :: invoke (& ix , & [ctx . accounts . depositor . to_account_info () , ctx . accounts . escrow_acc . to_account_info () ,] ,) ? ;"
+      },
+      {
+        "id": 11,
+        "label": "esc . is_ready = true ;"
+      },
+      {
+        "id": 12,
+        "label": "emit ! (Deposited { by : esc . depositor , amount : esc . amount }) ;"
+      },
+      {
+        "id": 13,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 8,
+        "to": 8,
+        "label": "def: esc"
+      },
+      {
+        "from": 9,
+        "to": 9,
+        "label": "def: ix"
+      },
+      {
+        "from": 8,
+        "to": 9,
+        "label": "data_dep: esc"
+      },
+      {
+        "from": 9,
+        "to": 10,
+        "label": "data_dep: ix"
+      },
+      {
+        "from": 8,
+        "to": 11,
+        "label": "data_dep: esc"
+      }
+    ]
+  },
+  {
+    "name": "release",
+    "inputs": [
+      "ctx: Context < Release >"
+    ],
+    "nodes": [
+      {
+        "id": 14,
+        "label": "Entry"
+      },
+      {
+        "id": 15,
+        "label": "let esc = & ctx . accounts . escrow ;"
+      },
+      {
+        "id": 16,
+        "label": "require ! (esc . is_ready , ErrorCode :: NotReady) ;"
+      },
+      {
+        "id": 17,
+        "label": "* * ctx . accounts . recipient . lamports . borrow_mut () += esc . amount ;"
+      },
+      {
+        "id": 18,
+        "label": "* * ctx . accounts . escrow_acc . lamports . borrow_mut () -= esc . amount ;"
+      },
+      {
+        "id": 19,
+        "label": "emit ! (Released { to : ctx . accounts . recipient . key () , amount : esc . amount }) ;"
+      },
+      {
+        "id": 20,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 15,
+        "to": 15,
+        "label": "def: esc"
+      },
+      {
+        "from": 15,
+        "to": 17,
+        "label": "data_dep: esc"
+      },
+      {
+        "from": 15,
+        "to": 18,
+        "label": "data_dep: esc"
+      }
+    ]
+  },
+  {
+    "name": "refund",
+    "inputs": [
+      "ctx: Context < Release >"
+    ],
+    "nodes": [
+      {
+        "id": 21,
+        "label": "Entry"
+      },
+      {
+        "id": 22,
+        "label": "let esc = & ctx . accounts . escrow ;"
+      },
+      {
+        "id": 23,
+        "label": "require ! (! esc . is_ready , ErrorCode :: AlreadyDeposited) ;"
+      },
+      {
+        "id": 24,
+        "label": "* * ctx . accounts . depositor . lamports . borrow_mut () += esc . amount ;"
+      },
+      {
+        "id": 25,
+        "label": "* * ctx . accounts . escrow_acc . lamports . borrow_mut () -= esc . amount ;"
+      },
+      {
+        "id": 26,
+        "label": "emit ! (Refunded { to : esc . depositor , amount : esc . amount }) ;"
+      },
+      {
+        "id": 27,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 22,
+        "to": 22,
+        "label": "def: esc"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: esc"
+      },
+      {
+        "from": 22,
+        "to": 25,
+        "label": "data_dep: esc"
       }
     ]
   }

@@ -1,0 +1,168 @@
+[
+  {
+    "name": "initialize_equipment",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeEquipment >",
+      "item_id: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let equipment = & mut ctx . accounts . equipment ;",
+      "equipment . owner = ctx . accounts . owner . key () ;",
+      "equipment . item_id = item_id ;",
+      "equipment . level = 0 ;",
+      "equipment . enhancement_level = 0 ;",
+      "equipment . is_active = true ;",
+      "equipment . stat_boosts = [0 ; 4] ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "enhance_equipment",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < EnhanceEquipment >"
+    ],
+    "attributes": [],
+    "body": [
+      "let equipment = & mut ctx . accounts . equipment ;",
+      "let material = & mut ctx . accounts . material_token_account ;",
+      "if material . amount < 1",
+      "{",
+      "return err ! (ErrorCode :: NotEnoughMaterials) ;",
+      "}",
+      "let cpi_program = ctx . accounts . token_program . to_account_info () ;",
+      "let cpi_accounts = token :: Burn { mint : ctx . accounts . material_mint . to_account_info () , from : ctx . accounts . material_token_account . to_account_info () , authority : ctx . accounts . owner . to_account_info () , } ;",
+      "let cpi_ctx = CpiContext :: new (cpi_program , cpi_accounts) ;",
+      "token :: burn (cpi_ctx , 1) ? ;",
+      "let mut new_level = equipment . enhancement_level . checked_add (1) . unwrap () ;",
+      "equipment . enhancement_level = new_level ;",
+      "let stat_boost = new_level . checked_mul (2) . unwrap_or (u32 :: MAX) ;",
+      "equipment . stat_boosts [0] = stat_boost ;",
+      "equipment . stat_boosts [1] = stat_boost . wrapping_add (1) ;",
+      "for i in 0 .. 4",
+      "{",
+      "equipment . stat_boosts [i] = equipment . stat_boosts [i] . checked_add (new_level . into ()) . unwrap_or (u32 :: MAX) ;",
+      "}",
+      "let base_stat = 100u64 ;",
+      "let mut x = base_stat ;",
+      "for _ in 0 .. 5",
+      "{",
+      "x = (x + base_stat . checked_div (x) . unwrap_or (1)) / 2 ;",
+      "}",
+      "if equipment . enhancement_level % 5 == 0",
+      "{",
+      "msg ! (\"Major enhancement achieved!\") ;",
+      "} else",
+      "{",
+      "msg ! (\"Minor enhancement.\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializeEquipment",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "equipment",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 4 + 4 + 1 + 4 * 4 , owner = crate :: ID ,)]",
+        "field_type": "Account < 'info , Equipment >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EnhanceEquipment",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "equipment",
+        "attribute": "# [account (mut , has_one = owner ,)]",
+        "field_type": "Account < 'info , Equipment >"
+      },
+      {
+        "name": "material_token_account",
+        "attribute": "# [account (mut , constraint = material_token_account . mint == material_mint . key () @ ErrorCode :: MintMismatch , constraint = equipment_mint . key () != material_mint . key () @ ErrorCode :: CosplayBlocked ,)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "material_mint",
+        "attribute": "# [account (mut , owner = token :: ID ,)]",
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "equipment_mint",
+        "attribute": "# [account (owner = token :: ID ,)]",
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Equipment",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "item_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "level",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "enhancement_level",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "is_active",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "stat_boosts",
+        "attribute": null,
+        "field_type": "[u32 ; 4]"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

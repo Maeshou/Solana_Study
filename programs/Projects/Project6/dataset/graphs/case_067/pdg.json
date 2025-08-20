@@ -1,0 +1,656 @@
+[
+  {
+    "name": "init_stable",
+    "inputs": [
+      "ctx: Context < InitStable >",
+      "region: u16"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let s = & mut ctx . accounts . stable ;"
+      },
+      {
+        "id": 2,
+        "label": "s . owner = ctx . accounts . owner . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "s . region = region ;"
+      },
+      {
+        "id": 4,
+        "label": "s . rides = 0 ;"
+      },
+      {
+        "id": 5,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: s"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: s"
+      }
+    ]
+  },
+  {
+    "name": "register",
+    "inputs": [
+      "ctx: Context < Register >",
+      "role: RiderRole",
+      "tag: u8"
+    ],
+    "nodes": [
+      {
+        "id": 6,
+        "label": "Entry"
+      },
+      {
+        "id": 7,
+        "label": "let s = & mut ctx . accounts . stable ;"
+      },
+      {
+        "id": 8,
+        "label": "let r = & mut ctx . accounts . rider_a ;"
+      },
+      {
+        "id": 9,
+        "label": "r . stable = s . key () ;"
+      },
+      {
+        "id": 10,
+        "label": "r . role = role ;"
+      },
+      {
+        "id": 11,
+        "label": "r . tag = tag ;"
+      },
+      {
+        "id": 12,
+        "label": "r . energy = 100 ;"
+      },
+      {
+        "id": 13,
+        "label": "let m = & mut ctx . accounts . horse ;"
+      },
+      {
+        "id": 14,
+        "label": "m . stable = s . key () ;"
+      },
+      {
+        "id": 15,
+        "label": "m . mood = 50 ;"
+      },
+      {
+        "id": 16,
+        "label": "m . distance = 0 ;"
+      },
+      {
+        "id": 17,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 7,
+        "to": 7,
+        "label": "def: s"
+      },
+      {
+        "from": 8,
+        "to": 8,
+        "label": "def: r"
+      },
+      {
+        "from": 8,
+        "to": 9,
+        "label": "data_dep: r"
+      },
+      {
+        "from": 7,
+        "to": 9,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 8,
+        "to": 10,
+        "label": "data_dep: r"
+      },
+      {
+        "from": 8,
+        "to": 11,
+        "label": "data_dep: r"
+      },
+      {
+        "from": 8,
+        "to": 12,
+        "label": "data_dep: r"
+      },
+      {
+        "from": 13,
+        "to": 13,
+        "label": "def: m"
+      },
+      {
+        "from": 13,
+        "to": 14,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 7,
+        "to": 14,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 13,
+        "to": 15,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 13,
+        "to": 16,
+        "label": "data_dep: m"
+      }
+    ]
+  },
+  {
+    "name": "ride",
+    "inputs": [
+      "ctx: Context < Ride >",
+      "segments: Vec < u16 >"
+    ],
+    "nodes": [
+      {
+        "id": 18,
+        "label": "Entry"
+      },
+      {
+        "id": 19,
+        "label": "let s = & mut ctx . accounts . stable ;"
+      },
+      {
+        "id": 20,
+        "label": "let a = & mut ctx . accounts . actor ;"
+      },
+      {
+        "id": 21,
+        "label": "let b = & mut ctx . accounts . partner ;"
+      },
+      {
+        "id": 22,
+        "label": "let h = & mut ctx . accounts . horse ;"
+      },
+      {
+        "id": 23,
+        "label": "let log = & mut ctx . accounts . ride_log ;"
+      },
+      {
+        "id": 24,
+        "label": "let mut total : u32 = 0 ;"
+      },
+      {
+        "id": 25,
+        "label": "let mut mix : u16 = 0 ;"
+      },
+      {
+        "id": 26,
+        "label": "for seg in segments { total = total . saturating_add ((seg & 0x3FF) as u32) ; mix ^= seg . rotate_left (3) ^ 0x5A5A ; }"
+      },
+      {
+        "id": 27,
+        "label": "total = total . saturating_add ((seg & 0x3FF) as u32) ;"
+      },
+      {
+        "id": 28,
+        "label": "mix ^= seg . rotate_left (3) ^ 0x5A5A ;"
+      },
+      {
+        "id": 29,
+        "label": "let gain = total + (mix as u32 & 0xFF) ;"
+      },
+      {
+        "id": 30,
+        "label": "if a . role == Leader { a . energy = a . energy . saturating_add ((gain & 0x7F) as u16) ; b . energy = b . energy . saturating_add (((mix >> 2) & 0x7F) as u16) ; h . distance = h . distance . saturating_add ((gain / 2) as u32) ; s . rides = s . rides . saturating_add (1) ; msg ! (\"Leader branch: gain={}, aE={}, bE={}, dist={}\" , gain , a . energy , b . energy , h . distance) ; } else { a . energy = a . energy . saturating_add (((mix >> 1) & 0x7F) as u16) ; b . energy = b . energy . saturating_add ((gain & 0x7F) as u16) ; h . distance = h . distance . saturating_add ((gain / 3) as u32) ; s . rides = s . rides . saturating_add (1) ; msg ! (\"Support/Scout branch: gain={}, aE={}, bE={}, dist={}\" , gain , a . energy , b . energy , h . distance) ; }"
+      },
+      {
+        "id": 31,
+        "label": "a . energy = a . energy . saturating_add ((gain & 0x7F) as u16) ;"
+      },
+      {
+        "id": 32,
+        "label": "b . energy = b . energy . saturating_add (((mix >> 2) & 0x7F) as u16) ;"
+      },
+      {
+        "id": 33,
+        "label": "h . distance = h . distance . saturating_add ((gain / 2) as u32) ;"
+      },
+      {
+        "id": 34,
+        "label": "s . rides = s . rides . saturating_add (1) ;"
+      },
+      {
+        "id": 35,
+        "label": "msg ! (\"Leader branch: gain={}, aE={}, bE={}, dist={}\" , gain , a . energy , b . energy , h . distance) ;"
+      },
+      {
+        "id": 36,
+        "label": "a . energy = a . energy . saturating_add (((mix >> 1) & 0x7F) as u16) ;"
+      },
+      {
+        "id": 37,
+        "label": "b . energy = b . energy . saturating_add ((gain & 0x7F) as u16) ;"
+      },
+      {
+        "id": 38,
+        "label": "h . distance = h . distance . saturating_add ((gain / 3) as u32) ;"
+      },
+      {
+        "id": 39,
+        "label": "s . rides = s . rides . saturating_add (1) ;"
+      },
+      {
+        "id": 40,
+        "label": "msg ! (\"Support/Scout branch: gain={}, aE={}, bE={}, dist={}\" , gain , a . energy , b . energy , h . distance) ;"
+      },
+      {
+        "id": 41,
+        "label": "let mut x = (s . rides as u128) . max (1) ;"
+      },
+      {
+        "id": 42,
+        "label": "let mut i = 0 ;"
+      },
+      {
+        "id": 43,
+        "label": "while i < 3 { x = (x + (s . rides as u128 / x)) . max (1) / 2 ; i += 1 ; }"
+      },
+      {
+        "id": 44,
+        "label": "x = (x + (s . rides as u128 / x)) . max (1) / 2 ;"
+      },
+      {
+        "id": 45,
+        "label": "i += 1 ;"
+      },
+      {
+        "id": 46,
+        "label": "h . mood = (h . mood . saturating_add ((x as u16) & 0x3FF)) . min (2000) ;"
+      },
+      {
+        "id": 47,
+        "label": "log . stable = s . key () ;"
+      },
+      {
+        "id": 48,
+        "label": "log . index = (x as u32) . min (1_000_000) ;"
+      },
+      {
+        "id": 49,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 19,
+        "to": 19,
+        "label": "def: s"
+      },
+      {
+        "from": 20,
+        "to": 20,
+        "label": "def: a"
+      },
+      {
+        "from": 21,
+        "to": 21,
+        "label": "def: b"
+      },
+      {
+        "from": 22,
+        "to": 22,
+        "label": "def: h"
+      },
+      {
+        "from": 23,
+        "to": 23,
+        "label": "def: log"
+      },
+      {
+        "from": 29,
+        "to": 29,
+        "label": "def: gain"
+      },
+      {
+        "from": 20,
+        "to": 30,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 20,
+        "to": 30,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 20,
+        "to": 30,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 29,
+        "to": 30,
+        "label": "data_dep: gain"
+      },
+      {
+        "from": 21,
+        "to": 30,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 21,
+        "to": 30,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 22,
+        "to": 30,
+        "label": "data_dep: h"
+      },
+      {
+        "from": 22,
+        "to": 30,
+        "label": "data_dep: h"
+      },
+      {
+        "from": 29,
+        "to": 30,
+        "label": "data_dep: gain"
+      },
+      {
+        "from": 19,
+        "to": 30,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 19,
+        "to": 30,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 20,
+        "to": 30,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 20,
+        "to": 30,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 21,
+        "to": 30,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 21,
+        "to": 30,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 29,
+        "to": 30,
+        "label": "data_dep: gain"
+      },
+      {
+        "from": 22,
+        "to": 30,
+        "label": "data_dep: h"
+      },
+      {
+        "from": 22,
+        "to": 30,
+        "label": "data_dep: h"
+      },
+      {
+        "from": 29,
+        "to": 30,
+        "label": "data_dep: gain"
+      },
+      {
+        "from": 19,
+        "to": 30,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 19,
+        "to": 30,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 20,
+        "to": 31,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 20,
+        "to": 31,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 29,
+        "to": 31,
+        "label": "data_dep: gain"
+      },
+      {
+        "from": 21,
+        "to": 32,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 21,
+        "to": 32,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 22,
+        "to": 33,
+        "label": "data_dep: h"
+      },
+      {
+        "from": 22,
+        "to": 33,
+        "label": "data_dep: h"
+      },
+      {
+        "from": 29,
+        "to": 33,
+        "label": "data_dep: gain"
+      },
+      {
+        "from": 19,
+        "to": 34,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 19,
+        "to": 34,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 20,
+        "to": 36,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 20,
+        "to": 36,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 21,
+        "to": 37,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 21,
+        "to": 37,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 29,
+        "to": 37,
+        "label": "data_dep: gain"
+      },
+      {
+        "from": 22,
+        "to": 38,
+        "label": "data_dep: h"
+      },
+      {
+        "from": 22,
+        "to": 38,
+        "label": "data_dep: h"
+      },
+      {
+        "from": 29,
+        "to": 38,
+        "label": "data_dep: gain"
+      },
+      {
+        "from": 19,
+        "to": 39,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 19,
+        "to": 39,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 41,
+        "to": 41,
+        "label": "def: x"
+      },
+      {
+        "from": 19,
+        "to": 41,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 42,
+        "to": 42,
+        "label": "def: i"
+      },
+      {
+        "from": 42,
+        "to": 43,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 41,
+        "to": 43,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 41,
+        "to": 43,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 19,
+        "to": 43,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 41,
+        "to": 43,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 42,
+        "to": 43,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 41,
+        "to": 44,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 41,
+        "to": 44,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 19,
+        "to": 44,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 41,
+        "to": 44,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 42,
+        "to": 45,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 22,
+        "to": 46,
+        "label": "data_dep: h"
+      },
+      {
+        "from": 22,
+        "to": 46,
+        "label": "data_dep: h"
+      },
+      {
+        "from": 41,
+        "to": 46,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 23,
+        "to": 47,
+        "label": "data_dep: log"
+      },
+      {
+        "from": 19,
+        "to": 47,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 23,
+        "to": 48,
+        "label": "data_dep: log"
+      },
+      {
+        "from": 41,
+        "to": 48,
+        "label": "data_dep: x"
+      }
+    ]
+  }
+]

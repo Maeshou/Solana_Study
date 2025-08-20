@@ -1,0 +1,207 @@
+[
+  {
+    "name": "create_list",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateList >"
+    ],
+    "attributes": [
+      "# [doc = \" リマインダーリストの初期化\"]"
+    ],
+    "body": [
+      "let list = & mut ctx . accounts . reminder_list ;",
+      "list . owner = ctx . accounts . user . key () ;",
+      "list . reminders = Vec :: new () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "add_reminder",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AddReminder >",
+      "timestamp: i64",
+      "note: String"
+    ],
+    "attributes": [
+      "# [doc = \" リマインダーを追加\"]"
+    ],
+    "body": [
+      "let list = & mut ctx . accounts . reminder_list ;",
+      "let now = ctx . accounts . clock . unix_timestamp ;",
+      "if list . owner != ctx . accounts . user . key ()",
+      "{",
+      "return Err (ErrorCode :: Unauthorized . into ()) ;",
+      "}",
+      "if timestamp <= now",
+      "{",
+      "return Err (ErrorCode :: PastTimestamp . into ()) ;",
+      "}",
+      "if note . len () > 100",
+      "{",
+      "return Err (ErrorCode :: NoteTooLong . into ()) ;",
+      "}",
+      "if list . reminders . len () >= MAX_REMINDERS",
+      "{",
+      "return Err (ErrorCode :: LimitReached . into ()) ;",
+      "}",
+      "for entry in list . reminders . iter ()",
+      "{",
+      "if entry . timestamp == timestamp && entry . note == note",
+      "{",
+      "return Err (ErrorCode :: Duplicate . into ()) ;",
+      "}",
+      "}",
+      "list . reminders . push (ReminderItem { timestamp , note }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "remove_reminder",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RemoveReminder >",
+      "timestamp: i64",
+      "note: String"
+    ],
+    "attributes": [
+      "# [doc = \" リマインダーを削除\"]"
+    ],
+    "body": [
+      "let list = & mut ctx . accounts . reminder_list ;",
+      "if list . owner != ctx . accounts . user . key ()",
+      "{",
+      "return Err (ErrorCode :: Unauthorized . into ()) ;",
+      "}",
+      "let mut idx : Option < usize > = None ;",
+      "for (i , entry) in list . reminders . iter () . enumerate ()",
+      "{",
+      "if entry . timestamp == timestamp && entry . note == note",
+      "{",
+      "idx = Some (i) ;",
+      "break ;",
+      "}",
+      "}",
+      "if let Some (i) = idx",
+      "{",
+      "list . reminders . remove (i) ;",
+      "Ok (()) } else",
+      "{",
+      "Err (ErrorCode :: NotFound . into ())",
+      "}"
+    ]
+  },
+  {
+    "name": "CreateList",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "reminder_list",
+        "attribute": "# [doc = \" 二度同じリストを作れない（Reinit Attack 防止）\"] # [account (init , payer = user , space = 8 + 32 + 4 + (MAX_REMINDERS * (8 + 4 + 100)))]",
+        "field_type": "Account < 'info , ReminderList >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" リスト作成者（署名必須）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": "# [doc = \" 現在時刻取得用\"]",
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AddReminder",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "reminder_list",
+        "attribute": "# [doc = \" 型チェック＆Owner Check\"] # [account (mut)]",
+        "field_type": "Account < 'info , ReminderList >"
+      },
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Clock >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RemoveReminder",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "reminder_list",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , ReminderList >"
+      },
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ReminderList",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" このリストを操作できるユーザー\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "reminders",
+        "attribute": "# [doc = \" リマインダー項目のリスト\"]",
+        "field_type": "Vec < ReminderItem >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ReminderItem",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "timestamp",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "note",
+        "attribute": null,
+        "field_type": "String"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

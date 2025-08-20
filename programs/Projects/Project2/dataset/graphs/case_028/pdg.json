@@ -1,9 +1,10 @@
 [
   {
-    "name": "burn_nft",
+    "name": "initialize_escrow",
     "inputs": [
-      "ctx: Context < BurnNftCtxtiga >",
-      "amount: u64"
+      "ctx: Context < InitializeEscrow >",
+      "amount: u64",
+      "expected_amount: u64"
     ],
     "nodes": [
       {
@@ -12,50 +13,263 @@
       },
       {
         "id": 1,
-        "label": "let acct = & mut ctx . accounts . metadata ;"
+        "label": "require ! (ctx . accounts . initializer_deposit_token_account . owner == & token :: ID , ErrorCode :: InvalidInitializerTokenOwner) ;"
       },
       {
         "id": 2,
-        "label": "let temp = acct . data ;"
+        "label": "require ! (ctx . accounts . escrow_account . owner == & token :: ID , ErrorCode :: InvalidEscrowTokenOwner) ;"
       },
       {
         "id": 3,
-        "label": "acct . data = temp . checked_mul (2) . unwrap () ;"
+        "label": "let escrow_info = ctx . accounts . escrow_state . to_account_info () ;"
       },
       {
         "id": 4,
-        "label": "msg ! (\"Executed burn_nft logic\") ;"
+        "label": "require ! (escrow_info . owner == ctx . program_id , ErrorCode :: InvalidEscrowStateOwner) ;"
       },
       {
         "id": 5,
-        "label": "Ok (())"
+        "label": "let escrow_state = & mut ctx . accounts . escrow_state ;"
+      },
+      {
+        "id": 6,
+        "label": "escrow_state . initializer = ctx . accounts . initializer . key () ;"
+      },
+      {
+        "id": 7,
+        "label": "escrow_state . initializer_deposit_token_account = ctx . accounts . initializer_deposit_token_account . key () ;"
+      },
+      {
+        "id": 8,
+        "label": "escrow_state . initializer_receive_token_account = ctx . accounts . initializer_receive_token_account . key () ;"
+      },
+      {
+        "id": 9,
+        "label": "escrow_state . initializer_amount = amount ;"
+      },
+      {
+        "id": 10,
+        "label": "escrow_state . taker_amount = expected_amount ;"
+      },
+      {
+        "id": 11,
+        "label": "let transfer_instruction = Transfer { from : ctx . accounts . initializer_deposit_token_account . to_account_info () , to : ctx . accounts . escrow_account . to_account_info () , authority : ctx . accounts . initializer . to_account_info () , } ;"
+      },
+      {
+        "id": 12,
+        "label": "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , transfer_instruction ,) ;"
+      },
+      {
+        "id": 13,
+        "label": "token :: transfer (cpi_ctx , amount)"
       }
     ],
     "edges": [
       {
-        "from": 1,
-        "to": 1,
-        "label": "def: acct"
-      },
-      {
-        "from": 2,
-        "to": 2,
-        "label": "def: temp"
-      },
-      {
-        "from": 1,
-        "to": 2,
-        "label": "data_dep: acct"
-      },
-      {
-        "from": 1,
+        "from": 3,
         "to": 3,
-        "label": "data_dep: acct"
+        "label": "def: escrow_info"
       },
       {
-        "from": 2,
-        "to": 3,
-        "label": "data_dep: temp"
+        "from": 5,
+        "to": 5,
+        "label": "def: escrow_state"
+      },
+      {
+        "from": 5,
+        "to": 6,
+        "label": "data_dep: escrow_state"
+      },
+      {
+        "from": 5,
+        "to": 7,
+        "label": "data_dep: escrow_state"
+      },
+      {
+        "from": 5,
+        "to": 8,
+        "label": "data_dep: escrow_state"
+      },
+      {
+        "from": 5,
+        "to": 9,
+        "label": "data_dep: escrow_state"
+      },
+      {
+        "from": 5,
+        "to": 10,
+        "label": "data_dep: escrow_state"
+      },
+      {
+        "from": 11,
+        "to": 11,
+        "label": "def: transfer_instruction"
+      },
+      {
+        "from": 12,
+        "to": 12,
+        "label": "def: cpi_ctx"
+      },
+      {
+        "from": 11,
+        "to": 12,
+        "label": "data_dep: transfer_instruction"
+      },
+      {
+        "from": 12,
+        "to": 13,
+        "label": "data_dep: cpi_ctx"
+      }
+    ]
+  },
+  {
+    "name": "exchange",
+    "inputs": [
+      "ctx: Context < Exchange >"
+    ],
+    "nodes": [
+      {
+        "id": 14,
+        "label": "Entry"
+      },
+      {
+        "id": 15,
+        "label": "let escrow_state_info = ctx . accounts . escrow_state . to_account_info () ;"
+      },
+      {
+        "id": 16,
+        "label": "require ! (escrow_state_info . owner == ctx . program_id , ErrorCode :: InvalidEscrowStateOwner) ;"
+      },
+      {
+        "id": 17,
+        "label": "require ! (ctx . accounts . taker_deposit_token_account . owner == & token :: ID , ErrorCode :: InvalidTakerTokenOwner) ;"
+      },
+      {
+        "id": 18,
+        "label": "require ! (ctx . accounts . taker_receive_token_account . owner == & token :: ID , ErrorCode :: InvalidTakerReceiveTokenOwner) ;"
+      },
+      {
+        "id": 19,
+        "label": "let escrow_state = & ctx . accounts . escrow_state ;"
+      },
+      {
+        "id": 20,
+        "label": "let transfer_to_initializer = Transfer { from : ctx . accounts . taker_deposit_token_account . to_account_info () , to : ctx . accounts . initializer_receive_token_account . to_account_info () , authority : ctx . accounts . taker . to_account_info () , } ;"
+      },
+      {
+        "id": 21,
+        "label": "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , transfer_to_initializer ,) ;"
+      },
+      {
+        "id": 22,
+        "label": "token :: transfer (cpi_ctx , escrow_state . taker_amount) ? ;"
+      },
+      {
+        "id": 23,
+        "label": "let seeds = & [b\"escrow\" , escrow_state . initializer . as_ref () , & [ctx . accounts . escrow_state . bump] ,] ;"
+      },
+      {
+        "id": 24,
+        "label": "let signer = & [& seeds [..]] ;"
+      },
+      {
+        "id": 25,
+        "label": "let transfer_to_taker = Transfer { from : ctx . accounts . escrow_account . to_account_info () , to : ctx . accounts . taker_receive_token_account . to_account_info () , authority : ctx . accounts . escrow_state . to_account_info () , } ;"
+      },
+      {
+        "id": 26,
+        "label": "let cpi_ctx = CpiContext :: new_with_signer (ctx . accounts . token_program . to_account_info () , transfer_to_taker , signer ,) ;"
+      },
+      {
+        "id": 27,
+        "label": "token :: transfer (cpi_ctx , escrow_state . initializer_amount)"
+      }
+    ],
+    "edges": [
+      {
+        "from": 15,
+        "to": 15,
+        "label": "def: escrow_state_info"
+      },
+      {
+        "from": 19,
+        "to": 19,
+        "label": "def: escrow_state"
+      },
+      {
+        "from": 20,
+        "to": 20,
+        "label": "def: transfer_to_initializer"
+      },
+      {
+        "from": 21,
+        "to": 21,
+        "label": "def: cpi_ctx"
+      },
+      {
+        "from": 20,
+        "to": 21,
+        "label": "data_dep: transfer_to_initializer"
+      },
+      {
+        "from": 21,
+        "to": 22,
+        "label": "data_dep: cpi_ctx"
+      },
+      {
+        "from": 19,
+        "to": 22,
+        "label": "data_dep: escrow_state"
+      },
+      {
+        "from": 23,
+        "to": 23,
+        "label": "def: seeds"
+      },
+      {
+        "from": 19,
+        "to": 23,
+        "label": "data_dep: escrow_state"
+      },
+      {
+        "from": 24,
+        "to": 24,
+        "label": "def: signer"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "data_dep: seeds"
+      },
+      {
+        "from": 25,
+        "to": 25,
+        "label": "def: transfer_to_taker"
+      },
+      {
+        "from": 26,
+        "to": 26,
+        "label": "def: cpi_ctx"
+      },
+      {
+        "from": 25,
+        "to": 26,
+        "label": "data_dep: transfer_to_taker"
+      },
+      {
+        "from": 24,
+        "to": 26,
+        "label": "data_dep: signer"
+      },
+      {
+        "from": 26,
+        "to": 27,
+        "label": "data_dep: cpi_ctx"
+      },
+      {
+        "from": 19,
+        "to": 27,
+        "label": "data_dep: escrow_state"
       }
     ]
   }

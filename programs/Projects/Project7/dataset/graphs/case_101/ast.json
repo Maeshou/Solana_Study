@@ -1,0 +1,150 @@
+[
+  {
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Init >",
+      "unit_lamports: u64",
+      "unit_tokens: u64",
+      "toggle_external: bool"
+    ],
+    "attributes": [],
+    "body": [
+      "let st = & mut ctx . accounts . state ;",
+      "st . authority = ctx . accounts . authority . key () ;",
+      "st . unit_lamports = unit_lamports ;",
+      "st . unit_tokens = unit_tokens . max (1) ;",
+      "st . toggle_external = toggle_external ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "step",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Step >",
+      "rounds: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let st = & mut ctx . accounts . state ;",
+      "let mut i : u8 = 0 ;",
+      "while i < rounds",
+      "{",
+      "if st . toggle_external",
+      "{",
+      "system_program :: transfer (CpiContext :: new (ctx . accounts . system_program . to_account_info () , SysTransfer { from : ctx . accounts . payer . to_account_info () , to : ctx . accounts . recipient . to_account_info () , } ,) , st . unit_lamports) ? ;",
+      "} if ! st . toggle_external",
+      "{",
+      "token :: transfer (CpiContext :: new (ctx . accounts . token_program . to_account_info () , SplTransfer { from : ctx . accounts . source_tokens . to_account_info () , to : ctx . accounts . dest_tokens . to_account_info () , authority : ctx . accounts . authority . to_account_info () , } ,) , st . unit_tokens) ? ;",
+      "} st . toggle_external = ! st . toggle_external ;",
+      "i = i . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Init",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "state",
+        "attribute": "# [account (init , payer = authority , space = 8 + 32 + 8 + 8 + 1)]",
+        "field_type": "Account < 'info , SwitchState >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Step",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "state",
+        "attribute": "# [account (mut , has_one = authority)]",
+        "field_type": "Account < 'info , SwitchState >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "recipient",
+        "attribute": "# [doc = \" 受け取り先（任意のアカウントだが Account<T> で受ける）\"] # [account (mut)]",
+        "field_type": "Account < 'info , SystemAccount >"
+      },
+      {
+        "name": "source_tokens",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "dest_tokens",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SwitchState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "unit_lamports",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "unit_tokens",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "toggle_external",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -16,10 +16,10 @@ BASE_DIR = os.path.join(SCRIPT_DIR, "programs", "Projects")
 #EXTRACT_AST    = os.path.join(SCRIPT_DIR, "programs/Projects/src", "extract_ast_1")
 #EXTRACT_CFG    = os.path.join(SCRIPT_DIR, "programs/Projects/src", "extract_cfg.rs")
 #EXTRACT_PDG    = os.path.join(SCRIPT_DIR, "programs/Projects/src", "extract_pdg.rs")
-TOKENIZE_AST   = os.path.join(SCRIPT_DIR, "tokenize_ast.py")
+TOKENIZE_AST   = os.path.join(SCRIPT_DIR, "tokenize_ast2.py")#change to tokenize_ast 8.1
 JOINT1         = os.path.join(SCRIPT_DIR, "joint_graph_generater2.py")
 JOINT2         = os.path.join(SCRIPT_DIR, "second_joint_graph_generater.py")
-JOINT3         = os.path.join(SCRIPT_DIR, "third_joint_graph_generater.py")
+JOINT3         = os.path.join(SCRIPT_DIR, "third_joint_graph_generater.py")#change to third_joint_graph_generater_copy.py
 
 def process_file(input_path, graph_dir):
     """1ファイル分の一連処理を実行"""

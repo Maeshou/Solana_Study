@@ -1,0 +1,314 @@
+[
+  {
+    "name": "init_journal",
+    "inputs": [
+      "ctx: Context < InitJournal >",
+      "journal_id: u64",
+      "initial_pages: u32"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let journal = & mut ctx . accounts . journal_core ;"
+      },
+      {
+        "id": 2,
+        "label": "journal . journal_id = journal_id ^ 0xFEEDC0DE ;"
+      },
+      {
+        "id": 3,
+        "label": "journal . total_pages = initial_pages . saturating_add (INITIAL_PAGES_BONUS) ;"
+      },
+      {
+        "id": 4,
+        "label": "journal . sync_count = 0 ;"
+      },
+      {
+        "id": 5,
+        "label": "journal . is_complete = false ;"
+      },
+      {
+        "id": 6,
+        "label": "msg ! (\"Journal {} initialized with {} pages.\" , journal . journal_id , journal . total_pages) ;"
+      },
+      {
+        "id": 7,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: journal"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: journal"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: journal"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: journal"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: journal"
+      }
+    ]
+  },
+  {
+    "name": "init_entry",
+    "inputs": [
+      "ctx: Context < InitEntry >",
+      "entry_id: u64",
+      "content_hash: u64"
+    ],
+    "nodes": [
+      {
+        "id": 8,
+        "label": "Entry"
+      },
+      {
+        "id": 9,
+        "label": "let entry = & mut ctx . accounts . journal_entry ;"
+      },
+      {
+        "id": 10,
+        "label": "entry . parent_journal = ctx . accounts . journal_core . key () ;"
+      },
+      {
+        "id": 11,
+        "label": "entry . entry_id = entry_id + 1 ;"
+      },
+      {
+        "id": 12,
+        "label": "entry . content_hash = content_hash ;"
+      },
+      {
+        "id": 13,
+        "label": "entry . is_synced = false ;"
+      },
+      {
+        "id": 14,
+        "label": "msg ! (\"New entry {} created with hash {}.\" , entry . entry_id , entry . content_hash) ;"
+      },
+      {
+        "id": 15,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 9,
+        "to": 9,
+        "label": "def: entry"
+      },
+      {
+        "from": 9,
+        "to": 10,
+        "label": "data_dep: entry"
+      },
+      {
+        "from": 9,
+        "to": 11,
+        "label": "data_dep: entry"
+      },
+      {
+        "from": 9,
+        "to": 12,
+        "label": "data_dep: entry"
+      },
+      {
+        "from": 9,
+        "to": 13,
+        "label": "data_dep: entry"
+      }
+    ]
+  },
+  {
+    "name": "synchronize_entries",
+    "inputs": [
+      "ctx: Context < SynchronizeEntries >",
+      "new_content_hash: u64"
+    ],
+    "nodes": [
+      {
+        "id": 16,
+        "label": "Entry"
+      },
+      {
+        "id": 17,
+        "label": "let journal = & mut ctx . accounts . journal_core ;"
+      },
+      {
+        "id": 18,
+        "label": "let main_entry = & mut ctx . accounts . main_entry ;"
+      },
+      {
+        "id": 19,
+        "label": "let backup_entry = & mut ctx . accounts . backup_entry ;"
+      },
+      {
+        "id": 20,
+        "label": "if main_entry . is_synced || backup_entry . is_synced { return Err (ProgramError :: Custom (1) . into ()) ; }"
+      },
+      {
+        "id": 21,
+        "label": "return Err (ProgramError :: Custom (1) . into ()) ;"
+      },
+      {
+        "id": 22,
+        "label": "if main_entry . content_hash != backup_entry . content_hash { backup_entry . content_hash = main_entry . content_hash ; msg ! (\"Content mismatch detected. Backup entry {} synchronized with main entry {}.\" , backup_entry . entry_id , main_entry . entry_id) ; }"
+      },
+      {
+        "id": 23,
+        "label": "backup_entry . content_hash = main_entry . content_hash ;"
+      },
+      {
+        "id": 24,
+        "label": "msg ! (\"Content mismatch detected. Backup entry {} synchronized with main entry {}.\" , backup_entry . entry_id , main_entry . entry_id) ;"
+      },
+      {
+        "id": 25,
+        "label": "main_entry . content_hash = new_content_hash ;"
+      },
+      {
+        "id": 26,
+        "label": "backup_entry . content_hash = new_content_hash ;"
+      },
+      {
+        "id": 27,
+        "label": "main_entry . is_synced = true ;"
+      },
+      {
+        "id": 28,
+        "label": "backup_entry . is_synced = true ;"
+      },
+      {
+        "id": 29,
+        "label": "journal . sync_count = journal . sync_count . saturating_add (1) ;"
+      },
+      {
+        "id": 30,
+        "label": "journal . is_complete = journal . sync_count >= SYNC_COMPLETION_THRESHOLD ;"
+      },
+      {
+        "id": 31,
+        "label": "msg ! (\"Entries {} and {} synchronized. New hash: {}.\" , main_entry . entry_id , backup_entry . entry_id , new_content_hash) ;"
+      },
+      {
+        "id": 32,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 17,
+        "to": 17,
+        "label": "def: journal"
+      },
+      {
+        "from": 18,
+        "to": 18,
+        "label": "def: main_entry"
+      },
+      {
+        "from": 19,
+        "to": 19,
+        "label": "def: backup_entry"
+      },
+      {
+        "from": 18,
+        "to": 20,
+        "label": "data_dep: main_entry"
+      },
+      {
+        "from": 19,
+        "to": 20,
+        "label": "data_dep: backup_entry"
+      },
+      {
+        "from": 18,
+        "to": 22,
+        "label": "data_dep: main_entry"
+      },
+      {
+        "from": 19,
+        "to": 22,
+        "label": "data_dep: backup_entry"
+      },
+      {
+        "from": 19,
+        "to": 22,
+        "label": "data_dep: backup_entry"
+      },
+      {
+        "from": 18,
+        "to": 22,
+        "label": "data_dep: main_entry"
+      },
+      {
+        "from": 19,
+        "to": 23,
+        "label": "data_dep: backup_entry"
+      },
+      {
+        "from": 18,
+        "to": 23,
+        "label": "data_dep: main_entry"
+      },
+      {
+        "from": 18,
+        "to": 25,
+        "label": "data_dep: main_entry"
+      },
+      {
+        "from": 19,
+        "to": 26,
+        "label": "data_dep: backup_entry"
+      },
+      {
+        "from": 18,
+        "to": 27,
+        "label": "data_dep: main_entry"
+      },
+      {
+        "from": 19,
+        "to": 28,
+        "label": "data_dep: backup_entry"
+      },
+      {
+        "from": 17,
+        "to": 29,
+        "label": "data_dep: journal"
+      },
+      {
+        "from": 17,
+        "to": 29,
+        "label": "data_dep: journal"
+      },
+      {
+        "from": 17,
+        "to": 30,
+        "label": "data_dep: journal"
+      },
+      {
+        "from": 17,
+        "to": 30,
+        "label": "data_dep: journal"
+      }
+    ]
+  }
+]

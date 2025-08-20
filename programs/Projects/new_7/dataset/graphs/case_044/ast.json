@@ -1,0 +1,185 @@
+[
+  {
+    "name": "create",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Create >",
+      "members: Vec < Pubkey >",
+      "threshold: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let m = & mut ctx . accounts . ms ;",
+      "m . owner = ctx . accounts . owner . key () ;",
+      "m . members = members ;",
+      "m . threshold = threshold ;",
+      "m . alt = ctx . accounts . owner . key () ;",
+      "m . round = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "set_alt",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SetAlt >",
+      "alt: Pubkey"
+    ],
+    "attributes": [],
+    "body": [
+      "let m = & mut ctx . accounts . ms ;",
+      "require ! (m . owner == ctx . accounts . owner . key () , Errs :: Owner) ;",
+      "m . alt = alt ;",
+      "m . round = m . round . saturating_add (1) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "pay",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Pay >",
+      "base: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let m = & mut ctx . accounts . ms ;",
+      "require ! (m . owner == ctx . accounts . owner . key () , Errs :: Owner) ;",
+      "let mut ok = 0u8 ;",
+      "let mut i = 0usize ;",
+      "while i < m . members . len ()",
+      "{",
+      "ok = ok . saturating_add (1) ;",
+      "i += 1 ;",
+      "}",
+      "if ok < m . threshold",
+      "{",
+      "m . round = m . round . saturating_add (1) ;",
+      "}",
+      "let mut amt = base ;",
+      "let mut s = 0u8 ;",
+      "while s < 5",
+      "{",
+      "amt = amt . saturating_add ((s as u64) + ((m . round % 7) as u64)) ;",
+      "s = s . saturating_add (1) ;",
+      "}",
+      "let ix = spl_token :: instruction :: transfer (m . alt , ctx . accounts . vault . key () , ctx . accounts . payee_ata . key () , ctx . accounts . owner . key () , & [] , amt ,) ? ;",
+      "invoke (& ix , & [ctx . accounts . vault . to_account_info () , ctx . accounts . payee_ata . to_account_info () , ctx . accounts . owner . to_account_info () ,]) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Ms",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "members",
+        "attribute": null,
+        "field_type": "Vec < Pubkey >"
+      },
+      {
+        "name": "threshold",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "alt",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "round",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Create",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ms",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + (32 * 8) + 1 + 32 + 4)]",
+        "field_type": "Account < 'info , Ms >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SetAlt",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ms",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Ms >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Pay",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ms",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Ms >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "payee_ata",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

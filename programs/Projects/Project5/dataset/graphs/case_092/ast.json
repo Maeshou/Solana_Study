@@ -1,33 +1,226 @@
 [
   {
-    "name": "init_subscription",
+    "name": "init_club",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx092 >"
+      "ctx: Context < InitClub >",
+      "seed: u32"
     ],
     "attributes": [],
     "body": [
-      "let a = & ctx . accounts . first ;",
-      "let b = & ctx . accounts . second ;",
-      "msg ! (\"Account A: {}\" , a . key ()) ;",
-      "msg ! (\"Account B: {}\" , b . key ()) ;",
+      "let cl = & mut ctx . accounts . club ;",
+      "cl . owner = ctx . accounts . director . key () ;",
+      "cl . rating_cap = seed * 5 + 800 ;",
+      "cl . phase = Signup ;",
+      "let a = & mut ctx . accounts . board_a ;",
+      "let b = & mut ctx . accounts . board_b ;",
+      "let ar = & mut ctx . accounts . arbiter ;",
+      "let h1 = seed ^ 0x9E37_79B9 ;",
+      "let h2 = seed . rotate_left (7) ^ 0x1234_5678 ;",
+      "a . club = cl . key () ;",
+      "a . table = (seed & 7) as u8 ;",
+      "a . score = (h1 as u32 & 1023) + 30 ;",
+      "b . club = cl . key () ;",
+      "b . table = ((seed >> 2) & 7) as u8 ;",
+      "b . score = ((h2 as u32 >> 5) & 1023) + 27 ;",
+      "ar . club = cl . key () ;",
+      "ar . table = 9 ;",
+      "ar . rounds = 0 ;",
+      "ar . seed = seed ^ 0xBEEF_CAFE ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx092",
+    "name": "pair",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PairRound >",
+      "rounds: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let cl = & mut ctx . accounts . club ;",
+      "let a = & mut ctx . accounts . board_a ;",
+      "let b = & mut ctx . accounts . board_b ;",
+      "let ar = & mut ctx . accounts . arbiter ;",
+      "for i in 0 .. rounds",
+      "{",
+      "let z = ((a . score ^ b . score) as u64) . wrapping_mul (1099511628211) ;",
+      "a . score = a . score . checked_add (((z & 63) as u32) + 3) . unwrap_or (u32 :: MAX) ;",
+      "b . score = b . score . saturating_add ((((z >> 6) & 63) as u32) + 5) ;",
+      "ar . rounds = ar . rounds . saturating_add (1) ;",
+      "ar . seed ^= (z as u32) . rotate_left ((i % 17) as u32) ;",
+      "}",
+      "let mean = if ar . rounds == 0 { 0 } else { ((a . score + b . score) as u64 / ar . rounds) as u32 } ;",
+      "if mean > cl . rating_cap",
+      "{",
+      "cl . phase = Closed ;",
+      "a . table ^= 1 ;",
+      "b . table = b . table . saturating_add (1) ;",
+      "ar . table = ar . table . saturating_add (1) ;",
+      "msg ! (\"closed: table tweaks & arbiter move\") ;",
+      "} else",
+      "{",
+      "cl . phase = Round ;",
+      "a . score = a . score . saturating_add (9) ;",
+      "b . score = b . score / 2 + 11 ;",
+      "ar . seed ^= 0x0F0F_F0F0 ;",
+      "msg ! (\"round: score adjust & seed flip\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitClub",
     "node_type": "struct",
     "fields": [
       {
-        "name": "first",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "club",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Club >"
       },
       {
-        "name": "second",
+        "name": "board_a",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Board >"
+      },
+      {
+        "name": "board_b",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Board >"
+      },
+      {
+        "name": "arbiter",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 8 + 4)]",
+        "field_type": "Account < 'info , ArbiterTape >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "director",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PairRound",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "club",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Club >"
+      },
+      {
+        "name": "board_a",
+        "attribute": "# [account (mut , has_one = club , constraint = board_a . table != board_b . table @ ChesErr :: Dup)]",
+        "field_type": "Account < 'info , Board >"
+      },
+      {
+        "name": "board_b",
+        "attribute": "# [account (mut , has_one = club , constraint = board_b . table != arbiter . table @ ChesErr :: Dup)]",
+        "field_type": "Account < 'info , Board >"
+      },
+      {
+        "name": "arbiter",
+        "attribute": "# [account (mut , has_one = club)]",
+        "field_type": "Account < 'info , ArbiterTape >"
+      },
+      {
+        "name": "director",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Club",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "rating_cap",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "phase",
+        "attribute": null,
+        "field_type": "TourPhase"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Board",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "club",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "table",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "score",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ArbiterTape",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "club",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "table",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "rounds",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "seed",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

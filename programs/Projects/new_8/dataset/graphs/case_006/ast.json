@@ -1,0 +1,96 @@
+[
+  {
+    "name": "issue_ticket",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < IssueTicket >",
+      "route: Vec < u8 >",
+      "qty: u16",
+      "bump: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut r = route . clone () ;",
+      "if r . len () > 40",
+      "{",
+      "r . truncate (40) ;",
+      "}",
+      "let mut digest : u64 = 5381 ;",
+      "for c in r . iter ()",
+      "{",
+      "digest = (digest . wrapping_shl (5)) . wrapping_add (digest) ^ (* c as u64) ;",
+      "}",
+      "let seeds = [& ctx . accounts . issuer . key () . to_bytes () [..] , & r [..]] ;",
+      "let addr = Pubkey :: create_program_address (& seeds , & ctx . program_id , & [bump]) . map_err (| _ | error ! (TicketErr :: KeyMismatch)) ? ;",
+      "if addr != ctx . accounts . ticket_cell . key ()",
+      "{",
+      "return Err (error ! (TicketErr :: KeyMismatch)) ;",
+      "}",
+      "let b = & mut ctx . accounts . book ;",
+      "let mut add = qty ;",
+      "if add > 500",
+      "{",
+      "add = 500 ;",
+      "}",
+      "b . issuer = ctx . accounts . issuer . key () ;",
+      "b . route = r ;",
+      "b . issued = b . issued . saturating_add (add as u32) ;",
+      "b . hash = b . hash . wrapping_add (digest) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "IssueTicket",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "book",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Book >"
+      },
+      {
+        "name": "ticket_cell",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "issuer",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Book",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "issuer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "route",
+        "attribute": null,
+        "field_type": "Vec < u8 >"
+      },
+      {
+        "name": "issued",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "hash",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

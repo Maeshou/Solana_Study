@@ -1,0 +1,140 @@
+[
+  {
+    "name": "place_bet",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PlaceBet >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" ユーザーがベットを行い、ベットプールにLamportsを預け入れるが、\"]",
+      "# [doc = \" bet_account.owner と ctx.accounts.user.key() の照合チェックがない\"]"
+    ],
+    "body": [
+      "let bet = & mut ctx . accounts . bet_account ;",
+      "bet . last_bet_amount = amount ;",
+      "bet . bet_count = bet . bet_count . checked_add (1) . unwrap () ;",
+      "* * ctx . accounts . user . to_account_info () . lamports . borrow_mut () -= amount ;",
+      "* * ctx . accounts . bet_pool . to_account_info () . lamports . borrow_mut () += amount ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "claim_reward",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ClaimReward >"
+    ],
+    "attributes": [
+      "# [doc = \" ユーザーがベットの勝利報酬を請求するが、\"]",
+      "# [doc = \" bet_account.owner と ctx.accounts.user.key() の照合チェックがない\"]"
+    ],
+    "body": [
+      "let bet = & ctx . accounts . bet_account ;",
+      "let reward_acc = & mut ctx . accounts . reward_account ;",
+      "let reward = bet . last_bet_amount . checked_mul (2) . unwrap () ;",
+      "reward_acc . balance = reward_acc . balance . checked_add (reward) . unwrap () ;",
+      "* * ctx . accounts . bet_pool . to_account_info () . lamports . borrow_mut () -= reward ;",
+      "* * ctx . accounts . user . to_account_info () . lamports . borrow_mut () += reward ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "PlaceBet",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "bet_account",
+        "attribute": "# [account (mut)] # [doc = \" 本来は `#[account(has_one = owner)]` を指定して照合すべき\"]",
+        "field_type": "Account < 'info , BetAccount >"
+      },
+      {
+        "name": "bet_pool",
+        "attribute": "# [doc = \" ベット資金を保管するプールアカウント\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" ベットを行うユーザー（署名者）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ClaimReward",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "bet_account",
+        "attribute": "# [account (mut)] # [doc = \" 本来は `#[account(has_one = owner)]` を指定して照合すべき\"]",
+        "field_type": "Account < 'info , BetAccount >"
+      },
+      {
+        "name": "reward_account",
+        "attribute": "# [account (mut)] # [doc = \" 本来は `#[account(has_one = owner)]` を指定して照合すべき\"]",
+        "field_type": "Account < 'info , RewardAccount >"
+      },
+      {
+        "name": "bet_pool",
+        "attribute": "# [doc = \" ベット資金を保管するプールアカウント\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 報酬を受け取るユーザー（署名者）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BetAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 本来このベット設定を所有するべきユーザーのPubkey\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "last_bet_amount",
+        "attribute": "# [doc = \" 最後にベットした金額\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "bet_count",
+        "attribute": "# [doc = \" ベット回数の累計\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RewardAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 本来この報酬口座を所有するべきユーザーのPubkey\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "balance",
+        "attribute": "# [doc = \" 累計報酬残高\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

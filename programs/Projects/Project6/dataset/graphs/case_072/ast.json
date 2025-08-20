@@ -1,0 +1,279 @@
+[
+  {
+    "name": "init_room",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitRoom >",
+      "code: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let r = & mut ctx . accounts . room ;",
+      "r . owner = ctx . accounts . owner . key () ;",
+      "r . code = code ;",
+      "r . tracks = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "enroll",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Enroll >",
+      "role: BeatRole",
+      "slot: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let r = & mut ctx . accounts . room ;",
+      "let b = & mut ctx . accounts . beat ;",
+      "b . room = r . key () ;",
+      "b . role = role ;",
+      "b . slot = slot ;",
+      "b . power = 0 ;",
+      "let t = & mut ctx . accounts . track ;",
+      "t . room = r . key () ;",
+      "t . energy = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "compose",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Compose >",
+      "notes: Vec < u8 >"
+    ],
+    "attributes": [],
+    "body": [
+      "let r = & mut ctx . accounts . room ;",
+      "let a = & mut ctx . accounts . actor ;",
+      "let p = & mut ctx . accounts . partner ;",
+      "let t = & mut ctx . accounts . track ;",
+      "let l = & mut ctx . accounts . timeline ;",
+      "let mut s : u32 = 0 ;",
+      "let mut mix : u16 = 0 ;",
+      "for n in notes",
+      "{",
+      "s = s . saturating_add ((n & 0x3F) as u32) ;",
+      "mix ^= (n as u16) . rotate_left (2) ;",
+      "}",
+      "let base = s + (mix as u32 & 0xFF) ;",
+      "if a . role == Drummer",
+      "{",
+      "a . power = a . power . saturating_add ((base / 2) as u16) ;",
+      "p . power = p . power . saturating_add (((mix >> 3) & 0x3F) as u16) ;",
+      "t . energy = t . energy . saturating_add ((base / 4) as u32) ;",
+      "r . tracks = r . tracks . saturating_add (1) ;",
+      "msg ! (\"Drummer branch: base=",
+      "{",
+      "}, aP={}, pP={}, e={}\" , base , a . power , p . power , t . energy) ;",
+      "} else",
+      "{",
+      "a . power = a . power . saturating_add ((base / 3) as u16) ;",
+      "p . power = p . power . saturating_add (((mix >> 1) & 0x7F) as u16) ;",
+      "t . energy = t . energy . saturating_add ((base / 5) as u32) ;",
+      "r . tracks = r . tracks . saturating_add (1) ;",
+      "msg ! (\"Bassist/Pianist branch: base=",
+      "{",
+      "}, aP={}, pP={}, e={}\" , base , a . power , p . power , t . energy) ;",
+      "}",
+      "let mut x = (r . tracks as u128) . max (1) ;",
+      "let mut i = 0 ;",
+      "while i < 3",
+      "{",
+      "x = (x + (r . tracks as u128 / x)) . max (1) / 2 ;",
+      "i += 1 ;",
+      "}",
+      "l . room = r . key () ;",
+      "l . cursor = (x as u32) . min (1_000_000) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitRoom",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "room",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 4 + 4)]",
+        "field_type": "Account < 'info , Room >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Enroll",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "room",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Room >"
+      },
+      {
+        "name": "beat",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 1 + 2)]",
+        "field_type": "Account < 'info , BeatCard >"
+      },
+      {
+        "name": "track",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4)]",
+        "field_type": "Account < 'info , TrackBoard >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Compose",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "room",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Room >"
+      },
+      {
+        "name": "timeline",
+        "attribute": "# [account (mut , has_one = room)]",
+        "field_type": "Account < 'info , Timeline >"
+      },
+      {
+        "name": "actor",
+        "attribute": "# [account (mut , has_one = room , constraint = actor . slot != partner . slot @ ErrCode :: CosplayBlocked)]",
+        "field_type": "Account < 'info , BeatCard >"
+      },
+      {
+        "name": "partner",
+        "attribute": "# [account (mut , has_one = room)]",
+        "field_type": "Account < 'info , BeatCard >"
+      },
+      {
+        "name": "track",
+        "attribute": "# [account (mut , has_one = room)]",
+        "field_type": "Account < 'info , TrackBoard >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Room",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "code",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "tracks",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BeatCard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "room",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "role",
+        "attribute": null,
+        "field_type": "BeatRole"
+      },
+      {
+        "name": "slot",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "power",
+        "attribute": null,
+        "field_type": "u16"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TrackBoard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "room",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "energy",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Timeline",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "room",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "cursor",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

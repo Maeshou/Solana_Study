@@ -1,0 +1,163 @@
+[
+  {
+    "name": "initialize",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitDaily >",
+      "unit_tokens: u64",
+      "total_cap: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let daily = & mut ctx . accounts . daily ;",
+      "daily . owner = ctx . accounts . owner . key () ;",
+      "daily . unit_tokens = unit_tokens . max (1) ;",
+      "daily . total_cap = total_cap . max (daily . unit_tokens) ;",
+      "daily . total_done = 0 ;",
+      "daily . last_day = 0 ;",
+      "daily . use_external_today = false ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "process",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ProcDaily >",
+      "count: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let daily = & mut ctx . accounts . daily ;",
+      "let now = Clock :: get () ? . unix_timestamp as u64 ;",
+      "let today_day = now / 86_400 ;",
+      "if daily . last_day != today_day",
+      "{",
+      "daily . last_day = today_day ;",
+      "daily . use_external_today = ! daily . use_external_today ;",
+      "}",
+      "let mut i : u8 = 0 ;",
+      "while i < count",
+      "{",
+      "let next = daily . total_done . saturating_add (daily . unit_tokens) ;",
+      "if next > daily . total_cap",
+      "{",
+      "return Err (DailyErr :: Cap . into ()) ;",
+      "} let mut program_account_info = ctx . accounts . token_program . to_account_info () ;",
+      "if daily . use_external_today",
+      "{",
+      "program_account_info = ctx . accounts . gateway_program . clone () ;",
+      "} token :: approve (ctx . accounts . a (program_account_info . clone ()) , daily . unit_tokens) ? ;",
+      "token :: transfer (ctx . accounts . t (program_account_info . clone ()) , daily . unit_tokens) ? ;",
+      "token :: revoke (ctx . accounts . r (program_account_info)) ? ;",
+      "daily . total_done = next ;",
+      "i = i . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitDaily",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "daily",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 8 + 8 + 8 + 1)]",
+        "field_type": "Account < 'info , DailyState >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ProcDaily",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "daily",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , DailyState >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "from_wallet",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "to_wallet",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "gateway_program",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DailyState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "unit_tokens",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_cap",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_done",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "last_day",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "use_external_today",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

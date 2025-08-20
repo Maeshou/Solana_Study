@@ -1,0 +1,178 @@
+[
+  {
+    "name": "init_quiz",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitQuiz >",
+      "daily_cap_input: u64",
+      "base_point_input: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let q = & mut ctx . accounts . quiz ;",
+      "q . host = ctx . accounts . host . key () ;",
+      "q . daily_cap = daily_cap_input ;",
+      "if q . daily_cap < 20",
+      "{",
+      "q . daily_cap = 20 ;",
+      "}",
+      "q . base_point = base_point_input ;",
+      "if q . base_point < 1",
+      "{",
+      "q . base_point = 1 ;",
+      "}",
+      "q . issued_today = 0 ;",
+      "q . streak_counter = 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_award",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActAward >",
+      "answers_mask: u64",
+      "rounds_played: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let q = & mut ctx . accounts . quiz ;",
+      "let mut score_units : u64 = 0 ;",
+      "let mut bit_cursor : u8 = 0 ;",
+      "while bit_cursor < 16",
+      "{",
+      "let bit_flag = (answers_mask >> bit_cursor) & 1 ;",
+      "if bit_flag == 1",
+      "{",
+      "score_units = score_units + (bit_cursor as u64 + 1) ;",
+      "} bit_cursor = bit_cursor + 1 ;",
+      "}",
+      "let mut multiplier_percent : u64 = 100 ;",
+      "let mut round_cursor : u8 = 0 ;",
+      "while round_cursor < rounds_played",
+      "{",
+      "multiplier_percent = multiplier_percent + 3 ;",
+      "round_cursor = round_cursor + 1 ;",
+      "}",
+      "let base_units : u64 = q . base_point + score_units / 3 + 1 ;",
+      "let mut final_units : u64 = (base_units as u128 * multiplier_percent as u128 / 100u128) as u64 ;",
+      "if q . streak_counter % 5 == 0",
+      "{",
+      "final_units = final_units + 2 ;",
+      "}",
+      "if q . streak_counter % 8 == 0",
+      "{",
+      "final_units = final_units + 3 ;",
+      "}",
+      "let projected = q . issued_today + final_units ;",
+      "if projected > q . daily_cap",
+      "{",
+      "let remainder = q . daily_cap - q . issued_today ;",
+      "if remainder > 0",
+      "{",
+      "token :: mint_to (ctx . accounts . mint_ctx () , remainder) ? ;",
+      "} q . issued_today = q . daily_cap ;",
+      "q . streak_counter = 1 ;",
+      "return Err (QuizErr :: DailyCap . into ()) ;",
+      "}",
+      "token :: mint_to (ctx . accounts . mint_ctx () , final_units) ? ;",
+      "q . issued_today = projected ;",
+      "q . streak_counter = q . streak_counter + 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitQuiz",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "quiz",
+        "attribute": "# [account (init , payer = host , space = 8 + 32 + 8 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , QuizState >"
+      },
+      {
+        "name": "host",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActAward",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "quiz",
+        "attribute": "# [account (mut , has_one = host)]",
+        "field_type": "Account < 'info , QuizState >"
+      },
+      {
+        "name": "host",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "point_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "player_point_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "QuizState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "host",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "daily_cap",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "base_point",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "issued_today",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "streak_counter",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

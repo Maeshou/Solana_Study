@@ -1,0 +1,160 @@
+[
+  {
+    "name": "init_guild",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitGuild >",
+      "monthly_due: u64",
+      "refund_ratio_bps: u16",
+      "strict_mode: bool"
+    ],
+    "attributes": [],
+    "body": [
+      "let guild = & mut ctx . accounts . guild ;",
+      "guild . leader = ctx . accounts . leader . key () ;",
+      "guild . due_units = monthly_due ;",
+      "guild . refund_bps = refund_ratio_bps . min (6000) ;",
+      "guild . period_count = 1 ;",
+      "guild . collected_units = monthly_due ;",
+      "guild . strict = strict_mode ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_collect_or_refund",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActCollectOrRefund >",
+      "months: u8",
+      "do_refund: bool"
+    ],
+    "attributes": [],
+    "body": [
+      "let guild = & mut ctx . accounts . guild ;",
+      "let mut aggregate = guild . due_units ;",
+      "let mut idx = 1u8 ;",
+      "while idx < months",
+      "{",
+      "aggregate = aggregate . saturating_add (guild . due_units) ;",
+      "idx = idx . saturating_add (1) ;",
+      "}",
+      "if do_refund",
+      "{",
+      "let refund_amount = aggregate . saturating_mul (guild . refund_bps as u64) / 10_000 ;",
+      "let cpi = ctx . accounts . pay_from_treasury_to_member () ;",
+      "token :: transfer (cpi , refund_amount) ? ;",
+      "guild . collected_units = guild . collected_units . saturating_sub (refund_amount) ;",
+      "} else",
+      "{",
+      "if guild . strict { let cpi = ctx . accounts . pay_from_member_to_treasury () ;",
+      "token :: transfer (cpi , aggregate) ? ;",
+      "} else",
+      "{",
+      "let cpi = ctx . accounts . pay_from_member_to_treasury () ;",
+      "token :: transfer (cpi , aggregate / 2) ? ;",
+      "} guild . collected_units = guild . collected_units . saturating_add (aggregate) ;",
+      "}",
+      "guild . period_count = guild . period_count . saturating_add (1) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitGuild",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": "# [account (init , payer = leader , space = 8 + 32 + 8 + 2 + 8 + 8 + 1)]",
+        "field_type": "Account < 'info , GuildState >"
+      },
+      {
+        "name": "leader",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActCollectOrRefund",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": "# [account (mut , has_one = leader)]",
+        "field_type": "Account < 'info , GuildState >"
+      },
+      {
+        "name": "leader",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "member_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "treasury_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GuildState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "leader",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "due_units",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "refund_bps",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "period_count",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "collected_units",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "strict",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

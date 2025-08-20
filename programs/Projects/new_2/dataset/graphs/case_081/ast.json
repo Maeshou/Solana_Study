@@ -1,0 +1,55 @@
+[
+  {
+    "name": "update_feed",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < UpdateFeed >",
+      "new_price: u64",
+      "volatility: u8"
+    ],
+    "attributes": [
+      "# [doc = \" 価格フィードを更新する  \"]",
+      "# [doc = \" (`price_feed_account` の owner チェックを一切行っていないため、\"]",
+      "# [doc = \"  攻撃者が他人の価格フィードアカウントを指定して\"]",
+      "# [doc = \"  偽の価格を流し込み、市場を操作できます)\"]"
+    ],
+    "body": [
+      "let feed_acc = & mut ctx . accounts . price_feed_account . to_account_info () ;",
+      "let data = & mut feed_acc . data . borrow_mut () ;",
+      "const MIN_LEN : usize = 17 ;",
+      "if data . len () < MIN_LEN",
+      "{",
+      "return err ! (ErrorCode :: DataTooShort) ;",
+      "}",
+      "let (price_slice , rest1) = data . split_at_mut (8) ;",
+      "let (ts_slice , rest2) = rest1 . split_at_mut (8) ;",
+      "let vol_slice = & mut rest2 [0 .. 1] ;",
+      "price_slice . copy_from_slice (& new_price . to_le_bytes ()) ;",
+      "let now = Clock :: get () ? . unix_timestamp as u64 ;",
+      "ts_slice . copy_from_slice (& now . to_le_bytes ()) ;",
+      "vol_slice [0] = volatility ;",
+      "msg ! (\"Price feed {} updated: price={} at {} (volatility={})\" , feed_acc . key () , new_price , now , volatility) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "UpdateFeed",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "price_feed_account",
+        "attribute": "# [doc = \" CHECK: owner == program_id の検証を全く行っていない AccountInfo\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "updater",
+        "attribute": "# [doc = \" 更新実行者の署名のみを検証\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

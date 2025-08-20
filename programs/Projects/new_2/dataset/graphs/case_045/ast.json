@@ -1,0 +1,187 @@
+[
+  {
+    "name": "full_insert",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < FullInsertCtx >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 完全検証：has_one + signer で所有権と署名を確認\"]"
+    ],
+    "body": [
+      "let account = ctx . accounts . checked_account . to_account_info () ;",
+      "let current = * * account . try_borrow_lamports () ? ;",
+      "* * account . try_borrow_mut_lamports () ? = current + amount ;",
+      "msg ! (\"full_insert complete\") ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "signer_insert",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SignerInsertCtx >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 署名のみ検証：raw AccountInfo を直接操作（owner チェックなし）\"]"
+    ],
+    "body": [
+      "let account = & ctx . accounts . raw_account ;",
+      "let mut balance = * * account . try_borrow_lamports () ? ;",
+      "balance += amount ;",
+      "* * account . try_borrow_mut_lamports () ? = balance ;",
+      "msg ! (\"signer_insert complete\") ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "owner_check_insert",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < OwnerCheckInsertCtx >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 手動オーナーチェック：if 文で owner フィールドを比較\"]"
+    ],
+    "body": [
+      "if ctx . accounts . vault . owner == ctx . accounts . user . key ()",
+      "{",
+      "let account = ctx . accounts . vault . to_account_info () ;",
+      "let current = * * account . try_borrow_lamports () ? ;",
+      "* * account . try_borrow_mut_lamports () ? = current + amount ;",
+      "}",
+      "msg ! (\"owner_check_insert processed\") ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "open_insert",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < OpenInsertCtx >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 未検証：誰でも操作可能な AccountInfo\"]"
+    ],
+    "body": [
+      "let account = & ctx . accounts . free_account ;",
+      "let before = * * account . try_borrow_lamports () ? ;",
+      "* * account . try_borrow_mut_lamports () ? = before + amount ;",
+      "msg ! (\"open_insert complete\") ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "FullInsertCtx",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "checked_account",
+        "attribute": "# [account (mut , has_one = authority)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SignerInsertCtx",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "raw_account",
+        "attribute": "# [doc = \" CHECK: raw AccountInfo、所有権チェックなし\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "OwnerCheckInsertCtx",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" CHECK: 手動チェック用の実行者キー\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "OpenInsertCtx",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "free_account",
+        "attribute": "# [doc = \" CHECK: 完全未検証の AccountInfo\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Vault",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

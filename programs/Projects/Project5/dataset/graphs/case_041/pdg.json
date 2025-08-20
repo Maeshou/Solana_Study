@@ -1,8 +1,9 @@
 [
   {
-    "name": "close_account",
+    "name": "init_reactor",
     "inputs": [
-      "ctx: Context < Ctx041 >"
+      "ctx: Context < InitReactor >",
+      "cap_u16: u16"
     ],
     "nodes": [
       {
@@ -11,19 +12,19 @@
       },
       {
         "id": 1,
-        "label": "let a = & ctx . accounts . first ;"
+        "label": "let s = & mut ctx . accounts ;"
       },
       {
         "id": 2,
-        "label": "let b = & ctx . accounts . second ;"
+        "label": "s . cfg . operator = s . operator . key () ;"
       },
       {
         "id": 3,
-        "label": "msg ! (\"Account A: {}\" , a . key ()) ;"
+        "label": "s . cfg . cap_q16 = (cap_u16 as u32) << 16 ;"
       },
       {
         "id": 4,
-        "label": "msg ! (\"Account B: {}\" , b . key ()) ;"
+        "label": "s . cfg . phase = Warm ;"
       },
       {
         "id": 5,
@@ -34,12 +35,411 @@
       {
         "from": 1,
         "to": 1,
-        "label": "def: a"
+        "label": "def: s"
       },
       {
-        "from": 2,
+        "from": 1,
         "to": 2,
-        "label": "def: b"
+        "label": "data_dep: s"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: s"
+      }
+    ]
+  },
+  {
+    "name": "step_reactor",
+    "inputs": [
+      "ctx: Context < StepReactor >",
+      "ticks: u32",
+      "gain_q16: u32"
+    ],
+    "nodes": [
+      {
+        "id": 6,
+        "label": "Entry"
+      },
+      {
+        "id": 7,
+        "label": "let s = & mut ctx . accounts ;"
+      },
+      {
+        "id": 8,
+        "label": "assert_ne ! (s . cfg . key () , s . core . key () , \"cfg/core diff\") ;"
+      },
+      {
+        "id": 9,
+        "label": "let g = gain_q16 . max (1) ;"
+      },
+      {
+        "id": 10,
+        "label": "for _ in 0 .. ticks { let growth = ((s . core . power_q16 as u128) * (g as u128)) >> 16 ; let next = (s . core . power_q16 as u128) + growth ; s . core . power_q16 = next . min (u128 :: from (u32 :: MAX)) . try_into () . unwrap_or (u32 :: MAX) ; let bump = (g >> 8) . max (1) ; s . core . heat_q16 = s . core . heat_q16 . saturating_add (bump) ; s . gauge . cycles = s . gauge . cycles . wrapping_add (1) ; }"
+      },
+      {
+        "id": 11,
+        "label": "let growth = ((s . core . power_q16 as u128) * (g as u128)) >> 16 ;"
+      },
+      {
+        "id": 12,
+        "label": "let next = (s . core . power_q16 as u128) + growth ;"
+      },
+      {
+        "id": 13,
+        "label": "s . core . power_q16 = next . min (u128 :: from (u32 :: MAX)) . try_into () . unwrap_or (u32 :: MAX) ;"
+      },
+      {
+        "id": 14,
+        "label": "let bump = (g >> 8) . max (1) ;"
+      },
+      {
+        "id": 15,
+        "label": "s . core . heat_q16 = s . core . heat_q16 . saturating_add (bump) ;"
+      },
+      {
+        "id": 16,
+        "label": "s . gauge . cycles = s . gauge . cycles . wrapping_add (1) ;"
+      },
+      {
+        "id": 17,
+        "label": "if s . core . power_q16 > s . cfg . cap_q16 { s . cfg . phase = Over ; s . gauge . trips = s . gauge . trips . wrapping_add (2) ; s . core . power_q16 = s . cfg . cap_q16 ; s . core . heat_q16 = s . core . heat_q16 >> 1 ; msg ! (\"over cap: clip power, halve heat, +trips\") ; } else { s . cfg . phase = Stable ; s . gauge . stable = s . gauge . stable . wrapping_add (1) ; s . core . heat_q16 = s . core . heat_q16 + (1 << 12) ; s . core . power_q16 = s . core . power_q16 + (1 << 8) ; msg ! (\"within cap: mark stable, tiny bumps\") ; }"
+      },
+      {
+        "id": 18,
+        "label": "s . cfg . phase = Over ;"
+      },
+      {
+        "id": 19,
+        "label": "s . gauge . trips = s . gauge . trips . wrapping_add (2) ;"
+      },
+      {
+        "id": 20,
+        "label": "s . core . power_q16 = s . cfg . cap_q16 ;"
+      },
+      {
+        "id": 21,
+        "label": "s . core . heat_q16 = s . core . heat_q16 >> 1 ;"
+      },
+      {
+        "id": 22,
+        "label": "msg ! (\"over cap: clip power, halve heat, +trips\") ;"
+      },
+      {
+        "id": 23,
+        "label": "s . cfg . phase = Stable ;"
+      },
+      {
+        "id": 24,
+        "label": "s . gauge . stable = s . gauge . stable . wrapping_add (1) ;"
+      },
+      {
+        "id": 25,
+        "label": "s . core . heat_q16 = s . core . heat_q16 + (1 << 12) ;"
+      },
+      {
+        "id": 26,
+        "label": "s . core . power_q16 = s . core . power_q16 + (1 << 8) ;"
+      },
+      {
+        "id": 27,
+        "label": "msg ! (\"within cap: mark stable, tiny bumps\") ;"
+      },
+      {
+        "id": 28,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 7,
+        "to": 7,
+        "label": "def: s"
+      },
+      {
+        "from": 9,
+        "to": 9,
+        "label": "def: g"
+      },
+      {
+        "from": 7,
+        "to": 10,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 9,
+        "to": 10,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 7,
+        "to": 10,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 7,
+        "to": 10,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 9,
+        "to": 10,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 7,
+        "to": 10,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 7,
+        "to": 10,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 7,
+        "to": 10,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 7,
+        "to": 10,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 11,
+        "to": 11,
+        "label": "def: growth"
+      },
+      {
+        "from": 7,
+        "to": 11,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 9,
+        "to": 11,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 12,
+        "to": 12,
+        "label": "def: next"
+      },
+      {
+        "from": 7,
+        "to": 12,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 11,
+        "to": 12,
+        "label": "data_dep: growth"
+      },
+      {
+        "from": 7,
+        "to": 13,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 12,
+        "to": 13,
+        "label": "data_dep: next"
+      },
+      {
+        "from": 14,
+        "to": 14,
+        "label": "def: bump"
+      },
+      {
+        "from": 9,
+        "to": 14,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 7,
+        "to": 15,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 7,
+        "to": 15,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 14,
+        "to": 15,
+        "label": "data_dep: bump"
+      },
+      {
+        "from": 7,
+        "to": 16,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 7,
+        "to": 16,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 7,
+        "to": 18,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 7,
+        "to": 19,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 7,
+        "to": 19,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 7,
+        "to": 20,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 7,
+        "to": 20,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 7,
+        "to": 21,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 7,
+        "to": 21,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 7,
+        "to": 23,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 7,
+        "to": 24,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 7,
+        "to": 24,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 7,
+        "to": 25,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 7,
+        "to": 25,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 7,
+        "to": 26,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 7,
+        "to": 26,
+        "label": "data_dep: s"
       }
     ]
   }

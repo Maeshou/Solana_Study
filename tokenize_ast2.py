@@ -1,182 +1,259 @@
+#!/usr/bin/env python3
 import json
 import re
 import sys
 
+# ステートメントをトークン化
+
 def tokenize_statement(stmt):
-    """ ステートメントをトークン化 """
-    token_pattern = re.compile(r'[A-Za-z_][A-Za-z0-9_]*|[<>{}()\[\].,;=&\+\-\*/]+|\S')
+    token_pattern = re.compile(
+        # &mut、二文字／三文字演算子、複合代入演算子、整数リテラル、
+        # 識別子、単一文字の記号、その他の１文字
+        r'&mut'
+      + r'|==|!=|<=|>=|&&|\|\||<<|>>'
+      + r'|\+=|\-=|\*=|/=|%=|&=|\|=|\^=|<<=|>>='
+      + r'|\d+'
+      + r'|[A-Za-z_][A-Za-z0-9_]*'
+      + r'|[<>{}()\[\].,;:=+\-*/&|!~^%]'
+      + r'|\S'
+    )
     tokens = token_pattern.findall(stmt)
-    # "&" と "mut" を "&mut" として統合
-    merged_tokens = []
+
+    merged = []
     i = 0
     while i < len(tokens):
-        if tokens[i] == '&' and i + 1 < len(tokens) and tokens[i+1] == 'mut':
-            merged_tokens.append('&mut')
+        if tokens[i] == '&' and i+1 < len(tokens) and tokens[i+1] == 'mut':
+            merged.append('&mut')
             i += 2
         else:
-            merged_tokens.append(tokens[i])
+            merged.append(tokens[i])
             i += 1
-    return merged_tokens
+    return merged
 
+# トークン属性マップ
 TOKEN_ATTR_MAP = {
-    'let': 'define',
-    '=': 'operator',
-    '&mut': 'mut',
-    'fn': 'function',
-    'mod': 'module',
-    '.': 'member',
-    '(': 'delimiter',
-    ')': 'delimiter',
-    '<': 'delimiter',
-    '>': 'delimiter',
-    '{': 'delimiter',
-    '}': 'delimiter',
-    '[': 'delimiter',
-    ']': 'delimiter',
-    ',': 'delimiter',
-    ';': 'delimiter'
+    'let': 'define', 'fn': 'function', 'mod': 'module',
+    '==':'operator','!=':'operator','<=':'operator','>=':'operator',
+    '&&':'operator','||':'operator','=':'operator',
+    '+=':'operator','-=':'operator','*=':'operator','/=':'operator','%=':'operator',
+    '&=':'operator','|=':'operator','^=':'operator','<<=':'operator','>>=':'operator',
+    '&mut':'mut', '.':'member', '(': 'delimiter', ')':'delimiter',
+    '[':'delimiter', ']':'delimiter', '{':'delimiter', '}':'delimiter',
+    ',':'delimiter',';':'delimiter','<':'delimiter','>':'delimiter'
 }
 
-def get_token_attribute(token):
-    """トークンの属性を取得"""
-    return TOKEN_ATTR_MAP.get(token, "identifier")
+def get_token_attribute(tok):
+    return TOKEN_ATTR_MAP.get(tok, 'identifier')
 
-def main():
+if __name__ == '__main__':
     if len(sys.argv) < 3:
-        print("Usage: python tokenize_ast.py <input_json> <output_json>")
+        print('Usage: python3 tokenize_ast.py <input_json> <output_json>')
         sys.exit(1)
-    input_file = sys.argv[1]
-    output_file = sys.argv[2]
-    with open(input_file, 'r', encoding='utf-8') as f:
+
+    # JSON 形式の AST データ読み込み
+    with open(sys.argv[1], encoding='utf-8') as f:
         ast_data = json.load(f)
-    print("Loaded AST Data:", json.dumps(ast_data, indent=2, ensure_ascii=False))
-    token_graph = {
-        "nodes": [],
-        "edges": []
-    }
-    next_id = 1
 
-    def add_node(label, attribute):
-        """ノードを追加"""
-        nonlocal next_id
-        node = {
-            "id": next_id,
-            "label": label,
-            "attributes": attribute
-        }
-        token_graph["nodes"].append(node)
-        next_id += 1
-        return node["id"]
+    graph = {'nodes': [], 'edges': []}
+    nid = 1
 
-    def add_edge(source, target, label):
-        """エッジを追加"""
-        token_graph["edges"].append({
-            "source": source,
-            "target": target,
-            "label": label
-        })
+    def add_node(label, attr):
+        global nid
+        node = {'id': nid, 'label': label, 'attributes': attr}
+        graph['nodes'].append(node)
+        nid += 1
+        return node['id']
 
-    # `mod` ノードを作成
-    mod_id = add_node("mod", "module")
+    def add_edge(src, tgt, lbl):
+        graph['edges'].append({'source': src, 'target': tgt, 'label': lbl})
 
-    # 関数 (`function`) の処理
+    # 代入演算子リスト
+    assignment_ops = ['=', '+=', '-=', '*=', '/=', '%=', '&=', '|=', '^=', '<<=', '>>=']
+
+    # 比較演算子リスト
+    comparison_ops = ['==', '!=', '<=', '>=', '<', '>']
+
+    if_or_loops = ['if','for','while']
+
+    # モジュールノード
+    mod_id = add_node('mod', 'module')
+
+    # 関数ノード処理
     for node in ast_data:
-        if node.get("node_type") == "function":
-            function_id = add_node(node["name"], "function")
-            add_edge(mod_id, function_id, "contains")
-            # `inputs` ノード
-            inputs_id = add_node("inputs", "inputs")
-            add_edge(function_id, inputs_id, "has")
-            # 引数を `inputs` に追加
-            for param in node.get("inputs", []):
-                match = re.search(r"<\s*([A-Za-z0-9_]+)\s*>", param)
-                if match:
-                    struct_name = match.group(1)
-                    struct_id = add_node(struct_name, "structure")
-                else:
-                    # コロン (:) を用いたパターンマッチング: 例 "a: u64" のようなパラメータの場合
-                    param_match = re.search(r"([A-Za-z0-9_]+)\s*:\s*([A-Za-z0-9_]+)", param)
-                    if param_match:
-                        variable_name = param_match.group(1)
-                        variable_type = param_match.group(2)
-                        # 変数名をノード名として、変数型（ここでは大文字に変換）をノードの種類として登録
-                        struct_name = variable_name
-                        struct_id = add_node(variable_name, variable_type.upper())
-                    else:
-                        # コロンが含まれていない場合は既存の処理
-                        struct_name = param
-                        struct_id = add_node(struct_name, "value")
+        if node.get('node_type') == 'function':
+            func_id = add_node(node['name'], 'function')
+            add_edge(mod_id, func_id, 'contains')
 
-                add_edge(inputs_id, struct_id, "parameter")
-            # `expression` ノード
-            expr_id = add_node("expression", "expression")
-            add_edge(function_id, expr_id, "has")
-            # `body` の処理
-            for stmt in node.get("body", []):
-                tokens = tokenize_statement(stmt)
-                if "=" in tokens:
-                    eq_index = tokens.index("=")
-                    eq_id = add_node("=", "operator")
-                    # 左辺 (lhs)
-                    lhs_tokens = tokens[:eq_index]
-                    prev_lhs = None
-                    for t in lhs_tokens:
-                        token_id = add_node(t, get_token_attribute(t))
-                        if prev_lhs is None:
-                            add_edge(eq_id, token_id, "lhs")
-                        else:
-                            add_edge(prev_lhs, token_id, "next")
-                        prev_lhs = token_id
-                    # 右辺 (rhs)
-                    rhs_tokens = tokens[eq_index+1:]
-                    prev_rhs = None
-                    for t in rhs_tokens:
-                        token_id = add_node(t, get_token_attribute(t))
-                        if prev_rhs is None:
-                            add_edge(eq_id, token_id, "rhs")
-                        else:
-                            add_edge(prev_rhs, token_id, "next")
-                        prev_rhs = token_id
-                    add_edge(expr_id, eq_id, "contains")
-                else:
-                    prev_id = None
-                    for t in tokens:
-                        token_id = add_node(t, get_token_attribute(t))
-                        if prev_id is not None:
-                            add_edge(prev_id, token_id, "next")
-                        prev_id = token_id
+            # 引数ノード処理
+            inputs_id = add_node('inputs', 'inputs')
+            add_edge(func_id, inputs_id, 'has')
+            for p in node.get('inputs', []):
+                m = re.search(r'<\s*([A-Za-z0-9_]+)\s*>', p)
+                name, typ = (m.group(1), 'structure') if m else (p, 'value')
+                pid = add_node(name, typ)
+                add_edge(inputs_id, pid, 'parameter')
 
-    # 構造体 (`struct`) の処理
-    for node in ast_data:
-        if node.get("node_type") == "struct":
-            struct_id = add_node(node["name"], "structure")
-            add_edge(mod_id, struct_id, "contains")
-            # `fields` の処理
-            for field in node.get("fields", []):
-                # field_type が存在する場合、'<'より前の部分を属性として抽出
-                if field.get("field_type"):
-                    field_type = field["field_type"]
-                    main_type = re.split(r'<', field_type, maxsplit=1)[0].strip()
-                else:
-                    main_type = "field"
-                # フィールド名のノードを作成（属性に main_type を使用）
-                field_id = add_node(field["name"], main_type)
-                add_edge(struct_id, field_id, "has")
+            # 文ごとのリンク用変数
+            prev_expr = None
+            prev_head = None
+            pre_bl_head_id = None#分岐やループのid
+
+            for stmt in node.get('body', []):
+                toks = tokenize_statement(stmt)
+
+                # "{" のみ、"}" のみの行はノードのみ追加し、エッジはスキップ
+                if len(toks) == 1 and toks[0] in ('{', '}'):
+                    brace_id = add_node(toks[0], get_token_attribute(toks[0]))
+                    prev_expr = None
+                    pre_bl_head_id = None
+                    prev_head = None
+                    continue
                 
-                # <> 内にフィールド名等が記載されている場合は、別ノードとして追加する
-                if field.get("field_type") and '<' in field["field_type"]:
-                    # field_type の内側を取得（例："Account < 'info , Vault >" の場合、"'info , Vault" 部分）
-                    inner_part = field["field_type"].split('<', 1)[1].rsplit('>', 1)[0].strip()
-                    # カンマで分割（例："'info , Vault" → ["'info", "Vault"]）
-                    inner_fields = [token.strip() for token in inner_part.split(',')]
-                    for inner_field in inner_fields:
-                        inner_field_id = add_node(inner_field, "field_inner")
-                        add_edge(field_id, inner_field_id, "inner_type")
+                # ジェネリクス用の <...> を除去 (空 <> も含む)
+                skip_idx = set()
+                stack = []
+                for idx, t in enumerate(toks):
+                    if t == '<':
+                        stack.append(idx)
+                    elif t == '>' and stack:
+                        start = stack.pop()
+                        inner = toks[start+1:idx]
+                        # 中身が識別子とカンマだけならジェネリクスと判断
+                        if all(re.match(r'^[A-Za-z0-9_]+$|^,$', x) for x in inner):
+                            skip_idx.add(start)
+                            skip_idx.add(idx)
+                toks = [t for i, t in enumerate(toks) if i not in skip_idx]
 
-    # JSON ファイルにトークングラフを保存
-    with open(output_file, 'w', encoding='utf-8') as f:
-        json.dump(token_graph, f, indent=2, ensure_ascii=False)
-    print(f"Token graph saved to {output_file}")
+                # 代入行の検出
+                found = [op for op in assignment_ops if toks.count(op) == 1]
+                has_assign = len(found) == 1
 
-if __name__ == "__main__":
-    main()
+                 # 比較演算子検出
+                found_cmp = [op for op in comparison_ops if toks.count(op) == 1]
+                has_cmp = len(found_cmp) == 1
+
+                # 制御文行の検出
+                has_ctrl = any(t in ('if', 'for', 'while') for t in toks)
+
+                if has_assign:
+                    # 単一の代入演算子処理
+                    op = found[0]
+                    idx = toks.index(op)
+                    # expression ノード生成
+                    expr_id = add_node('expression', 'expression')
+                    add_edge(func_id, expr_id, 'has')
+                    if prev_expr is not None:
+                        add_edge(prev_expr, expr_id, 'next')
+
+                    if pre_bl_head_id is not None:
+                        print("aida")
+
+                    if prev_head is not None:
+                        add_edge(prev_head, expr_id, 'next')
+                            
+                    prev_expr = expr_id
+                    # head リンクをリセット
+                    prev_head = None
+
+                    # operator ノード生成
+                    op_id = add_node(op, 'operator')
+                    add_edge(expr_id, op_id, 'contains')
+                    # lhs トークン処理
+                    prev = None
+                    for t in toks[:idx]:
+                        tid = add_node(t, get_token_attribute(t))
+                        if prev is None:
+                            add_edge(op_id, tid, 'lhs')
+                        else:
+                            add_edge(prev, tid, 'next')
+                        prev = tid
+                    # rhs トークン処理
+                    prev = None
+                    for t in toks[idx+1:]:
+                        tid = add_node(t, get_token_attribute(t))
+                        if prev is None:
+                            add_edge(op_id, tid, 'rhs')
+                        else:
+                            add_edge(prev, tid, 'next')
+                        prev = tid
+
+                elif has_ctrl:
+                    # if/for/while 行
+                    head_tok = toks[0]
+                    head_id = add_node(head_tok, get_token_attribute(head_tok))
+                    # if prev_expr is not None:
+                    #     add_edge(prev_expr, head_id, 'next')
+                    # if prev_head is not None:
+                    #     add_edge(prev_head, head_id, 'next')
+                    pre_bl_head_id = head_id
+                    prev = head_id
+                    prev_expr = None
+                    prev_head = None
+
+                    if has_cmp:
+                        # --- 追加：比較演算子処理 ---\
+                        op = found_cmp[0]
+                        idx = toks.index(op)
+                        op_id = add_node(op, 'operator')
+                        # lhs トークン処理
+                        prev = None
+                        for t in toks[1:idx]:
+                            tid = add_node(t, get_token_attribute(t))
+                            if prev is None:
+                                add_edge(op_id, tid, 'lhs')
+                            else:
+                                add_edge(prev, tid, 'next')
+                            prev = tid
+                        # rhs トークン処理
+                        prev = None
+                        for t in toks[idx+1:]:
+                            tid = add_node(t, get_token_attribute(t))
+                            if prev is None:
+                                add_edge(op_id, tid, 'rhs')
+                            else:
+                                add_edge(prev, tid, 'next')
+                            prev = tid
+                    else:        
+                        for t in toks[1:]:
+                            tid = add_node(t, get_token_attribute(t))
+                            add_edge(prev, tid, 'next')
+                            prev = tid
+                        
+                    
+                else:
+                    # その他の行
+                    head_tok = toks[0]
+                    head_id = add_node(head_tok, get_token_attribute(head_tok))
+                    if prev_expr is not None:
+                        add_edge(prev_expr, head_id, 'next')
+                    if prev_head is not None:
+                        add_edge(prev_head, head_id, 'next')
+                    prev_head = head_id
+                    prev = head_id
+                    prev_expr = None
+                    pre_bl_head_id = None
+                    for t in toks[1:]:
+                        tid = add_node(t, get_token_attribute(t))
+                        add_edge(prev, tid, 'next')
+                        prev = tid
+
+    # 構造体ノード処理（変更なし）
+    for node in ast_data:
+        if node.get('node_type') == 'struct':
+            struct_id = add_node(node['name'], 'structure')
+            add_edge(mod_id, struct_id, 'contains')
+            for field in node.get('fields', []):
+                ftype = field.get('field_type', '')
+                main = re.split(r'<', ftype, maxsplit=1)[0].strip() or 'field'
+                fid = add_node(field['name'], main)
+                add_edge(struct_id, fid, 'has')
+                if '<' in ftype and '>' in ftype:
+                    inner = ftype.split('<', 1)[1].rsplit('>', 1)[0]
+                    for part in [p.strip() for p in inner.split(',')]:
+                        iid = add_node(part, 'field_inner')
+                        add_edge(fid, iid, 'inner_type')
+
+    # 結果出力
+    with open(sys.argv[2], 'w', encoding='utf-8') as f:
+        json.dump(graph, f, ensure_ascii=False, indent=2)
+    print(f'Token graph saved to {sys.argv[2]}')

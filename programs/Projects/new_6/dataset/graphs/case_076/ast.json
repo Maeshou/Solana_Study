@@ -1,0 +1,277 @@
+[
+  {
+    "name": "init_multisig_wallet",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitMultisigWallet >",
+      "required_signatures: u8",
+      "signers: Vec < Pubkey >"
+    ],
+    "attributes": [],
+    "body": [
+      "let wallet = & mut ctx . accounts . multisig_wallet ;",
+      "wallet . admin = ctx . accounts . admin . key () ;",
+      "wallet . required_signatures = required_signatures ;",
+      "wallet . total_signers = signers . len () as u8 ;",
+      "wallet . transaction_count = 0 ;",
+      "wallet . executed_count = 0 ;",
+      "for (i , signer) in signers . iter () . enumerate () . take (10)",
+      "{",
+      "wallet . authorized_signers [i] = * signer ;",
+      "wallet . signer_weights [i] = 1 ;",
+      "}",
+      "wallet . emergency_mode = false ;",
+      "wallet . daily_limit = 1000000 ;",
+      "wallet . daily_spent = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "execute_transaction",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ExecuteTransaction >",
+      "tx_id: u64",
+      "recipient: Pubkey",
+      "amount: u64",
+      "data: Vec < u8 >"
+    ],
+    "attributes": [],
+    "body": [
+      "let wallet = & mut ctx . accounts . multisig_wallet ;",
+      "let transaction = & mut ctx . accounts . transaction_proposal ;",
+      "let executor = & ctx . accounts . executor ;",
+      "transaction . tx_id = tx_id ;",
+      "transaction . recipient = recipient ;",
+      "transaction . amount = amount ;",
+      "transaction . data = data ;",
+      "transaction . proposer = executor . key () ;",
+      "transaction . created_at = Clock :: get () ? . unix_timestamp ;",
+      "transaction . executed = false ;",
+      "let mut valid_signatures = 0u8 ;",
+      "let mut signature_weight = 0u16 ;",
+      "for i in 0 .. wallet . total_signers",
+      "{",
+      "let signer = wallet . authorized_signers [i as usize] ;",
+      "if signer != Pubkey :: default ()",
+      "{",
+      "let sig_hash = (tx_id + amount + i as u64) % 100 ;",
+      "if sig_hash > 30",
+      "{",
+      "valid_signatures += 1 ;",
+      "signature_weight += wallet . signer_weights [i as usize] ;",
+      "transaction . signatures [i as usize] = true ;",
+      "} }",
+      "}",
+      "if valid_signatures >= wallet . required_signatures || wallet . emergency_mode",
+      "{",
+      "transaction . executed = true ;",
+      "transaction . executed_at = Clock :: get () ? . unix_timestamp ;",
+      "transaction . signature_count = valid_signatures ;",
+      "wallet . transaction_count += 1 ;",
+      "wallet . executed_count += 1 ;",
+      "wallet . daily_spent += amount ;",
+      "if amount > wallet . daily_limit / 2",
+      "{",
+      "transaction . requires_additional_approval = true ;",
+      "wallet . pending_high_value_tx += 1 ;",
+      "} for i in 0 .. wallet . total_signers",
+      "{",
+      "if transaction . signatures [i as usize] { wallet . signer_activity [i as usize] += 1 ;",
+      "} } let risk_score = if amount > 100000",
+      "{",
+      "50 } else { 10 } + if data . len () > 100 { 30 } else { 0 } + if valid_signatures == wallet . required_signatures { 0 } else { 20 } ;",
+      "transaction . risk_score = risk_score ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitMultisigWallet",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "multisig_wallet",
+        "attribute": "# [account (init , payer = admin , space = 8 + 1000)]",
+        "field_type": "Account < 'info , MultisigWalletData >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ExecuteTransaction",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "multisig_wallet",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , MultisigWalletData >"
+      },
+      {
+        "name": "transaction_proposal",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TransactionProposal >"
+      },
+      {
+        "name": "executor",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MultisigWalletData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "required_signatures",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "total_signers",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "transaction_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "executed_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "pending_high_value_tx",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "emergency_mode",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "daily_limit",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "daily_spent",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "authorized_signers",
+        "attribute": null,
+        "field_type": "[Pubkey ; 10]"
+      },
+      {
+        "name": "signer_weights",
+        "attribute": null,
+        "field_type": "[u16 ; 10]"
+      },
+      {
+        "name": "signer_activity",
+        "attribute": null,
+        "field_type": "[u32 ; 10]"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TransactionProposal",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "tx_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "recipient",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "data",
+        "attribute": null,
+        "field_type": "Vec < u8 >"
+      },
+      {
+        "name": "proposer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "created_at",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "executed_at",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "executed",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "signature_count",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "risk_score",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "requires_additional_approval",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "signatures",
+        "attribute": null,
+        "field_type": "[bool ; 10]"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

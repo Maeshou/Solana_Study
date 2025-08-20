@@ -2,26 +2,33 @@
 """
 make_ft_vec.py
 ------------------------------------
-• graphs 配下の各 case_* ディレクトリ内の third_joint_graph.json を一括処理
-  - コーパス（トークン列）作成
-  - gensim.FastText 学習
-  - ノードベクトルを .npy で保存（dataset/graphs/<graph_name>/vectors.npy）
+複数プロジェクトのグラフをまとめて一度に処理し、ノード埋め込みベクトルを各入力グラフディレクトリ内に保存するスクリプト。
 
-使い方:
-    python make_ft_vec.py \
-        --graphdir ./graphs \
-        --model fasttext_solana.bin \
-        --dim 128 --epoch 20
+【設定セクション】
+以下の変数を書き換えることで、入力グラフのルートディレクトリ一覧、FastTextモデル保存先、
+埋め込み次元数やエポック数をスクリプト内で指定できます。
 """
-import argparse
 import json
 import os
 import random
 import glob
-
 import numpy as np
 from gensim.models import FastText
 from tqdm import tqdm
+
+# ==== 設定セクション ====
+# 入力グラフのディレクトリ一覧を追加
+INPUT_GRAPH_DIRS = [
+    "./programs/Projects/new_6/dataset/graphs",
+    "./programs/Projects/Project6/dataset/graphs",
+    # その他のプロジェクトパスをここに追記
+]
+# 学習済 FastText モデルの保存パス
+MODEL_PATH = "fasttext_all.bin"
+# FastText 埋め込みの次元数
+DIM = 64
+# FastText 学習のエポック数
+EPOCH = 20
 
 
 def load_graph(path):
@@ -31,7 +38,7 @@ def load_graph(path):
 
 def graph_to_sentences(g, n_walks=10, walk_len=6):
     id2node = {n['id']: n for n in g['nodes']}
-    sents = [[n['label'], n.get('attributes', '')] for n in g['nodes']]
+    sentences = [[n['label'], n.get('attributes', '')] for n in g['nodes']]
     adj = {}
     for e in g['edges']:
         adj.setdefault(e['source'], []).append(e['target'])
@@ -40,10 +47,11 @@ def graph_to_sentences(g, n_walks=10, walk_len=6):
             cur, walk = v, []
             for _ in range(walk_len):
                 walk.append(id2node[cur]['label'])
-                if cur not in adj: break
-                cur = random.choice(adj[cur])
-            sents.append(walk)
-    return sents
+                if cur not in adj:
+                    break
+                cur = random.choice(adj[cur])  # ランダムウォーク
+            sentences.append(walk)
+    return sentences
 
 
 def train_fasttext(sentences, dim, epoch):
@@ -74,42 +82,15 @@ def save_node_vectors(g, model, output_dir):
     print(f"Saved node vectors to {out_path}")
 
 
-def save_labels(output_dir,label):
-    os.makedirs(output_dir,exist_ok=True)
-    out_path = os.path.join(output_dir, 'label.json')
-    with open(out_path, "w", encoding="utf-8") as f:
-        json.dump(label, f)
-    print(f"Save graph label to {out_path}")
-
-
 def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument(
-        "--graphdir",
-        default="./graphs",
-        help="case_* ディレクトリを含む graphs ルートパス"
-    )
-    ap.add_argument(
-        "--model",
-        default="fasttext_solana.bin",
-        help="学習済 FastText モデルの保存パス"
-    )
-    ap.add_argument(
-        "--vecdir",
-        default="./dataset/graphs",
-        help="出力ベクトルのルートディレクトリ"
-    )
-    ap.add_argument("--dim",   type=int, default=64, help="FastText の次元")
-    ap.add_argument("--epoch", type=int, default=20,  help="FastText の epoch")
-    ap.add_argument("--label", type=list, default=[0,0,0,0,1,0,0,0,0,0],  help="sample data の ラベル")
-    args = ap.parse_args()
-
     # 1) third_joint_graph.json をまとめて集める
-    pattern = os.path.join(args.graphdir, 'case_*', 'third_joint_graph.json')
-    
-    files = sorted(glob.glob(pattern))
+    files = []
+    for gd in INPUT_GRAPH_DIRS:
+        pattern = os.path.join(gd, 'case_*', 'third_joint_graph.json')
+        files += glob.glob(pattern)
+    files = sorted(files)
     if not files:
-        print(f"⚠️  ファイルが見つかりません: {pattern}")
+        print(f"⚠️  ファイルが見つかりません: {INPUT_GRAPH_DIRS}")
         return
 
     # 2) コーパス生成
@@ -118,27 +99,23 @@ def main():
     for p in tqdm(files):
         g = load_graph(p)
         sentences += graph_to_sentences(g)
-    # unk トークン
-    sentences.append(["unk"])
+    sentences.append(["unk"])  # unk トークン
 
     # 3) FastText 学習
     print("🚀 Training FastText …")
-    ft = train_fasttext(sentences, args.dim, args.epoch)
-    ft.save(args.model)
-    print(f"✅ model saved to {args.model}")
+    ft = train_fasttext(sentences, DIM, EPOCH)
+    ft.save(MODEL_PATH)
+    print(f"✅ model saved to {MODEL_PATH}")
 
-    # 4) 各グラフごとにベクトル保存
+    # 4) 各グラフごとにベクトル保存（入力ディレクトリと同じ場所）
     print("💾 Saving node vectors …")
     for p in tqdm(files):
-        g      = load_graph(p)
-        case_name = os.path.basename(os.path.dirname(p))
-        outdir = os.path.join(args.vecdir, case_name)
-        save_node_vectors(g, ft, outdir)
-        save_labels(outdir,args.label)
-
+        g = load_graph(p)
+        # 入力パスの case ディレクトリをそのまま出力先に使用
+        output_dir = os.path.dirname(p)
+        save_node_vectors(g, ft, output_dir)
 
     print("✅ All done.")
-
 
 if __name__ == "__main__":
     main()

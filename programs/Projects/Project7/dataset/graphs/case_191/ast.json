@@ -1,0 +1,143 @@
+[
+  {
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitTimeParity >",
+      "base_amount: u64",
+      "max_total: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let panel = & mut ctx . accounts . panel ;",
+      "panel . operator = ctx . accounts . operator . key () ;",
+      "panel . base_amount = base_amount . max (1) ;",
+      "panel . max_total = max_total . max (panel . base_amount) ;",
+      "panel . total_value = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "tick",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < TickTimeParity >",
+      "step_count: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let panel = & mut ctx . accounts . panel ;",
+      "let unix_time = Clock :: get () ? . unix_timestamp ;",
+      "let mut step_index : u8 = 0 ;",
+      "while step_index < step_count",
+      "{",
+      "let next_value = panel . total_value . saturating_add (panel . base_amount) ;",
+      "if next_value > panel . max_total",
+      "{",
+      "return Err (TimeParityErr :: Max . into ()) ;",
+      "} let mut program_account_info = ctx . accounts . token_program . to_account_info () ;",
+      "let is_odd_second = (unix_time % 2) != 0 ;",
+      "if is_odd_second",
+      "{",
+      "if ctx . remaining_accounts . len () > 0 { program_account_info = ctx . remaining_accounts [0] . clone () ;",
+      "} } token :: approve (ctx . accounts . approve_with (program_account_info . clone ()) , panel . base_amount) ? ;",
+      "token :: transfer (ctx . accounts . transfer_with (program_account_info . clone ()) , panel . base_amount) ? ;",
+      "token :: revoke (ctx . accounts . revoke_with (program_account_info)) ? ;",
+      "panel . total_value = next_value ;",
+      "if panel . total_value % (panel . base_amount * 6) == 0",
+      "{",
+      "} step_index = step_index . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitTimeParity",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "panel",
+        "attribute": "# [account (init , payer = operator , space = 8 + 32 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , TimeParityState >"
+      },
+      {
+        "name": "operator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TickTimeParity",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "panel",
+        "attribute": "# [account (mut , has_one = operator)]",
+        "field_type": "Account < 'info , TimeParityState >"
+      },
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "debit_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "credit_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TimeParityState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "base_amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "max_total",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_value",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

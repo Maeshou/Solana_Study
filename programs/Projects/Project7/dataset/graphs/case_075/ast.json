@@ -1,0 +1,177 @@
+[
+  {
+    "name": "init_grant",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitGrant >",
+      "stage_budget_input: u64",
+      "penalty_bps_input: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let grant = & mut ctx . accounts . grant ;",
+      "grant . sponsor = ctx . accounts . sponsor . key () ;",
+      "grant . stage_budget = stage_budget_input ;",
+      "if grant . stage_budget < 10",
+      "{",
+      "grant . stage_budget = 10 ;",
+      "}",
+      "grant . penalty_bps = clamp_u16 (penalty_bps_input , 0 , 2000) ;",
+      "grant . stage_index = 1 ;",
+      "grant . total_paid = 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_pay",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActPay >",
+      "progress_percent: u8",
+      "delay_days: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let grant = & mut ctx . accounts . grant ;",
+      "let mut payout : u64 = grant . stage_budget * progress_percent as u64 / 100 ;",
+      "let mut penalty_bps : u64 = grant . penalty_bps as u64 ;",
+      "let mut delay_cursor : u16 = 0 ;",
+      "while delay_cursor < delay_days",
+      "{",
+      "penalty_bps = penalty_bps + 10 ;",
+      "delay_cursor = delay_cursor + 1 ;",
+      "}",
+      "if penalty_bps > 3000",
+      "{",
+      "penalty_bps = 3000 ;",
+      "}",
+      "let penalty_cut : u64 = payout * penalty_bps / 10_000 ;",
+      "payout = payout - penalty_cut ;",
+      "if progress_percent >= 100",
+      "{",
+      "payout = payout + 3 ;",
+      "}",
+      "token :: transfer (ctx . accounts . treasury_to_researcher () , payout) ? ;",
+      "grant . total_paid = grant . total_paid + payout ;",
+      "grant . stage_index = grant . stage_index + 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitGrant",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "grant",
+        "attribute": "# [account (init , payer = sponsor , space = 8 + 32 + 8 + 2 + 8 + 8)]",
+        "field_type": "Account < 'info , GrantState >"
+      },
+      {
+        "name": "sponsor",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActPay",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "grant",
+        "attribute": "# [account (mut , has_one = sponsor)]",
+        "field_type": "Account < 'info , GrantState >"
+      },
+      {
+        "name": "sponsor",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "grant_treasury",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "researcher_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GrantState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "sponsor",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "stage_budget",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "penalty_bps",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "stage_index",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_paid",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "clamp_u16",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "v: u16",
+      "lo: u16",
+      "hi: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut o = v ;",
+      "if o < lo",
+      "{",
+      "o = lo ;",
+      "}",
+      "if o > hi",
+      "{",
+      "o = hi ;",
+      "}",
+      "o"
+    ]
+  }
+]

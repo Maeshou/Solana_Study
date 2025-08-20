@@ -1,0 +1,202 @@
+[
+  {
+    "name": "Policy",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "payer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "coverage",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "claims_count",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Claim",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "claimant",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "policy",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "paid",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ClaimFiled",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "claim",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "policy",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "claimant",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "amount",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ClaimPaid",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "claim",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "policy",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "FileClaim",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "policy",
+        "attribute": "# [doc = \" Policy.payer == payer.key() を検証する\"] # [account (mut , has_one = payer)]",
+        "field_type": "Account < 'info , Policy >"
+      },
+      {
+        "name": "claim",
+        "attribute": "# [doc = \" 新規 Claim を作成するが、policy フィールドの対応は検証ナシ\"] # [account (init , payer = claimant , space = 8 + 32 + 32 + 8 + 1)]",
+        "field_type": "Account < 'info , Claim >"
+      },
+      {
+        "name": "claimant",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ProcessClaim",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "policy",
+        "attribute": "# [doc = \" Policy.payer == processor.key() は検証されるが…\"] # [account (mut , has_one = payer)]",
+        "field_type": "Account < 'info , Policy >"
+      },
+      {
+        "name": "claim",
+        "attribute": "# [doc = \" Claim.policy == policy.key() の検証がないため、\"] # [doc = \" 別のポリシー用に attacker が用意した Claim でも通ってしまう\"] # [account (mut)]",
+        "field_type": "Account < 'info , Claim >"
+      },
+      {
+        "name": "processor",
+        "attribute": "# [doc = \" 支払い権限を持つオペレーター\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "file_claim",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < FileClaim >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 保険金請求を登録\"]"
+    ],
+    "body": [
+      "let p = & mut ctx . accounts . policy ;",
+      "let c = & mut ctx . accounts . claim ;",
+      "c . claimant = ctx . accounts . claimant . key () ;",
+      "c . policy = p . key () ;",
+      "c . amount = amount ;",
+      "c . paid = false ;",
+      "p . claims_count = p . claims_count . checked_add (1) . unwrap () ;",
+      "emit ! (ClaimFiled { claim : c . key () , policy : p . key () , claimant : c . claimant , amount , }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "process_claim",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ProcessClaim >"
+    ],
+    "attributes": [
+      "# [doc = \" 保険金請求を処理\"]"
+    ],
+    "body": [
+      "let p = & mut ctx . accounts . policy ;",
+      "let c = & mut ctx . accounts . claim ;",
+      "if c . amount > p . coverage",
+      "{",
+      "return err ! (InsuranceError :: OverCoverage) ;",
+      "}",
+      "c . paid = true ;",
+      "p . coverage = p . coverage . checked_sub (c . amount) . unwrap () ;",
+      "emit ! (ClaimPaid { claim : c . key () , policy : p . key () , }) ;",
+      "Ok (())"
+    ]
+  }
+]

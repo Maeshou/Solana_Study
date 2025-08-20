@@ -1,0 +1,93 @@
+[
+  {
+    "name": "claim_bounty",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ClaimBounty >"
+    ],
+    "attributes": [
+      "# [doc = \" SPLトークンで報酬を支払うが、\"]",
+      "# [doc = \" has_one = owner, has_one = reward_vault のみ検証され、\"]",
+      "# [doc = \" 本来必要な has_one = claimant_token_account（または claimant Pubkey）の照合が抜けているため、\"]",
+      "# [doc = \" 攻撃者が他人のアカウントを指定して報酬を横取り可能\"]"
+    ],
+    "body": [
+      "let bounty = & mut ctx . accounts . bounty_account ;",
+      "bounty . claimed = true ;",
+      "let amount = bounty . reward_amount ;",
+      "let cpi_accounts = Transfer { from : ctx . accounts . reward_vault . to_account_info () , to : ctx . accounts . claimant_token_account . to_account_info () , authority : ctx . accounts . owner . to_account_info () , } ;",
+      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
+      "token :: transfer (cpi_ctx , amount) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "ClaimBounty",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "bounty_account",
+        "attribute": "# [account (mut , has_one = owner , has_one = reward_vault ,)]",
+        "field_type": "Account < 'info , BountyAccount >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" バウンティを発行したオーナー（署名者、かつ報酬Vault権限）\"]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "reward_vault",
+        "attribute": "# [doc = \" 報酬が保管されたトークンアカウント\"] # [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "claimant_token_account",
+        "attribute": "# [doc = \" 報酬を受け取るユーザーのトークンアカウント（所有者照合なし）\"] # [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": "# [doc = \" SPL Token プログラム\"]",
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BountyAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" バウンティ発行者\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "claimant",
+        "attribute": "# [doc = \" 本来報酬を受け取るべきユーザー\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "reward_vault",
+        "attribute": "# [doc = \" 報酬トークンVault\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "reward_amount",
+        "attribute": "# [doc = \" 報酬量\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "claimed",
+        "attribute": "# [doc = \" クレーム済みフラグ\"]",
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

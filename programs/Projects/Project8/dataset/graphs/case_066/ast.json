@@ -1,0 +1,293 @@
+[
+  {
+    "name": "generate_dungeon_instance",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < GenerateDungeon >",
+      "dungeon_difficulty: DungeonDifficulty",
+      "party_composition: Vec < PartyMember >",
+      "entrance_fee_paid: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let dungeon_instance = & mut ctx . accounts . dungeon_instance ;",
+      "let clock = Clock :: get () ? ;",
+      "let current_timestamp = clock . unix_timestamp ;",
+      "dungeon_instance . instance_creator = ctx . accounts . party_leader . key () ;",
+      "dungeon_instance . creation_time = current_timestamp ;",
+      "dungeon_instance . difficulty_level = dungeon_difficulty . clone () ;",
+      "dungeon_instance . party_members = party_composition . clone () ;",
+      "dungeon_instance . entrance_fee = entrance_fee_paid ;",
+      "let party_size = party_composition . len () ;",
+      "require ! (party_size >= 1 , DungeonError :: PartyTooSmall) ;",
+      "require ! (party_size <= 6 , DungeonError :: PartyTooLarge) ;",
+      "let base_monster_count = match dungeon_difficulty { DungeonDifficulty :: Beginner => { dungeon_instance . recommended_level_range = (1 , 10) ; dungeon_instance . completion_time_limit = 1800 ; dungeon_instance . base_experience_reward = 500 ; 15 } , DungeonDifficulty :: Intermediate => { dungeon_instance . recommended_level_range = (11 , 25) ; dungeon_instance . completion_time_limit = 2700 ; dungeon_instance . base_experience_reward = 1200 ; 25 } , DungeonDifficulty :: Advanced => { dungeon_instance . recommended_level_range = (26 , 40) ; dungeon_instance . completion_time_limit = 3600 ; dungeon_instance . base_experience_reward = 2500 ; 35 } , DungeonDifficulty :: Expert => { dungeon_instance . recommended_level_range = (41 , 60) ; dungeon_instance . completion_time_limit = 4500 ; dungeon_instance . base_experience_reward = 4000 ; 50 } , DungeonDifficulty :: Legendary => { dungeon_instance . recommended_level_range = (61 , 100) ; dungeon_instance . completion_time_limit = 5400 ; dungeon_instance . base_experience_reward = 7500 ; 75 } , } ;",
+      "let mut monster_encounters = Vec :: new () ;",
+      "let monster_types = [MonsterType :: Goblin , MonsterType :: Skeleton , MonsterType :: Orc , MonsterType :: Dragon , MonsterType :: Demon , MonsterType :: Elemental] ;",
+      "for encounter_id in 0 .. base_monster_count",
+      "{",
+      "let monster_type_index = (encounter_id + current_timestamp as u32) % monster_types . len () as u32 ;",
+      "let selected_monster_type = monster_types [monster_type_index as usize] . clone () ;",
+      "let (base_health , base_attack , base_defense) = match selected_monster_type",
+      "{",
+      "MonsterType :: Goblin => (80 , 25 , 15) , MonsterType :: Skeleton => (120 , 30 , 20) , MonsterType :: Orc => (200 , 45 , 35) , MonsterType :: Dragon => (800 , 120 , 80) , MonsterType :: Demon => (600 , 100 , 60) , MonsterType :: Elemental => (400 , 80 , 40) , } ;",
+      "let difficulty_multiplier = match dungeon_difficulty",
+      "{",
+      "DungeonDifficulty :: Beginner => 100 , DungeonDifficulty :: Intermediate => 150 , DungeonDifficulty :: Advanced => 200 , DungeonDifficulty :: Expert => 300 , DungeonDifficulty :: Legendary => 500 , } ;",
+      "let adjusted_health = (base_health * difficulty_multiplier) / 100 ;",
+      "let adjusted_attack = (base_attack * difficulty_multiplier) / 100 ;",
+      "let adjusted_defense = (base_defense * difficulty_multiplier) / 100 ;",
+      "let mut special_abilities = Vec :: new () ;",
+      "match selected_monster_type",
+      "{",
+      "MonsterType :: Dragon => { special_abilities . push (\"Fire Breath\" . to_string ()) ;",
+      "special_abilities . push (\"Wing Buffet\" . to_string ()) ;",
+      "special_abilities . push (\"Tail Sweep\" . to_string ()) ;",
+      "} , MonsterType :: Demon =>",
+      "{",
+      "special_abilities . push (\"Dark Magic\" . to_string ()) ;",
+      "special_abilities . push (\"Soul Drain\" . to_string ()) ;",
+      "} , MonsterType :: Elemental =>",
+      "{",
+      "special_abilities . push (\"Elemental Burst\" . to_string ()) ;",
+      "special_abilities . push (\"Nature's Wrath\" . to_string ()) ;",
+      "} , _ =>",
+      "{",
+      "special_abilities . push (\"Basic Attack\" . to_string ()) ;",
+      "} } monster_encounters . push (MonsterEncounter",
+      "{",
+      "encounter_id , monster_type : selected_monster_type , health_points : adjusted_health , attack_power : adjusted_attack , defense_rating : adjusted_defense , special_abilities , loot_tier : match adjusted_health { hp if hp >= 1000 => LootTier :: Legendary , hp if hp >= 500 => LootTier :: Epic , hp if hp >= 200 => LootTier :: Rare , _ => LootTier :: Common , } , defeated : false , }) ;",
+      "}",
+      "dungeon_instance . monster_encounters = monster_encounters ;",
+      "let mut treasure_chests = Vec :: new () ;",
+      "let chest_count = (party_size * 2) + match dungeon_difficulty { DungeonDifficulty :: Legendary => 8 , DungeonDifficulty :: Expert => 6 , DungeonDifficulty :: Advanced => 4 , DungeonDifficulty :: Intermediate => 3 , DungeonDifficulty :: Beginner => 2 , } ;",
+      "for chest_id in 0 .. chest_count",
+      "{",
+      "let chest_rarity = match (chest_id + current_timestamp as usize) % 100",
+      "{",
+      "value if value >= 95 => ChestRarity :: Mythical , value if value >= 85 => ChestRarity :: Legendary , value if value >= 65 => ChestRarity :: Epic , value if value >= 35 => ChestRarity :: Rare , _ => ChestRarity :: Common , } ;",
+      "let item_count = match chest_rarity",
+      "{",
+      "ChestRarity :: Mythical => 5 , ChestRarity :: Legendary => 4 , ChestRarity :: Epic => 3 , ChestRarity :: Rare => 2 , ChestRarity :: Common => 1 , } ;",
+      "let mut potential_items = Vec :: new () ;",
+      "for item_slot in 0 .. item_count",
+      "{",
+      "potential_items . push (LootItem { item_name : format ! (\"Item_{}\" , chest_id * item_count + item_slot) , item_type : match item_slot % 5 { 0 => ItemType :: Weapon , 1 => ItemType :: Armor , 2 => ItemType :: Accessory , 3 => ItemType :: Consumable , _ => ItemType :: Material , } , rarity : chest_rarity . clone () , stat_bonuses : StatBonuses { strength_bonus : (chest_id as u32 + 1) * 5 , agility_bonus : (chest_id as u32 + 1) * 3 , intelligence_bonus : (chest_id as u32 + 1) * 4 , defense_bonus : (chest_id as u32 + 1) * 2 , } , market_value : match chest_rarity { ChestRarity :: Mythical => 10000 , ChestRarity :: Legendary => 5000 , ChestRarity :: Epic => 2000 , ChestRarity :: Rare => 800 , ChestRarity :: Common => 200 , } , }) ;",
+      "} treasure_chests . push (TreasureChest",
+      "{",
+      "chest_id : chest_id as u32 , rarity : chest_rarity , location_hint : format ! (\"Hidden near encounter {}\" , chest_id % base_monster_count) , lock_difficulty : match dungeon_difficulty { DungeonDifficulty :: Legendary => 90 , DungeonDifficulty :: Expert => 75 , DungeonDifficulty :: Advanced => 60 , DungeonDifficulty :: Intermediate => 40 , DungeonDifficulty :: Beginner => 25 , } , contained_items : potential_items , discovered : false , opened : false , }) ;",
+      "}",
+      "dungeon_instance . treasure_chests = treasure_chests ;",
+      "dungeon_instance . completion_status = CompletionStatus :: InProgress ;",
+      "dungeon_instance . rooms_cleared = 0 ;",
+      "dungeon_instance . total_rooms = base_monster_count + (chest_count / 2) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "GenerateDungeon",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "dungeon_instance",
+        "attribute": "# [account (init , payer = party_leader , space = 8 + DungeonInstance :: LEN , seeds = [b\"dungeon\" , party_leader . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , DungeonInstance >"
+      },
+      {
+        "name": "party_leader",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DungeonInstance",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "instance_creator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "creation_time",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "difficulty_level",
+        "attribute": null,
+        "field_type": "DungeonDifficulty"
+      },
+      {
+        "name": "party_members",
+        "attribute": null,
+        "field_type": "Vec < PartyMember >"
+      },
+      {
+        "name": "entrance_fee",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "recommended_level_range",
+        "attribute": null,
+        "field_type": "(u32 , u32)"
+      },
+      {
+        "name": "completion_time_limit",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "base_experience_reward",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "monster_encounters",
+        "attribute": null,
+        "field_type": "Vec < MonsterEncounter >"
+      },
+      {
+        "name": "treasure_chests",
+        "attribute": null,
+        "field_type": "Vec < TreasureChest >"
+      },
+      {
+        "name": "completion_status",
+        "attribute": null,
+        "field_type": "CompletionStatus"
+      },
+      {
+        "name": "rooms_cleared",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "total_rooms",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PartyMember",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "player_pubkey",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "character_level",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "character_class",
+        "attribute": null,
+        "field_type": "CharacterClass"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MonsterEncounter",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "encounter_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "monster_type",
+        "attribute": null,
+        "field_type": "MonsterType"
+      },
+      {
+        "name": "health_points",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "attack_power",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "defense_rating",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "special_abilities",
+        "attribute": null,
+        "field_type": "Vec < String >"
+      },
+      {
+        "name": "loot_tier",
+        "attribute": null,
+        "field_type": "LootTier"
+      },
+      {
+        "name": "defeated",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TreasureChest",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "chest_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "rarity",
+        "attribute": null,
+        "field_type": "ChestRarity"
+      },
+      {
+        "name": "location_hint",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "lock_difficulty",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "contained_items",
+        "attribute": null,
+        "field_type": "Vec"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

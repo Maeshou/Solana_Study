@@ -1,43 +1,224 @@
 [
   {
-    "name": "close_futures",
+    "name": "init_lounge",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx085 >",
-      "amount: u64"
+      "ctx: Context < InitLounge >",
+      "base: u32"
     ],
     "attributes": [],
     "body": [
-      "let cpi_accounts = Transfer { from : ctx . accounts . from_token . to_account_info () , to : ctx . accounts . to_token . to_account_info () , authority : ctx . accounts . authority . to_account_info () , } ;",
-      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
-      "token :: transfer (cpi_ctx , amount) ? ;",
+      "let l = & mut ctx . accounts . lounge ;",
+      "l . owner = ctx . accounts . librarian . key () ;",
+      "l . max = base * 4 + 100 ;",
+      "l . state = Queue ;",
+      "let a = & mut ctx . accounts . reader_a ;",
+      "let b = & mut ctx . accounts . reader_b ;",
+      "let t = & mut ctx . accounts . tape ;",
+      "a . lounge = l . key () ;",
+      "a . seat = (base & 7) as u8 ;",
+      "a . pages = base + 9 ;",
+      "b . lounge = l . key () ;",
+      "b . seat = ((base >> 2) & 7) as u8 ;",
+      "b . pages = base . rotate_left (2) + 11 ;",
+      "t . lounge = l . key () ;",
+      "t . seat = 9 ;",
+      "t . count = 0 ;",
+      "t . mix = (base as u64) ^ 0xFACE_1234 ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx085",
+    "name": "sit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Sit >",
+      "laps: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let l = & mut ctx . accounts . lounge ;",
+      "let a = & mut ctx . accounts . reader_a ;",
+      "let b = & mut ctx . accounts . reader_b ;",
+      "let t = & mut ctx . accounts . tape ;",
+      "for i in 0 .. laps",
+      "{",
+      "let mix = ((a . pages ^ b . pages) as u64) . wrapping_mul (2654435761) ;",
+      "a . pages = a . pages . checked_add (((mix & 31) as u32) + 2) . unwrap_or (u32 :: MAX) ;",
+      "b . pages = b . pages . saturating_add ((((mix >> 5) & 31) as u32) + 3) ;",
+      "t . count = t . count . saturating_add (1) ;",
+      "t . mix ^= mix . rotate_left ((i % 13) as u32) ;",
+      "}",
+      "let mean = if t . count == 0 { 0 } else { (t . mix / t . count) as u32 } ;",
+      "if mean > l . max",
+      "{",
+      "l . state = Close ;",
+      "a . seat ^= 1 ;",
+      "b . seat = b . seat . saturating_add (1) ;",
+      "t . seat = t . seat . saturating_add (1) ;",
+      "msg ! (\"close: seat tweaks & tape move\") ;",
+      "} else",
+      "{",
+      "l . state = Read ;",
+      "a . pages = a . pages . saturating_add (9) ;",
+      "b . pages = b . pages / 2 + 11 ;",
+      "t . mix ^= 0x0F0F_F0F0 ;",
+      "msg ! (\"read: adjust pages & mix flip\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitLounge",
     "node_type": "struct",
     "fields": [
       {
-        "name": "from_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "lounge",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Lounge >"
       },
       {
-        "name": "to_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "reader_a",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Reader >"
       },
       {
-        "name": "authority",
+        "name": "reader_b",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Reader >"
+      },
+      {
+        "name": "tape",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 8 + 8)]",
+        "field_type": "Account < 'info , ReadTape >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "librarian",
         "attribute": null,
         "field_type": "Signer < 'info >"
       },
       {
-        "name": "token_program",
+        "name": "system_program",
         "attribute": null,
-        "field_type": "Program < 'info , Token >"
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Sit",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "lounge",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Lounge >"
+      },
+      {
+        "name": "reader_a",
+        "attribute": "# [account (mut , has_one = lounge , constraint = reader_a . seat != reader_b . seat @ ReadErr :: Dup)]",
+        "field_type": "Account < 'info , Reader >"
+      },
+      {
+        "name": "reader_b",
+        "attribute": "# [account (mut , has_one = lounge , constraint = reader_b . seat != tape . seat @ ReadErr :: Dup)]",
+        "field_type": "Account < 'info , Reader >"
+      },
+      {
+        "name": "tape",
+        "attribute": "# [account (mut , has_one = lounge)]",
+        "field_type": "Account < 'info , ReadTape >"
+      },
+      {
+        "name": "librarian",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Lounge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "max",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "state",
+        "attribute": null,
+        "field_type": "LoungeState"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Reader",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "lounge",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "seat",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "pages",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ReadTape",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "lounge",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "seat",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "count",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "mix",
+        "attribute": null,
+        "field_type": "u64"
       }
     ],
     "inputs": null,

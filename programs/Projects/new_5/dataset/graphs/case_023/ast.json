@@ -1,0 +1,233 @@
+[
+  {
+    "name": "init_market",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitMarket >",
+      "name: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let market = & mut ctx . accounts . market ;",
+      "market . owner = ctx . accounts . owner . key () ;",
+      "market . name = name ;",
+      "market . is_active = true ;",
+      "market . trade_count = 0 ;",
+      "msg ! (\"Market '{}' initialized.\" , market . name) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_offer",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitOffer >",
+      "offer_id: u64",
+      "price: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let offer = & mut ctx . accounts . offer ;",
+      "let market = & mut ctx . accounts . market ;",
+      "offer . market = market . key () ;",
+      "offer . offer_id = offer_id ;",
+      "offer . lister = ctx . accounts . lister . key () ;",
+      "offer . price = price ;",
+      "offer . is_fulfilled = false ;",
+      "market . trade_count = market . trade_count . saturating_add (1) ;",
+      "msg ! (\"Offer {} created for market {}.\" , offer . offer_id , market . name) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "fulfill_offers",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < FulfillOffers >"
+    ],
+    "attributes": [],
+    "body": [
+      "let offer_a = & mut ctx . accounts . offer_a ;",
+      "let offer_b = & mut ctx . accounts . offer_b ;",
+      "if ! ctx . accounts . market . is_active",
+      "{",
+      "return Err (ErrorCode :: MarketInactive . into ()) ;",
+      "}",
+      "let mut total_price_change = 0 ;",
+      "let mut loop_count = 0 ;",
+      "while loop_count < 5",
+      "{",
+      "if ! offer_a . is_fulfilled && ! offer_b . is_fulfilled",
+      "{",
+      "offer_a . price = offer_a . price . checked_add (100) . unwrap_or (u64 :: MAX) ;",
+      "offer_b . price = offer_b . price . checked_sub (50) . unwrap_or (0) ;",
+      "total_price_change += 50 ;",
+      "msg ! (\"Adjusting prices for A and B.\") ;",
+      "} else if ! offer_a . is_fulfilled",
+      "{",
+      "offer_a . is_fulfilled = true ;",
+      "msg ! (\"Offer A fulfilled.\") ;",
+      "break ;",
+      "} else",
+      "{",
+      "offer_b . is_fulfilled = true ;",
+      "msg ! (\"Offer B fulfilled.\") ;",
+      "break ;",
+      "} loop_count += 1 ;",
+      "}",
+      "if offer_a . price > 10000 && offer_b . price < 500",
+      "{",
+      "offer_a . is_fulfilled = true ;",
+      "offer_b . is_fulfilled = true ;",
+      "msg ! (\"Offers A and B auto-fulfilled due to price conditions.\") ;",
+      "} else",
+      "{",
+      "msg ! (\"Conditions not met for auto-fulfillment.\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitMarket",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "market",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , TradingMarket >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitOffer",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "market",
+        "attribute": "# [account (mut , has_one = market)]",
+        "field_type": "Account < 'info , TradingMarket >"
+      },
+      {
+        "name": "offer",
+        "attribute": "# [account (init , payer = lister , space = 8 + 32 + 8 + 32 + 8 + 1)]",
+        "field_type": "Account < 'info , ItemOffer >"
+      },
+      {
+        "name": "lister",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "FulfillOffers",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "market",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TradingMarket >"
+      },
+      {
+        "name": "offer_a",
+        "attribute": "# [account (mut , has_one = market)]",
+        "field_type": "Account < 'info , ItemOffer >"
+      },
+      {
+        "name": "offer_b",
+        "attribute": "# [account (mut , has_one = market)]",
+        "field_type": "Account < 'info , ItemOffer >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TradingMarket",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "is_active",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "trade_count",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ItemOffer",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "market",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "offer_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "lister",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "price",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "is_fulfilled",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

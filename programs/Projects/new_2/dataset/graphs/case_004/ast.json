@@ -1,0 +1,137 @@
+[
+  {
+    "name": "secure_draw",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SecureDrawCtx >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 完全ガード：Vault.owner と署名を同時に検証して直接加算\"]"
+    ],
+    "body": [
+      "* * ctx . accounts . vault_acc . to_account_info () . try_borrow_mut_lamports () ? += amount ;",
+      "msg ! (\"secure_draw executed\") ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "auth_draw",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AuthDrawCtx >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 署名のみチェック：クロージャを使って部分的に加算（オーナーチェックなし）\"]"
+    ],
+    "body": [
+      "(| | -> Result < () > { * * ctx . accounts . partial_acc . to_account_info () . try_borrow_mut_lamports () ? += amount ; Ok (()) }) () ? ;",
+      "msg ! (\"auth_draw executed\") ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "public_draw",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PublicDrawCtx >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 無検証：ループ構文で加算（オーナー・署名チェックともになし）\"]"
+    ],
+    "body": [
+      "for _ in 0 .. 1",
+      "{",
+      "* * ctx . accounts . free_acc . to_account_info () . try_borrow_mut_lamports () ? += amount ;",
+      "}",
+      "msg ! (\"public_draw executed\") ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "SecureDrawCtx",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault_acc",
+        "attribute": "# [doc = \" Vault.owner == signer_pubkey を検証\"] # [account (mut , has_one = signer_pubkey)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "signer_pubkey",
+        "attribute": "# [doc = \" 署名チェック\"]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AuthDrawCtx",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "partial_acc",
+        "attribute": "# [doc = \" CHECK: raw AccountInfo、owner チェック省略\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user_sig",
+        "attribute": "# [doc = \" 署名のみチェック\"]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PublicDrawCtx",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "free_acc",
+        "attribute": "# [doc = \" CHECK: 完全に未検証\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Vault",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "signer_pubkey",
+        "attribute": "# [doc = \" 正当なオーナーの Pubkey\"]",
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

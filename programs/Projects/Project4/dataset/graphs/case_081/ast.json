@@ -1,33 +1,69 @@
 [
   {
-    "name": "initialize_community_fund",
+    "name": "init_logger",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Initialize081 >",
-      "param: u64"
+      "ctx: Context < InitLogger >",
+      "errors: u32",
+      "warns: u32"
     ],
     "attributes": [],
     "body": [
-      "let mut data = CommunityFundData :: try_from_slice (& ctx . accounts . data_account . data . borrow ()) ? ;",
-      "data . value = param ;",
-      "data . serialize (& mut * ctx . accounts . data_account . data . borrow_mut ()) ? ;",
+      "let l = & mut ctx . accounts . logger ;",
+      "l . error_count = errors ;",
+      "l . warning_count = warns ;",
+      "l . critical_flag = false ;",
+      "if errors > warns * 2",
+      "{",
+      "l . critical_flag = true ;",
+      "}",
       "Ok (())"
     ]
   },
   {
-    "name": "Initialize081",
+    "name": "log_event",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < LogEvent >",
+      "is_error: bool"
+    ],
+    "attributes": [],
+    "body": [
+      "let l = & mut ctx . accounts . logger ;",
+      "if is_error",
+      "{",
+      "l . error_count = l . error_count . saturating_add (1) ;",
+      "} else",
+      "{",
+      "l . warning_count = l . warning_count . saturating_add (1) ;",
+      "}",
+      "if l . error_count > l . warning_count * 2",
+      "{",
+      "l . critical_flag = true ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitLogger",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "logger",
+        "attribute": "# [account (init , payer = user , space = 8 + 4 + 4 + 1)]",
+        "field_type": "Account < 'info , ErrorLoggerData >"
       },
       {
-        "name": "authority",
-        "attribute": null,
+        "name": "user",
+        "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -35,13 +71,37 @@
     "body": null
   },
   {
-    "name": "CommunityFundData",
+    "name": "LogEvent",
     "node_type": "struct",
     "fields": [
       {
-        "name": "value",
+        "name": "logger",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , ErrorLoggerData >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ErrorLoggerData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "error_count",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "u32"
+      },
+      {
+        "name": "warning_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "critical_flag",
+        "attribute": null,
+        "field_type": "bool"
       }
     ],
     "inputs": null,

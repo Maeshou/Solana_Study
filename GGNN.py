@@ -8,20 +8,11 @@ import torch.optim as optim
 import numpy as np
 import dgl
 from dgl.nn import GatedGraphConv
-from torch.utils.data import Dataset, DataLoader, random_split
-from sklearn.metrics import classification_report
+from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
+from sklearn.metrics import classification_report, precision_recall_fscore_support
 
-# ─────────────────────────────────────────────────────────────────────────────
-# 1) Dataset 準備：graph json から ホモグラフ + ノード特徴 + multi-hot ラベルを返す
-#    ・全グラフで同じメタグラフ（all_etypes）を使用
-#    ・ホモグラフ化してバッチ可能に
-# ─────────────────────────────────────────────────────────────────────────────
 class GraphDataset(Dataset):
     def __init__(self, items, all_etypes):
-        """
-        items: [(folder_path, label_vector), ...] のリスト
-        all_etypes: 全グラフで共通のエッジラベル一覧 (sorted list)
-        """
         self.items = items
         self.all_etypes = all_etypes
 
@@ -30,59 +21,34 @@ class GraphDataset(Dataset):
 
     def __getitem__(self, idx):
         folder, label_vec = self.items[idx]
-        
-        # --- JSON 読み込み ---
         g_json = json.load(open(os.path.join(folder, "third_joint_graph.json")))
 
-        # --- ノード数を len(nodes) に設定 ---
         num_nodes = len(g_json["nodes"])
-
-        # --- 全エッジラベルでメタグラフを初期化 ---
-        data_dict = {}
-        for et in self.all_etypes:
-            data_dict[("node", et, "node")] = ([], [])
-
-        # --- JSON のエッジを追加 ---
+        data_dict = {("node", et, "node"): ([], []) for et in self.all_etypes}
         for e in g_json["edges"]:
             tup = ("node", e["label"], "node")
             srcs, dsts = data_dict[tup]
             srcs.append(e["source"] - 1)
             dsts.append(e["target"] - 1)
 
-        # --- ヘテログラフ生成 ---
         g = dgl.heterograph(data_dict, num_nodes_dict={"node": num_nodes})
-        
-        print(f"hetero_graph = {g}")
-        # --- エッジタイプID (_TYPE) を各エッジに設定 ---
         etype2id = {et: i for i, et in enumerate(self.all_etypes)}
         for rel in g.canonical_etypes:
             label = rel[1]
             n_edges = g.num_edges(rel)
             g.edges[rel].data['_TYPE'] = torch.full((n_edges,), etype2id[label], dtype=torch.int64)
-
-        # --- ホモグラフに変換 & エッジ属性を継承 ---
         g = dgl.to_homogeneous(g, edata=['_TYPE'])
-        
-        print(f"homo_graph = {g}")
-        # --- ノード特徴量読み込み ---
-        feats = np.load(os.path.join(folder, "vectors.npy"))
-        feats = torch.from_numpy(feats).float()
 
-        # --- ラベルベクトル ---
+        feats = torch.from_numpy(np.load(os.path.join(folder, "vectors.npy"))).float()
         y = torch.tensor(label_vec, dtype=torch.float32)
         return g, feats, y
 
-# ─────────────────────────────────────────────────────────────────────────────
-# 2) モデル：GatedGraphConv + Readout + Multi-label 分類ヘッド
-# ─────────────────────────────────────────────────────────────────────────────
 class GGNNClassifier(nn.Module):
     def __init__(self, in_dim, hid_dim, n_steps, n_etypes, num_labels):
         super().__init__()
         self.linear_in = nn.Linear(in_dim, hid_dim)
-        self.ggnn = GatedGraphConv(in_feats=hid_dim,
-                                   out_feats=hid_dim,
-                                   n_steps=n_steps,
-                                   n_etypes=n_etypes)
+        self.ggnn      = GatedGraphConv(in_feats=hid_dim, out_feats=hid_dim,
+                                        n_steps=n_steps, n_etypes=n_etypes)
         self.classify = nn.Sequential(
             nn.Linear(hid_dim, hid_dim // 2),
             nn.ReLU(),
@@ -90,23 +56,10 @@ class GGNNClassifier(nn.Module):
         )
 
     def forward(self, g, h):
-        h = self.linear_in(h)  # (総ノード数, hid_dim)
-        # Dataset でホモグラフ化済み
-        g_homo = g
-        #print(f"g={g}")
-        etype = g_homo.edata['_TYPE']
-        print(f"etype = {etype}")
-        # メッセージパッシング
-        h = self.ggnn(g_homo, h, etype)
-        # Readout (平均プーリング)
-        with g_homo.local_scope():
-            g_homo.ndata['h'] = h
-            hg = dgl.mean_nodes(g_homo, 'h')
-        return self.classify(hg)
+        h = self.linear_in(h)
+        g.ndata['h'] = self.ggnn(g, h, g.edata['_TYPE'])
+        return self.classify(dgl.mean_nodes(g, 'h'))
 
-# ─────────────────────────────────────────────────────────────────────────────
-# 3) collate_fn
-# ─────────────────────────────────────────────────────────────────────────────
 def collate_fn(batch):
     gs, fs, ys = map(list, zip(*batch))
     bg = dgl.batch(gs)
@@ -114,9 +67,6 @@ def collate_fn(batch):
     ly = torch.stack(ys)
     return bg, hf, ly
 
-# ─────────────────────────────────────────────────────────────────────────────
-# 4) 評価関数
-# ─────────────────────────────────────────────────────────────────────────────
 @torch.no_grad()
 def evaluate(model, loader, device):
     model.eval()
@@ -130,105 +80,132 @@ def evaluate(model, loader, device):
         all_labels.append(ly.numpy())
     y_pred = np.vstack(all_preds)
     y_true = np.vstack(all_labels)
-    report = classification_report(
-        y_true, y_pred, output_dict=False, zero_division=0
-    )
-    print("=== Test set performance ===")
-    print(report)
 
-# ─────────────────────────────────────────────────────────────────────────────
-# 5) 学習＋評価ループ
-# ─────────────────────────────────────────────────────────────────────────────
+    print("=== Test set performance ===")
+    print(classification_report(y_true, y_pred, zero_division=0))
+
+    report_dict = classification_report(y_true, y_pred, output_dict=True, zero_division=0)
+    print("\n=== Detailed metrics (dict) ===")
+    print(json.dumps(report_dict, indent=2, ensure_ascii=False))
+
+    precisions, recalls, f1s, supports = precision_recall_fscore_support(
+        y_true, y_pred, zero_division=0
+    )
+    num_labels = y_true.shape[1]
+    print("\n=== Manual per-label metrics ===")
+    for i in range(num_labels):
+        print(f"Label {i:2d} | precision: {precisions[i]:.4f} "
+              f"| recall: {recalls[i]:.4f} "
+              f"| f1-score: {f1s[i]:.4f} "
+              f"| support: {supports[i]}")
+
+    print("\n=== Confusion matrix components per label ===")
+    for i in range(num_labels):
+        tp = int(np.logical_and(y_true[:, i] == 1, y_pred[:, i] == 1).sum())
+        fp = int(np.logical_and(y_true[:, i] == 0, y_pred[:, i] == 1).sum())
+        tn = int(np.logical_and(y_true[:, i] == 0, y_pred[:, i] == 0).sum())
+        fn = int(np.logical_and(y_true[:, i] == 1, y_pred[:, i] == 0).sum())
+        print(f"Label {i:2d} | TP={tp:5d} | FP={fp:5d} | TN={tn:5d} | FN={fn:5d}")
+
 def train_and_evaluate():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--project", default="./programs/Projects")
+    ap.add_argument("--train_paths", nargs='+', default=[
+        "/home/shogo-maeda/Solana_Study/programs/Projects/Project0",
+        "/home/shogo-maeda/Solana_Study/programs/Projects/Project1",
+        "/home/shogo-maeda/Solana_Study/programs/Projects/Project2",
+        "/home/shogo-maeda/Solana_Study/programs/Projects/Project3",
+        "/home/shogo-maeda/Solana_Study/programs/Projects/Project4",
+        "/home/shogo-maeda/Solana_Study/programs/Projects/Project5",
+    ])
+    ap.add_argument("--test_paths", nargs='+', default=[
+        "/home/shogo-maeda/Solana_Study/programs/Projects/test_rev*",
+    ])
     args = ap.parse_args()
 
-    # --- 生ラベル読み込み ---
+    # --- 学習用プロジェクトの取得 ---
+    train_dirs = []
+    for path in args.train_paths:
+        train_dirs += glob.glob(path)
+
     raw_items = []
-    for proj in os.listdir(args.project):
-        graph_dir = os.path.join(args.project, proj, "dataset", "graphs")
+    for proj in sorted(train_dirs):
+        graph_dir = os.path.join(proj, "dataset", "graphs")
         for folder in sorted(glob.glob(os.path.join(graph_dir, 'case_*'))):
             raw_label = json.load(open(os.path.join(folder, 'label.json')))
             raw_items.append((folder, raw_label))
 
-    # --- ラベル名の全集合を作成 ---
-    label_set = set()
-    j = 0 
-    for _, raw_label in raw_items:
-        if isinstance(raw_label, dict):
-            label_set |= set(raw_label.keys())
-        else:
-            label_set |= set(raw_label)
-            if j == 0:
-                print(f"raw_label = {raw_label}")
-                print(f"label_set={label_set}")
-            j += 1    
-    label_list = sorted(label_set)
-    #print(f"len(label_list)={len(label_list)}")
-    label2idx = {label: i for i, label in enumerate(label_list)}
-    #print(f"label2idx = {label2idx}")
-    # --- フォルダと multi-hot ベクトル ---
-    all_items = []
+    train_items = []
     for folder, raw_label in raw_items:
-        vec = [0] * len(label_list)
-        if isinstance(raw_label, dict):
-            for lbl, val in raw_label.items():
-                if val and lbl in label2idx:
-                    vec[label2idx[lbl]] = 1
+        if isinstance(raw_label, list) and raw_label and all(x in (0,1) for x in raw_label):
+            train_items.append((folder, raw_label))
         else:
-            for lbl in raw_label:
-                if lbl in label2idx:
-                    vec[label2idx[lbl]] = 1
-        #print(f"vec = {vec}")            
-        all_items.append((folder, vec))
+            raise ValueError("ラベルのフォーマットが違います")
+    num_labels = len(train_items[0][1])
 
-    # --- 全エッジラベルを先に集める ---
+    # --- テスト用プロジェクトの取得 ---
+    test_dirs = []
+    for path in args.test_paths:
+        test_dirs += glob.glob(path)
+
+    test_items = []
+    for proj in sorted(test_dirs):
+        graph_dir = os.path.join(proj, "dataset", "graphs")
+        for folder in sorted(glob.glob(os.path.join(graph_dir, 'case_*'))):
+            label_path = os.path.join(folder, 'label.json')
+            if os.path.exists(label_path):
+                raw_label = json.load(open(label_path))
+                if isinstance(raw_label, list) and raw_label and all(x in (0,1) for x in raw_label):
+                    test_items.append((folder, raw_label))
+                else:
+                    raise ValueError(f"{folder}: テストラベルの形式が不正です")
+
+    # 全てのグラフフォルダ一覧を取得
+    all_folders = [f for f,_ in train_items] + [f for f,_ in test_items]
+
     all_etypes = set()
-    for folder, _ in all_items:
-        g_json = json.load(open(os.path.join(folder, 'third_joint_graph.json')))
+    for folder in all_folders:
+        g_json = json.load(open(os.path.join(folder, "third_joint_graph.json")))
         all_etypes |= {e['label'] for e in g_json['edges']}
     all_etypes = sorted(all_etypes)
 
-    # --- Dataset, DataLoader ---
-    ds = GraphDataset(all_items, all_etypes)
-    #print(f"len(ds) = {len(ds)}")
-    n_train = int(len(ds) * 0.8)
-    n_test = len(ds) - n_train
-    train_ds, test_ds = random_split(ds, [n_train, n_test])
-    train_loader = DataLoader(train_ds, batch_size=32, shuffle=True, collate_fn=collate_fn)
-    test_loader = DataLoader(test_ds, batch_size=32, shuffle=False, collate_fn=collate_fn)
+    train_ds = GraphDataset(train_items, all_etypes)
+    test_ds  = GraphDataset(test_items, all_etypes)
 
-    # --- モデル／最適化設定 ---
-    in_dim = 64
-    hid_dim = 128
-    n_steps = 8
-    n_etypes = len(all_etypes)
-    num_labels = len(label_list)
-    #print(f"num_labels = {num_labels}")
+    train_loader = DataLoader(train_ds, batch_size=32, shuffle=True,
+                              collate_fn=collate_fn, drop_last=True)
+    test_loader  = DataLoader(test_ds,  batch_size=32, shuffle=True,
+                              collate_fn=collate_fn)
+
+    in_dim, hid_dim, n_steps, n_etypes = 64, 128, 8, len(all_etypes)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    model  = GGNNClassifier(in_dim, hid_dim, n_steps, n_etypes, num_labels).to(device)
+    opt    = optim.Adam(model.parameters(), lr=1e-3)
+    loss_fn= nn.BCEWithLogitsLoss()
 
-    model = GGNNClassifier(in_dim, hid_dim, n_steps, n_etypes, num_labels).to(device)
-    opt = optim.Adam(model.parameters(), lr=1e-3)
-    loss_fn = nn.BCEWithLogitsLoss()
-
-    # --- 学習ループ ---
     for epoch in range(1, 51):
         model.train()
         total_loss = 0.0
         for bg, hf, ly in train_loader:
             bg, hf, ly = bg.to(device), hf.to(device), ly.to(device)
             logits = model(bg, hf)
-            loss = loss_fn(logits, ly)
+            loss   = loss_fn(logits, ly)
             opt.zero_grad()
             loss.backward()
             opt.step()
             total_loss += loss.item() * ly.size(0)
-        avg_loss = total_loss / n_train
-        print(f"Epoch {epoch:02d} | Train Loss {avg_loss:.4f}")
+        print(f"Epoch {epoch:02d} | Train Loss {total_loss / len(train_ds):.4f}")
 
         if epoch % 10 == 0:
             evaluate(model, test_loader, device)
+            print(f"\n=== Epoch {epoch:02d} Predictions ===")
+            for i, (folder, true_label) in enumerate(test_items):
+                g, feats, _ = test_ds[i]
+                g, feats = g.to(device), feats.to(device)
+                with torch.no_grad():
+                    logits = model(g, feats)
+                    probs  = torch.sigmoid(logits).cpu().numpy()
+                    pred   = (probs >= 0.5).astype(int).tolist()
+                print(f"{folder} | pred: {pred} | true: {true_label}")
 
 if __name__ == "__main__":
     train_and_evaluate()

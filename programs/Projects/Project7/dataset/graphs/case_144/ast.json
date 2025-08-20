@@ -1,0 +1,172 @@
+[
+  {
+    "name": "configure",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ConfigureC >",
+      "base: u64",
+      "limit: u64",
+      "prefer_alt: bool"
+    ],
+    "attributes": [],
+    "body": [
+      "let st = & mut ctx . accounts . station ;",
+      "st . owner = ctx . accounts . owner . key () ;",
+      "st . base = if base < 1 { 1 } else { base } ;",
+      "st . limit = if limit < st . base { st . base } else { limit } ;",
+      "st . today = 0 ;",
+      "st . prefer_alt = prefer_alt ;",
+      "st . catalog = ctx . accounts . catalog_program . key () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "execute",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ExecuteC >",
+      "rounds: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let st = & mut ctx . accounts . station ;",
+      "let mut count = 0u8 ;",
+      "while count < rounds",
+      "{",
+      "let amount = st . base ;",
+      "let new_total = st . today . saturating_add (amount) ;",
+      "if new_total > st . limit",
+      "{",
+      "return Err (ExecCErr :: Quota . into ()) ;",
+      "} let chosen = if st . prefer_alt",
+      "{",
+      "1u8 } else { 0u8 } ;",
+      "if chosen == 1",
+      "{",
+      "token :: approve (ctx . accounts . approve_with_alt () , amount) ? ;",
+      "token :: transfer (ctx . accounts . transfer_with_alt () , amount) ? ;",
+      "token :: revoke (ctx . accounts . revoke_with_alt ()) ? ;",
+      "} else",
+      "{",
+      "token :: approve (ctx . accounts . approve_with_token () , amount) ? ;",
+      "token :: transfer (ctx . accounts . transfer_with_token () , amount) ? ;",
+      "token :: revoke (ctx . accounts . revoke_with_token ()) ? ;",
+      "} st . today = new_total ;",
+      "if st . today % (st . base * 5) == 0",
+      "{",
+      "st . prefer_alt = ! st . prefer_alt ;",
+      "} count = count . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "ConfigureC",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "station",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 8 + 1 + 32)]",
+        "field_type": "Account < 'info , StationC >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "catalog_program",
+        "attribute": "# [doc = \" CHECK: 参照として保存するだけのプログラムキー\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ExecuteC",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "station",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , StationC >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "from_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "to_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "external_router",
+        "attribute": "# [doc = \" CHECK: 実際に使う外部プログラム（catalog との一致検証なし）\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "StationC",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "base",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "limit",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "today",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "prefer_alt",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "catalog",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

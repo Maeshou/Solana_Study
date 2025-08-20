@@ -1,0 +1,176 @@
+[
+  {
+    "name": "init_station",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitStation >",
+      "nonce: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . station ;",
+      "s . artisan = ctx . accounts . artisan . key () ;",
+      "s . nonce = nonce . rotate_left (1) . wrapping_add (41) ;",
+      "s . progress = 1 ;",
+      "let mut base = s . nonce . wrapping_mul (3) . rotate_right (2) ;",
+      "let mut k = 0u8 ;",
+      "while k < 4",
+      "{",
+      "base = base . rotate_left (1) . wrapping_add (13 + k as u64) ;",
+      "s . progress = s . progress . saturating_add (((base % 31) as u32) + 2) ;",
+      "k += 1 ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "craft_and_pay",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CraftAndPay >",
+      "amount: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let bump = * ctx . bumps . get (\"authority\") . ok_or (error ! (ForgeErr :: MissingBump)) ? ;",
+      "let signer_seeds : & [& [u8]] = & [b\"authority\" , ctx . accounts . artisan . key . as_ref () , & ctx . accounts . station . nonce . to_le_bytes () , & [bump] ,] ;",
+      "let st = & mut ctx . accounts . station ;",
+      "let delta = (amount % 113) as u32 + 5 ;",
+      "st . progress = st . progress . saturating_add (delta) ;",
+      "if st . progress > 50_000",
+      "{",
+      "let cut = (st . progress % 257) + 21 ;",
+      "st . progress = st . progress . saturating_sub (cut) ;",
+      "}",
+      "let mut acc = 0u64 ;",
+      "let mut i = 0u8 ;",
+      "while i < 6",
+      "{",
+      "acc = acc . wrapping_add (st . nonce . rotate_left (i as u32) . wrapping_mul (7)) ;",
+      "i += 1 ;",
+      "}",
+      "let _phantom = acc % 997 ;",
+      "token :: transfer (CpiContext :: new_with_signer (ctx . accounts . token_program . to_account_info () , Transfer { from : ctx . accounts . vault_tokens . to_account_info () , to : ctx . accounts . recipient_tokens . to_account_info () , authority : ctx . accounts . authority . to_account_info () , } , & [signer_seeds] ,) , amount ,) ? ;",
+      "emit ! (Crafted { to : ctx . accounts . recipient_tokens . key () , amount }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Crafted",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "to",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "amount",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitStation",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "station",
+        "attribute": "# [account (init , payer = artisan , space = 8 + 32 + 8 + 4)]",
+        "field_type": "Account < 'info , Station >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (init , payer = artisan , seeds = [b\"authority\" , artisan . key () . as_ref () , nonce . to_le_bytes () . as_ref ()] , bump , space = 8)] # [doc = \" CHECK: PDA signer only\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "artisan",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "nonce",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CraftAndPay",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "station",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Station >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (seeds = [b\"authority\" , artisan . key () . as_ref () , station . nonce . to_le_bytes () . as_ref ()] , bump)] # [doc = \" CHECK: PDA signer only\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "vault_tokens",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "recipient_tokens",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "artisan",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Station",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "artisan",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "nonce",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "progress",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

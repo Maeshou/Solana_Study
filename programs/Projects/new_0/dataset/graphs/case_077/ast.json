@@ -1,0 +1,123 @@
+[
+  {
+    "name": "initialize_vesting",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeVesting >",
+      "amount: u64",
+      "release_time: i64"
+    ],
+    "attributes": [
+      "# [doc = \" 初回のみベスティングアカウントを初期化し、\"]",
+      "# [doc = \" 受取人、総額、解放タイムスタンプを設定します。\"]"
+    ],
+    "body": [
+      "let vest = & mut ctx . accounts . vesting ;",
+      "vest . beneficiary = ctx . accounts . beneficiary . key () ;",
+      "vest . total_amount = amount ;",
+      "vest . release_time = release_time ;",
+      "vest . claimed_amount = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "claim_vested",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ClaimVested >"
+    ],
+    "attributes": [
+      "# [doc = \" 解放時刻到来後に一度だけ全額を請求します（分岐・ループなし）。\"]"
+    ],
+    "body": [
+      "let vest = & mut ctx . accounts . vesting ;",
+      "let now = Clock :: get () ? . unix_timestamp ;",
+      "let elapsed = now . saturating_sub (vest . release_time) as u64 ;",
+      "let can = (elapsed != 0) as u64 ;",
+      "let payable = vest . total_amount . saturating_mul (can) ;",
+      "let to_claim = payable . saturating_sub (vest . claimed_amount) ;",
+      "vest . claimed_amount = vest . claimed_amount . saturating_add (to_claim) ;",
+      "msg ! (\"Vested {} tokens to {:?}\" , to_claim , vest . beneficiary) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializeVesting",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vesting",
+        "attribute": "# [doc = \" 初回のみPDAを作成・初期化\"] # [account (init , payer = authority , space = 8 + 32 + 8 + 8 + 8 , seeds = [b\"vesting\" , beneficiary . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Vesting >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [doc = \" 初期化トランザクションの署名者\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "beneficiary",
+        "attribute": "# [doc = \" ベスティングを受け取るアドレス\"] # [doc = \" (Signer でもよいが、view-only の場合は指定外可能)\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ClaimVested",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vesting",
+        "attribute": "# [doc = \" PDA と所有者チェックで不正アクセス防止\"] # [account (seeds = [b\"vesting\" , beneficiary . key () . as_ref ()] , bump , has_one = beneficiary)]",
+        "field_type": "Account < 'info , Vesting >"
+      },
+      {
+        "name": "beneficiary",
+        "attribute": "# [doc = \" 請求者は必ずベネフィシャリ\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Vesting",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "beneficiary",
+        "attribute": "# [doc = \" 受取人\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "total_amount",
+        "attribute": "# [doc = \" 合計ベスティング額\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "release_time",
+        "attribute": "# [doc = \" UNIX秒での解放時刻\"]",
+        "field_type": "i64"
+      },
+      {
+        "name": "claimed_amount",
+        "attribute": "# [doc = \" 既に請求した量\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

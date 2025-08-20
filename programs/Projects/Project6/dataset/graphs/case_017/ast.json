@@ -1,0 +1,167 @@
+[
+  {
+    "name": "initialize_scoreboard",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeScoreboard >",
+      "title: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let scoreboard = & mut ctx . accounts . scoreboard ;",
+      "scoreboard . title = title ;",
+      "scoreboard . entry_count = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "update_player_score",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < UpdatePlayerScore >",
+      "slot_id_player: u8",
+      "new_score: u64",
+      "slot_id_opponent: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let player_score = & mut ctx . accounts . player_score ;",
+      "let opponent_score = & mut ctx . accounts . opponent_score ;",
+      "let scoreboard = & mut ctx . accounts . scoreboard ;",
+      "player_score . score = new_score ;",
+      "opponent_score . score = opponent_score . score . checked_add (new_score / 10) . unwrap_or (u64 :: MAX) ;",
+      "player_score . matches_played = player_score . matches_played . checked_add (1) . unwrap () ;",
+      "opponent_score . matches_played = opponent_score . matches_played . checked_add (1) . unwrap () ;",
+      "let mut average_score = (player_score . score / (player_score . matches_played as u64)) . min (1000) ;",
+      "if average_score > 500",
+      "{",
+      "msg ! (\"Player is performing well!\") ;",
+      "} else",
+      "{",
+      "msg ! (\"Player needs more practice.\") ;",
+      "}",
+      "player_score . status_flags |= 0b00000001 ;",
+      "if new_score > 1000",
+      "{",
+      "player_score . status_flags |= 0b00000010 ;",
+      "} else",
+      "{",
+      "player_score . status_flags &= 0b11111101 ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializeScoreboard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "scoreboard",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 4 , owner = crate :: ID ,)]",
+        "field_type": "Account < 'info , Scoreboard >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "UpdatePlayerScore",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "scoreboard",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Scoreboard >"
+      },
+      {
+        "name": "player_score",
+        "attribute": "# [account (mut , has_one = scoreboard , constraint = player_score . key () != opponent_score . key () @ ErrorCode :: CosplayBlocked , constraint = player_score . slot_id != opponent_score . slot_id @ ErrorCode :: CosplayBlocked ,)]",
+        "field_type": "Account < 'info , PlayerScore >"
+      },
+      {
+        "name": "opponent_score",
+        "attribute": "# [account (mut , has_one = scoreboard , constraint = player_score . key () != opponent_score . key () @ ErrorCode :: CosplayBlocked , constraint = opponent_score . slot_id == slot_id_opponent @ ErrorCode :: SlotIdMismatch ,)]",
+        "field_type": "Account < 'info , PlayerScore >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Scoreboard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "title",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "entry_count",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PlayerScore",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "scoreboard",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "slot_id",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "score",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "matches_played",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "status_flags",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

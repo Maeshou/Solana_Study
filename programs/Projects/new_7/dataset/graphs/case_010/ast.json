@@ -1,0 +1,155 @@
+[
+  {
+    "name": "setup",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Setup >",
+      "stride: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . cfg ;",
+      "s . moderator = ctx . accounts . moderator . key () ;",
+      "s . stride = stride ;",
+      "s . queue = 0 ;",
+      "s . done = 0 ;",
+      "s . pool = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "review_and_pay",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ReviewAndPay >",
+      "status: bool",
+      "hint: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . cfg ;",
+      "require ! (s . moderator == ctx . accounts . moderator . key () , Errs :: Mod) ;",
+      "if status",
+      "{",
+      "let mut hops = 0 ;",
+      "while hops < s . stride",
+      "{",
+      "s . pool = s . pool . saturating_add (2) ;",
+      "hops = hops . saturating_add (1) ;",
+      "} if hint . len () > 3",
+      "{",
+      "s . pool = s . pool . saturating_add (hint . len () as u32) ;",
+      "} s . done = s . done . saturating_add (1) ;",
+      "} else",
+      "{",
+      "let mut r = 0 ;",
+      "while r < 5",
+      "{",
+      "s . queue = s . queue . saturating_add (1) ;",
+      "r = r . saturating_add (1) ;",
+      "} if s . pool > 0",
+      "{",
+      "s . pool = s . pool . saturating_sub (1) ;",
+      "}",
+      "}",
+      "let payout = (s . pool as u64) . saturating_add ((s . done as u64) * 3) ;",
+      "let ix = spl_token :: instruction :: transfer (ctx . accounts . token_program . key () , ctx . accounts . fund . key () , ctx . accounts . reviewer_ata . key () , ctx . accounts . moderator . key () , & [] , payout ,) ? ;",
+      "invoke (& ix , & [ctx . accounts . fund . to_account_info () , ctx . accounts . reviewer_ata . to_account_info () , ctx . accounts . moderator . to_account_info () ,]) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Cfg",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "moderator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "stride",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "queue",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "done",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "pool",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Setup",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "cfg",
+        "attribute": "# [account (init , payer = moderator , space = 8 + 32 + 1 + 4 + 4 + 4)]",
+        "field_type": "Account < 'info , Cfg >"
+      },
+      {
+        "name": "moderator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ReviewAndPay",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "cfg",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Cfg >"
+      },
+      {
+        "name": "moderator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "fund",
+        "attribute": "# [doc = \" CHECK:\"] # [account (mut)]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "reviewer_ata",
+        "attribute": "# [doc = \" CHECK:\"] # [account (mut)]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

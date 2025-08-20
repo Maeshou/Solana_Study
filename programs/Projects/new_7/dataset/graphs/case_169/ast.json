@@ -1,0 +1,120 @@
+[
+  {
+    "name": "roll",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Roll >",
+      "step: u64",
+      "payout: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "if step > 10",
+      "{",
+      "ctx . accounts . track . high = ctx . accounts . track . high . saturating_add (step) ;",
+      "}",
+      "if step == 0",
+      "{",
+      "ctx . accounts . track . zero = ctx . accounts . track . zero . wrapping_add (1) ;",
+      "}",
+      "let fixed_ix = Instruction { program_id : FIXED_COUNTER , accounts : vec ! [AccountMeta :: new (ctx . accounts . counter_slot . key () , false) , AccountMeta :: new_readonly (ctx . accounts . hunter . key () , false) ,] , data : step . to_le_bytes () . to_vec () , } ;",
+      "invoke (& fixed_ix , & [ctx . accounts . counter_hint . to_account_info () , ctx . accounts . counter_slot . to_account_info () , ctx . accounts . hunter . to_account_info () ,]) ? ;",
+      "let mut prog = ctx . accounts . publish_hint . to_account_info () ;",
+      "if ! ctx . remaining_accounts . is_empty ()",
+      "{",
+      "prog = ctx . remaining_accounts [0] . clone () ;",
+      "ctx . accounts . track . paths = ctx . accounts . track . paths . saturating_add (3) ;",
+      "}",
+      "let dyn_ix = Instruction { program_id : * prog . key , accounts : vec ! [AccountMeta :: new (ctx . accounts . publish_board . key () , false) , AccountMeta :: new_readonly (ctx . accounts . hunter . key () , false) ,] , data : payout . to_le_bytes () . to_vec () , } ;",
+      "invoke (& dyn_ix , & [prog , ctx . accounts . publish_board . to_account_info () , ctx . accounts . hunter . to_account_info () ,]) ? ;",
+      "let t = Transfer { from : ctx . accounts . treasury . to_account_info () , to : ctx . accounts . hunter_token . to_account_info () , authority : ctx . accounts . treasury_authority . to_account_info () , } ;",
+      "let tctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , t) ;",
+      "token :: transfer (tctx , payout) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Roll",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "track",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , LootTrack >"
+      },
+      {
+        "name": "counter_slot",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "hunter",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "counter_hint",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "publish_board",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "publish_hint",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "treasury",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "hunter_token",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "treasury_authority",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "LootTrack",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "high",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "zero",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "paths",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

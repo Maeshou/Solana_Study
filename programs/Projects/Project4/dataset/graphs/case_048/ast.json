@@ -1,33 +1,81 @@
 [
   {
-    "name": "initialize_rate_limit",
+    "name": "init_game",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Initialize048 >",
-      "param: u64"
+      "ctx: Context < InitGame >",
+      "max_players: u8"
     ],
     "attributes": [],
     "body": [
-      "let mut data = RateLimitData :: try_from_slice (& ctx . accounts . data_account . data . borrow ()) ? ;",
-      "data . value = param ;",
-      "data . serialize (& mut * ctx . accounts . data_account . data . borrow_mut ()) ? ;",
+      "let session = & mut ctx . accounts . session ;",
+      "session . max_players = max_players ;",
+      "session . active = true ;",
+      "let board = & mut ctx . accounts . board ;",
+      "board . scores = Vec :: new () ;",
+      "for _ in 0 .. max_players",
+      "{",
+      "board . scores . push (0) ;",
+      "}",
+      "let game_log = & mut ctx . accounts . game_log ;",
+      "game_log . events = Vec :: new () ;",
+      "game_log . events . push (\"Game started\" . to_string ()) ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Initialize048",
+    "name": "play_round",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PlayRound >",
+      "player_index: usize",
+      "score: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let session = & ctx . accounts . session ;",
+      "let board = & mut ctx . accounts . board ;",
+      "let log = & mut ctx . accounts . game_log ;",
+      "if player_index < session . max_players as usize",
+      "{",
+      "board . scores [player_index] += score ;",
+      "log . events . push (format ! (\"Player",
+      "{",
+      "} scored {}\" , player_index , score)) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitGame",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "session",
+        "attribute": "# [account (init , payer = host , space = 8 + 1 + 1)]",
+        "field_type": "Account < 'info , SessionData >"
       },
       {
-        "name": "authority",
-        "attribute": null,
+        "name": "board",
+        "attribute": "# [account (init , payer = host , space = 8 + 4 + (4 * 10))]",
+        "field_type": "Account < 'info , BoardData >"
+      },
+      {
+        "name": "game_log",
+        "attribute": "# [account (init , payer = host , space = 8 + 4 + (200 * 2))]",
+        "field_type": "Account < 'info , GameLogData >"
+      },
+      {
+        "name": "host",
+        "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -35,13 +83,70 @@
     "body": null
   },
   {
-    "name": "RateLimitData",
+    "name": "PlayRound",
     "node_type": "struct",
     "fields": [
       {
-        "name": "value",
+        "name": "session",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "Account < 'info , SessionData >"
+      },
+      {
+        "name": "board",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , BoardData >"
+      },
+      {
+        "name": "game_log",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , GameLogData >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SessionData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "max_players",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "active",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BoardData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "scores",
+        "attribute": null,
+        "field_type": "Vec < u32 >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GameLogData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "events",
+        "attribute": null,
+        "field_type": "Vec < String >"
       }
     ],
     "inputs": null,

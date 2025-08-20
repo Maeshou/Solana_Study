@@ -1,0 +1,203 @@
+[
+  {
+    "name": "init_item",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitItem >",
+      "item_id: u64",
+      "base_power: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let item = & mut ctx . accounts . item ;",
+      "item . owner = ctx . accounts . owner . key () ;",
+      "item . item_id = item_id ;",
+      "item . base_power = base_power ;",
+      "item . level = 0 ;",
+      "item . upgrade_cost = 100 ;",
+      "item . rarity_level = Rarity :: Common ;",
+      "item . is_locked = false ;",
+      "msg ! (\"Item {} initialized with base power {}\" , item . item_id , item . base_power) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "enhance_item",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < EnhanceItem >"
+    ],
+    "attributes": [],
+    "body": [
+      "let item = & mut ctx . accounts . item ;",
+      "let material = & mut ctx . accounts . material ;",
+      "if item . is_locked",
+      "{",
+      "return Err (ErrorCode :: ItemLocked . into ()) ;",
+      "}",
+      "let mut success_chance_sum = 0.0 ;",
+      "let mut total_added_power = 0 ;",
+      "let mut loops_run = 0 ;",
+      "let max_loops = 5 ;",
+      "while loops_run < max_loops",
+      "{",
+      "if material . count == 0",
+      "{",
+      "break ;",
+      "} let bonus_factor = if item . level > 10",
+      "{",
+      "1.2 } else { 1.0 } ;",
+      "let success_roll = 1.0 - (loops_run as f64 * 0.1) ;",
+      "if success_roll > 0.5",
+      "{",
+      "let added_power = (material . power as f64 * bonus_factor) as u16 ;",
+      "item . base_power = item . base_power . checked_add (added_power) . unwrap_or (u16 :: MAX) ;",
+      "total_added_power += added_power ;",
+      "success_chance_sum += success_roll ;",
+      "material . count -= 1 ;",
+      "} else",
+      "{",
+      "item . upgrade_cost = item . upgrade_cost . saturating_add (10) ;",
+      "item . level = item . level . saturating_sub (1) ;",
+      "material . count = material . count . saturating_sub (1) ;",
+      "msg ! (\"Enhancement failed, item level decreased and cost increased.\") ;",
+      "break ;",
+      "} loops_run += 1 ;",
+      "}",
+      "if item . base_power > 2000",
+      "{",
+      "item . rarity_level = Rarity :: Legendary ;",
+      "msg ! (\"Item upgraded to Legendary rarity!\") ;",
+      "} else",
+      "{",
+      "item . rarity_level = Rarity :: Rare ;",
+      "msg ! (\"Item upgraded to Rare rarity.\") ;",
+      "}",
+      "msg ! (\"Enhanced item {} with {} total added power. New power: {}\" , item . item_id , total_added_power , item . base_power) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitItem",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "item",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 2 + 2 + 1 + 1 + 1)]",
+        "field_type": "Account < 'info , Equipment >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EnhanceItem",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "item",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Equipment >"
+      },
+      {
+        "name": "material",
+        "attribute": "# [account (mut , has_one = item_parent)]",
+        "field_type": "Account < 'info , EnhancementMaterial >"
+      },
+      {
+        "name": "item_parent",
+        "attribute": "# [doc = \" CHECK: Parent is just a pubkey\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Equipment",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "item_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "base_power",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "level",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "upgrade_cost",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "rarity_level",
+        "attribute": null,
+        "field_type": "Rarity"
+      },
+      {
+        "name": "is_locked",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EnhancementMaterial",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "item_parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "material_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "power",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "count",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

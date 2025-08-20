@@ -1,0 +1,295 @@
+[
+  {
+    "name": "init_staking_pool",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitStakingPool >",
+      "pool_name: String",
+      "reward_rate: u32",
+      "min_stake: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let pool = & mut ctx . accounts . pool ;",
+      "pool . admin = ctx . accounts . admin . key () ;",
+      "pool . pool_name = pool_name ;",
+      "pool . reward_rate = reward_rate ;",
+      "pool . min_stake = min_stake ;",
+      "pool . total_staked = 0 ;",
+      "pool . total_rewards = 0 ;",
+      "pool . active_stakers = 0 ;",
+      "pool . is_active = true ;",
+      "pool . created_at = Clock :: get () ? . unix_timestamp ;",
+      "msg ! (\"Staking pool '{}' created with {}% reward rate\" , pool . pool_name , reward_rate) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_stake_position",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitStakePosition >",
+      "stake_amount: u64",
+      "lock_period: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let position = & mut ctx . accounts . position ;",
+      "position . pool = ctx . accounts . pool . key () ;",
+      "position . staker = ctx . accounts . staker . key () ;",
+      "position . stake_amount = stake_amount ;",
+      "position . lock_period = lock_period ;",
+      "position . rewards_earned = 0 ;",
+      "position . last_claim = Clock :: get () ? . unix_timestamp ;",
+      "position . is_active = true ;",
+      "position . staked_at = Clock :: get () ? . unix_timestamp ;",
+      "msg ! (\"Stake position created: {} tokens for {} days\" , stake_amount , lock_period) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "process_staking_rewards",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ProcessStakingRewards >",
+      "reward_cycles: u32",
+      "boost_factor: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let pool = & mut ctx . accounts . pool ;",
+      "let mut cycle = 0 ;",
+      "while cycle < reward_cycles",
+      "{",
+      "if pool . is_active",
+      "{",
+      "let base_reward = (pool . total_staked * pool . reward_rate as u64) / 10000 ;",
+      "let cycle_reward = base_reward . checked_add ((cycle as u64) * boost_factor) . unwrap_or (u64 :: MAX) ;",
+      "pool . total_rewards = pool . total_rewards . checked_add (cycle_reward) . unwrap_or (u64 :: MAX) ;",
+      "pool . total_staked = pool . total_staked . checked_add (cycle_reward / 100) . unwrap_or (u64 :: MAX) ;",
+      "let compound_bits = (cycle ^ 0xA) << 4 ;",
+      "let compound_reward = compound_bits as u64 * boost_factor / 1000 ;",
+      "pool . total_rewards = pool . total_rewards . checked_add (compound_reward) . unwrap_or (u64 :: MAX) ;",
+      "msg ! (\"Active reward cycle",
+      "{",
+      "}: distributed {}\" , cycle , cycle_reward) ;",
+      "} else",
+      "{",
+      "let penalty = (cycle as u64) * 1000 ;",
+      "pool . total_rewards = pool . total_rewards . saturating_sub (penalty) ;",
+      "pool . total_staked = pool . total_staked . saturating_sub (penalty * 2) ;",
+      "let sqrt_staked = integer_sqrt (pool . total_staked) ;",
+      "pool . reward_rate = ((sqrt_staked % 500) + 100) as u32 ;",
+      "msg ! (\"Inactive penalty cycle",
+      "{",
+      "}: penalty {}\" , cycle , penalty) ;",
+      "} cycle += 1 ;",
+      "}",
+      "for adjustment in 0 .. 6",
+      "{",
+      "let staker_change = (adjustment + 1) as u32 ;",
+      "if pool . total_staked > pool . min_stake * 100",
+      "{",
+      "pool . active_stakers = pool . active_stakers . checked_add (staker_change) . unwrap_or (u32 :: MAX) ;",
+      "} else",
+      "{",
+      "pool . active_stakers = pool . active_stakers . saturating_sub (staker_change) ;",
+      "} let avg_stake = (pool . total_staked * 97 + pool . min_stake * pool . active_stakers as u64 * 3) / 100 ;",
+      "pool . total_staked = avg_stake ;",
+      "pool . reward_rate = pool . reward_rate ^ (adjustment % 8) ;",
+      "msg ! (\"Staker adjustment",
+      "{",
+      "}: active stakers {}\" , adjustment , pool . active_stakers) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitStakingPool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 64 + 4 + 8 + 8 + 8 + 4 + 1 + 8)]",
+        "field_type": "Account < 'info , StakingPool >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitStakePosition",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": null,
+        "field_type": "Account < 'info , StakingPool >"
+      },
+      {
+        "name": "position",
+        "attribute": "# [account (init , payer = staker , space = 8 + 32 + 32 + 8 + 4 + 8 + 8 + 1 + 8)]",
+        "field_type": "Account < 'info , StakePosition >"
+      },
+      {
+        "name": "staker",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ProcessStakingRewards",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , StakingPool >"
+      },
+      {
+        "name": "staker_account",
+        "attribute": "# [doc = \" CHECK: ステーカーアカウントの検証が不十分\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "validator_account",
+        "attribute": "# [doc = \" CHECK: バリデーターアカウントの検証が不十分\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "reward_distributor",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "StakingPool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "pool_name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "reward_rate",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "min_stake",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_staked",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_rewards",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "active_stakers",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "is_active",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "created_at",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "StakePosition",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "staker",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "stake_amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "lock_period",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "rewards_earned",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "last_claim",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "is_active",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "staked_at",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

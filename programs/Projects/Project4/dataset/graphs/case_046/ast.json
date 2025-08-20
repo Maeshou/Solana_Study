@@ -1,33 +1,83 @@
 [
   {
-    "name": "initialize_key_manager",
+    "name": "init_inventory",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Initialize046 >",
-      "param: u64"
+      "ctx: Context < InitInventory >",
+      "initial: u32",
+      "threshold: u32"
     ],
     "attributes": [],
     "body": [
-      "let mut data = KeyManagerData :: try_from_slice (& ctx . accounts . data_account . data . borrow ()) ? ;",
-      "data . value = param ;",
-      "data . serialize (& mut * ctx . accounts . data_account . data . borrow_mut ()) ? ;",
+      "let stock = & mut ctx . accounts . stock ;",
+      "stock . level = 0 ;",
+      "for _ in 0 .. initial",
+      "{",
+      "stock . level += 1 ;",
+      "}",
+      "let thresh = & mut ctx . accounts . threshold ;",
+      "thresh . value = threshold ;",
+      "let log = & mut ctx . accounts . alert_log ;",
+      "log . entries = Vec :: new () ;",
+      "if stock . level > threshold",
+      "{",
+      "log . entries . push (format ! (\"Level",
+      "{",
+      "} exceeded {}\" , stock . level , threshold)) ;",
+      "}",
       "Ok (())"
     ]
   },
   {
-    "name": "Initialize046",
+    "name": "configure_threshold",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ConfigureThreshold >",
+      "new_threshold: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let stock = & ctx . accounts . stock ;",
+      "let thresh = & mut ctx . accounts . threshold ;",
+      "thresh . value = new_threshold ;",
+      "let log = & mut ctx . accounts . alert_log ;",
+      "if stock . level > new_threshold",
+      "{",
+      "log . entries . push (\"Re-threshold exceeded\" . to_string ()) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitInventory",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "stock",
+        "attribute": "# [account (init , payer = manager , space = 8 + 4)]",
+        "field_type": "Account < 'info , StockData >"
       },
       {
-        "name": "authority",
-        "attribute": null,
+        "name": "threshold",
+        "attribute": "# [account (init , payer = manager , space = 8 + 4)]",
+        "field_type": "Account < 'info , ThresholdData >"
+      },
+      {
+        "name": "alert_log",
+        "attribute": "# [account (init , payer = manager , space = 8 + 4 + (200 * 2))]",
+        "field_type": "Account < 'info , AlertLogData >"
+      },
+      {
+        "name": "manager",
+        "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -35,13 +85,60 @@
     "body": null
   },
   {
-    "name": "KeyManagerData",
+    "name": "ConfigureThreshold",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "threshold",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , ThresholdData >"
+      },
+      {
+        "name": "alert_log",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , AlertLogData >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "StockData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "level",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ThresholdData",
     "node_type": "struct",
     "fields": [
       {
         "name": "value",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AlertLogData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "entries",
+        "attribute": null,
+        "field_type": "Vec < String >"
       }
     ],
     "inputs": null,

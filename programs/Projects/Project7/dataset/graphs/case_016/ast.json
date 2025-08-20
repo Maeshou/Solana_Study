@@ -1,0 +1,163 @@
+[
+  {
+    "name": "init_boss",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitBoss >",
+      "base_unit: u64",
+      "step: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let boss = & mut ctx . accounts . boss ;",
+      "boss . operator = ctx . accounts . operator . key () ;",
+      "boss . base_reward = base_unit . max (2) ;",
+      "boss . participant_step = step . min (2000) . max (25) ;",
+      "boss . kill_count = 3 ;",
+      "boss . max_combo_record = 7 ;",
+      "boss . hard_mode_flag = false ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_distribute",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActDistribute >",
+      "party_size: u8",
+      "combo_hits: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "require ! (party_size > 0 , ErrRaid :: NoParty) ;",
+      "let boss = & mut ctx . accounts . boss ;",
+      "let mut bonus = 0u64 ;",
+      "let mut i = 1u8 ;",
+      "while i <= party_size",
+      "{",
+      "let add = (boss . participant_step as u64) . saturating_div (i as u64) ;",
+      "bonus = bonus . saturating_add (add) ;",
+      "i = i . saturating_add (1) ;",
+      "}",
+      "if combo_hits > boss . max_combo_record as u32",
+      "{",
+      "boss . max_combo_record = combo_hits as u64 ;",
+      "}",
+      "if combo_hits >= 60",
+      "{",
+      "boss . hard_mode_flag = true ;",
+      "}",
+      "if combo_hits < 40",
+      "{",
+      "boss . hard_mode_flag = false ;",
+      "}",
+      "let mut payout = boss . base_reward . saturating_add (bonus) ;",
+      "if boss . hard_mode_flag",
+      "{",
+      "payout = payout . saturating_mul (2) ;",
+      "}",
+      "token :: transfer (ctx . accounts . treasury_to_player () , payout) ? ;",
+      "boss . kill_count = boss . kill_count . saturating_add (1) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitBoss",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "boss",
+        "attribute": "# [account (init , payer = operator , space = 8 + 32 + 8 + 2 + 8 + 8 + 1)]",
+        "field_type": "Account < 'info , BossState >"
+      },
+      {
+        "name": "operator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActDistribute",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "boss",
+        "attribute": "# [account (mut , has_one = operator)]",
+        "field_type": "Account < 'info , BossState >"
+      },
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "raid_treasury",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "player_wallet",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BossState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "base_reward",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "participant_step",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "kill_count",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "max_combo_record",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "hard_mode_flag",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

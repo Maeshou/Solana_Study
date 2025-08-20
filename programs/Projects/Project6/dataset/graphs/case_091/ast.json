@@ -1,0 +1,236 @@
+[
+  {
+    "name": "init_kiosk",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitKiosk >"
+    ],
+    "attributes": [],
+    "body": [
+      "let k = & mut ctx . accounts . kiosk ;",
+      "k . owner = ctx . accounts . operator . key () ;",
+      "k . fee_bps = 25 ;",
+      "k . listed = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_card",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitCard >",
+      "actor: Actor"
+    ],
+    "attributes": [],
+    "body": [
+      "let c = & mut ctx . accounts . card ;",
+      "c . kiosk = ctx . accounts . kiosk . key () ;",
+      "c . actor = actor ;",
+      "c . score = 0 ;",
+      "c . buf = [0 ; 4] ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "process_listing",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ProcessListing >",
+      "price: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let k = & mut ctx . accounts . kiosk ;",
+      "let s = & mut ctx . accounts . seller ;",
+      "let i = & mut ctx . accounts . inspector ;",
+      "let b = & mut ctx . accounts . board ;",
+      "for j in 0 .. 4",
+      "{",
+      "s . buf [j] = s . buf [j] . saturating_add (((price >> (j * 8)) as u32) & 0xFF) ;",
+      "}",
+      "if s . actor == Seller",
+      "{",
+      "s . score = s . score . saturating_add (((price % 997) as u32) + k . fee_bps as u32) ;",
+      "k . listed = k . listed . saturating_add (1) ;",
+      "b . cursor = b . cursor . saturating_add (1) ;",
+      "b . acc = b . acc . wrapping_add (price . rotate_left (9)) ;",
+      "msg ! (\"Seller path\") ;",
+      "} else",
+      "{",
+      "i . score = i . score . saturating_add (((price >> 2) as u32) % 463) ;",
+      "k . fee_bps = (k . fee_bps + 1) . min (100) ;",
+      "b . cursor = b . cursor . saturating_add (2) ;",
+      "b . acc = b . acc ^ price . rotate_right (11) ;",
+      "msg ! (\"Inspector path\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitKiosk",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "kiosk",
+        "attribute": "# [account (init , payer = operator , space = 8 + Kiosk :: MAX)]",
+        "field_type": "Account < 'info , Kiosk >"
+      },
+      {
+        "name": "operator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitCard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "kiosk",
+        "attribute": "# [account (mut , has_one = owner , owner = crate :: ID)]",
+        "field_type": "Account < 'info , Kiosk >"
+      },
+      {
+        "name": "card",
+        "attribute": "# [account (init , payer = user , space = 8 + Card :: MAX)]",
+        "field_type": "Account < 'info , Card >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ProcessListing",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "kiosk",
+        "attribute": "# [account (mut , has_one = owner , owner = crate :: ID)]",
+        "field_type": "Account < 'info , Kiosk >"
+      },
+      {
+        "name": "board",
+        "attribute": "# [account (mut , has_one = kiosk , owner = crate :: ID)]",
+        "field_type": "Account < 'info , Board >"
+      },
+      {
+        "name": "seller",
+        "attribute": "# [account (mut , has_one = kiosk , owner = crate :: ID)]",
+        "field_type": "Account < 'info , Card >"
+      },
+      {
+        "name": "inspector",
+        "attribute": "# [account (mut , has_one = kiosk , owner = crate :: ID , constraint = seller . actor != inspector . actor @ ErrCode :: CosplayBlocked)]",
+        "field_type": "Account < 'info , Card >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Kiosk",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "fee_bps",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "listed",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Card",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "kiosk",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "actor",
+        "attribute": null,
+        "field_type": "Actor"
+      },
+      {
+        "name": "score",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "buf",
+        "attribute": null,
+        "field_type": "[u32 ; 4]"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Board",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "kiosk",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "acc",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "cursor",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

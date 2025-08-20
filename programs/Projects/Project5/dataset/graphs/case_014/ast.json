@@ -1,33 +1,221 @@
 [
   {
-    "name": "withdraw_from_vault",
+    "name": "init_arena",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx014 >"
+      "ctx: Context < InitArena >",
+      "limit: u32"
     ],
     "attributes": [],
     "body": [
-      "let a = & ctx . accounts . first ;",
-      "let b = & ctx . accounts . second ;",
-      "msg ! (\"Account A: {}\" , a . key ()) ;",
-      "msg ! (\"Account B: {}\" , b . key ()) ;",
+      "ctx . accounts . arena . host = ctx . accounts . organizer . key () ;",
+      "ctx . accounts . arena . limit = limit ;",
+      "ctx . accounts . arena . open = true ;",
+      "ctx . accounts . board . total = 0 ;",
+      "ctx . accounts . board . fights = 0 ;",
+      "ctx . accounts . match_cfg . rounds = 3 ;",
+      "ctx . accounts . match_cfg . strict = true ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx014",
+    "name": "duel",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Duel >",
+      "hits_a: u32",
+      "hits_b: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "require ! (ctx . accounts . fighter_a . key () != ctx . accounts . fighter_b . key () , ArenaErr :: Dup) ;",
+      "require ! (ctx . accounts . arena . key () != ctx . accounts . board . key () , ArenaErr :: Dup) ;",
+      "for _ in 0 .. hits_a",
+      "{",
+      "ctx . accounts . fighter_a . score = ctx . accounts . fighter_a . score . saturating_add (1) ;",
+      "ctx . accounts . board . total = ctx . accounts . board . total . saturating_add (1) ;",
+      "}",
+      "for _ in 0 .. hits_b",
+      "{",
+      "ctx . accounts . fighter_b . score = ctx . accounts . fighter_b . score . saturating_add (1) ;",
+      "ctx . accounts . board . total = ctx . accounts . board . total . saturating_add (1) ;",
+      "}",
+      "if ctx . accounts . board . total > ctx . accounts . arena . limit as u64",
+      "{",
+      "ctx . accounts . arena . open = false ;",
+      "ctx . accounts . board . fights = ctx . accounts . board . fights . saturating_add (1) ;",
+      "ctx . accounts . match_cfg . strict = true ;",
+      "msg ! (\"limit exceeded\") ;",
+      "} else",
+      "{",
+      "ctx . accounts . arena . open = true ;",
+      "ctx . accounts . board . fights = ctx . accounts . board . fights . saturating_add (1) ;",
+      "ctx . accounts . match_cfg . strict = false ;",
+      "msg ! (\"ok\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitArena",
     "node_type": "struct",
     "fields": [
       {
-        "name": "first",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "arena",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Arena >"
       },
       {
-        "name": "second",
+        "name": "board",
+        "attribute": "# [account (init , payer = payer , space = 8 + 8 + 4 , seeds = [b\"board\" , payer . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Board >"
+      },
+      {
+        "name": "match_cfg",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4 + 1 , seeds = [b\"cfg\" , payer . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , MatchCfg >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "organizer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Duel",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "arena",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Arena >"
+      },
+      {
+        "name": "fighter_a",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Fighter >"
+      },
+      {
+        "name": "fighter_b",
+        "attribute": "# [account (mut , constraint = fighter_a . key () != fighter_b . key () , error = ArenaErr :: Dup)]",
+        "field_type": "Account < 'info , Fighter >"
+      },
+      {
+        "name": "board",
+        "attribute": "# [account (mut , seeds = [b\"board\" , payer . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Board >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [doc = \" CHECK: seeds固定用\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "match_cfg",
+        "attribute": "# [account (mut , seeds = [b\"cfg\" , payer . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , MatchCfg >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Arena",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "host",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "limit",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "open",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Fighter",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "score",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "alive",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Board",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "total",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "fights",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MatchCfg",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "rounds",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "strict",
+        "attribute": null,
+        "field_type": "bool"
       }
     ],
     "inputs": null,

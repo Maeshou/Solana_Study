@@ -1,40 +1,213 @@
 [
   {
-    "name": "repay_flash_loan",
+    "name": "init_atelier",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx021 >",
-      "amount: u64"
+      "ctx: Context < InitAtelier >",
+      "cap: u32"
     ],
     "attributes": [],
     "body": [
-      "let src = & mut ctx . accounts . account_src ;",
-      "let dst = & mut ctx . accounts . account_dst ;",
-      "let before = * * src . to_account_info () . try_borrow_lamports () ? ;",
-      "* * src . to_account_info () . try_borrow_mut_lamports () ? = before . saturating_sub (amount) ;",
-      "* * dst . to_account_info () . try_borrow_mut_lamports () ? += amount ;",
+      "ctx . accounts . workshop . leader = ctx . accounts . leader . key () ;",
+      "ctx . accounts . workshop . capacity = cap ;",
+      "ctx . accounts . workshop . state = WorkshopState :: Open ;",
+      "ctx . accounts . member_a . user = ctx . accounts . user_a . key () ;",
+      "ctx . accounts . member_a . skill = 1 ;",
+      "ctx . accounts . member_a . active = 1 ;",
+      "ctx . accounts . member_b . user = ctx . accounts . user_b . key () ;",
+      "ctx . accounts . member_b . skill = 1 ;",
+      "ctx . accounts . member_b . active = 1 ;",
+      "ctx . accounts . treasury . coins = 0 ;",
+      "ctx . accounts . treasury . locked = 0 ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx021",
+    "name": "craft",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Craft >",
+      "steps: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut i = 0 ;",
+      "while i < steps",
+      "{",
+      "ctx . accounts . member_a . skill = ctx . accounts . member_a . skill . saturating_add (1) ;",
+      "ctx . accounts . member_b . skill = ctx . accounts . member_b . skill . saturating_add (1) ;",
+      "ctx . accounts . treasury . coins = ctx . accounts . treasury . coins . saturating_add (2) ;",
+      "i += 1 ;",
+      "}",
+      "if (ctx . accounts . member_a . skill + ctx . accounts . member_b . skill) > ctx . accounts . workshop . capacity",
+      "{",
+      "ctx . accounts . workshop . state = WorkshopState :: Locked ;",
+      "ctx . accounts . treasury . locked = 1 ;",
+      "ctx . accounts . treasury . coins = ctx . accounts . treasury . coins . saturating_add (5) ;",
+      "msg ! (\"capacity hit;",
+      "lock treasury\") ;",
+      "} else",
+      "{",
+      "ctx . accounts . workshop . state = WorkshopState :: Open ;",
+      "ctx . accounts . treasury . locked = 0 ;",
+      "ctx . accounts . treasury . coins = ctx . accounts . treasury . coins . saturating_add (1) ;",
+      "msg ! (\"room remains;",
+      "mint small bonus\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitAtelier",
     "node_type": "struct",
     "fields": [
       {
-        "name": "account_src",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "workshop",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Workshop >"
       },
       {
-        "name": "account_dst",
+        "name": "member_a",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Member >"
+      },
+      {
+        "name": "member_b",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Member >"
+      },
+      {
+        "name": "treasury",
+        "attribute": "# [account (init , payer = payer , space = 8 + 8 + 1)]",
+        "field_type": "Account < 'info , Treasury >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "leader",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "user_a",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "user_b",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
       },
       {
         "name": "system_program",
         "attribute": null,
         "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Craft",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "workshop",
+        "attribute": "# [account (mut , has_one = leader)]",
+        "field_type": "Account < 'info , Workshop >"
+      },
+      {
+        "name": "member_a",
+        "attribute": "# [account (mut , constraint = member_a . key () != member_b . key () , error = AtlErr :: Same , constraint = member_a . key () != treasury . key () , error = AtlErr :: Same)]",
+        "field_type": "Account < 'info , Member >"
+      },
+      {
+        "name": "member_b",
+        "attribute": "# [account (mut , constraint = member_b . key () != treasury . key () , error = AtlErr :: Same)]",
+        "field_type": "Account < 'info , Member >"
+      },
+      {
+        "name": "treasury",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Treasury >"
+      },
+      {
+        "name": "leader",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Workshop",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "leader",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "capacity",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "state",
+        "attribute": null,
+        "field_type": "WorkshopState"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Member",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "skill",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "active",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Treasury",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "coins",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "locked",
+        "attribute": null,
+        "field_type": "u8"
       }
     ],
     "inputs": null,

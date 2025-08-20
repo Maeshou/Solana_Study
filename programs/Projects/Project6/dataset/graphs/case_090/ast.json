@@ -1,0 +1,239 @@
+[
+  {
+    "name": "init_story",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitStory >",
+      "title: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . story ;",
+      "s . owner = ctx . accounts . author . key () ;",
+      "s . title = title ;",
+      "s . steps = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_badge",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitBadge >",
+      "badge: Badge"
+    ],
+    "attributes": [],
+    "body": [
+      "let b = & mut ctx . accounts . badge ;",
+      "b . story = ctx . accounts . story . key () ;",
+      "b . kind = badge ;",
+      "b . points = 0 ;",
+      "b . ring = [0 ; 5] ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "progress",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Progress >",
+      "seed: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . story ;",
+      "let a = & mut ctx . accounts . achiever ;",
+      "let c = & mut ctx . accounts . counter ;",
+      "let l = & mut ctx . accounts . log ;",
+      "let mut v = seed ;",
+      "for i in 0 .. 5",
+      "{",
+      "v = v . rotate_left (11) ^ 0xA5A5_5A5A_1122_3344 ;",
+      "a . ring [i] = a . ring [i] . saturating_add (((v >> (i * 6)) as u32) & 0x3F) ;",
+      "}",
+      "if a . kind == Star",
+      "{",
+      "a . points = a . points . saturating_add (((v & 0xFFFF) as u32) + 7) ;",
+      "s . steps = s . steps . saturating_add (1) ;",
+      "l . count = l . count . saturating_add (1) ;",
+      "l . last = l . last ^ v ;",
+      "msg ! (\"Star badge path updated\") ;",
+      "} else",
+      "{",
+      "c . points = c . points . saturating_add ((((v >> 5) & 0x7FFF) as u32) + 3) ;",
+      "s . steps = s . steps . saturating_add (1) ;",
+      "l . count = l . count . saturating_add (2) ;",
+      "l . last = l . last . wrapping_add (v) ;",
+      "msg ! (\"Non-star badge path updated\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitStory",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "story",
+        "attribute": "# [account (init , payer = author , space = 8 + Story :: MAX)]",
+        "field_type": "Account < 'info , Story >"
+      },
+      {
+        "name": "author",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitBadge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "story",
+        "attribute": "# [account (mut , has_one = owner , owner = crate :: ID)]",
+        "field_type": "Account < 'info , Story >"
+      },
+      {
+        "name": "badge",
+        "attribute": "# [account (init , payer = user , space = 8 + BadgeAccount :: MAX)]",
+        "field_type": "Account < 'info , BadgeAccount >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Progress",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "story",
+        "attribute": "# [account (mut , has_one = owner , owner = crate :: ID)]",
+        "field_type": "Account < 'info , Story >"
+      },
+      {
+        "name": "log",
+        "attribute": "# [account (mut , has_one = story , owner = crate :: ID)]",
+        "field_type": "Account < 'info , Log >"
+      },
+      {
+        "name": "achiever",
+        "attribute": "# [account (mut , has_one = story , owner = crate :: ID)]",
+        "field_type": "Account < 'info , BadgeAccount >"
+      },
+      {
+        "name": "counter",
+        "attribute": "# [account (mut , has_one = story , owner = crate :: ID , constraint = achiever . kind != counter . kind @ ErrCode :: CosplayBlocked)]",
+        "field_type": "Account < 'info , BadgeAccount >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Story",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "title",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "steps",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BadgeAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "story",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "kind",
+        "attribute": null,
+        "field_type": "Badge"
+      },
+      {
+        "name": "points",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "ring",
+        "attribute": null,
+        "field_type": "[u32 ; 5]"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Log",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "story",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "last",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "count",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

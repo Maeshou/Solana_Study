@@ -1,22 +1,134 @@
 [
   {
-    "name": "MintTokenCtxcbtq",
+    "name": "create_pool",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreatePool >",
+      "reward_rate: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let pool = & mut ctx . accounts . pool ;",
+      "pool . admin = ctx . accounts . admin . key () ;",
+      "pool . reward_rate = reward_rate ;",
+      "pool . total_staked = 0 ;",
+      "pool . bump = * ctx . bumps . get (\"pool\") . unwrap () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "stake",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Stake >",
+      "amount: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let pool = & mut ctx . accounts . pool ;",
+      "let user_stake = & mut ctx . accounts . user_stake ;",
+      "pool . total_staked += amount ;",
+      "user_stake . amount += amount ;",
+      "user_stake . last_update = Clock :: get () ? . unix_timestamp ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "withdraw",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Withdraw >",
+      "amount: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let pool = & mut ctx . accounts . pool ;",
+      "let user_stake = & mut ctx . accounts . user_stake ;",
+      "require ! (user_stake . amount >= amount , StakingError :: InsufficientStake) ;",
+      "pool . total_staked -= amount ;",
+      "user_stake . amount -= amount ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "StakingPool",
     "node_type": "struct",
     "fields": [
       {
-        "name": "mint",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
       },
       {
-        "name": "mint_authority",
+        "name": "reward_rate",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_staked",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "UserStake",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "pool",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "last_update",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreatePool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 8 + 8 + 1 , seeds = [b\"pool\" , admin . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , StakingPool >"
+      },
+      {
+        "name": "admin",
         "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
-      },
-      {
-        "name": "token_program",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
       },
       {
         "name": "system_program",
@@ -29,13 +141,28 @@
     "body": null
   },
   {
-    "name": "DataAccount",
+    "name": "Stake",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data",
+        "name": "pool",
+        "attribute": "# [account (mut , seeds = [b\"pool\" , pool . admin . as_ref ()] , bump = pool . bump)]",
+        "field_type": "Account < 'info , StakingPool >"
+      },
+      {
+        "name": "user_stake",
+        "attribute": "# [account (init_if_needed , payer = user , space = 8 + 32 + 32 + 8 + 8 + 1 , seeds = [b\"stake\" , pool . key () . as_ref () , user . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , UserStake >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -43,19 +170,27 @@
     "body": null
   },
   {
-    "name": "mint_token",
-    "node_type": "function",
-    "fields": null,
-    "inputs": [
-      "ctx: Context < MintTokenCtxcbtq >",
-      "amount: u64"
+    "name": "Withdraw",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": "# [account (mut , seeds = [b\"pool\" , pool . admin . as_ref ()] , bump = pool . bump)]",
+        "field_type": "Account < 'info , StakingPool >"
+      },
+      {
+        "name": "user_stake",
+        "attribute": "# [account (mut , seeds = [b\"stake\" , pool . key () . as_ref () , user . key () . as_ref ()] , bump = user_stake . bump , constraint = user_stake . user == user . key ())]",
+        "field_type": "Account < 'info , UserStake >"
+      },
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
     ],
-    "attributes": [],
-    "body": [
-      "let acct = & mut ctx . accounts . mint ;",
-      "acct . data = acct . data . checked_add (amount) . unwrap () ;",
-      "msg ! (\"Executed mint_token logic\") ;",
-      "Ok (())"
-    ]
+    "inputs": null,
+    "attributes": null,
+    "body": null
   }
 ]

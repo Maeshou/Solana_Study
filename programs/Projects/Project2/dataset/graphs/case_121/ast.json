@@ -1,0 +1,120 @@
+[
+  {
+    "name": "add_item",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AddItem >",
+      "label: String",
+      "quantity: u32"
+    ],
+    "attributes": [
+      "# [doc = \" 新しい品目を追加\"]"
+    ],
+    "body": [
+      "if label . len () > 64",
+      "{",
+      "return Err (ErrorCode :: LabelTooLong . into ()) ;",
+      "}",
+      "let item = & mut ctx . accounts . item ;",
+      "item . owner = ctx . accounts . user . key () ;",
+      "item . label = label ;",
+      "item . quantity = quantity ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "adjust_quantity",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AdjustQuantity >",
+      "delta: i32"
+    ],
+    "attributes": [
+      "# [doc = \" 所持数を増減\"]"
+    ],
+    "body": [
+      "let item = & mut ctx . accounts . item ;",
+      "let user = ctx . accounts . user . key () ;",
+      "if item . owner != user",
+      "{",
+      "return Err (ErrorCode :: Unauthorized . into ()) ;",
+      "}",
+      "let new_qty = item . quantity as i32 + delta ;",
+      "if new_qty < 0",
+      "{",
+      "return Err (ErrorCode :: InsufficientQuantity . into ()) ;",
+      "}",
+      "item . quantity = new_qty as u32 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "AddItem",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "item",
+        "attribute": "# [doc = \" 同一アカウントを二度初期化できない（Reinit Attack 防止）\"] # [account (init , payer = user , space = 8 + 32 + 4 + 64 + 4)]",
+        "field_type": "Account < 'info , InventoryItem >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 操作を行うユーザー（署名必須）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AdjustQuantity",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "item",
+        "attribute": "# [doc = \" Account<> による Owner Check & Type Cosplay\"] # [account (mut)]",
+        "field_type": "Account < 'info , InventoryItem >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 実際に署名したユーザー（Signer Authorization）\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InventoryItem",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" この品目を操作できるユーザー\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "label",
+        "attribute": "# [doc = \" 品目名（最大64文字）\"]",
+        "field_type": "String"
+      },
+      {
+        "name": "quantity",
+        "attribute": "# [doc = \" 在庫数\"]",
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

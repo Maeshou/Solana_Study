@@ -1,40 +1,209 @@
 [
   {
-    "name": "unstake_tokens",
+    "name": "init_order",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx006 >",
-      "amount: u64"
+      "ctx: Context < InitOrder >",
+      "dist: u32",
+      "base: u64"
     ],
     "attributes": [],
     "body": [
-      "let src = & mut ctx . accounts . account_src ;",
-      "let dst = & mut ctx . accounts . account_dst ;",
-      "let before = * * src . to_account_info () . try_borrow_lamports () ? ;",
-      "* * src . to_account_info () . try_borrow_mut_lamports () ? = before . saturating_sub (amount) ;",
-      "* * dst . to_account_info () . try_borrow_mut_lamports () ? += amount ;",
+      "ctx . accounts . order . rider = ctx . accounts . rider . key () ;",
+      "ctx . accounts . order . distance = dist ;",
+      "ctx . accounts . order . fare = base ;",
+      "ctx . accounts . order . active = true ;",
+      "ctx . accounts . driver . driver = ctx . accounts . captain . key () ;",
+      "ctx . accounts . driver . rating = 5 ;",
+      "ctx . accounts . driver . trips = 0 ;",
+      "ctx . accounts . driver . on_duty = true ;",
+      "ctx . accounts . city . max_distance = 500 ;",
+      "ctx . accounts . city . surge = 1 ;",
+      "ctx . accounts . city . bump = * ctx . bumps . get (\"city\") . unwrap () ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx006",
+    "name": "adjust_fare",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AdjustFare >",
+      "step: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "require ! (ctx . accounts . driver . key () != ctx . accounts . city . key () , ProgramError :: InvalidArgument) ;",
+      "for _ in 0 .. step",
+      "{",
+      "ctx . accounts . order . fare = ctx . accounts . order . fare . saturating_add (1) ;",
+      "ctx . accounts . driver . trips = ctx . accounts . driver . trips . saturating_add (1) ;",
+      "}",
+      "if ctx . accounts . order . distance > ctx . accounts . city . max_distance",
+      "{",
+      "ctx . accounts . order . active = false ;",
+      "ctx . accounts . driver . on_duty = false ;",
+      "ctx . accounts . city . surge = ctx . accounts . city . surge . saturating_add (1) ;",
+      "msg ! (\"too far: dist=",
+      "{",
+      "} max={}\" , ctx . accounts . order . distance , ctx . accounts . city . max_distance) ;",
+      "} else",
+      "{",
+      "ctx . accounts . order . active = true ;",
+      "ctx . accounts . driver . on_duty = true ;",
+      "ctx . accounts . city . surge = ctx . accounts . city . surge . saturating_add (0) ;",
+      "msg ! (\"ok: fare=",
+      "{",
+      "} surge={}\" , ctx . accounts . order . fare , ctx . accounts . city . surge) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitOrder",
     "node_type": "struct",
     "fields": [
       {
-        "name": "account_src",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "order",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 8 + 1)]",
+        "field_type": "Account < 'info , RideOrder >"
       },
       {
-        "name": "account_dst",
+        "name": "driver",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , DriverProfile >"
+      },
+      {
+        "name": "city",
+        "attribute": "# [account (init , seeds = [b\"city\" , payer . key () . as_ref ()] , bump , payer = payer , space = 8 + 4 + 1 + 1)]",
+        "field_type": "Account < 'info , CityRules >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "rider",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "captain",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
       },
       {
         "name": "system_program",
         "attribute": null,
         "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AdjustFare",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "order",
+        "attribute": "# [account (mut , constraint = order . key () != driver . key () , error = RideErr :: Dup)]",
+        "field_type": "Account < 'info , RideOrder >"
+      },
+      {
+        "name": "driver",
+        "attribute": "# [account (mut , constraint = order . key () != city . key () , error = RideErr :: Dup)]",
+        "field_type": "Account < 'info , DriverProfile >"
+      },
+      {
+        "name": "city",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , CityRules >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RideOrder",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "rider",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "distance",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "fare",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "active",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DriverProfile",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "driver",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "on_duty",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "rating",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "trips",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CityRules",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "max_distance",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "surge",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
       }
     ],
     "inputs": null,

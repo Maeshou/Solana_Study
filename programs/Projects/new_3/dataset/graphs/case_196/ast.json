@@ -1,0 +1,182 @@
+[
+  {
+    "name": "Question",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "asker",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "title",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "answerers",
+        "attribute": null,
+        "field_type": "Vec < Pubkey >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AnswerRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "responder",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "question",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "body",
+        "attribute": null,
+        "field_type": "String"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreateQuestion",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "question",
+        "attribute": "# [account (init , payer = asker , space = 8 + 32 + 4 + 128 + 4 + (32 * 50))]",
+        "field_type": "Account < 'info , Question >"
+      },
+      {
+        "name": "asker",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PostAnswer",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "question",
+        "attribute": "# [doc = \" Question.asker == asker.key() は不要ですが例示\"] # [account (mut , has_one = asker)]",
+        "field_type": "Account < 'info , Question >"
+      },
+      {
+        "name": "record",
+        "attribute": "# [doc = \" AnswerRecord.question ⇔ question.key() の検証がないため、\"] # [doc = \" 偽のレコードで任意の質問に回答可能\"] # [account (init , payer = responder , space = 8 + 32 + 32 + 4 + 256)]",
+        "field_type": "Account < 'info , AnswerRecord >"
+      },
+      {
+        "name": "asker",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "responder",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RemoveAnswer",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "record",
+        "attribute": "# [doc = \" AnswerRecord.responder == responder.key() は検証される\"] # [account (mut , has_one = responder)]",
+        "field_type": "Account < 'info , AnswerRecord >"
+      },
+      {
+        "name": "question",
+        "attribute": "# [doc = \" question.key() ⇔ record.question のチェックがないため、\"] # [doc = \" 偽物のレコードで別の質問から回答を削除可能\"] # [account (mut)]",
+        "field_type": "Account < 'info , Question >"
+      },
+      {
+        "name": "responder",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "create_question",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateQuestion >",
+      "title: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let q = & mut ctx . accounts . question ;",
+      "q . asker = ctx . accounts . asker . key () ;",
+      "q . title = title ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "post_answer",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PostAnswer >",
+      "body: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let q = & mut ctx . accounts . question ;",
+      "let ar = & mut ctx . accounts . record ;",
+      "ar . responder = ctx . accounts . responder . key () ;",
+      "ar . question = q . key () ;",
+      "ar . body = body ;",
+      "q . answerers . push (ar . responder) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "remove_answer",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RemoveAnswer >"
+    ],
+    "attributes": [],
+    "body": [
+      "let q = & mut ctx . accounts . question ;",
+      "let new_len = q . answerers . len () . saturating_sub (1) ;",
+      "q . answerers . truncate (new_len) ;",
+      "Ok (())"
+    ]
+  }
+]

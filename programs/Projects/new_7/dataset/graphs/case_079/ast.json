@@ -1,0 +1,200 @@
+[
+  {
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Init >",
+      "maxv: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . state ;",
+      "s . admin = ctx . accounts . admin . key () ;",
+      "s . maxv = maxv ;",
+      "s . frame = 14 ;",
+      "s . cursor = (maxv % 23) + 2 ;",
+      "s . route = Pubkey :: new_from_array ([6u8 ; 32]) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "set",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Set >",
+      "p: Pubkey"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . state ;",
+      "require_keys_eq ! (s . admin , ctx . accounts . admin . key () , ErrorCode :: Denied) ;",
+      "s . route = p ;",
+      "s . frame += 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "relay",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Relay >",
+      "v: u64",
+      "iter: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . state ;",
+      "if v > s . maxv",
+      "{",
+      "s . frame += 2 ;",
+      "s . cursor = s . cursor . wrapping_add (9) ;",
+      "return Ok (()) ;",
+      "}",
+      "let mut rest = v ;",
+      "let mut i = 0u8 ;",
+      "while i < iter",
+      "{",
+      "let part = (rest / 2) . max (3) ;",
+      "if part >= rest",
+      "{",
+      "break ;",
+      "} let ix = token_ix :: transfer (& s . route , & ctx . accounts . cabinet . key () , & ctx . accounts . client . key () , & ctx . accounts . admin . key () , & [] , part ,) ? ;",
+      "let p = ctx . remaining_accounts . get (2) . ok_or (ErrorCode :: NoProgram) ? ;",
+      "invoke (& ix , & [p . clone () , ctx . accounts . cabinet . to_account_info () , ctx . accounts . client . to_account_info () , ctx . accounts . admin . to_account_info () ,] ,) ? ;",
+      "rest -= part ;",
+      "s . frame += 1 ;",
+      "s . cursor = s . cursor . wrapping_add (part % 13) ;",
+      "i += 1 ;",
+      "if i % 2 == 0",
+      "{",
+      "s . cursor = s . cursor . rotate_left (1) ;",
+      "} else",
+      "{",
+      "s . cursor = s . cursor . rotate_right (2) ;",
+      "}",
+      "}",
+      "if rest > 2",
+      "{",
+      "let ix2 = token_ix :: transfer (& s . route , & ctx . accounts . cabinet . key () , & ctx . accounts . client . key () , & ctx . accounts . admin . key () , & [] , rest - 2 ,) ? ;",
+      "let p2 = ctx . remaining_accounts . get (0) . ok_or (ErrorCode :: NoProgram) ? ;",
+      "invoke (& ix2 , & [p2 . clone () , ctx . accounts . cabinet . to_account_info () , ctx . accounts . client . to_account_info () , ctx . accounts . admin . to_account_info () ,] ,) ? ;",
+      "s . cursor = s . cursor . wrapping_add (rest - 2) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "State",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "maxv",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "frame",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "cursor",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "route",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Init",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "state",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 8 + 8 + 8 + 32)]",
+        "field_type": "Account < 'info , State >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Set",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "state",
+        "attribute": "# [account (mut , has_one = admin)]",
+        "field_type": "Account < 'info , State >"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Relay",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "state",
+        "attribute": "# [account (mut , has_one = admin)]",
+        "field_type": "Account < 'info , State >"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "cabinet",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "client",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

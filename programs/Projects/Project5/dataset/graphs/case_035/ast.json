@@ -1,33 +1,181 @@
 [
   {
-    "name": "delegate_vote",
+    "name": "init_orchard",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx035 >"
+      "ctx: Context < InitOrchard >",
+      "cap: u32"
     ],
     "attributes": [],
     "body": [
-      "let a = & ctx . accounts . first ;",
-      "let b = & ctx . accounts . second ;",
-      "msg ! (\"Account A: {}\" , a . key ()) ;",
-      "msg ! (\"Account B: {}\" , b . key ()) ;",
+      "let o = & mut ctx . accounts ;",
+      "o . cfg . caretaker = o . caretaker . key () ;",
+      "o . cfg . cap = cap ;",
+      "o . cfg . state = OrchardState :: Seed ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx035",
+    "name": "irrigate",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Irrigate >",
+      "days: u32",
+      "rate_q16: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let o = & mut ctx . accounts ;",
+      "let rate = rate_q16 . max (1) ;",
+      "for _ in 0 .. days",
+      "{",
+      "let g = (u128 :: from (o . tree . growth_q16) * u128 :: from (rate)) >> 16 ;",
+      "o . tree . growth_q16 = (u128 :: from (o . tree . growth_q16) + g) . min (u128 :: from (u64 :: MAX)) as u64 ;",
+      "o . tree . color = o . tree . color . rotate_left (3) ^ (o . tree . color >> 5) ;",
+      "}",
+      "let growth = (o . tree . growth_q16 >> 16) as u32 ;",
+      "if growth > o . cfg . cap",
+      "{",
+      "o . cfg . state = OrchardState :: Prune ;",
+      "o . journal . cuts = o . journal . cuts . wrapping_add (2) ;",
+      "o . tree . growth_q16 = u64 :: from (o . cfg . cap) << 16 ;",
+      "msg ! (\"prune: clip growth to cap, cuts+2\") ;",
+      "} else",
+      "{",
+      "o . cfg . state = OrchardState :: Bloom ;",
+      "o . journal . notes = o . journal . notes . wrapping_add (1) ;",
+      "o . tree . color ^= 0x0F0F ;",
+      "msg ! (\"bloom: notes+1, color xor\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitOrchard",
     "node_type": "struct",
     "fields": [
       {
-        "name": "first",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "cfg",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1 , seeds = [b\"cfg\" , caretaker . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , OrchardCfg >"
       },
       {
-        "name": "second",
+        "name": "tree",
+        "attribute": "# [account (init , payer = payer , space = 8 + 8 + 4)]",
+        "field_type": "Account < 'info , CrystalTree >"
+      },
+      {
+        "name": "journal",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4 + 4)]",
+        "field_type": "Account < 'info , OrchardJournal >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "caretaker",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Irrigate",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "cfg",
+        "attribute": "# [account (mut , seeds = [b\"cfg\" , caretaker . key () . as_ref ()] , bump , has_one = caretaker)]",
+        "field_type": "Account < 'info , OrchardCfg >"
+      },
+      {
+        "name": "tree",
+        "attribute": "# [account (mut , constraint = cfg . key () != tree . key () , error = OrchardErr :: Dup)]",
+        "field_type": "Account < 'info , CrystalTree >"
+      },
+      {
+        "name": "journal",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , OrchardJournal >"
+      },
+      {
+        "name": "caretaker",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "OrchardCfg",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "caretaker",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "cap",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "state",
+        "attribute": null,
+        "field_type": "OrchardState"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CrystalTree",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "growth_q16",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "color",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "OrchardJournal",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "cuts",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "notes",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

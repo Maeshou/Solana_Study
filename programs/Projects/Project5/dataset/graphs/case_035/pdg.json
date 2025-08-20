@@ -1,8 +1,9 @@
 [
   {
-    "name": "delegate_vote",
+    "name": "init_orchard",
     "inputs": [
-      "ctx: Context < Ctx035 >"
+      "ctx: Context < InitOrchard >",
+      "cap: u32"
     ],
     "nodes": [
       {
@@ -11,19 +12,19 @@
       },
       {
         "id": 1,
-        "label": "let a = & ctx . accounts . first ;"
+        "label": "let o = & mut ctx . accounts ;"
       },
       {
         "id": 2,
-        "label": "let b = & ctx . accounts . second ;"
+        "label": "o . cfg . caretaker = o . caretaker . key () ;"
       },
       {
         "id": 3,
-        "label": "msg ! (\"Account A: {}\" , a . key ()) ;"
+        "label": "o . cfg . cap = cap ;"
       },
       {
         "id": 4,
-        "label": "msg ! (\"Account B: {}\" , b . key ()) ;"
+        "label": "o . cfg . state = OrchardState :: Seed ;"
       },
       {
         "id": 5,
@@ -34,12 +35,311 @@
       {
         "from": 1,
         "to": 1,
-        "label": "def: a"
+        "label": "def: o"
       },
       {
-        "from": 2,
+        "from": 1,
         "to": 2,
-        "label": "def: b"
+        "label": "data_dep: o"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: o"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: o"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: o"
+      }
+    ]
+  },
+  {
+    "name": "irrigate",
+    "inputs": [
+      "ctx: Context < Irrigate >",
+      "days: u32",
+      "rate_q16: u32"
+    ],
+    "nodes": [
+      {
+        "id": 6,
+        "label": "Entry"
+      },
+      {
+        "id": 7,
+        "label": "let o = & mut ctx . accounts ;"
+      },
+      {
+        "id": 8,
+        "label": "let rate = rate_q16 . max (1) ;"
+      },
+      {
+        "id": 9,
+        "label": "for _ in 0 .. days { let g = (u128 :: from (o . tree . growth_q16) * u128 :: from (rate)) >> 16 ; o . tree . growth_q16 = (u128 :: from (o . tree . growth_q16) + g) . min (u128 :: from (u64 :: MAX)) as u64 ; o . tree . color = o . tree . color . rotate_left (3) ^ (o . tree . color >> 5) ; }"
+      },
+      {
+        "id": 10,
+        "label": "let g = (u128 :: from (o . tree . growth_q16) * u128 :: from (rate)) >> 16 ;"
+      },
+      {
+        "id": 11,
+        "label": "o . tree . growth_q16 = (u128 :: from (o . tree . growth_q16) + g) . min (u128 :: from (u64 :: MAX)) as u64 ;"
+      },
+      {
+        "id": 12,
+        "label": "o . tree . color = o . tree . color . rotate_left (3) ^ (o . tree . color >> 5) ;"
+      },
+      {
+        "id": 13,
+        "label": "let growth = (o . tree . growth_q16 >> 16) as u32 ;"
+      },
+      {
+        "id": 14,
+        "label": "if growth > o . cfg . cap { o . cfg . state = OrchardState :: Prune ; o . journal . cuts = o . journal . cuts . wrapping_add (2) ; o . tree . growth_q16 = u64 :: from (o . cfg . cap) << 16 ; msg ! (\"prune: clip growth to cap, cuts+2\") ; } else { o . cfg . state = OrchardState :: Bloom ; o . journal . notes = o . journal . notes . wrapping_add (1) ; o . tree . color ^= 0x0F0F ; msg ! (\"bloom: notes+1, color xor\") ; }"
+      },
+      {
+        "id": 15,
+        "label": "o . cfg . state = OrchardState :: Prune ;"
+      },
+      {
+        "id": 16,
+        "label": "o . journal . cuts = o . journal . cuts . wrapping_add (2) ;"
+      },
+      {
+        "id": 17,
+        "label": "o . tree . growth_q16 = u64 :: from (o . cfg . cap) << 16 ;"
+      },
+      {
+        "id": 18,
+        "label": "msg ! (\"prune: clip growth to cap, cuts+2\") ;"
+      },
+      {
+        "id": 19,
+        "label": "o . cfg . state = OrchardState :: Bloom ;"
+      },
+      {
+        "id": 20,
+        "label": "o . journal . notes = o . journal . notes . wrapping_add (1) ;"
+      },
+      {
+        "id": 21,
+        "label": "o . tree . color ^= 0x0F0F ;"
+      },
+      {
+        "id": 22,
+        "label": "msg ! (\"bloom: notes+1, color xor\") ;"
+      },
+      {
+        "id": 23,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 7,
+        "to": 7,
+        "label": "def: o"
+      },
+      {
+        "from": 8,
+        "to": 8,
+        "label": "def: rate"
+      },
+      {
+        "from": 7,
+        "to": 9,
+        "label": "data_dep: o"
+      },
+      {
+        "from": 8,
+        "to": 9,
+        "label": "data_dep: rate"
+      },
+      {
+        "from": 7,
+        "to": 9,
+        "label": "data_dep: o"
+      },
+      {
+        "from": 7,
+        "to": 9,
+        "label": "data_dep: o"
+      },
+      {
+        "from": 7,
+        "to": 9,
+        "label": "data_dep: o"
+      },
+      {
+        "from": 7,
+        "to": 9,
+        "label": "data_dep: o"
+      },
+      {
+        "from": 7,
+        "to": 9,
+        "label": "data_dep: o"
+      },
+      {
+        "from": 10,
+        "to": 10,
+        "label": "def: g"
+      },
+      {
+        "from": 7,
+        "to": 10,
+        "label": "data_dep: o"
+      },
+      {
+        "from": 8,
+        "to": 10,
+        "label": "data_dep: rate"
+      },
+      {
+        "from": 7,
+        "to": 11,
+        "label": "data_dep: o"
+      },
+      {
+        "from": 7,
+        "to": 11,
+        "label": "data_dep: o"
+      },
+      {
+        "from": 10,
+        "to": 11,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 7,
+        "to": 12,
+        "label": "data_dep: o"
+      },
+      {
+        "from": 7,
+        "to": 12,
+        "label": "data_dep: o"
+      },
+      {
+        "from": 7,
+        "to": 12,
+        "label": "data_dep: o"
+      },
+      {
+        "from": 13,
+        "to": 13,
+        "label": "def: growth"
+      },
+      {
+        "from": 7,
+        "to": 13,
+        "label": "data_dep: o"
+      },
+      {
+        "from": 13,
+        "to": 14,
+        "label": "data_dep: growth"
+      },
+      {
+        "from": 7,
+        "to": 14,
+        "label": "data_dep: o"
+      },
+      {
+        "from": 7,
+        "to": 14,
+        "label": "data_dep: o"
+      },
+      {
+        "from": 7,
+        "to": 14,
+        "label": "data_dep: o"
+      },
+      {
+        "from": 7,
+        "to": 14,
+        "label": "data_dep: o"
+      },
+      {
+        "from": 7,
+        "to": 14,
+        "label": "data_dep: o"
+      },
+      {
+        "from": 7,
+        "to": 14,
+        "label": "data_dep: o"
+      },
+      {
+        "from": 7,
+        "to": 14,
+        "label": "data_dep: o"
+      },
+      {
+        "from": 7,
+        "to": 14,
+        "label": "data_dep: o"
+      },
+      {
+        "from": 7,
+        "to": 14,
+        "label": "data_dep: o"
+      },
+      {
+        "from": 7,
+        "to": 14,
+        "label": "data_dep: o"
+      },
+      {
+        "from": 7,
+        "to": 15,
+        "label": "data_dep: o"
+      },
+      {
+        "from": 7,
+        "to": 16,
+        "label": "data_dep: o"
+      },
+      {
+        "from": 7,
+        "to": 16,
+        "label": "data_dep: o"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: o"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: o"
+      },
+      {
+        "from": 7,
+        "to": 19,
+        "label": "data_dep: o"
+      },
+      {
+        "from": 7,
+        "to": 20,
+        "label": "data_dep: o"
+      },
+      {
+        "from": 7,
+        "to": 20,
+        "label": "data_dep: o"
+      },
+      {
+        "from": 7,
+        "to": 21,
+        "label": "data_dep: o"
       }
     ]
   }

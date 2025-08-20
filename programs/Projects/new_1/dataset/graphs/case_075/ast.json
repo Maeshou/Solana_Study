@@ -1,0 +1,94 @@
+[
+  {
+    "name": "update_score",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < UpdateScore >",
+      "delta_score: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 累積活動スコアを追加し、新しい称号を生成して保存します。\"]",
+      "# [doc = \" - `delta_score`: 今回追加する活動スコア  \"]",
+      "# [doc = \" 署名チェックは省略しています。\"]"
+    ],
+    "body": [
+      "let data = & mut ctx . accounts . activity ;",
+      "data . total_score = data . total_score . saturating_add (delta_score) ;",
+      "data . title = generate_adventurer_title (data . total_score) ;"
+    ]
+  },
+  {
+    "name": "generate_adventurer_title",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "score: u64"
+    ],
+    "attributes": [
+      "# [doc = \" アクティビティスコアから「Adventurer LvX」を返す軽量関数\"]",
+      "# [doc = \" - `score`: 累積活動スコア  \"]",
+      "# [doc = \" - レベルはスコアを100で割った値に1を足したもの\"]"
+    ],
+    "body": [
+      "const STEP : u64 = 100 ;",
+      "let raw_level = score / STEP ;",
+      "let level = raw_level . saturating_add (1) ;",
+      "format ! (\"Adventurer Lv{}\" , level)"
+    ]
+  },
+  {
+    "name": "UpdateScore",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": "# [doc = \" ユーザーアカウント（署名チェック omitted intentionally）\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "activity",
+        "attribute": "# [doc = \" 活動データを保持する PDA（事前に init 済み）\"] # [account (mut , seeds = [b\"activity\" , user . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , ActivityData >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActivityData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "total_score",
+        "attribute": "# [doc = \" 累積活動スコア\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "title",
+        "attribute": "# [doc = \" 現在の称号\"]",
+        "field_type": "String"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "test_generate_title",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [],
+    "attributes": [
+      "# [test]"
+    ],
+    "body": [
+      "assert_eq ! (generate_adventurer_title (0) , \"Adventurer Lv1\") ;",
+      "assert_eq ! (generate_adventurer_title (50) , \"Adventurer Lv1\") ;",
+      "assert_eq ! (generate_adventurer_title (100) , \"Adventurer Lv2\") ;",
+      "assert_eq ! (generate_adventurer_title (250) , \"Adventurer Lv3\") ;",
+      "assert_eq ! (generate_adventurer_title (999) , \"Adventurer Lv10\") ;"
+    ]
+  }
+]

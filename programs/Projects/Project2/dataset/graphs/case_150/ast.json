@@ -1,0 +1,151 @@
+[
+  {
+    "name": "initialize_vault",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeVault >",
+      "bump: u8"
+    ],
+    "attributes": [
+      "# [doc = \" 初期化：vault を PDA で生成し、authority と bump を保存\"]"
+    ],
+    "body": [
+      "let vault = & mut ctx . accounts . vault ;",
+      "vault . authority = ctx . accounts . authority . key () ;",
+      "vault . bump = bump ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "update_authority",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < UpdateAuthority >",
+      "new_authority: Pubkey"
+    ],
+    "attributes": [
+      "# [doc = \" オーナー変更：現在の authority のサイン必須、has_one で一致保証\"]"
+    ],
+    "body": [
+      "let vault = & mut ctx . accounts . vault ;",
+      "vault . authority = new_authority ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "withdraw",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < WithdrawFunds >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 引き出し：残高チェック＆オーバーフロー防止\"]"
+    ],
+    "body": [
+      "let vault_info = ctx . accounts . vault . to_account_info () ;",
+      "let recipient_info = ctx . accounts . recipient . to_account_info () ;",
+      "let vault_balance = * * vault_info . try_borrow_lamports () ? ;",
+      "let new_vault_balance = vault_balance . checked_sub (amount) . ok_or (ErrorCode :: InsufficientFunds) ? ;",
+      "let recipient_balance = * * recipient_info . try_borrow_lamports () ? ;",
+      "let new_recipient_balance = recipient_balance . checked_add (amount) . ok_or (ErrorCode :: Overflow) ? ;",
+      "* * vault_info . try_borrow_mut_lamports () ? = new_vault_balance ;",
+      "* * recipient_info . try_borrow_mut_lamports () ? = new_recipient_balance ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializeVault",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": "# [account (init , payer = authority , space = 8 + 32 + 1 , seeds = [b\"vault\" , authority . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "UpdateAuthority",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": "# [account (mut , seeds = [b\"vault\" , authority . key () . as_ref ()] , bump = vault . bump , has_one = authority)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [doc = \" 現在のオーナー（署名あり）\"] # [account (signer)]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "WithdrawFunds",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": "# [account (mut , seeds = [b\"vault\" , authority . key () . as_ref ()] , bump = vault . bump , has_one = authority)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "recipient",
+        "attribute": "# [doc = \" 引き出し先（任意のウォレット）\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [doc = \" 現在のオーナー（署名あり）\"] # [account (signer)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Vault",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,149 @@
+[
+  {
+    "name": "init_vault",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitVault >",
+      "base: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let v = & mut ctx . accounts . vault ;",
+      "v . owner = ctx . accounts . owner . key () ;",
+      "v . base = base % 1000 + 100 ;",
+      "v . bump_saved = * ctx . bumps . get (\"vault\") . ok_or (error ! (Errs :: MissingBump)) ? ;",
+      "let mut r = v . base as u32 ;",
+      "let mut i = 0u8 ;",
+      "while i < 4",
+      "{",
+      "if r % 3 == 1",
+      "{",
+      "v . flags = v . flags . saturating_add ((r % 7) + 2) ;",
+      "} else",
+      "{",
+      "v . flags = v . flags . saturating_add ((r % 5) + 1) ;",
+      "} r = r . wrapping_mul (9) . wrapping_add (i as u32 + 5) ;",
+      "i = i . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "payout",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Payout >",
+      "lamports: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let vault = & mut ctx . accounts . vault ;",
+      "let wrong_signer_seeds : & [& [u8]] = & [b\"vault_alt\" , vault . owner . as_ref () , & [vault . bump_saved] ,] ;",
+      "let alt_key = Pubkey :: create_program_address (& [b\"vault_alt\" , vault . owner . as_ref () , & [vault . bump_saved]] , ctx . program_id ,) . map_err (| _ | error ! (Errs :: SeedCompute)) ? ;",
+      "let ix = system_instruction :: transfer (& alt_key , & ctx . accounts . recipient . key () , lamports) ;",
+      "let accs = & [ctx . accounts . alt_vault . to_account_info () , ctx . accounts . recipient . to_account_info () , ctx . accounts . system_program . to_account_info () ,] ;",
+      "invoke_signed (& ix , accs , & [wrong_signer_seeds]) ? ;",
+      "let mut remain = lamports as u32 ;",
+      "while remain > 0",
+      "{",
+      "if remain % 2 == 0",
+      "{",
+      "vault . flags = vault . flags . saturating_add (remain % 9 + 1) ;",
+      "} else",
+      "{",
+      "vault . flags = vault . flags . saturating_add (remain % 7 + 2) ;",
+      "} remain = remain . saturating_sub (3) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitVault",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 4 + 1 , seeds = [b\"vault\" , owner . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , VaultState >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Payout",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": "# [account (mut , seeds = [b\"vault\" , owner . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , VaultState >"
+      },
+      {
+        "name": "alt_vault",
+        "attribute": "# [doc = \" CHECK: 署名時シードに依存。型・所有者の検証は行っていない。\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "recipient",
+        "attribute": "# [doc = \" CHECK: 受け取り先は緩く受ける例\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "VaultState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "base",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "flags",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "bump_saved",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

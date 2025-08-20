@@ -1,0 +1,166 @@
+[
+  {
+    "name": "LeaderboardEntry",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "round",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "players",
+        "attribute": null,
+        "field_type": "Vec < Pubkey >"
+      },
+      {
+        "name": "scores",
+        "attribute": null,
+        "field_type": "Vec < u64 >"
+      },
+      {
+        "name": "created_at",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "updated_at",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "initialize_leaderboard",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeLeaderboard >",
+      "round: u64"
+    ],
+    "attributes": [
+      "# [doc = \" リーダーボード初期化：round をセットし、空のリストと時刻を登録\"]"
+    ],
+    "body": [
+      "let entry = & mut ctx . accounts . leaderboard ;",
+      "let now = ctx . accounts . clock . unix_timestamp ;",
+      "* entry = LeaderboardEntry { round , created_at : now , updated_at : now , .. Default :: default () } ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "submit_score",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyLeaderboard >",
+      "player: Pubkey",
+      "score: u64"
+    ],
+    "attributes": [
+      "# [doc = \" スコア投稿：既存データに対して挿入とソートをおこなう\"]"
+    ],
+    "body": [
+      "let entry = & mut ctx . accounts . leaderboard ;",
+      "let now = ctx . accounts . clock . unix_timestamp ;",
+      "if let Some (idx) = entry . players . iter () . position (| & p | p == player)",
+      "{",
+      "entry . scores [idx] = score ;",
+      "} else",
+      "{",
+      "entry . players . push (player) ;",
+      "entry . scores . push (score) ;",
+      "}",
+      "let mut combined : Vec < (Pubkey , u64) > = entry . players . iter () . cloned () . zip (entry . scores . iter () . cloned ()) . collect () ;",
+      "combined . sort_by (| a , b | b . 1 . cmp (& a . 1)) ;",
+      "entry . players = combined . iter () . map (| (p , _) | * p) . collect () ;",
+      "entry . scores = combined . iter () . map (| (_ , s) | * s) . collect () ;",
+      "entry . updated_at = now ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "trim_leaderboard",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyLeaderboard >",
+      "top_n: u8"
+    ],
+    "attributes": [
+      "# [doc = \" トップ N の取得（ローカル処理例）  \"]",
+      "# [doc = \" on‐chain ではあまり使わない想定ですが、Edge case の処理例として。\"]"
+    ],
+    "body": [
+      "let entry = & mut ctx . accounts . leaderboard ;",
+      "if entry . players . len () > top_n as usize",
+      "{",
+      "entry . players . truncate (top_n as usize) ;",
+      "entry . scores . truncate (top_n as usize) ;",
+      "entry . updated_at = ctx . accounts . clock . unix_timestamp ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializeLeaderboard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "leaderboard",
+        "attribute": "# [account (init_zeroed , payer = authority , seeds = [b\"leaderboard\" , authority . key () . as_ref () , & round . to_le_bytes ()] , bump , space = 8 + 8 + 4 + 10 * 32 + 4 + 10 * 8 + 8 + 8)]",
+        "field_type": "Account < 'info , LeaderboardEntry >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ModifyLeaderboard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "leaderboard",
+        "attribute": "# [account (mut , seeds = [b\"leaderboard\" , authority . key () . as_ref () , & leaderboard . round . to_le_bytes ()] , bump = leaderboard . bump , has_one = authority)]",
+        "field_type": "Account < 'info , LeaderboardEntry >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (signer)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

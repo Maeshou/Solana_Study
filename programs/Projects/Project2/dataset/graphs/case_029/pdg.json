@@ -1,9 +1,10 @@
 [
   {
-    "name": "create_auction",
+    "name": "create_lottery",
     "inputs": [
-      "ctx: Context < CreateAuctionCtxxjcw >",
-      "amount: u64"
+      "ctx: Context < CreateLottery >",
+      "ticket_price: u64",
+      "end_time: i64"
     ],
     "nodes": [
       {
@@ -12,22 +13,42 @@
       },
       {
         "id": 1,
-        "label": "let acct = & mut ctx . accounts . auction ;"
+        "label": "let lottery_account_info = ctx . accounts . lottery . to_account_info () ;"
       },
       {
         "id": 2,
-        "label": "for _ in 0 .. amount { acct . data += 1 ; }"
+        "label": "require ! (lottery_account_info . owner == ctx . program_id , ErrorCode :: InvalidLotteryOwner) ;"
       },
       {
         "id": 3,
-        "label": "acct . data += 1 ;"
+        "label": "let lottery = & mut ctx . accounts . lottery ;"
       },
       {
         "id": 4,
-        "label": "msg ! (\"Executed create_auction logic\") ;"
+        "label": "lottery . admin = ctx . accounts . admin . key () ;"
       },
       {
         "id": 5,
+        "label": "lottery . ticket_price = ticket_price ;"
+      },
+      {
+        "id": 6,
+        "label": "lottery . end_time = end_time ;"
+      },
+      {
+        "id": 7,
+        "label": "lottery . total_tickets = 0 ;"
+      },
+      {
+        "id": 8,
+        "label": "lottery . is_active = true ;"
+      },
+      {
+        "id": 9,
+        "label": "lottery . winner = None ;"
+      },
+      {
+        "id": 10,
         "label": "Ok (())"
       }
     ],
@@ -35,17 +56,289 @@
       {
         "from": 1,
         "to": 1,
-        "label": "def: acct"
+        "label": "def: lottery_account_info"
       },
       {
-        "from": 1,
-        "to": 2,
-        "label": "data_dep: acct"
-      },
-      {
-        "from": 1,
+        "from": 3,
         "to": 3,
-        "label": "data_dep: acct"
+        "label": "def: lottery"
+      },
+      {
+        "from": 3,
+        "to": 4,
+        "label": "data_dep: lottery"
+      },
+      {
+        "from": 3,
+        "to": 5,
+        "label": "data_dep: lottery"
+      },
+      {
+        "from": 3,
+        "to": 6,
+        "label": "data_dep: lottery"
+      },
+      {
+        "from": 3,
+        "to": 7,
+        "label": "data_dep: lottery"
+      },
+      {
+        "from": 3,
+        "to": 8,
+        "label": "data_dep: lottery"
+      },
+      {
+        "from": 3,
+        "to": 9,
+        "label": "data_dep: lottery"
+      }
+    ]
+  },
+  {
+    "name": "buy_ticket",
+    "inputs": [
+      "ctx: Context < BuyTicket >"
+    ],
+    "nodes": [
+      {
+        "id": 11,
+        "label": "Entry"
+      },
+      {
+        "id": 12,
+        "label": "let lottery_info = ctx . accounts . lottery . to_account_info () ;"
+      },
+      {
+        "id": 13,
+        "label": "require ! (lottery_info . owner == ctx . program_id , ErrorCode :: InvalidLotteryOwner) ;"
+      },
+      {
+        "id": 14,
+        "label": "let ticket_info = ctx . accounts . ticket . to_account_info () ;"
+      },
+      {
+        "id": 15,
+        "label": "require ! (ticket_info . owner == ctx . program_id , ErrorCode :: InvalidTicketOwner) ;"
+      },
+      {
+        "id": 16,
+        "label": "require ! (ctx . accounts . buyer_token_account . owner == & token :: ID , ErrorCode :: InvalidBuyerTokenOwner) ;"
+      },
+      {
+        "id": 17,
+        "label": "let lottery = & mut ctx . accounts . lottery ;"
+      },
+      {
+        "id": 18,
+        "label": "require ! (lottery . is_active , ErrorCode :: LotteryNotActive) ;"
+      },
+      {
+        "id": 19,
+        "label": "require ! (Clock :: get () ?. unix_timestamp < lottery . end_time , ErrorCode :: LotteryEnded) ;"
+      },
+      {
+        "id": 20,
+        "label": "let ticket = & mut ctx . accounts . ticket ;"
+      },
+      {
+        "id": 21,
+        "label": "ticket . lottery = ctx . accounts . lottery . key () ;"
+      },
+      {
+        "id": 22,
+        "label": "ticket . buyer = ctx . accounts . buyer . key () ;"
+      },
+      {
+        "id": 23,
+        "label": "ticket . ticket_number = lottery . total_tickets ;"
+      },
+      {
+        "id": 24,
+        "label": "lottery . total_tickets += 1 ;"
+      },
+      {
+        "id": 25,
+        "label": "let transfer_instruction = Transfer { from : ctx . accounts . buyer_token_account . to_account_info () , to : ctx . accounts . lottery_vault . to_account_info () , authority : ctx . accounts . buyer . to_account_info () , } ;"
+      },
+      {
+        "id": 26,
+        "label": "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , transfer_instruction ,) ;"
+      },
+      {
+        "id": 27,
+        "label": "token :: transfer (cpi_ctx , lottery . ticket_price)"
+      }
+    ],
+    "edges": [
+      {
+        "from": 12,
+        "to": 12,
+        "label": "def: lottery_info"
+      },
+      {
+        "from": 14,
+        "to": 14,
+        "label": "def: ticket_info"
+      },
+      {
+        "from": 17,
+        "to": 17,
+        "label": "def: lottery"
+      },
+      {
+        "from": 20,
+        "to": 20,
+        "label": "def: ticket"
+      },
+      {
+        "from": 20,
+        "to": 21,
+        "label": "data_dep: ticket"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: ticket"
+      },
+      {
+        "from": 20,
+        "to": 23,
+        "label": "data_dep: ticket"
+      },
+      {
+        "from": 17,
+        "to": 23,
+        "label": "data_dep: lottery"
+      },
+      {
+        "from": 17,
+        "to": 24,
+        "label": "data_dep: lottery"
+      },
+      {
+        "from": 25,
+        "to": 25,
+        "label": "def: transfer_instruction"
+      },
+      {
+        "from": 26,
+        "to": 26,
+        "label": "def: cpi_ctx"
+      },
+      {
+        "from": 25,
+        "to": 26,
+        "label": "data_dep: transfer_instruction"
+      },
+      {
+        "from": 26,
+        "to": 27,
+        "label": "data_dep: cpi_ctx"
+      },
+      {
+        "from": 17,
+        "to": 27,
+        "label": "data_dep: lottery"
+      }
+    ]
+  },
+  {
+    "name": "draw_winner",
+    "inputs": [
+      "ctx: Context < DrawWinner >"
+    ],
+    "nodes": [
+      {
+        "id": 28,
+        "label": "Entry"
+      },
+      {
+        "id": 29,
+        "label": "let lottery_account_info = ctx . accounts . lottery . to_account_info () ;"
+      },
+      {
+        "id": 30,
+        "label": "require ! (lottery_account_info . owner == ctx . program_id , ErrorCode :: InvalidLotteryOwner) ;"
+      },
+      {
+        "id": 31,
+        "label": "let lottery = & mut ctx . accounts . lottery ;"
+      },
+      {
+        "id": 32,
+        "label": "require ! (Clock :: get () ?. unix_timestamp >= lottery . end_time , ErrorCode :: LotteryNotEnded) ;"
+      },
+      {
+        "id": 33,
+        "label": "require ! (lottery . is_active , ErrorCode :: LotteryNotActive) ;"
+      },
+      {
+        "id": 34,
+        "label": "let clock = Clock :: get () ? ;"
+      },
+      {
+        "id": 35,
+        "label": "let winning_number = (clock . unix_timestamp as u64) % lottery . total_tickets ;"
+      },
+      {
+        "id": 36,
+        "label": "lottery . winner = Some (winning_number) ;"
+      },
+      {
+        "id": 37,
+        "label": "lottery . is_active = false ;"
+      },
+      {
+        "id": 38,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 29,
+        "to": 29,
+        "label": "def: lottery_account_info"
+      },
+      {
+        "from": 31,
+        "to": 31,
+        "label": "def: lottery"
+      },
+      {
+        "from": 34,
+        "to": 34,
+        "label": "def: clock"
+      },
+      {
+        "from": 35,
+        "to": 35,
+        "label": "def: winning_number"
+      },
+      {
+        "from": 34,
+        "to": 35,
+        "label": "data_dep: clock"
+      },
+      {
+        "from": 31,
+        "to": 35,
+        "label": "data_dep: lottery"
+      },
+      {
+        "from": 31,
+        "to": 36,
+        "label": "data_dep: lottery"
+      },
+      {
+        "from": 35,
+        "to": 36,
+        "label": "data_dep: winning_number"
+      },
+      {
+        "from": 31,
+        "to": 37,
+        "label": "data_dep: lottery"
       }
     ]
   }

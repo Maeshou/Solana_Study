@@ -1,0 +1,183 @@
+[
+  {
+    "name": "init_split",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitSplit >",
+      "artist_bps: u16",
+      "label_bps: u16",
+      "min_payout_input: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . split ;",
+      "s . operator = ctx . accounts . operator . key () ;",
+      "s . artist_bps = clamp_u16 (artist_bps , 1000 , 8000) ;",
+      "s . label_bps = clamp_u16 (label_bps , 500 , 5000) ;",
+      "s . min_payout = min_payout_input ;",
+      "if s . min_payout < 1",
+      "{",
+      "s . min_payout = 1 ;",
+      "}",
+      "s . epoch = 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_settle",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActSettle >",
+      "plays: u64",
+      "unit_revenue: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . split ;",
+      "let mut factor = 100u64 ;",
+      "let mut count = plays ;",
+      "while count >= 10_000",
+      "{",
+      "factor = factor + 3 ;",
+      "count = count - 10_000 ;",
+      "}",
+      "let gross = (plays as u128 * unit_revenue as u128 / 1000u128) as u64 ;",
+      "let scaled = (gross as u128 * factor as u128 / 100u128) as u64 ;",
+      "let artist_cut = (scaled as u128 * s . artist_bps as u128 / 10_000u128) as u64 ;",
+      "let label_cut = (scaled as u128 * s . label_bps as u128 / 10_000u128) as u64 ;",
+      "let producer_cut = if scaled > artist_cut + label_cut { scaled - artist_cut - label_cut } else { s . min_payout } ;",
+      "token :: transfer (ctx . accounts . pool_to_artist () , artist_cut) ? ;",
+      "token :: transfer (ctx . accounts . pool_to_label () , label_cut) ? ;",
+      "token :: transfer (ctx . accounts . pool_to_producer () , producer_cut) ? ;",
+      "s . epoch = s . epoch + 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitSplit",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "split",
+        "attribute": "# [account (init , payer = operator , space = 8 + 32 + 2 + 2 + 8 + 8)]",
+        "field_type": "Account < 'info , SplitState >"
+      },
+      {
+        "name": "operator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActSettle",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "split",
+        "attribute": "# [account (mut , has_one = operator)]",
+        "field_type": "Account < 'info , SplitState >"
+      },
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "revenue_pool_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "artist_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "label_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "producer_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SplitState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "artist_bps",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "label_bps",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "min_payout",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "epoch",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "clamp_u16",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "v: u16",
+      "lo: u16",
+      "hi: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut o = v ;",
+      "if o < lo",
+      "{",
+      "o = lo ;",
+      "}",
+      "if o > hi",
+      "{",
+      "o = hi ;",
+      "}",
+      "o"
+    ]
+  }
+]

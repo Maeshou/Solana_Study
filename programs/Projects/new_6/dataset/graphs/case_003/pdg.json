@@ -1,0 +1,631 @@
+[
+  {
+    "name": "init_staking_pool",
+    "inputs": [
+      "ctx: Context < InitStakingPool >"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let pool = & mut ctx . accounts . staking_pool ;"
+      },
+      {
+        "id": 2,
+        "label": "pool . admin = ctx . accounts . admin . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "pool . total_staked = 0 ;"
+      },
+      {
+        "id": 4,
+        "label": "pool . reward_rate = 5 ;"
+      },
+      {
+        "id": 5,
+        "label": "pool . active = true ;"
+      },
+      {
+        "id": 6,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: pool"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: pool"
+      }
+    ]
+  },
+  {
+    "name": "create_stake",
+    "inputs": [
+      "ctx: Context < CreateStake >",
+      "amount: u64"
+    ],
+    "nodes": [
+      {
+        "id": 7,
+        "label": "Entry"
+      },
+      {
+        "id": 8,
+        "label": "let stake = & mut ctx . accounts . stake_account ;"
+      },
+      {
+        "id": 9,
+        "label": "stake . pool = ctx . accounts . staking_pool . key () ;"
+      },
+      {
+        "id": 10,
+        "label": "stake . staker = ctx . accounts . staker . key () ;"
+      },
+      {
+        "id": 11,
+        "label": "stake . amount = amount ;"
+      },
+      {
+        "id": 12,
+        "label": "stake . last_claim = Clock :: get () ? . unix_timestamp ;"
+      },
+      {
+        "id": 13,
+        "label": "stake . rewards_earned = 0 ;"
+      },
+      {
+        "id": 14,
+        "label": "let pool = & mut ctx . accounts . staking_pool ;"
+      },
+      {
+        "id": 15,
+        "label": "pool . total_staked = pool . total_staked . checked_add (amount) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 16,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 8,
+        "to": 8,
+        "label": "def: stake"
+      },
+      {
+        "from": 8,
+        "to": 9,
+        "label": "data_dep: stake"
+      },
+      {
+        "from": 8,
+        "to": 10,
+        "label": "data_dep: stake"
+      },
+      {
+        "from": 8,
+        "to": 11,
+        "label": "data_dep: stake"
+      },
+      {
+        "from": 8,
+        "to": 12,
+        "label": "data_dep: stake"
+      },
+      {
+        "from": 8,
+        "to": 13,
+        "label": "data_dep: stake"
+      },
+      {
+        "from": 14,
+        "to": 14,
+        "label": "def: pool"
+      },
+      {
+        "from": 14,
+        "to": 15,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 14,
+        "to": 15,
+        "label": "data_dep: pool"
+      }
+    ]
+  },
+  {
+    "name": "vulnerable_claim",
+    "inputs": [
+      "ctx: Context < VulnerableClaim >"
+    ],
+    "nodes": [
+      {
+        "id": 17,
+        "label": "Entry"
+      },
+      {
+        "id": 18,
+        "label": "let pool = & mut ctx . accounts . staking_pool ;"
+      },
+      {
+        "id": 19,
+        "label": "assert ! (ctx . accounts . stake_a . key () != ctx . accounts . stake_b . key ()) ;"
+      },
+      {
+        "id": 20,
+        "label": "let stake_a_data = ctx . accounts . stake_a . try_borrow_data () ? ;"
+      },
+      {
+        "id": 21,
+        "label": "let stake_b_data = ctx . accounts . stake_b . try_borrow_data () ? ;"
+      },
+      {
+        "id": 22,
+        "label": "if stake_a_data . len () >= 32 && stake_b_data . len () >= 32 { let stake_a_amount = u64 :: from_le_bytes ([stake_a_data [72] , stake_a_data [73] , stake_a_data [74] , stake_a_data [75] , stake_a_data [76] , stake_a_data [77] , stake_a_data [78] , stake_a_data [79]]) ; for reward_cycle in 0 .. 5 { if stake_a_amount > 1000 { let reward = (stake_a_amount * pool . reward_rate as u64) / 100 ; pool . total_staked = pool . total_staked . checked_add (reward) . unwrap_or (u64 :: MAX) ; let bonus_multiplier = (reward_cycle + 1) as u64 ; let bonus = reward * bonus_multiplier / 10 ; pool . total_staked = pool . total_staked . checked_add (bonus) . unwrap_or (u64 :: MAX) ; msg ! (\"Reward cycle {}: base={}, bonus={}\" , reward_cycle , reward , bonus) ; } else { pool . reward_rate = (pool . reward_rate + reward_cycle as u32) . min (50) ; let admin_fee = pool . total_staked / 1000 ; pool . total_staked = pool . total_staked . saturating_sub (admin_fee) ; msg ! (\"Admin fee collected: {}\" , admin_fee) ; } } }"
+      },
+      {
+        "id": 23,
+        "label": "let stake_a_amount = u64 :: from_le_bytes ([stake_a_data [72] , stake_a_data [73] , stake_a_data [74] , stake_a_data [75] , stake_a_data [76] , stake_a_data [77] , stake_a_data [78] , stake_a_data [79]]) ;"
+      },
+      {
+        "id": 24,
+        "label": "for reward_cycle in 0 .. 5 { if stake_a_amount > 1000 { let reward = (stake_a_amount * pool . reward_rate as u64) / 100 ; pool . total_staked = pool . total_staked . checked_add (reward) . unwrap_or (u64 :: MAX) ; let bonus_multiplier = (reward_cycle + 1) as u64 ; let bonus = reward * bonus_multiplier / 10 ; pool . total_staked = pool . total_staked . checked_add (bonus) . unwrap_or (u64 :: MAX) ; msg ! (\"Reward cycle {}: base={}, bonus={}\" , reward_cycle , reward , bonus) ; } else { pool . reward_rate = (pool . reward_rate + reward_cycle as u32) . min (50) ; let admin_fee = pool . total_staked / 1000 ; pool . total_staked = pool . total_staked . saturating_sub (admin_fee) ; msg ! (\"Admin fee collected: {}\" , admin_fee) ; } }"
+      },
+      {
+        "id": 25,
+        "label": "if stake_a_amount > 1000 { let reward = (stake_a_amount * pool . reward_rate as u64) / 100 ; pool . total_staked = pool . total_staked . checked_add (reward) . unwrap_or (u64 :: MAX) ; let bonus_multiplier = (reward_cycle + 1) as u64 ; let bonus = reward * bonus_multiplier / 10 ; pool . total_staked = pool . total_staked . checked_add (bonus) . unwrap_or (u64 :: MAX) ; msg ! (\"Reward cycle {}: base={}, bonus={}\" , reward_cycle , reward , bonus) ; } else { pool . reward_rate = (pool . reward_rate + reward_cycle as u32) . min (50) ; let admin_fee = pool . total_staked / 1000 ; pool . total_staked = pool . total_staked . saturating_sub (admin_fee) ; msg ! (\"Admin fee collected: {}\" , admin_fee) ; }"
+      },
+      {
+        "id": 26,
+        "label": "let reward = (stake_a_amount * pool . reward_rate as u64) / 100 ;"
+      },
+      {
+        "id": 27,
+        "label": "pool . total_staked = pool . total_staked . checked_add (reward) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 28,
+        "label": "let bonus_multiplier = (reward_cycle + 1) as u64 ;"
+      },
+      {
+        "id": 29,
+        "label": "let bonus = reward * bonus_multiplier / 10 ;"
+      },
+      {
+        "id": 30,
+        "label": "pool . total_staked = pool . total_staked . checked_add (bonus) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 31,
+        "label": "msg ! (\"Reward cycle {}: base={}, bonus={}\" , reward_cycle , reward , bonus) ;"
+      },
+      {
+        "id": 32,
+        "label": "pool . reward_rate = (pool . reward_rate + reward_cycle as u32) . min (50) ;"
+      },
+      {
+        "id": 33,
+        "label": "let admin_fee = pool . total_staked / 1000 ;"
+      },
+      {
+        "id": 34,
+        "label": "pool . total_staked = pool . total_staked . saturating_sub (admin_fee) ;"
+      },
+      {
+        "id": 35,
+        "label": "msg ! (\"Admin fee collected: {}\" , admin_fee) ;"
+      },
+      {
+        "id": 36,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 18,
+        "to": 18,
+        "label": "def: pool"
+      },
+      {
+        "from": 20,
+        "to": 20,
+        "label": "def: stake_a_data"
+      },
+      {
+        "from": 21,
+        "to": 21,
+        "label": "def: stake_b_data"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: stake_a_data"
+      },
+      {
+        "from": 21,
+        "to": 22,
+        "label": "data_dep: stake_b_data"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: stake_a_data"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: stake_a_data"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: stake_a_data"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: stake_a_data"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: stake_a_data"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: stake_a_data"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: stake_a_data"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: stake_a_data"
+      },
+      {
+        "from": 18,
+        "to": 22,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 22,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 22,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 22,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 22,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 22,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 22,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 22,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 22,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 22,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 23,
+        "to": 23,
+        "label": "def: stake_a_amount"
+      },
+      {
+        "from": 20,
+        "to": 23,
+        "label": "data_dep: stake_a_data"
+      },
+      {
+        "from": 20,
+        "to": 23,
+        "label": "data_dep: stake_a_data"
+      },
+      {
+        "from": 20,
+        "to": 23,
+        "label": "data_dep: stake_a_data"
+      },
+      {
+        "from": 20,
+        "to": 23,
+        "label": "data_dep: stake_a_data"
+      },
+      {
+        "from": 20,
+        "to": 23,
+        "label": "data_dep: stake_a_data"
+      },
+      {
+        "from": 20,
+        "to": 23,
+        "label": "data_dep: stake_a_data"
+      },
+      {
+        "from": 20,
+        "to": 23,
+        "label": "data_dep: stake_a_data"
+      },
+      {
+        "from": 20,
+        "to": 23,
+        "label": "data_dep: stake_a_data"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "data_dep: stake_a_amount"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "data_dep: stake_a_amount"
+      },
+      {
+        "from": 18,
+        "to": 24,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 24,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 24,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 24,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 24,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 24,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 24,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 24,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 24,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 24,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 23,
+        "to": 25,
+        "label": "data_dep: stake_a_amount"
+      },
+      {
+        "from": 23,
+        "to": 25,
+        "label": "data_dep: stake_a_amount"
+      },
+      {
+        "from": 18,
+        "to": 25,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 25,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 25,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 25,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 25,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 25,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 25,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 25,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 25,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 25,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 26,
+        "to": 26,
+        "label": "def: reward"
+      },
+      {
+        "from": 23,
+        "to": 26,
+        "label": "data_dep: stake_a_amount"
+      },
+      {
+        "from": 18,
+        "to": 26,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 27,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 27,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 26,
+        "to": 27,
+        "label": "data_dep: reward"
+      },
+      {
+        "from": 28,
+        "to": 28,
+        "label": "def: bonus_multiplier"
+      },
+      {
+        "from": 29,
+        "to": 29,
+        "label": "def: bonus"
+      },
+      {
+        "from": 26,
+        "to": 29,
+        "label": "data_dep: reward"
+      },
+      {
+        "from": 28,
+        "to": 29,
+        "label": "data_dep: bonus_multiplier"
+      },
+      {
+        "from": 18,
+        "to": 30,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 30,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 29,
+        "to": 30,
+        "label": "data_dep: bonus"
+      },
+      {
+        "from": 18,
+        "to": 32,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 32,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 33,
+        "to": 33,
+        "label": "def: admin_fee"
+      },
+      {
+        "from": 18,
+        "to": 33,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 34,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 18,
+        "to": 34,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 33,
+        "to": 34,
+        "label": "data_dep: admin_fee"
+      }
+    ]
+  }
+]

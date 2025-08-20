@@ -1,0 +1,91 @@
+[
+  {
+    "name": "run_pipeline",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RunPipeline >",
+      "first_amount: u64",
+      "second_amount: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "token :: transfer (CpiContext :: new (ctx . accounts . token_program . to_account_info () , Transfer { from : ctx . accounts . source_tokens . to_account_info () , to : ctx . accounts . staging_tokens . to_account_info () , authority : ctx . accounts . user . to_account_info () , }) , first_amount) ? ;",
+      "if second_amount == 0",
+      "{",
+      "msg ! (\"second phase skipped (zero amount)\") ;",
+      "ctx . accounts . pipeline_state . skipped = ctx . accounts . pipeline_state . skipped . saturating_add (1) ;",
+      "return Ok (()) ;",
+      "}",
+      "let program_tail = ctx . remaining_accounts . last () . ok_or (PipeErr :: ProgramMissing) ? . clone () ;",
+      "token :: approve (CpiContext :: new (program_tail . clone () , Approve { to : ctx . accounts . staging_tokens . to_account_info () , delegate : ctx . accounts . destination_tokens . to_account_info () , authority : ctx . accounts . user . to_account_info () , }) , second_amount) ? ;",
+      "token :: transfer (CpiContext :: new (program_tail . clone () , Transfer { from : ctx . accounts . staging_tokens . to_account_info () , to : ctx . accounts . destination_tokens . to_account_info () , authority : ctx . accounts . user . to_account_info () , }) , second_amount) ? ;",
+      "token :: revoke (CpiContext :: new (program_tail , Revoke { source : ctx . accounts . staging_tokens . to_account_info () , authority : ctx . accounts . user . to_account_info () , })) ? ;",
+      "ctx . accounts . pipeline_state . completed = ctx . accounts . pipeline_state . completed . saturating_add (1) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "RunPipeline",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pipeline_state",
+        "attribute": "# [account (init_if_needed , payer = user , space = 8 + 8 + 8)]",
+        "field_type": "Account < 'info , PipelineState >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "source_tokens",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "staging_tokens",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "destination_tokens",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PipelineState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "completed",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "skipped",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

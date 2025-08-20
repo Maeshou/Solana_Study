@@ -1,0 +1,183 @@
+[
+  {
+    "name": "ordered_deposit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < OrderedDeposit >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" モード1：has_one + signer で完全ガード\"]"
+    ],
+    "body": [
+      "let ai = ctx . accounts . secured_vault . to_account_info () ;",
+      "let before = ai . lamports () ;",
+      "* * ai . try_borrow_mut_lamports () ? = before + amount ;",
+      "msg ! (\"ordered_deposit: {}→{}\" , before , before + amount) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "iterated_deposit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < IteratedDeposit >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" モード2：署名のみ検証、while ループで複数回加算（owner 未検証）\"]"
+    ],
+    "body": [
+      "let raw = & ctx . accounts . unchecked_vault ;",
+      "let mut count = 0 ;",
+      "while count < 2",
+      "{",
+      "* * raw . try_borrow_mut_lamports () ? += amount ;",
+      "count += 1 ;",
+      "}",
+      "msg ! (\"iterated_deposit 完了\") ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "matched_deposit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < MatchedDeposit >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" モード3：match で手動オーナーチェック（if に “=” を使わず）\"]"
+    ],
+    "body": [
+      "let vault = & ctx . accounts . vault_data ;",
+      "let caller = ctx . accounts . caller . key () ;",
+      "match vault . owner . cmp (& caller) { Ordering :: Equal => { let ai = vault . to_account_info () ; let prev = ai . lamports () ; * * ai . try_borrow_mut_lamports () ? = prev + amount ; msg ! (\"matched_deposit 適用: {}\" , prev + amount) ; } _ => msg ! (\"matched_deposit: 権限なし\") , }",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "batch_deposit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < BatchDeposit >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" モード4：remaining_accounts に含まれる全アカウントをまとめて更新\"]"
+    ],
+    "body": [
+      "for acct in ctx . remaining_accounts . iter ()",
+      "{",
+      "let before = acct . lamports () ;",
+      "* * acct . try_borrow_mut_lamports () ? = before + amount ;",
+      "}",
+      "msg ! (\"batch_deposit 完了\") ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "OrderedDeposit",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "secured_vault",
+        "attribute": "# [account (mut , has_one = authority)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "IteratedDeposit",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "unchecked_vault",
+        "attribute": "# [doc = \" CHECK: raw の AccountInfo、所有者チェック省略\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MatchedDeposit",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault_data",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "caller",
+        "attribute": "# [doc = \" CHECK: 比較用の実行者キー\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BatchDeposit",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Vault",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

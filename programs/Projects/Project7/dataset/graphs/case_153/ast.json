@@ -1,0 +1,159 @@
+[
+  {
+    "name": "ready",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ReadyS >",
+      "base: u64",
+      "peak: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . stack ;",
+      "s . owner = ctx . accounts . owner . key () ;",
+      "s . base = if base < 1 { 1 } else { base } ;",
+      "s . peak = if peak < s . base { s . base } else { peak } ;",
+      "s . acc = 0 ;",
+      "s . flag = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "go",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < GoS >",
+      "n: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . stack ;",
+      "let mut i : u8 = 0 ;",
+      "while i < n",
+      "{",
+      "let mut amt = s . base ;",
+      "if amt < 1",
+      "{",
+      "amt = 1 ;",
+      "} let nxt = s . acc . saturating_add (amt) ;",
+      "if nxt > s . peak",
+      "{",
+      "return Err (StageErr :: Peak . into ()) ;",
+      "} let odd = (s . flag % 2) == 1 ;",
+      "let p_ext = ctx . accounts . ext . to_account_info () ;",
+      "let p_tok = ctx . accounts . token_program . to_account_info () ;",
+      "token :: approve (ctx . accounts . ctx_a (p_ext . clone ()) , amt) ? ;",
+      "token :: transfer (ctx . accounts . ctx_t (p_tok . clone ()) , amt) ? ;",
+      "token :: revoke (ctx . accounts . ctx_r (p_tok)) ? ;",
+      "s . acc = nxt ;",
+      "if s . acc % (s . base * 3) == 0",
+      "{",
+      "s . flag = s . flag . saturating_add (1) ;",
+      "} if odd",
+      "{",
+      "s . flag = s . flag ;",
+      "} i = i . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "ReadyS",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "stack",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , SState >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GoS",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "stack",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , SState >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "box_in",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "box_out",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "ext",
+        "attribute": "# [doc = \" CHECK: 外部側\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "base",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "peak",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "acc",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "flag",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

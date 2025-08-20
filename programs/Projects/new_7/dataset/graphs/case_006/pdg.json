@@ -1,0 +1,563 @@
+[
+  {
+    "name": "open",
+    "inputs": [
+      "ctx: Context < Open >",
+      "cap_bps: u16"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let s = & mut ctx . accounts . state ;"
+      },
+      {
+        "id": 2,
+        "label": "s . owner = ctx . accounts . owner . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "s . cap_bps = if cap_bps > 3000 { 3000 } else { cap_bps } ;"
+      },
+      {
+        "id": 4,
+        "label": "3000"
+      },
+      {
+        "id": 5,
+        "label": "cap_bps"
+      },
+      {
+        "id": 6,
+        "label": "s . trades = 0 ;"
+      },
+      {
+        "id": 7,
+        "label": "s . rebated = 0 ;"
+      },
+      {
+        "id": 8,
+        "label": "s . labels = 0 ;"
+      },
+      {
+        "id": 9,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: s"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 1,
+        "to": 6,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 1,
+        "to": 7,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 1,
+        "to": 8,
+        "label": "data_dep: s"
+      }
+    ]
+  },
+  {
+    "name": "trade_and_rebate",
+    "inputs": [
+      "ctx: Context < TradeAndRebate >",
+      "price: u64",
+      "qty: u64",
+      "tag: String"
+    ],
+    "nodes": [
+      {
+        "id": 10,
+        "label": "Entry"
+      },
+      {
+        "id": 11,
+        "label": "let s = & mut ctx . accounts . state ;"
+      },
+      {
+        "id": 12,
+        "label": "require ! (s . owner == ctx . accounts . owner . key () , Errs :: Owner) ;"
+      },
+      {
+        "id": 13,
+        "label": "s . trades = s . trades . saturating_add (1) ;"
+      },
+      {
+        "id": 14,
+        "label": "if tag . len () > 2 { s . labels = s . labels . saturating_add (tag . len () as u32) ; } else { let mut fill = 0 ; while fill < 3 { s . labels = s . labels . saturating_add (1) ; fill = fill . saturating_add (1) ; } }"
+      },
+      {
+        "id": 15,
+        "label": "s . labels = s . labels . saturating_add (tag . len () as u32) ;"
+      },
+      {
+        "id": 16,
+        "label": "let mut fill = 0 ;"
+      },
+      {
+        "id": 17,
+        "label": "while fill < 3 { s . labels = s . labels . saturating_add (1) ; fill = fill . saturating_add (1) ; }"
+      },
+      {
+        "id": 18,
+        "label": "s . labels = s . labels . saturating_add (1) ;"
+      },
+      {
+        "id": 19,
+        "label": "fill = fill . saturating_add (1) ;"
+      },
+      {
+        "id": 20,
+        "label": "let value = price . saturating_mul (qty) ;"
+      },
+      {
+        "id": 21,
+        "label": "let mut rebate = value . saturating_mul (s . cap_bps as u64) / 10_000 ;"
+      },
+      {
+        "id": 22,
+        "label": "if s . trades % 2 == 0 { let mut hops = 0 ; while hops < 4 { rebate = rebate . saturating_add (hops as u64) ; hops = hops . saturating_add (1) ; } } else { let mut drops = 0 ; while drops < 2 { if rebate > 0 { rebate = rebate . saturating_sub (1) ; } drops = drops . saturating_add (1) ; } if rebate > value { rebate = value ; } }"
+      },
+      {
+        "id": 23,
+        "label": "let mut hops = 0 ;"
+      },
+      {
+        "id": 24,
+        "label": "while hops < 4 { rebate = rebate . saturating_add (hops as u64) ; hops = hops . saturating_add (1) ; }"
+      },
+      {
+        "id": 25,
+        "label": "rebate = rebate . saturating_add (hops as u64) ;"
+      },
+      {
+        "id": 26,
+        "label": "hops = hops . saturating_add (1) ;"
+      },
+      {
+        "id": 27,
+        "label": "let mut drops = 0 ;"
+      },
+      {
+        "id": 28,
+        "label": "while drops < 2 { if rebate > 0 { rebate = rebate . saturating_sub (1) ; } drops = drops . saturating_add (1) ; }"
+      },
+      {
+        "id": 29,
+        "label": "if rebate > 0 { rebate = rebate . saturating_sub (1) ; }"
+      },
+      {
+        "id": 30,
+        "label": "rebate = rebate . saturating_sub (1) ;"
+      },
+      {
+        "id": 31,
+        "label": "drops = drops . saturating_add (1) ;"
+      },
+      {
+        "id": 32,
+        "label": "if rebate > value { rebate = value ; }"
+      },
+      {
+        "id": 33,
+        "label": "rebate = value ;"
+      },
+      {
+        "id": 34,
+        "label": "s . rebated = s . rebated . saturating_add (rebate) ;"
+      },
+      {
+        "id": 35,
+        "label": "let ix = spl_token :: instruction :: transfer (ctx . accounts . token_program . key () , ctx . accounts . fee_vault . key () , ctx . accounts . trader_ata . key () , ctx . accounts . owner . key () , & [] , rebate ,) ? ;"
+      },
+      {
+        "id": 36,
+        "label": "invoke (& ix , & [ctx . accounts . fee_vault . to_account_info () , ctx . accounts . trader_ata . to_account_info () , ctx . accounts . owner . to_account_info () ,]) ? ;"
+      },
+      {
+        "id": 37,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 11,
+        "to": 11,
+        "label": "def: s"
+      },
+      {
+        "from": 11,
+        "to": 13,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 11,
+        "to": 13,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 11,
+        "to": 14,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 11,
+        "to": 14,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 11,
+        "to": 14,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 11,
+        "to": 14,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 11,
+        "to": 15,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 11,
+        "to": 15,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 16,
+        "to": 16,
+        "label": "def: fill"
+      },
+      {
+        "from": 16,
+        "to": 17,
+        "label": "data_dep: fill"
+      },
+      {
+        "from": 11,
+        "to": 17,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 11,
+        "to": 17,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 16,
+        "to": 17,
+        "label": "data_dep: fill"
+      },
+      {
+        "from": 16,
+        "to": 17,
+        "label": "data_dep: fill"
+      },
+      {
+        "from": 11,
+        "to": 18,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 11,
+        "to": 18,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 16,
+        "to": 19,
+        "label": "data_dep: fill"
+      },
+      {
+        "from": 16,
+        "to": 19,
+        "label": "data_dep: fill"
+      },
+      {
+        "from": 20,
+        "to": 20,
+        "label": "def: value"
+      },
+      {
+        "from": 21,
+        "to": 21,
+        "label": "def: rebate"
+      },
+      {
+        "from": 20,
+        "to": 21,
+        "label": "data_dep: value"
+      },
+      {
+        "from": 11,
+        "to": 21,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 11,
+        "to": 22,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 21,
+        "to": 22,
+        "label": "data_dep: rebate"
+      },
+      {
+        "from": 21,
+        "to": 22,
+        "label": "data_dep: rebate"
+      },
+      {
+        "from": 21,
+        "to": 22,
+        "label": "data_dep: rebate"
+      },
+      {
+        "from": 21,
+        "to": 22,
+        "label": "data_dep: rebate"
+      },
+      {
+        "from": 21,
+        "to": 22,
+        "label": "data_dep: rebate"
+      },
+      {
+        "from": 21,
+        "to": 22,
+        "label": "data_dep: rebate"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: value"
+      },
+      {
+        "from": 21,
+        "to": 22,
+        "label": "data_dep: rebate"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: value"
+      },
+      {
+        "from": 23,
+        "to": 23,
+        "label": "def: hops"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "data_dep: hops"
+      },
+      {
+        "from": 21,
+        "to": 24,
+        "label": "data_dep: rebate"
+      },
+      {
+        "from": 21,
+        "to": 24,
+        "label": "data_dep: rebate"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "data_dep: hops"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "data_dep: hops"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "data_dep: hops"
+      },
+      {
+        "from": 21,
+        "to": 25,
+        "label": "data_dep: rebate"
+      },
+      {
+        "from": 21,
+        "to": 25,
+        "label": "data_dep: rebate"
+      },
+      {
+        "from": 23,
+        "to": 25,
+        "label": "data_dep: hops"
+      },
+      {
+        "from": 23,
+        "to": 26,
+        "label": "data_dep: hops"
+      },
+      {
+        "from": 23,
+        "to": 26,
+        "label": "data_dep: hops"
+      },
+      {
+        "from": 27,
+        "to": 27,
+        "label": "def: drops"
+      },
+      {
+        "from": 27,
+        "to": 28,
+        "label": "data_dep: drops"
+      },
+      {
+        "from": 21,
+        "to": 28,
+        "label": "data_dep: rebate"
+      },
+      {
+        "from": 21,
+        "to": 28,
+        "label": "data_dep: rebate"
+      },
+      {
+        "from": 21,
+        "to": 28,
+        "label": "data_dep: rebate"
+      },
+      {
+        "from": 27,
+        "to": 28,
+        "label": "data_dep: drops"
+      },
+      {
+        "from": 27,
+        "to": 28,
+        "label": "data_dep: drops"
+      },
+      {
+        "from": 21,
+        "to": 29,
+        "label": "data_dep: rebate"
+      },
+      {
+        "from": 21,
+        "to": 29,
+        "label": "data_dep: rebate"
+      },
+      {
+        "from": 21,
+        "to": 29,
+        "label": "data_dep: rebate"
+      },
+      {
+        "from": 21,
+        "to": 30,
+        "label": "data_dep: rebate"
+      },
+      {
+        "from": 21,
+        "to": 30,
+        "label": "data_dep: rebate"
+      },
+      {
+        "from": 27,
+        "to": 31,
+        "label": "data_dep: drops"
+      },
+      {
+        "from": 27,
+        "to": 31,
+        "label": "data_dep: drops"
+      },
+      {
+        "from": 21,
+        "to": 32,
+        "label": "data_dep: rebate"
+      },
+      {
+        "from": 20,
+        "to": 32,
+        "label": "data_dep: value"
+      },
+      {
+        "from": 21,
+        "to": 32,
+        "label": "data_dep: rebate"
+      },
+      {
+        "from": 20,
+        "to": 32,
+        "label": "data_dep: value"
+      },
+      {
+        "from": 21,
+        "to": 33,
+        "label": "data_dep: rebate"
+      },
+      {
+        "from": 20,
+        "to": 33,
+        "label": "data_dep: value"
+      },
+      {
+        "from": 11,
+        "to": 34,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 11,
+        "to": 34,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 21,
+        "to": 34,
+        "label": "data_dep: rebate"
+      },
+      {
+        "from": 35,
+        "to": 35,
+        "label": "def: ix"
+      },
+      {
+        "from": 21,
+        "to": 35,
+        "label": "data_dep: rebate"
+      },
+      {
+        "from": 35,
+        "to": 36,
+        "label": "data_dep: ix"
+      }
+    ]
+  }
+]

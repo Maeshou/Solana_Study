@@ -1,0 +1,195 @@
+[
+  {
+    "name": "validate_data",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Ctx107 >"
+    ],
+    "attributes": [],
+    "body": [
+      "let old_pub = ctx . accounts . rec . data_pub ;",
+      "let new_pub = ctx . accounts . user . key () ;",
+      "ctx . accounts . rec . data_pub = new_pub ;",
+      "msg ! (\"Case 107: data_pub changed from {} to {}\" , old_pub , new_pub) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "fractionalize",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Fractionalize >",
+      "fraction_amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" NFT をフラクショナル化して分割トークンをミントするが、\"]",
+      "# [doc = \" has_one = fraction_mint のみ検証し、アカウントの所有者（owner）とは照合していない\"]"
+    ],
+    "body": [
+      "let frac_acc = & mut ctx . accounts . fraction_account ;",
+      "frac_acc . total_fractions = frac_acc . total_fractions . checked_add (fraction_amount) . unwrap () ;",
+      "let cpi_accounts = MintTo { mint : ctx . accounts . fraction_mint . to_account_info () , to : ctx . accounts . user_fraction_account . to_account_info () , authority : ctx . accounts . mint_authority . to_account_info () , } ;",
+      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
+      "token :: mint_to (cpi_ctx , fraction_amount) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "defractionalize",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Defractionalize >",
+      "burn_amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 分割トークンをバーンして NFT を再構築するが、\"]",
+      "# [doc = \" has_one = fraction_mint のみ検証し、アカウントの所有者（owner）とは照合していない\"]"
+    ],
+    "body": [
+      "let frac_acc = & mut ctx . accounts . fraction_account ;",
+      "frac_acc . total_fractions = frac_acc . total_fractions . checked_sub (burn_amount) . unwrap () ;",
+      "let cpi_accounts = Burn { mint : ctx . accounts . fraction_mint . to_account_info () , from : ctx . accounts . user_fraction_account . to_account_info () , authority : ctx . accounts . user . to_account_info () , } ;",
+      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
+      "token :: burn (cpi_ctx , burn_amount) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Fractionalize",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "fraction_account",
+        "attribute": "# [account (mut , has_one = fraction_mint ,)]",
+        "field_type": "Account < 'info , FractionAccount >"
+      },
+      {
+        "name": "fraction_mint",
+        "attribute": "# [doc = \" 分割トークンの Mint\"]",
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "user_fraction_account",
+        "attribute": "# [doc = \" ユーザーの分割トークン受取 TokenAccount\"] # [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "mint_authority",
+        "attribute": "# [doc = \" Mint 権限を持つアカウント\"]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": "# [doc = \" SPL Token プログラム\"]",
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Defractionalize",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "fraction_account",
+        "attribute": "# [account (mut , has_one = fraction_mint ,)]",
+        "field_type": "Account < 'info , FractionAccount >"
+      },
+      {
+        "name": "fraction_mint",
+        "attribute": "# [doc = \" 分割トークンの Mint\"]",
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "user_fraction_account",
+        "attribute": "# [doc = \" ユーザーの分割トークン保有 TokenAccount\"] # [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": "# [doc = \" SPL Token プログラム\"]",
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" ユーザー（バーン権限）\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "FractionAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 本来このフラクショナル化権を所有するべきユーザーの Pubkey\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "fraction_mint",
+        "attribute": "# [doc = \" 対応する分割トークンの Mint\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "total_fractions",
+        "attribute": "# [doc = \" これまでにミントされた分割トークンの総数\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Ctx107",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "rec",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Rec107 >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (signer)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Rec107",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "data_pub",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

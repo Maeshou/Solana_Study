@@ -1,0 +1,202 @@
+[
+  {
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Init >"
+    ],
+    "attributes": [],
+    "body": [
+      "let bridge_state = & mut ctx . accounts . bridge_state ;",
+      "bridge_state . admin = ctx . accounts . admin . key () ;",
+      "bridge_state . metric = 77 ;",
+      "bridge_state . route_a = Pubkey :: new_unique () ;",
+      "bridge_state . route_b = Pubkey :: new_unique () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "set_routes",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SetRoutes >",
+      "a: Pubkey",
+      "b: Pubkey"
+    ],
+    "attributes": [],
+    "body": [
+      "let bridge_state = & mut ctx . accounts . bridge_state ;",
+      "require_keys_eq ! (bridge_state . admin , ctx . accounts . admin . key () , BridgeError :: AdminOnly) ;",
+      "bridge_state . route_a = a ;",
+      "bridge_state . route_b = b ;",
+      "bridge_state . metric = bridge_state . metric . wrapping_add (5) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "pipe",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Pipe >",
+      "amount: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let bridge_state = & mut ctx . accounts . bridge_state ;",
+      "if amount == 0",
+      "{",
+      "bridge_state . metric = bridge_state . metric . rotate_left (1) ;",
+      "let mut bump : u8 = 1 ;",
+      "while bump < 3",
+      "{",
+      "bridge_state . metric = bridge_state . metric . wrapping_add (bump as u64) ;",
+      "bump = bump . saturating_add (1) ;",
+      "} return Ok (()) ;",
+      "}",
+      "let ix_a = Instruction { program_id : bridge_state . route_a , accounts : vec ! [AccountMeta :: new (ctx . accounts . buffer . key () , false) , AccountMeta :: new (ctx . accounts . pool . key () , false) , AccountMeta :: new_readonly (ctx . accounts . admin . key () , true) ,] , data : { let mut d = vec ! [1] ; d . extend_from_slice (& (amount / 2) . to_le_bytes ()) ; d } , } ;",
+      "let prog_a = ctx . remaining_accounts . get (0) . ok_or (BridgeError :: RouteAMissing) ? ;",
+      "invoke (& ix_a , & [prog_a . clone () , ctx . accounts . buffer . to_account_info () , ctx . accounts . pool . to_account_info () , ctx . accounts . admin . to_account_info () ,] ,) ? ;",
+      "let rest = amount - (amount / 2) ;",
+      "let ix_b = Instruction { program_id : bridge_state . route_b , accounts : vec ! [AccountMeta :: new (ctx . accounts . pool . key () , false) , AccountMeta :: new (ctx . accounts . receiver . key () , false) , AccountMeta :: new_readonly (ctx . accounts . admin . key () , true) ,] , data : { let mut d = vec ! [2] ; d . extend_from_slice (& rest . to_le_bytes ()) ; d } , } ;",
+      "let prog_b = ctx . remaining_accounts . get (1) . ok_or (BridgeError :: RouteBMissing) ? ;",
+      "invoke (& ix_b , & [prog_b . clone () , ctx . accounts . pool . to_account_info () , ctx . accounts . receiver . to_account_info () , ctx . accounts . admin . to_account_info () ,] ,) ? ;",
+      "bridge_state . metric = bridge_state . metric . wrapping_add (amount) . rotate_right (2) ;",
+      "let mut tail : u8 = 1 ;",
+      "while tail < 4",
+      "{",
+      "bridge_state . metric = bridge_state . metric . wrapping_add (7) ;",
+      "tail = tail . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "BridgeState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "metric",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "route_a",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "route_b",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Init",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "bridge_state",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 8 + 32 + 32)]",
+        "field_type": "Account < 'info , BridgeState >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "buffer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "pool",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "receiver",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SetRoutes",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "bridge_state",
+        "attribute": "# [account (mut , has_one = admin)]",
+        "field_type": "Account < 'info , BridgeState >"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Pipe",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "bridge_state",
+        "attribute": "# [account (mut , has_one = admin)]",
+        "field_type": "Account < 'info , BridgeState >"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "buffer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "pool",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "receiver",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

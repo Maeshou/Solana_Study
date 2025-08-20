@@ -1,33 +1,65 @@
 [
   {
-    "name": "initialize_art_pool",
+    "name": "init_bonus",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Initialize066 >",
-      "param: u64"
+      "ctx: Context < InitBonus >",
+      "base_score: u32"
     ],
-    "attributes": [],
+    "attributes": [
+      "# [doc = \" ボーナス設定を初期化\"]"
+    ],
     "body": [
-      "let mut data = ArtPoolData :: try_from_slice (& ctx . accounts . data_account . data . borrow ()) ? ;",
-      "data . value = param ;",
-      "data . serialize (& mut * ctx . accounts . data_account . data . borrow_mut ()) ? ;",
+      "let b = & mut ctx . accounts . bonus ;",
+      "b . base = base_score ;",
+      "b . bonus = 0 ;",
+      "b . total = base_score ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Initialize066",
+    "name": "apply_bonus",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ApplyBonus >",
+      "multiplier: u8"
+    ],
+    "attributes": [
+      "# [doc = \" ボーナスを累積しフラグ設定\"]"
+    ],
+    "body": [
+      "let b = & mut ctx . accounts . bonus ;",
+      "let mut i = 0 ;",
+      "while i < multiplier",
+      "{",
+      "b . bonus += b . base / 10 ;",
+      "i += 1 ;",
+      "}",
+      "b . total = b . base + b . bonus ;",
+      "b . flag = b . total > b . base * 2 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitBonus",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "bonus",
+        "attribute": "# [account (init , payer = user , space = 8 + 4 * 3 + 1)]",
+        "field_type": "Account < 'info , BonusData >"
       },
       {
-        "name": "authority",
-        "attribute": null,
+        "name": "user",
+        "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -35,13 +67,42 @@
     "body": null
   },
   {
-    "name": "ArtPoolData",
+    "name": "ApplyBonus",
     "node_type": "struct",
     "fields": [
       {
-        "name": "value",
+        "name": "bonus",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , BonusData >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BonusData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "base",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "u32"
+      },
+      {
+        "name": "bonus",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "total",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "flag",
+        "attribute": null,
+        "field_type": "bool"
       }
     ],
     "inputs": null,

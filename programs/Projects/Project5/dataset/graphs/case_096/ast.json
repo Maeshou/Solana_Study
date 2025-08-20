@@ -1,40 +1,248 @@
 [
   {
-    "name": "grant_license",
+    "name": "init_survey",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx096 >",
-      "amount: u64"
+      "ctx: Context < InitSurvey >",
+      "dx: u32",
+      "dy: u32"
     ],
     "attributes": [],
     "body": [
-      "let src = & mut ctx . accounts . account_src ;",
-      "let dst = & mut ctx . accounts . account_dst ;",
-      "let before = * * src . to_account_info () . try_borrow_lamports () ? ;",
-      "* * src . to_account_info () . try_borrow_mut_lamports () ? = before . saturating_sub (amount) ;",
-      "* * dst . to_account_info () . try_borrow_mut_lamports () ? += amount ;",
+      "let s = & mut ctx . accounts . survey ;",
+      "s . owner = ctx . accounts . ranger . key () ;",
+      "s . limit = dx + dy + 400 ;",
+      "s . phase = Scout ;",
+      "let mut x = 0u32 ;",
+      "let mut y = 0u32 ;",
+      "let mut err : i32 = dx as i32 - dy as i32 ;",
+      "let mut acc = 0u32 ;",
+      "for _ in 0 .. 8",
+      "{",
+      "let e2 = 2 * err ;",
+      "if e2 > - (dy as i32)",
+      "{",
+      "err -= dy as i32 ;",
+      "x += 1 ;",
+      "} else",
+      "{",
+      "acc ^= 0x55AA ;",
+      "} if e2 < dx as i32",
+      "{",
+      "err += dx as i32 ;",
+      "y += 1 ;",
+      "} else",
+      "{",
+      "acc ^= 0xAA55 ;",
+      "}",
+      "}",
+      "let a = & mut ctx . accounts . ridge_a ;",
+      "a . survey = s . key () ;",
+      "a . band = (dx & 7) as u8 ;",
+      "a . mass = (x + acc) + 21 ;",
+      "let b = & mut ctx . accounts . ridge_b ;",
+      "b . survey = s . key () ;",
+      "b . band = (dy & 7) as u8 ;",
+      "b . mass = (y + acc . rotate_left (3)) + 19 ;",
+      "let lg = & mut ctx . accounts . log ;",
+      "lg . survey = s . key () ;",
+      "lg . band = 9 ;",
+      "lg . steps = 0 ;",
+      "lg . sig = ((x as u64) << 32) ^ y as u64 ^ acc as u64 ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx096",
+    "name": "traverse",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Traverse >",
+      "n: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . survey ;",
+      "let a = & mut ctx . accounts . ridge_a ;",
+      "let b = & mut ctx . accounts . ridge_b ;",
+      "let lg = & mut ctx . accounts . log ;",
+      "for i in 0 .. n",
+      "{",
+      "let z = ((a . mass ^ b . mass) as u64) . wrapping_mul (1469598103934665603) ;",
+      "a . mass = a . mass . checked_add (((z & 63) as u32) + 3) . unwrap_or (u32 :: MAX) ;",
+      "b . mass = b . mass . saturating_add ((((z >> 6) & 63) as u32) + 5) ;",
+      "lg . steps = lg . steps . saturating_add (1) ;",
+      "lg . sig ^= z . rotate_left ((i % 19) as u32) ;",
+      "}",
+      "let sum = a . mass + b . mass ;",
+      "if sum > s . limit",
+      "{",
+      "s . phase = Retreat ;",
+      "a . band ^= 1 ;",
+      "b . band = b . band . saturating_add (1) ;",
+      "lg . band = lg . band . saturating_add (1) ;",
+      "msg ! (\"retreat: band tweaks & log move\") ;",
+      "} else",
+      "{",
+      "s . phase = Sample ;",
+      "a . mass = a . mass . saturating_add (9) ;",
+      "b . mass = b . mass / 2 + 11 ;",
+      "lg . sig ^= 0x0F0F_F0F0 ;",
+      "msg ! (\"sample: mass adjust & sig flip\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitSurvey",
     "node_type": "struct",
     "fields": [
       {
-        "name": "account_src",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "survey",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Survey >"
       },
       {
-        "name": "account_dst",
+        "name": "ridge_a",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Ridge >"
+      },
+      {
+        "name": "ridge_b",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Ridge >"
+      },
+      {
+        "name": "log",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 8 + 8)]",
+        "field_type": "Account < 'info , IceLog >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "ranger",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
       },
       {
         "name": "system_program",
         "attribute": null,
         "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Traverse",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "survey",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Survey >"
+      },
+      {
+        "name": "ridge_a",
+        "attribute": "# [account (mut , has_one = survey , constraint = ridge_a . band != ridge_b . band @ IceErr :: Dup)]",
+        "field_type": "Account < 'info , Ridge >"
+      },
+      {
+        "name": "ridge_b",
+        "attribute": "# [account (mut , has_one = survey , constraint = ridge_b . band != log . band @ IceErr :: Dup)]",
+        "field_type": "Account < 'info , Ridge >"
+      },
+      {
+        "name": "log",
+        "attribute": "# [account (mut , has_one = survey)]",
+        "field_type": "Account < 'info , IceLog >"
+      },
+      {
+        "name": "ranger",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Survey",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "limit",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "phase",
+        "attribute": null,
+        "field_type": "IcePhase"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Ridge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "survey",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "band",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "mass",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "IceLog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "survey",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "band",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "steps",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "sig",
+        "attribute": null,
+        "field_type": "u64"
       }
     ],
     "inputs": null,

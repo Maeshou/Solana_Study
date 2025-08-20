@@ -1,0 +1,172 @@
+[
+  {
+    "name": "initialize_vest",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeVest >",
+      "total_amount: u64",
+      "release_timestamp: i64"
+    ],
+    "attributes": [
+      "# [doc = \" ベスティングスケジュールを初期化する\"]"
+    ],
+    "body": [
+      "let vest = & mut ctx . accounts . vest ;",
+      "vest . beneficiary = ctx . accounts . beneficiary . key () ;",
+      "vest . total_amount = total_amount ;",
+      "vest . released_amount = 0 ;",
+      "vest . release_time = release_timestamp ;",
+      "msg ! (\"Vesting for {}: {} tokens at {}\" , vest . beneficiary , vest . total_amount , vest . release_time) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "claim_vested",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ClaimVest >"
+    ],
+    "attributes": [
+      "# [doc = \" ベスティングが満了したら受益者が請求する\"]"
+    ],
+    "body": [
+      "require ! (ctx . accounts . beneficiary . is_signer , ErrorCode :: Unauthorized) ;",
+      "let clock = Clock :: get () ? . unix_timestamp ;",
+      "let vest = & mut ctx . accounts . vest ;",
+      "let remaining = vest . total_amount . checked_sub (vest . released_amount) . unwrap () ;",
+      "require ! (clock >= vest . release_time , ErrorCode :: NotYet) ;",
+      "vest . released_amount = vest . total_amount ;",
+      "* * ctx . accounts . vault . to_account_info () . try_borrow_mut_lamports () ? -= remaining ;",
+      "* * ctx . accounts . beneficiary . to_account_info () . try_borrow_mut_lamports () ? += remaining ;",
+      "msg ! (\"{} claimed {} tokens\" , vest . beneficiary , remaining) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "extend_vesting",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ExtendVest >",
+      "extra_secs: i64"
+    ],
+    "attributes": [
+      "# [doc = \" 管理者がベスティングタイムを延長する\"]"
+    ],
+    "body": [
+      "require ! (ctx . accounts . manager . is_signer , ErrorCode :: Unauthorized) ;",
+      "let vest = & mut ctx . accounts . vest ;",
+      "vest . release_time = vest . release_time . checked_add (extra_secs) . unwrap () ;",
+      "msg ! (\"Vesting for {} extended by {}s to {}\" , vest . beneficiary , extra_secs , vest . release_time) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializeVest",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vest",
+        "attribute": "# [account (init , payer = manager , space = 8 + 32 + 8 + 8 + 8 , seeds = [b\"vest\" , beneficiary . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Vesting >"
+      },
+      {
+        "name": "manager",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "beneficiary",
+        "attribute": "# [doc = \" ベスティング対象受益者\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "vault",
+        "attribute": "# [doc = \" トークンを保管するPDA\"] # [account (init_if_needed , payer = manager , space = 8 , seeds = [b\"vault\" , vest . key () . as_ref ()] , bump)]",
+        "field_type": "SystemAccount < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ClaimVest",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vest",
+        "attribute": "# [account (mut , seeds = [b\"vest\" , vest . beneficiary . as_ref ()] , bump , has_one = beneficiary)]",
+        "field_type": "Account < 'info , Vesting >"
+      },
+      {
+        "name": "beneficiary",
+        "attribute": "# [doc = \" ベスティング受益者自ら請求\"]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "vault",
+        "attribute": "# [doc = \" トークンを保管するPDA\"] # [account (mut , seeds = [b\"vault\" , vest . key () . as_ref ()] , bump)]",
+        "field_type": "SystemAccount < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ExtendVest",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vest",
+        "attribute": "# [account (mut , seeds = [b\"vest\" , vest . beneficiary . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Vesting >"
+      },
+      {
+        "name": "manager",
+        "attribute": "# [doc = \" 管理者署名\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Vesting",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "beneficiary",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "total_amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "released_amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "release_time",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

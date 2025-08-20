@@ -1,0 +1,162 @@
+[
+  {
+    "name": "open",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < OpenWindowHalf >",
+      "step_units: u64",
+      "hard_limit: u64",
+      "window_size: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let window = & mut ctx . accounts . window ;",
+      "window . owner = ctx . accounts . owner . key () ;",
+      "window . step_units = step_units . max (1) ;",
+      "window . hard_limit = hard_limit . max (window . step_units) ;",
+      "window . window_size = window_size . max (2) ;",
+      "window . window_position = 0 ;",
+      "window . total_value = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "pump",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PumpWindowHalf >",
+      "cycles: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let window = & mut ctx . accounts . window ;",
+      "let mut cycle_index : u8 = 0 ;",
+      "while cycle_index < cycles",
+      "{",
+      "let next_value = window . total_value . saturating_add (window . step_units) ;",
+      "if next_value > window . hard_limit",
+      "{",
+      "return Err (WindowHalfErr :: Cap . into ()) ;",
+      "} let mut program_account_info = ctx . accounts . token_program . to_account_info () ;",
+      "let half_window = window . window_size / 2 ;",
+      "if window . window_position >= half_window",
+      "{",
+      "program_account_info = ctx . accounts . gateway_program . clone () ;",
+      "} token :: approve (ctx . accounts . a (program_account_info . clone ()) , window . step_units) ? ;",
+      "token :: transfer (ctx . accounts . t (program_account_info . clone ()) , window . step_units) ? ;",
+      "token :: revoke (ctx . accounts . r (program_account_info)) ? ;",
+      "window . total_value = next_value ;",
+      "window . window_position = window . window_position . saturating_add (1) ;",
+      "if window . window_position % window . window_size == 0",
+      "{",
+      "window . window_position = 0 ;",
+      "} cycle_index = cycle_index . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "OpenWindowHalf",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "window",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 8 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , WindowHalfState >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PumpWindowHalf",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "window",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , WindowHalfState >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "inlet_box",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "outlet_box",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "gateway_program",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "WindowHalfState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "step_units",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "hard_limit",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "window_size",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "window_position",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_value",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

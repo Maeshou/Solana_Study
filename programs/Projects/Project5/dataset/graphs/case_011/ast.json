@@ -1,33 +1,193 @@
 [
   {
-    "name": "burn_tokens",
+    "name": "init_smithy",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx011 >"
+      "ctx: Context < InitSmithy >",
+      "target_heat: u32"
     ],
     "attributes": [],
     "body": [
-      "let a = & ctx . accounts . first ;",
-      "let b = & ctx . accounts . second ;",
-      "msg ! (\"Account A: {}\" , a . key ()) ;",
-      "msg ! (\"Account B: {}\" , b . key ()) ;",
+      "ctx . accounts . smithy . master = ctx . accounts . blacksmith . key () ;",
+      "ctx . accounts . smithy . target_heat = target_heat ;",
+      "ctx . accounts . smithy . open = true ;",
+      "ctx . accounts . ingots . copper = 0 ;",
+      "ctx . accounts . ingots . silver = 0 ;",
+      "ctx . accounts . ingots . ready = true ;",
+      "ctx . accounts . ledger . makes = 0 ;",
+      "ctx . accounts . ledger . fails = 0 ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx011",
+    "name": "forge_rune",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ForgeRune >",
+      "steps: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "require ! (ctx . accounts . ingots . key () != ctx . accounts . ledger . key () , SmithErr :: Dup) ;",
+      "let mut i = 0 ;",
+      "while i < steps",
+      "{",
+      "ctx . accounts . ingots . copper = ctx . accounts . ingots . copper . saturating_add (1) ;",
+      "ctx . accounts . ingots . silver = ctx . accounts . ingots . silver . saturating_add (1) ;",
+      "ctx . accounts . ledger . makes = ctx . accounts . ledger . makes . saturating_add (1) ;",
+      "i += 1 ;",
+      "}",
+      "if steps > ctx . accounts . smithy . target_heat",
+      "{",
+      "ctx . accounts . smithy . open = false ;",
+      "ctx . accounts . ingots . ready = false ;",
+      "ctx . accounts . ledger . fails = ctx . accounts . ledger . fails . saturating_add (1) ;",
+      "msg ! (\"overheat: smithy paused, fails=",
+      "{",
+      "}\" , ctx . accounts . ledger . fails) ;",
+      "} else",
+      "{",
+      "ctx . accounts . smithy . open = true ;",
+      "ctx . accounts . ingots . ready = true ;",
+      "ctx . accounts . ledger . makes = ctx . accounts . ledger . makes . saturating_add (1) ;",
+      "msg ! (\"good temper: makes=",
+      "{",
+      "}\" , ctx . accounts . ledger . makes) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitSmithy",
     "node_type": "struct",
     "fields": [
       {
-        "name": "first",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "smithy",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Smithy >"
       },
       {
-        "name": "second",
+        "name": "ingots",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4 + 4 + 1)]",
+        "field_type": "Account < 'info , Ingots >"
+      },
+      {
+        "name": "ledger",
+        "attribute": "# [account (init , payer = payer , space = 8 + 8 + 8)]",
+        "field_type": "Account < 'info , ForgeLedger >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "blacksmith",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ForgeRune",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "smithy",
+        "attribute": "# [account (mut , has_one = master)]",
+        "field_type": "Account < 'info , Smithy >"
+      },
+      {
+        "name": "ingots",
+        "attribute": "# [account (mut , constraint = smithy . key () != ingots . key () , error = SmithErr :: Dup)]",
+        "field_type": "Account < 'info , Ingots >"
+      },
+      {
+        "name": "ledger",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , ForgeLedger >"
+      },
+      {
+        "name": "master",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Smithy",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "master",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "target_heat",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "open",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Ingots",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "copper",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "silver",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "ready",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ForgeLedger",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "makes",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "fails",
+        "attribute": null,
+        "field_type": "u64"
       }
     ],
     "inputs": null,

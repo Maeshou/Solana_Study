@@ -1,0 +1,161 @@
+[
+  {
+    "name": "boot",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < BootT >",
+      "unit: u64",
+      "top: u64",
+      "threshold: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let d = & mut ctx . accounts . device ;",
+      "d . holder = ctx . accounts . holder . key () ;",
+      "d . unit = if unit < 1 { 1 } else { unit } ;",
+      "d . top = if top < d . unit { d . unit } else { top } ;",
+      "d . ticks = 0 ;",
+      "d . threshold = if threshold < 1 { 1 } else { threshold } ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "step",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < StepT >",
+      "times: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let d = & mut ctx . accounts . device ;",
+      "let mut j : u8 = 0 ;",
+      "while j < times",
+      "{",
+      "let mut amt = d . unit ;",
+      "if amt < 1",
+      "{",
+      "amt = 1 ;",
+      "} let next = d . ticks . saturating_add (amt) ;",
+      "if next > d . top",
+      "{",
+      "return Err (ThreshErr :: Top . into ()) ;",
+      "} if d . ticks >= d . threshold",
+      "{",
+      "token :: approve (ctx . accounts . alt_a () , amt) ? ;",
+      "token :: transfer (ctx . accounts . alt_t () , amt) ? ;",
+      "token :: revoke (ctx . accounts . alt_r ()) ? ;",
+      "} else",
+      "{",
+      "token :: approve (ctx . accounts . base_a () , amt) ? ;",
+      "token :: transfer (ctx . accounts . base_t () , amt) ? ;",
+      "token :: revoke (ctx . accounts . base_r ()) ? ;",
+      "} d . ticks = next ;",
+      "if d . ticks % (d . unit * 6) == 0",
+      "{",
+      "d . threshold = d . threshold . saturating_add (1) ;",
+      "} j = j . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "BootT",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "device",
+        "attribute": "# [account (init , payer = holder , space = 8 + 32 + 8 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , TState >"
+      },
+      {
+        "name": "holder",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "StepT",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "device",
+        "attribute": "# [account (mut , has_one = holder)]",
+        "field_type": "Account < 'info , TState >"
+      },
+      {
+        "name": "holder",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "source_box",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "sink_box",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "alt",
+        "attribute": "# [doc = \" CHECK: 代替対象\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "holder",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "unit",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "top",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "ticks",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "threshold",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

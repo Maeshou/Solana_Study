@@ -1,0 +1,75 @@
+[
+  {
+    "name": "unlock_puzzle",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < UnlockPuzzle >",
+      "puzzle_index: u8",
+      "reward_amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" パズルを解いてアチーブメントを解除し、報酬を受け取る  \"]",
+      "# [doc = \" （`puzzle_account` の owner チェックを一切行っていないため、  \"]",
+      "# [doc = \"  攻撃者が他人のアカウントを指定して即時解除＆報酬横取りが可能）\"]"
+    ],
+    "body": [
+      "let acct_info = & mut ctx . accounts . puzzle_account . to_account_info () ;",
+      "let data = & mut acct_info . data . borrow_mut () ;",
+      "if data . len () < 17",
+      "{",
+      "return err ! (ErrorCode :: DataTooShort) ;",
+      "}",
+      "let (count_slice , rest) = data . split_at_mut (1) ;",
+      "let unlocked_count = count_slice [0] as usize ;",
+      "let list_slice = & mut rest [.. unlocked_count] ;",
+      "for & idx in list_slice . iter ()",
+      "{",
+      "if idx == puzzle_index",
+      "{",
+      "return err ! (ErrorCode :: AlreadyUnlocked) ;",
+      "}",
+      "}",
+      "let max_slots = 8 ;",
+      "if unlocked_count < max_slots",
+      "{",
+      "rest [unlocked_count] = puzzle_index ;",
+      "count_slice [0] = (unlocked_count + 1) as u8 ;",
+      "} else",
+      "{",
+      "return err ! (ErrorCode :: ListFull) ;",
+      "}",
+      "let ts_bytes = Clock :: get () ? . unix_timestamp . to_le_bytes () ;",
+      "let ts_offset = 1 + max_slots ;",
+      "data [ts_offset .. ts_offset + 8] . copy_from_slice (& ts_bytes) ;",
+      "* * ctx . accounts . reward_vault . to_account_info () . lamports . borrow_mut () = ctx . accounts . reward_vault . to_account_info () . lamports () . saturating_sub (reward_amount) ;",
+      "* * ctx . accounts . user . to_account_info () . lamports . borrow_mut () += reward_amount ;",
+      "msg ! (\"Puzzle {} unlocked (slot {}), total unlocked {}, rewarded {} lamports\" , puzzle_index , unlocked_count , unlocked_count + 1 , reward_amount) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "UnlockPuzzle",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "puzzle_account",
+        "attribute": "# [doc = \" CHECK: owner == program_id の検証をまったく行っていない AccountInfo\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "reward_vault",
+        "attribute": "# [doc = \" 報酬プールアカウント（owner チェックなし）\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" パズルを解いたユーザー（署名のみ検証）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

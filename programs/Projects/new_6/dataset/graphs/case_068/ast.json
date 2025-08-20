@@ -1,0 +1,149 @@
+[
+  {
+    "name": "init_relic",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitRelic >",
+      "base: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let r = & mut ctx . accounts . relic ;",
+      "r . owner = ctx . accounts . owner . key () ;",
+      "r . core_power = base ;",
+      "r . sockets = vec ! [0 ; 6] ;",
+      "r . affinity = [0u8 ; 3] ;",
+      "r . audit_notes = vec ! [] ;",
+      "r . mode = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_socket",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Socket >",
+      "gem: u8",
+      "times: u8",
+      "label: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let r = & mut ctx . accounts . relic ;",
+      "let appraiser = & ctx . accounts . appraiser ;",
+      "r . audit_notes . push (format ! (\"{}#{}\" , label , times)) ;",
+      "if r . audit_notes . len () > 10",
+      "{",
+      "r . audit_notes . remove (0) ;",
+      "}",
+      "let mut t = 0 ;",
+      "while t < times",
+      "{",
+      "let slot = ((gem as usize) + t as usize) % r . sockets . len () ;",
+      "let delta = ((gem as u16) << (t % 3)) ^ (r . core_power . rotate_left ((t % 7) as u32)) ;",
+      "r . sockets [slot] = r . sockets [slot] . wrapping_add ((delta & 0xFF) as u8) ;",
+      "if r . sockets [slot] & 1 == 1",
+      "{",
+      "r . affinity [(slot % 3)] = r . affinity [(slot % 3)] . wrapping_add ((gem ^ (t as u8)) & 0x1F) ;",
+      "r . mode = r . mode . rotate_left (1) ;",
+      "} if r . affinity [(slot % 3)] > 100",
+      "{",
+      "r . affinity [(slot % 3)] = r . affinity [(slot % 3)] % 67 ;",
+      "r . core_power = r . core_power . rotate_right (1) ;",
+      "} t += 1 ;",
+      "}",
+      "let sum = r . sockets . iter () . fold (0u32 , | a , b | a + * b as u32) ;",
+      "if sum % 9 == 0",
+      "{",
+      "r . core_power = r . core_power . wrapping_add ((sum % 257) as u16) ;",
+      "r . sockets . rotate_left (1) ;",
+      "}",
+      "r . owner = appraiser . key () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitRelic",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "relic",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 2 + 64 + 3 + 64 + 1)]",
+        "field_type": "Account < 'info , Relic >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Socket",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "relic",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Relic >"
+      },
+      {
+        "name": "appraiser",
+        "attribute": "# [doc = \" CHECK: 鑑定士ロールの検証なし\"]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Relic",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "core_power",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "sockets",
+        "attribute": null,
+        "field_type": "Vec < u8 >"
+      },
+      {
+        "name": "affinity",
+        "attribute": null,
+        "field_type": "[u8 ; 3]"
+      },
+      {
+        "name": "audit_notes",
+        "attribute": null,
+        "field_type": "Vec < String >"
+      },
+      {
+        "name": "mode",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

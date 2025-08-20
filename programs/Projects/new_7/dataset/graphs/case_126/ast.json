@@ -1,0 +1,155 @@
+[
+  {
+    "name": "enhance",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Enhance >",
+      "power: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let st = & mut ctx . accounts . forge ;",
+      "st . calls += 1 ;",
+      "let mut program = ctx . accounts . alt_program . to_account_info () ;",
+      "if ctx . remaining_accounts . len () > 0",
+      "{",
+      "program = ctx . remaining_accounts [0] . clone () ;",
+      "st . path_a_enhance += power ;",
+      "} else",
+      "{",
+      "st . path_b_fallback += power ;",
+      "st . last_fallback_power = power ;",
+      "st . durability_penalty = st . durability_penalty . saturating_add (power / 7) ;",
+      "st . resist_log . push ((Clock :: get () ? . slot as u32 , (st . base_resist ^ power) as u32)) ;",
+      "st . base_resist = st . base_resist . wrapping_add ((power & 15) + st . calls) ;",
+      "}",
+      "let br = EquipBridge { avatar : ctx . accounts . avatar . to_account_info () , gear_mint : ctx . accounts . gear_mint . to_account_info () , } ;",
+      "let slot = Clock :: get () ? . slot ;",
+      "let chunk = ((slot & 3) as u64 + 2) * (1 + (st . calls & 1) as u64) ;",
+      "let mut left = power ;",
+      "while left > 0",
+      "{",
+      "let send = if left > chunk",
+      "{",
+      "chunk } else { left } ;",
+      "let mut payload = Vec :: with_capacity (24) ;",
+      "payload . extend_from_slice (& st . calls . to_le_bytes ()) ;",
+      "payload . extend_from_slice (& power . to_le_bytes ()) ;",
+      "payload . extend_from_slice (& send . to_le_bytes ()) ;",
+      "let cx = br . as_cpi (program . clone ()) ;",
+      "br . invoke_enhance (cx , payload) ? ;",
+      "st . total_sent += send ;",
+      "left -= send ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Enhance",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "forge",
+        "attribute": "# [account (init , payer = user , space = 8 + 8 + 8 + 8 + 8 + 8 + 4 + (4 + 64 * 8))]",
+        "field_type": "Account < 'info , ForgeState >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "avatar",
+        "attribute": "# [doc = \" CHECK: プレイヤーアバター\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "gear_mint",
+        "attribute": "# [doc = \" CHECK: 装備NFTミント\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "alt_program",
+        "attribute": "# [doc = \" CHECK: 既定の呼び先\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ForgeState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "calls",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_sent",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "path_a_enhance",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "path_b_fallback",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "last_fallback_power",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "durability_penalty",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "base_resist",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "resist_log",
+        "attribute": null,
+        "field_type": "Vec < (u32 , u32) >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EquipBridge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "avatar",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "gear_mint",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,212 @@
+[
+  {
+    "name": "init_treasury",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitTreasury >",
+      "unlock_ts: i64"
+    ],
+    "attributes": [
+      "# [doc = \" 金庫の初期化：引き出し可能時刻とオーナーを設定\"]",
+      "# [doc = \" ⚠\\u{fe0f} `initializer` の署名チェックは一切行われない脆弱性あり\"]"
+    ],
+    "body": [
+      "let t = & mut ctx . accounts . treasury ;",
+      "t . unlock_time = unlock_ts ;",
+      "t . owner = ctx . accounts . initializer . key () ;",
+      "t . deposit_history = Vec :: new () ;",
+      "t . withdraw_history = Vec :: new () ;"
+    ]
+  },
+  {
+    "name": "record_deposit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RecordDeposit >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 入金イベントを記録：実際の lamports は動かさず、履歴にのみ追加\"]",
+      "# [doc = \" ⚠\\u{fe0f} `user` の署名チェックも残高チェックも一切なし\"]"
+    ],
+    "body": [
+      "let t = & mut ctx . accounts . treasury ;",
+      "let now = Clock :: get () . unwrap () . unix_timestamp ;",
+      "t . deposit_history . push (DepositRecord { user : ctx . accounts . user . key () , amount , timestamp : now , }) ;"
+    ]
+  },
+  {
+    "name": "record_withdraw",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RecordWithdraw >"
+    ],
+    "attributes": [
+      "# [doc = \" 出金イベントを記録：履歴を集計し、withdraw_history に追加\"]",
+      "# [doc = \" ⚠\\u{fe0f} ロック解除時刻やオーナー検証も一切行われない\"]"
+    ],
+    "body": [
+      "let t = & mut ctx . accounts . treasury ;",
+      "let now = Clock :: get () . unwrap () . unix_timestamp ;",
+      "let total : u64 = t . deposit_history . iter () . map (| d | d . amount) . sum () ;",
+      "t . withdraw_history . push (WithdrawRecord { user : ctx . accounts . user . key () , amount : total , timestamp : now , }) ;"
+    ]
+  },
+  {
+    "name": "Treasury",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "unlock_time",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "deposit_history",
+        "attribute": null,
+        "field_type": "Vec < DepositRecord >"
+      },
+      {
+        "name": "withdraw_history",
+        "attribute": null,
+        "field_type": "Vec < WithdrawRecord >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DepositRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "timestamp",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "WithdrawRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "timestamp",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitTreasury",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "treasury",
+        "attribute": "# [account (init , payer = payer , space = 8 + 8 + 32 + (4 + (32 + 8 + 8) * 100) * 2)]",
+        "field_type": "Account < 'info , Treasury >"
+      },
+      {
+        "name": "initializer",
+        "attribute": "# [doc = \" CHECK: 署名チェックなし\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RecordDeposit",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "treasury",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Treasury >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" CHECK: 署名検証なしで任意の user を指定可能\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "extra_info",
+        "attribute": "# [doc = \" CHECK: 余剰パラメータとしての AccountInfo\"]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RecordWithdraw",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "treasury",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Treasury >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" CHECK: 署名検証なしで任意の user を指定可能\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "extra_info",
+        "attribute": "# [doc = \" CHECK: 不要情報として AccountInfo\"]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

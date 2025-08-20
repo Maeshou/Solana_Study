@@ -1,0 +1,149 @@
+[
+  {
+    "name": "harvest_yield",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < HarvestYield >",
+      "base_amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 農場から収穫を行い、報酬トークンを配布するが、\"]",
+      "# [doc = \" farm_account.owner と ctx.accounts.user.key() の一致検証がない\"]"
+    ],
+    "body": [
+      "let config = & ctx . accounts . config ;",
+      "let farm = & mut ctx . accounts . farm_account ;",
+      "let amount = calculate_yield (config , base_amount) ;",
+      "record_harvest (farm , amount) ;",
+      "distribute_yield (ctx , amount) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "calculate_yield",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "config: & Account < FarmConfig >",
+      "base: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 設定アカウントから乗数をかけて収穫量を計算するヘルパー\"]"
+    ],
+    "body": [
+      "base . checked_mul (config . yield_multiplier) . unwrap ()"
+    ]
+  },
+  {
+    "name": "record_harvest",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "farm: & mut FarmAccount",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 農場アカウントに収穫記録を残すヘルパー\"]"
+    ],
+    "body": [
+      "farm . total_harvested = farm . total_harvested . saturating_add (amount) ;",
+      "farm . harvest_count = farm . harvest_count . saturating_add (1) ;"
+    ]
+  },
+  {
+    "name": "distribute_yield",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: & Context < HarvestYield >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" CPI で報酬トークンを転送するヘルパー\"]"
+    ],
+    "body": [
+      "let cpi_accounts = Transfer { from : ctx . accounts . yield_vault . to_account_info () , to : ctx . accounts . user_vault . to_account_info () , authority : ctx . accounts . service_authority . to_account_info () , } ;",
+      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
+      "token :: transfer (cpi_ctx , amount) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "HarvestYield",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "farm_account",
+        "attribute": "# [account (mut)] # [doc = \" 本来は #[account(has_one = owner)] を指定して所有者照合を行うべき\"]",
+        "field_type": "Account < 'info , FarmAccount >"
+      },
+      {
+        "name": "yield_vault",
+        "attribute": "# [doc = \" 報酬トークンの保管アカウント\"] # [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "user_vault",
+        "attribute": "# [doc = \" ユーザーの受取用トークンアカウント\"] # [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "service_authority",
+        "attribute": "# [doc = \" CPI 実行権限を持つサービスアカウント\"]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": "# [doc = \" SPL トークンプログラム\"]",
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "config",
+        "attribute": "# [doc = \" 収穫倍率などを保持する設定アカウント\"]",
+        "field_type": "Account < 'info , FarmConfig >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "FarmAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 本来この農場を所有するべきユーザーの Pubkey\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "total_harvested",
+        "attribute": "# [doc = \" これまでに収穫した合計量\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "harvest_count",
+        "attribute": "# [doc = \" 収穫実行回数\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "FarmConfig",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "yield_multiplier",
+        "attribute": "# [doc = \" 収穫時にかける乗数（例：2 = 2倍）\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

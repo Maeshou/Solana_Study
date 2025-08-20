@@ -1,0 +1,152 @@
+[
+  {
+    "name": "init_pool",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitPool >",
+      "seed: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let p = & mut ctx . accounts . pool ;",
+      "p . owner = ctx . accounts . bookie . key () ;",
+      "p . bump_hold = * ctx . bumps . get (\"pool\") . ok_or (error ! (EWP :: NoBump)) ? ;",
+      "p . bankroll = seed . rotate_left (2) . wrapping_add (73) ;",
+      "p . stage = 2 ;",
+      "let mut i = 1u8 ;",
+      "let mut base = p . bankroll . rotate_right (1) ;",
+      "while i < 3",
+      "{",
+      "let v = (base ^ (i as u64 * 18)) . rotate_left (1) ;",
+      "base = base . wrapping_add (v) ;",
+      "p . bankroll = p . bankroll . wrapping_add (v) . wrapping_mul (2) . wrapping_add (15 + i as u64) ;",
+      "p . stage = p . stage . saturating_add (((p . bankroll % 27) as u32) + 4) ;",
+      "i = i . saturating_add (1) ;",
+      "}",
+      "if p . bankroll > seed",
+      "{",
+      "for k in 1 .. 3",
+      "{",
+      "let z = (p . bankroll ^ (k as u64 * 22)) . rotate_right (1) ;",
+      "p . bankroll = p . bankroll . wrapping_add (z) . wrapping_mul (3) . wrapping_add (11 + k as u64) ;",
+      "p . stage = p . stage . saturating_add (((p . bankroll % 25) as u32) + 5) ;",
+      "}",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "settle_wager",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SettleWager >",
+      "ticket_id: u64",
+      "user_bump: u8",
+      "lamports: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let p = & mut ctx . accounts . pool ;",
+      "for r in 1 .. 4",
+      "{",
+      "let q = (p . bankroll ^ (r as u64 * 13)) . rotate_left (1) ;",
+      "p . bankroll = p . bankroll . wrapping_add (q) . wrapping_mul (2) . wrapping_add (9 + r as u64) ;",
+      "p . stage = p . stage . saturating_add (((p . bankroll % 21) as u32) + 3) ;",
+      "}",
+      "let seeds = & [b\"wager_ticket\" . as_ref () , p . owner . as_ref () , & ticket_id . to_le_bytes () , core :: slice :: from_ref (& user_bump) ,] ;",
+      "let slot = Pubkey :: create_program_address (& [b\"wager_ticket\" , p . owner . as_ref () , & ticket_id . to_le_bytes () , & [user_bump]] , ctx . program_id ,) . map_err (| _ | error ! (EWP :: SeedCompute)) ? ;",
+      "let ix = system_instruction :: transfer (& slot , & ctx . accounts . winner . key () , lamports) ;",
+      "invoke_signed (& ix , & [ctx . accounts . ticket_hint . to_account_info () , ctx . accounts . winner . to_account_info () , ctx . accounts . system_program . to_account_info () ,] , & [seeds] ,) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitPool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": "# [account (init , payer = bookie , space = 8 + 32 + 8 + 4 + 1 , seeds = [b\"pool\" , bookie . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , PoolState >"
+      },
+      {
+        "name": "bookie",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SettleWager",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": "# [account (mut , seeds = [b\"pool\" , bookie . key () . as_ref ()] , bump = pool . bump_hold)]",
+        "field_type": "Account < 'info , PoolState >"
+      },
+      {
+        "name": "ticket_hint",
+        "attribute": "# [doc = \" CHECK\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "winner",
+        "attribute": "# [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "bookie",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PoolState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "bankroll",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "stage",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "bump_hold",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,131 @@
+[
+  {
+    "name": "create_account",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateAccount >"
+    ],
+    "attributes": [
+      "# [doc = \" ロイヤリティアカウントを作成\"]"
+    ],
+    "body": [
+      "let acct = & mut ctx . accounts . loyalty ;",
+      "acct . owner = ctx . accounts . user . key () ;",
+      "acct . points = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "earn_points",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyAccount >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" ポイント獲得\"]"
+    ],
+    "body": [
+      "let acct = & mut ctx . accounts . loyalty ;",
+      "let signer = ctx . accounts . user . key () ;",
+      "if acct . owner != signer",
+      "{",
+      "return Err (ErrorCode :: Unauthorized . into ()) ;",
+      "}",
+      "let new_total = acct . points . checked_add (amount) . ok_or (ErrorCode :: Overflow) ? ;",
+      "acct . points = new_total ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "redeem_points",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyAccount >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" ポイント利用\"]"
+    ],
+    "body": [
+      "let acct = & mut ctx . accounts . loyalty ;",
+      "let signer = ctx . accounts . user . key () ;",
+      "if acct . owner != signer",
+      "{",
+      "return Err (ErrorCode :: Unauthorized . into ()) ;",
+      "}",
+      "if acct . points < amount",
+      "{",
+      "return Err (ErrorCode :: InsufficientPoints . into ()) ;",
+      "}",
+      "let new_total = acct . points . checked_sub (amount) . ok_or (ErrorCode :: Underflow) ? ;",
+      "acct . points = new_total ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CreateAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "loyalty",
+        "attribute": "# [doc = \" Reinit Attack 防止：二度同じアカウントを初期化できない\"] # [account (init , payer = user , space = 8 + 32 + 8)]",
+        "field_type": "Account < 'info , LoyaltyAccount >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 実際に署名したユーザー\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ModifyAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "loyalty",
+        "attribute": "# [doc = \" Owner Check & Type Cosplay\"] # [account (mut)]",
+        "field_type": "Account < 'info , LoyaltyAccount >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 実際に署名したユーザー\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "LoyaltyAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 操作を許可されたユーザー\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "points",
+        "attribute": "# [doc = \" 現在のポイント残高\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

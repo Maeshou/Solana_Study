@@ -1,6 +1,6 @@
 [
   {
-    "name": "open_position",
+    "name": "init_pool",
     "nodes": [
       {
         "id": 0,
@@ -8,19 +8,19 @@
       },
       {
         "id": 1,
-        "label": "let acct = & mut ctx . accounts . position ;"
+        "label": "let pool = & mut ctx . accounts . pool ;"
       },
       {
         "id": 2,
-        "label": "let temp = acct . data ;"
+        "label": "pool . fee_basis = fee_bps ;"
       },
       {
         "id": 3,
-        "label": "acct . data = temp . checked_mul (2) . unwrap () ;"
+        "label": "pool . total_staked = 0 ;"
       },
       {
         "id": 4,
-        "label": "msg ! (\"Executed open_position logic\") ;"
+        "label": "emit ! (PoolCreated { fee_bps }) ;"
       },
       {
         "id": 5,
@@ -51,7 +51,155 @@
       {
         "from": 4,
         "to": 5,
-        "label": "call"
+        "label": "next"
+      }
+    ]
+  },
+  {
+    "name": "stake",
+    "nodes": [
+      {
+        "id": 6,
+        "label": "Entry"
+      },
+      {
+        "id": 7,
+        "label": "let cpi = CpiContext :: new (ctx . accounts . token_program . to_account_info () , Transfer { from : ctx . accounts . user_token . to_account_info () , to : ctx . accounts . pool_token . to_account_info () , authority : ctx . accounts . user . to_account_info () , } ,) ;"
+      },
+      {
+        "id": 8,
+        "label": "anchor_spl :: token :: transfer (cpi , amount) ? ;"
+      },
+      {
+        "id": 9,
+        "label": "let pool = & mut ctx . accounts . pool ;"
+      },
+      {
+        "id": 10,
+        "label": "pool . total_staked = pool . total_staked . checked_add (amount) . unwrap () ;"
+      },
+      {
+        "id": 11,
+        "label": "emit ! (Staked { user : ctx . accounts . user . key () , amount }) ;"
+      },
+      {
+        "id": 12,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 6,
+        "to": 7,
+        "label": "next"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "next"
+      },
+      {
+        "from": 8,
+        "to": 9,
+        "label": "next"
+      },
+      {
+        "from": 9,
+        "to": 10,
+        "label": "next"
+      },
+      {
+        "from": 10,
+        "to": 11,
+        "label": "next"
+      },
+      {
+        "from": 11,
+        "to": 12,
+        "label": "next"
+      }
+    ]
+  },
+  {
+    "name": "unstake",
+    "nodes": [
+      {
+        "id": 13,
+        "label": "Entry"
+      },
+      {
+        "id": 14,
+        "label": "let pool = & mut ctx . accounts . pool ;"
+      },
+      {
+        "id": 15,
+        "label": "require ! (pool . total_staked >= amount , ErrorCode :: Insufficient) ;"
+      },
+      {
+        "id": 16,
+        "label": "let fee = amount * pool . fee_basis as u64 / 10_000 ;"
+      },
+      {
+        "id": 17,
+        "label": "let net = amount . checked_sub (fee) . unwrap () ;"
+      },
+      {
+        "id": 18,
+        "label": "* * ctx . accounts . user_token . to_account_info () . lamports . borrow_mut () += net ;"
+      },
+      {
+        "id": 19,
+        "label": "pool . total_staked = pool . total_staked . checked_sub (amount) . unwrap () ;"
+      },
+      {
+        "id": 20,
+        "label": "emit ! (Unstaked { user : ctx . accounts . user . key () , amount : net }) ;"
+      },
+      {
+        "id": 21,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 13,
+        "to": 14,
+        "label": "next"
+      },
+      {
+        "from": 14,
+        "to": 15,
+        "label": "next"
+      },
+      {
+        "from": 15,
+        "to": 16,
+        "label": "next"
+      },
+      {
+        "from": 16,
+        "to": 17,
+        "label": "next"
+      },
+      {
+        "from": 17,
+        "to": 18,
+        "label": "next"
+      },
+      {
+        "from": 18,
+        "to": 19,
+        "label": "next"
+      },
+      {
+        "from": 19,
+        "to": 20,
+        "label": "next"
+      },
+      {
+        "from": 20,
+        "to": 21,
+        "label": "next"
       }
     ]
   }

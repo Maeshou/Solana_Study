@@ -1,0 +1,176 @@
+[
+  {
+    "name": "InviteCode",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "issuer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "code",
+        "attribute": null,
+        "field_type": "String"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RedeemRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "redeemer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "invite",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "note",
+        "attribute": null,
+        "field_type": "String"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreateCode",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "invite",
+        "attribute": "# [account (init , payer = issuer , space = 8 + 32 + 4 + 64)]",
+        "field_type": "Account < 'info , InviteCode >"
+      },
+      {
+        "name": "issuer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RedeemCode",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "invite",
+        "attribute": "# [doc = \" InviteCode.issuer == issuer.key() は検証される\"] # [account (mut , has_one = issuer)]",
+        "field_type": "Account < 'info , InviteCode >"
+      },
+      {
+        "name": "record",
+        "attribute": "# [doc = \" RedeemRecord.invite ⇔ invite.key() の検証がないため、\"] # [doc = \" 任意の RedeemRecord を渡して利用処理をすり抜けられる\"] # [account (init , payer = redeemer , space = 8 + 32 + 32 + 4 + 128)]",
+        "field_type": "Account < 'info , RedeemRecord >"
+      },
+      {
+        "name": "issuer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "redeemer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ConfirmRedeem",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "record",
+        "attribute": "# [doc = \" RedeemRecord.redeemer == redeemer.key() は検証される\"] # [account (mut , has_one = redeemer)]",
+        "field_type": "Account < 'info , RedeemRecord >"
+      },
+      {
+        "name": "invite",
+        "attribute": "# [doc = \" invite.key() ⇔ record.invite の検証がないため、\"] # [doc = \" 偽物の RedeemRecord で別のコードを使用済みにできる\"] # [account (mut)]",
+        "field_type": "Account < 'info , InviteCode >"
+      },
+      {
+        "name": "redeemer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "create_code",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateCode >",
+      "code_str: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let ic = & mut ctx . accounts . invite ;",
+      "ic . issuer = ctx . accounts . issuer . key () ;",
+      "ic . code = code_str ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "redeem_code",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RedeemCode >",
+      "note: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let ic = & mut ctx . accounts . invite ;",
+      "let rr = & mut ctx . accounts . record ;",
+      "rr . redeemer = ctx . accounts . redeemer . key () ;",
+      "rr . invite = ic . key () ;",
+      "rr . note = note ;",
+      "ic . code . push_str (\"-USED\") ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "confirm_redeem",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ConfirmRedeem >"
+    ],
+    "attributes": [],
+    "body": [
+      "let ic = & mut ctx . accounts . invite ;",
+      "ic . code = ic . code . to_uppercase () ;",
+      "Ok (())"
+    ]
+  }
+]

@@ -1,0 +1,817 @@
+[
+  {
+    "name": "init_guild",
+    "inputs": [
+      "ctx: Context < InitGuild >",
+      "tag: u8"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let g = & mut ctx . accounts . guild ;"
+      },
+      {
+        "id": 2,
+        "label": "g . admin = ctx . accounts . admin . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "g . tag = tag ;"
+      },
+      {
+        "id": 4,
+        "label": "g . member_count = 0 ;"
+      },
+      {
+        "id": 5,
+        "label": "g . reputation = 1000 ;"
+      },
+      {
+        "id": 6,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: g"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: g"
+      }
+    ]
+  },
+  {
+    "name": "init_member",
+    "inputs": [
+      "ctx: Context < InitMember >",
+      "seat: u16"
+    ],
+    "nodes": [
+      {
+        "id": 7,
+        "label": "Entry"
+      },
+      {
+        "id": 8,
+        "label": "let m = & mut ctx . accounts . member ;"
+      },
+      {
+        "id": 9,
+        "label": "m . parent = ctx . accounts . guild . key () ;"
+      },
+      {
+        "id": 10,
+        "label": "m . player = ctx . accounts . player . key () ;"
+      },
+      {
+        "id": 11,
+        "label": "m . seat = seat ;"
+      },
+      {
+        "id": 12,
+        "label": "m . status = Vacant ;"
+      },
+      {
+        "id": 13,
+        "label": "m . points = 0 ;"
+      },
+      {
+        "id": 14,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 8,
+        "to": 8,
+        "label": "def: m"
+      },
+      {
+        "from": 8,
+        "to": 9,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 8,
+        "to": 10,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 8,
+        "to": 11,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 8,
+        "to": 12,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 8,
+        "to": 13,
+        "label": "data_dep: m"
+      }
+    ]
+  },
+  {
+    "name": "update_seats",
+    "inputs": [
+      "ctx: Context < UpdateSeats >",
+      "add_points: u32"
+    ],
+    "nodes": [
+      {
+        "id": 15,
+        "label": "Entry"
+      },
+      {
+        "id": 16,
+        "label": "let g = & mut ctx . accounts . guild ;"
+      },
+      {
+        "id": 17,
+        "label": "let a = & mut ctx . accounts . member_a ;"
+      },
+      {
+        "id": 18,
+        "label": "let b = & mut ctx . accounts . member_b ;"
+      },
+      {
+        "id": 19,
+        "label": "let mut accum : u64 = 0 ;"
+      },
+      {
+        "id": 20,
+        "label": "let mut x = (g . reputation as u64) . max (1) ;"
+      },
+      {
+        "id": 21,
+        "label": "let mut i = 0 ;"
+      },
+      {
+        "id": 22,
+        "label": "while i < 6 { let nx = (x + (g . reputation as u64) / x) / 2 ; let diff = if nx > x { nx - x } else { x - nx } ; x = nx ; accum = accum . checked_add (diff) . unwrap_or (u64 :: MAX) ; i += 1 ; }"
+      },
+      {
+        "id": 23,
+        "label": "let nx = (x + (g . reputation as u64) / x) / 2 ;"
+      },
+      {
+        "id": 24,
+        "label": "let diff = if nx > x { nx - x } else { x - nx } ;"
+      },
+      {
+        "id": 25,
+        "label": "nx - x"
+      },
+      {
+        "id": 26,
+        "label": "x - nx"
+      },
+      {
+        "id": 27,
+        "label": "x = nx ;"
+      },
+      {
+        "id": 28,
+        "label": "accum = accum . checked_add (diff) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 29,
+        "label": "i += 1 ;"
+      },
+      {
+        "id": 30,
+        "label": "if (a . seat % 2) == 0 { a . points = a . points . checked_add (add_points / 2) . unwrap_or (u32 :: MAX) ; a . status = Occupied ; g . member_count = g . member_count . saturating_add (1) ; g . reputation = ((g . reputation as u64 + accum / 4) as u32) . min (50_000) ; msg ! (\"Seat A occupied; acc={}, rep={}\" , accum , g . reputation) ; } else { a . points = a . points . saturating_sub (add_points / 3) ; a . status = Suspended ; g . member_count = g . member_count . saturating_sub (1) ; g . reputation = g . reputation / 2 + ((accum % 97) as u32) ; msg ! (\"Seat A suspended; acc={}, rep={}\" , accum , g . reputation) ; }"
+      },
+      {
+        "id": 31,
+        "label": "a . points = a . points . checked_add (add_points / 2) . unwrap_or (u32 :: MAX) ;"
+      },
+      {
+        "id": 32,
+        "label": "a . status = Occupied ;"
+      },
+      {
+        "id": 33,
+        "label": "g . member_count = g . member_count . saturating_add (1) ;"
+      },
+      {
+        "id": 34,
+        "label": "g . reputation = ((g . reputation as u64 + accum / 4) as u32) . min (50_000) ;"
+      },
+      {
+        "id": 35,
+        "label": "msg ! (\"Seat A occupied; acc={}, rep={}\" , accum , g . reputation) ;"
+      },
+      {
+        "id": 36,
+        "label": "a . points = a . points . saturating_sub (add_points / 3) ;"
+      },
+      {
+        "id": 37,
+        "label": "a . status = Suspended ;"
+      },
+      {
+        "id": 38,
+        "label": "g . member_count = g . member_count . saturating_sub (1) ;"
+      },
+      {
+        "id": 39,
+        "label": "g . reputation = g . reputation / 2 + ((accum % 97) as u32) ;"
+      },
+      {
+        "id": 40,
+        "label": "msg ! (\"Seat A suspended; acc={}, rep={}\" , accum , g . reputation) ;"
+      },
+      {
+        "id": 41,
+        "label": "for _ in 0 .. 3 { let mask = 0b10101u32 ; if b . points & mask == 0 { b . points = b . points . saturating_add (add_points) ; b . status = Occupied ; g . reputation = g . reputation . saturating_add ((b . seat as u32) & 255) ; msg ! (\"B boosted; pts={}, rep={}\" , b . points , g . reputation) ; } else { b . points = b . points . saturating_sub (add_points / 2) ; b . status = Suspended ; g . reputation = g . reputation . saturating_sub (((b . seat as u32) & 63) + 1) ; msg ! (\"B reduced; pts={}, rep={}\" , b . points , g . reputation) ; } }"
+      },
+      {
+        "id": 42,
+        "label": "let mask = 0b10101u32 ;"
+      },
+      {
+        "id": 43,
+        "label": "if b . points & mask == 0 { b . points = b . points . saturating_add (add_points) ; b . status = Occupied ; g . reputation = g . reputation . saturating_add ((b . seat as u32) & 255) ; msg ! (\"B boosted; pts={}, rep={}\" , b . points , g . reputation) ; } else { b . points = b . points . saturating_sub (add_points / 2) ; b . status = Suspended ; g . reputation = g . reputation . saturating_sub (((b . seat as u32) & 63) + 1) ; msg ! (\"B reduced; pts={}, rep={}\" , b . points , g . reputation) ; }"
+      },
+      {
+        "id": 44,
+        "label": "b . points = b . points . saturating_add (add_points) ;"
+      },
+      {
+        "id": 45,
+        "label": "b . status = Occupied ;"
+      },
+      {
+        "id": 46,
+        "label": "g . reputation = g . reputation . saturating_add ((b . seat as u32) & 255) ;"
+      },
+      {
+        "id": 47,
+        "label": "msg ! (\"B boosted; pts={}, rep={}\" , b . points , g . reputation) ;"
+      },
+      {
+        "id": 48,
+        "label": "b . points = b . points . saturating_sub (add_points / 2) ;"
+      },
+      {
+        "id": 49,
+        "label": "b . status = Suspended ;"
+      },
+      {
+        "id": 50,
+        "label": "g . reputation = g . reputation . saturating_sub (((b . seat as u32) & 63) + 1) ;"
+      },
+      {
+        "id": 51,
+        "label": "msg ! (\"B reduced; pts={}, rep={}\" , b . points , g . reputation) ;"
+      },
+      {
+        "id": 52,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 16,
+        "to": 16,
+        "label": "def: g"
+      },
+      {
+        "from": 17,
+        "to": 17,
+        "label": "def: a"
+      },
+      {
+        "from": 18,
+        "to": 18,
+        "label": "def: b"
+      },
+      {
+        "from": 20,
+        "to": 20,
+        "label": "def: x"
+      },
+      {
+        "from": 16,
+        "to": 20,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 21,
+        "to": 21,
+        "label": "def: i"
+      },
+      {
+        "from": 21,
+        "to": 22,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 16,
+        "to": 22,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 21,
+        "to": 22,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 23,
+        "to": 23,
+        "label": "def: nx"
+      },
+      {
+        "from": 20,
+        "to": 23,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 16,
+        "to": 23,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 20,
+        "to": 23,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 24,
+        "to": 24,
+        "label": "def: diff"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "data_dep: nx"
+      },
+      {
+        "from": 20,
+        "to": 24,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "data_dep: nx"
+      },
+      {
+        "from": 20,
+        "to": 24,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 20,
+        "to": 24,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "data_dep: nx"
+      },
+      {
+        "from": 23,
+        "to": 25,
+        "label": "data_dep: nx"
+      },
+      {
+        "from": 20,
+        "to": 25,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 20,
+        "to": 26,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 23,
+        "to": 26,
+        "label": "data_dep: nx"
+      },
+      {
+        "from": 20,
+        "to": 27,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 23,
+        "to": 27,
+        "label": "data_dep: nx"
+      },
+      {
+        "from": 24,
+        "to": 28,
+        "label": "data_dep: diff"
+      },
+      {
+        "from": 21,
+        "to": 29,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 17,
+        "to": 30,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 17,
+        "to": 30,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 17,
+        "to": 30,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 17,
+        "to": 30,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 16,
+        "to": 30,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 16,
+        "to": 30,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 16,
+        "to": 30,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 16,
+        "to": 30,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 17,
+        "to": 30,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 17,
+        "to": 30,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 17,
+        "to": 30,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 16,
+        "to": 30,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 16,
+        "to": 30,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 16,
+        "to": 30,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 16,
+        "to": 30,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 17,
+        "to": 31,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 17,
+        "to": 31,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 17,
+        "to": 32,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 16,
+        "to": 33,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 16,
+        "to": 33,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 16,
+        "to": 34,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 16,
+        "to": 34,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 17,
+        "to": 36,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 17,
+        "to": 36,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 17,
+        "to": 37,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 16,
+        "to": 38,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 16,
+        "to": 38,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 16,
+        "to": 39,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 16,
+        "to": 39,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 18,
+        "to": 41,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 18,
+        "to": 41,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 18,
+        "to": 41,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 18,
+        "to": 41,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 16,
+        "to": 41,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 16,
+        "to": 41,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 18,
+        "to": 41,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 18,
+        "to": 41,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 18,
+        "to": 41,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 18,
+        "to": 41,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 16,
+        "to": 41,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 16,
+        "to": 41,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 18,
+        "to": 41,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 42,
+        "to": 42,
+        "label": "def: mask"
+      },
+      {
+        "from": 18,
+        "to": 43,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 42,
+        "to": 43,
+        "label": "data_dep: mask"
+      },
+      {
+        "from": 18,
+        "to": 43,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 18,
+        "to": 43,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 18,
+        "to": 43,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 16,
+        "to": 43,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 16,
+        "to": 43,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 18,
+        "to": 43,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 18,
+        "to": 43,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 18,
+        "to": 43,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 18,
+        "to": 43,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 16,
+        "to": 43,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 16,
+        "to": 43,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 18,
+        "to": 43,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 18,
+        "to": 44,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 18,
+        "to": 44,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 18,
+        "to": 45,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 16,
+        "to": 46,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 16,
+        "to": 46,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 18,
+        "to": 46,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 18,
+        "to": 48,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 18,
+        "to": 48,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 18,
+        "to": 49,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 16,
+        "to": 50,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 16,
+        "to": 50,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 18,
+        "to": 50,
+        "label": "data_dep: b"
+      }
+    ]
+  }
+]

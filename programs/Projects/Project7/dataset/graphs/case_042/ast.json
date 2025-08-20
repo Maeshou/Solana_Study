@@ -1,0 +1,156 @@
+[
+  {
+    "name": "init_station",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitStation >",
+      "daily_limit: u64",
+      "chunk_units: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let station_state = & mut ctx . accounts . station_state ;",
+      "station_state . manager = ctx . accounts . manager . key () ;",
+      "station_state . daily_limit = if daily_limit < 12 { 12 } else { daily_limit } ;",
+      "station_state . distributed_today = chunk_units + 3 ;",
+      "station_state . base_chunk = if chunk_units < 4 { 4 } else { chunk_units } ;",
+      "station_state . cool_level = 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_dispatch",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActDispatch >",
+      "burst_times: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let station_state = & mut ctx . accounts . station_state ;",
+      "let mut dispatch_index : u8 = 0 ;",
+      "while dispatch_index < burst_times",
+      "{",
+      "let divisor = station_state . cool_level + 1 ;",
+      "let mut effective_chunk : u64 = station_state . base_chunk / divisor ;",
+      "if effective_chunk < 1",
+      "{",
+      "effective_chunk = 1 ;",
+      "} let projected_total : u64 = station_state . distributed_today + effective_chunk ;",
+      "if projected_total > station_state . daily_limit",
+      "{",
+      "station_state . cool_level = station_state . cool_level + 1 ;",
+      "return Err (EnErr :: OverDailyLimit . into ()) ;",
+      "} token :: approve (ctx . accounts . approve_ctx () , effective_chunk) ? ;",
+      "token :: transfer (ctx . accounts . transfer_ctx () , effective_chunk) ? ;",
+      "token :: revoke (ctx . accounts . revoke_ctx ()) ? ;",
+      "station_state . distributed_today = projected_total ;",
+      "let milestone : u64 = station_state . base_chunk * 2 ;",
+      "if milestone > 0",
+      "{",
+      "if station_state . distributed_today % milestone == 0 { if station_state . cool_level > 0 { station_state . cool_level = station_state . cool_level - 1 ;",
+      "} } } dispatch_index = dispatch_index + 1 ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitStation",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "station_state",
+        "attribute": "# [account (init , payer = manager , space = 8 + 32 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , StationState >"
+      },
+      {
+        "name": "manager",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActDispatch",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "station_state",
+        "attribute": "# [account (mut , has_one = manager)]",
+        "field_type": "Account < 'info , StationState >"
+      },
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "distributor_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "recipient_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "delegate_account",
+        "attribute": "# [doc = \" CHECK: 委任先の任意アドレス\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "StationState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "daily_limit",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "distributed_today",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "base_chunk",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "cool_level",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

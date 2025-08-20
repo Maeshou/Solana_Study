@@ -1,0 +1,165 @@
+[
+  {
+    "name": "init_run",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitRun >",
+      "floor: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let r = & mut ctx . accounts . run ;",
+      "r . commander = ctx . accounts . commander . key () ;",
+      "r . floor = floor ;",
+      "r . rolls = vec ! [] ;",
+      "r . table = vec ! [3 , 5 , 7 , 11 , 13 , 17] ;",
+      "r . pool = 0 ;",
+      "r . flags = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_distribute",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Distribute >",
+      "hits: Vec < u8 >",
+      "seed: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let r = & mut ctx . accounts . run ;",
+      "let distributor = & ctx . accounts . distributor ;",
+      "r . rolls . clear () ;",
+      "for i in 0 .. hits . len ()",
+      "{",
+      "let base = (hits [i] as u64) ^ seed . rotate_left ((i % 13) as u32) ;",
+      "r . rolls . push (base) ;",
+      "}",
+      "r . pool = r . rolls . iter () . fold (0u64 , | a , b | a . wrapping_add (* b)) ;",
+      "if r . table . len () < hits . len ()",
+      "{",
+      "r . table . resize (hits . len () , 1) ;",
+      "}",
+      "for i in 0 .. hits . len ()",
+      "{",
+      "let v = (hits [i] as u32) . rotate_left ((i % 5) as u32) % 97 + 3 ;",
+      "r . table [i] = v ;",
+      "if v % 2 == 0",
+      "{",
+      "r . flags ^= 0b01 ;",
+      "} if v % 3 == 0",
+      "{",
+      "r . flags ^= 0b10 ;",
+      "}",
+      "}",
+      "let mut payouts : Vec < u64 > = vec ! [] ;",
+      "for i in 0 .. hits . len ()",
+      "{",
+      "let numer = r . rolls [i] . wrapping_mul ((r . table [i] as u64) + 1) ;",
+      "let denom = (1 + (i as u64)) ;",
+      "let mut q = numer / denom ;",
+      "if r . flags & 0b01 == 0b01",
+      "{",
+      "q = q . reverse_bits () ;",
+      "} payouts . push (q) ;",
+      "}",
+      "let mut checksum = 0u64 ;",
+      "for i in 0 .. payouts . len ()",
+      "{",
+      "checksum ^= payouts [i] . rotate_left ((i % 17) as u32) ;",
+      "}",
+      "if checksum % 7 == 0",
+      "{",
+      "r . rolls . rotate_left (2) ;",
+      "r . table . rotate_right (1) ;",
+      "}",
+      "r . commander = distributor . key () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitRun",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "run",
+        "attribute": "# [account (init , payer = commander , space = 8 + 32 + 2 + 128 + 128 + 8 + 1)]",
+        "field_type": "Account < 'info , Run >"
+      },
+      {
+        "name": "commander",
+        "attribute": "# [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Distribute",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "run",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Run >"
+      },
+      {
+        "name": "distributor",
+        "attribute": "# [doc = \" CHECK: 役割検証なし\"]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Run",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "commander",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "floor",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "rolls",
+        "attribute": null,
+        "field_type": "Vec < u64 >"
+      },
+      {
+        "name": "table",
+        "attribute": null,
+        "field_type": "Vec < u32 >"
+      },
+      {
+        "name": "pool",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "flags",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

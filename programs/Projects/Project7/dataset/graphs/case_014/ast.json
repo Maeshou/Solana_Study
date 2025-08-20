@@ -1,0 +1,147 @@
+[
+  {
+    "name": "init_forge",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitForge >",
+      "min_quality: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let forge = & mut ctx . accounts . forge ;",
+      "forge . creator = ctx . accounts . creator . key () ;",
+      "forge . min_quality = min_quality ;",
+      "forge . stage_index = 1 ;",
+      "forge . materials_consumed = 5 ;",
+      "forge . state_flag = ForgeState :: Dormant ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_forge",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActForge >",
+      "base_cost: u64",
+      "quality: u16",
+      "steps: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let forge = & mut ctx . accounts . forge ;",
+      "let mut total_cost = base_cost ;",
+      "for _ in 0 .. steps",
+      "{",
+      "total_cost = total_cost . saturating_add (3) ;",
+      "}",
+      "if quality < forge . min_quality",
+      "{",
+      "forge . state_flag = ForgeState :: Cooling ;",
+      "return Err (ForgeErr :: LowQuality . into ()) ;",
+      "} else",
+      "{",
+      "forge . state_flag = ForgeState :: Heating ;",
+      "}",
+      "let cpi = ctx . accounts . burn_materials_ctx () ;",
+      "token :: burn (cpi , total_cost) ? ;",
+      "forge . materials_consumed = forge . materials_consumed . saturating_add (total_cost) ;",
+      "forge . stage_index = forge . stage_index . saturating_add (1) ;",
+      "forge . state_flag = ForgeState :: Finished ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitForge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "forge",
+        "attribute": "# [account (init , payer = creator , space = 8 + 32 + 2 + 8 + 8 + 1)]",
+        "field_type": "Account < 'info , ForgeProfile >"
+      },
+      {
+        "name": "creator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActForge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "forge",
+        "attribute": "# [account (mut , has_one = creator)]",
+        "field_type": "Account < 'info , ForgeProfile >"
+      },
+      {
+        "name": "creator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "material_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "material_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ForgeProfile",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "creator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "min_quality",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "stage_index",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "materials_consumed",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "state_flag",
+        "attribute": null,
+        "field_type": "ForgeState"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

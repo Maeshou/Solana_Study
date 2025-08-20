@@ -1,0 +1,67 @@
+[
+  {
+    "name": "merge_and_configure",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < MergeAndConfigure >",
+      "merge_factor: u8",
+      "config_value: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 1) 2 つの同じ型アカウントをマージ（重複チェックなし）\"]",
+      "# [doc = \" 2) 設定アカウントを直接上書き（Owner Check を行わない）\"]"
+    ],
+    "body": [
+      "let acc1 = & ctx . accounts . merge_account1 ;",
+      "let acc2 = & ctx . accounts . merge_account2 ;",
+      "let config_acc = & ctx . accounts . config_account ;",
+      "let fee_acc = & ctx . accounts . fee_account ;",
+      "{ let raw1 = acc1 . try_borrow_data () ? ; let raw2 = acc2 . try_borrow_data () ? ; let v1 = raw1 [0] ; let v2 = raw2 [0] ; let merged = v1 . wrapping_mul (merge_factor) . wrapping_add (v2) ; msg ! (\"[STEP1] v1: {}, v2: {}, merge_factor: {}, merged: {}\" , v1 , v2 , merge_factor , merged) ; let mut d1 = acc1 . try_borrow_mut_data () ? ; d1 [0] = merged ; msg ! (\"[STEP1] acc1.meta を {} に更新\" , merged) ; let mut d2 = acc2 . try_borrow_mut_data () ? ; d2 [0] = merged . wrapping_add (1) ; msg ! (\"[STEP1] acc2.meta を {} に更新\" , merged . wrapping_add (1)) ; }",
+      "let mut current_conf : u64 = { let raw = config_acc . try_borrow_data () ? ; let mut b = [0u8 ; 8] ; b . copy_from_slice (& raw [0 .. 8]) ; let cv = u64 :: from_le_bytes (b) ; msg ! (\"[STEP2] 現在の設定値: {}\" , cv) ; cv } ;",
+      "{ if config_value % 2 == 1 { msg ! (\"[STEP2] config_value は偶数である必要がある\") ; return Err (error ! (ProgramError :: InvalidArgument)) ; } if config_value > 10_000 { msg ! (\"[STEP2] config_value が大きすぎる\") ; return Err (error ! (ProgramError :: InvalidArgument)) ; } current_conf = config_value ; }",
+      "{ let bytes = current_conf . to_le_bytes () ; let mut raw = config_acc . try_borrow_mut_data () ? ; for i in 0 .. 8 { raw [i] = bytes [i] ; } msg ! (\"[STEP2] 設定値を {} に更新\" , current_conf) ; }",
+      "{ let fee = current_conf / 100 ; * * config_acc . try_borrow_mut_lamports () ? -= fee ; * * fee_acc . try_borrow_mut_lamports () ? += fee ; msg ! (\"[STEP3] 手数料 {} を fee_acc に送金\" , fee) ; }",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "MergeAndConfigure",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "merge_account1",
+        "attribute": "# [doc = \" 同じ型のアカウントを2つ受け取るが重複チェックせずにマージしてしまう\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "merge_account2",
+        "attribute": "# [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "config_account",
+        "attribute": "# [doc = \" 設定アカウント（owner チェック省略）\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "fee_account",
+        "attribute": "# [doc = \" 手数料受取先（owner チェック省略）\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 実行者の署名アカウント\"]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

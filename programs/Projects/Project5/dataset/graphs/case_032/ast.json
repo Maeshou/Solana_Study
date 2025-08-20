@@ -1,33 +1,223 @@
 [
   {
-    "name": "stake_nft",
+    "name": "init_painter",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx032 >"
+      "ctx: Context < InitPainter >",
+      "hue_cap: u32"
     ],
     "attributes": [],
     "body": [
-      "let a = & ctx . accounts . first ;",
-      "let b = & ctx . accounts . second ;",
-      "msg ! (\"Account A: {}\" , a . key ()) ;",
-      "msg ! (\"Account B: {}\" , b . key ()) ;",
+      "let game = & mut ctx . accounts ;",
+      "game . canvas . owner = game . artist . key () ;",
+      "game . canvas . hue_cap = hue_cap ;",
+      "game . canvas . mode = PaletteMode :: Blend ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx032",
+    "name": "paint_step",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PaintStep >",
+      "strokes: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let game = & mut ctx . accounts ;",
+      "assert_ne ! (game . palette . key () , game . region_a . key () , \"palette/region_a must differ\") ;",
+      "assert_ne ! (game . palette . key () , game . region_b . key () , \"palette/region_b must differ\") ;",
+      "for i in 0 .. strokes",
+      "{",
+      "let w = 4 + (i % 5) as u32 ;",
+      "game . region_a . saturation = game . region_a . saturation . saturating_add (w) ;",
+      "game . region_b . saturation = game . region_b . saturation . saturating_add (w + 3) ;",
+      "game . palette . spreads = game . palette . spreads . saturating_add (1) ;",
+      "}",
+      "let total = game . region_a . saturation . saturating_add (game . region_b . saturation) ;",
+      "if total > game . canvas . hue_cap",
+      "{",
+      "game . canvas . mode = PaletteMode :: Seal ;",
+      "game . ledger . awards = game . ledger . awards . saturating_add (2) ;",
+      "game . palette . ink = game . palette . ink . saturating_add (9) ;",
+      "msg ! (\"cap exceeded: sealing;",
+      "+awards, +ink\") ;",
+      "} else",
+      "{",
+      "game . canvas . mode = PaletteMode :: Blend ;",
+      "game . ledger . ops = game . ledger . ops . saturating_add (1) ;",
+      "game . palette . ink = game . palette . ink . saturating_add (3) ;",
+      "msg ! (\"within cap: blending;",
+      "+ops, +ink\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitPainter",
     "node_type": "struct",
     "fields": [
       {
-        "name": "first",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "canvas",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Canvas >"
       },
       {
-        "name": "second",
+        "name": "region_a",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4 + 4)]",
+        "field_type": "Account < 'info , Region >"
+      },
+      {
+        "name": "region_b",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4 + 4)]",
+        "field_type": "Account < 'info , Region >"
+      },
+      {
+        "name": "palette",
+        "attribute": "# [account (init , payer = payer , space = 8 + 8 + 4 , seeds = [b\"palette\" , artist . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Palette >"
+      },
+      {
+        "name": "ledger",
+        "attribute": "# [account (init , payer = payer , space = 8 + 8 + 8)]",
+        "field_type": "Account < 'info , PaintLedger >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "artist",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PaintStep",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "canvas",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Canvas >"
+      },
+      {
+        "name": "region_a",
+        "attribute": "# [account (mut , constraint = region_a . key () != region_b . key () , error = PaintErr :: Dup)]",
+        "field_type": "Account < 'info , Region >"
+      },
+      {
+        "name": "region_b",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Region >"
+      },
+      {
+        "name": "palette",
+        "attribute": "# [account (mut , seeds = [b\"palette\" , owner . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Palette >"
+      },
+      {
+        "name": "ledger",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , PaintLedger >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Canvas",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "hue_cap",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "mode",
+        "attribute": null,
+        "field_type": "PaletteMode"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Region",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "saturation",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "tiles",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Palette",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ink",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "spreads",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PaintLedger",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ops",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "awards",
+        "attribute": null,
+        "field_type": "u64"
       }
     ],
     "inputs": null,

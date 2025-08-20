@@ -1,0 +1,184 @@
+[
+  {
+    "name": "initialize_art",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeArt >",
+      "art_id: String"
+    ],
+    "attributes": [
+      "# [doc = \" 新しいアートギャラリーを作成（クリエイター署名必須）\"]"
+    ],
+    "body": [
+      "let gallery = & mut ctx . accounts . gallery ;",
+      "gallery . creator = ctx . accounts . creator . key () ;",
+      "gallery . art_id = art_id . clone () ;",
+      "gallery . total_contributions = 0 ;",
+      "gallery . contributor_count = 0 ;",
+      "msg ! (\"Gallery '{}' initialized by {}\" , art_id , gallery . creator) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "contribute",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Contribute >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" どなたでも署名付きで作品に寄付できる（amount > 0）\"]"
+    ],
+    "body": [
+      "require ! (ctx . accounts . contributor . is_signer , ErrorCode :: Unauthorized) ;",
+      "require ! (amount > 0 , ErrorCode :: InvalidAmount) ;",
+      "let gallery = & mut ctx . accounts . gallery ;",
+      "gallery . total_contributions = gallery . total_contributions . checked_add (amount) . unwrap () ;",
+      "gallery . contributor_count = gallery . contributor_count . checked_add (1) . unwrap () ;",
+      "msg ! (\"💖 {} contributed {} units to '{}'\" , ctx . accounts . contributor . key () , amount , gallery . art_id) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "change_creator",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ChangeCreator >",
+      "new_creator: Pubkey"
+    ],
+    "attributes": [
+      "# [doc = \" クリエイターのみが呼べる：アートの新しいクリエイターに変更\"]"
+    ],
+    "body": [
+      "require ! (ctx . accounts . creator . is_signer , ErrorCode :: Unauthorized) ;",
+      "let gallery = & mut ctx . accounts . gallery ;",
+      "gallery . creator = new_creator ;",
+      "msg ! (\"Creator for '{}' changed to {}\" , gallery . art_id , new_creator) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "view_stats",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ViewStats >"
+    ],
+    "attributes": [
+      "# [doc = \" 誰でも現在の寄付状況を確認できる\"]"
+    ],
+    "body": [
+      "let gallery = & ctx . accounts . gallery ;",
+      "msg ! (\"Gallery '{}': total={} from {} contributors\" , gallery . art_id , gallery . total_contributions , gallery . contributor_count) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializeArt",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "gallery",
+        "attribute": "# [doc = \" PDA を使ってギャラリーアカウントを初期化\"] # [account (init , payer = creator , space = 8 + 32 + 4 + 64 + 8 + 8 , seeds = [b\"gallery\" , art_id . as_bytes ()] , bump)]",
+        "field_type": "Account < 'info , GalleryAccount >"
+      },
+      {
+        "name": "creator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Contribute",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "gallery",
+        "attribute": "# [doc = \" 既存のギャラリーアカウントを更新\"] # [account (mut , seeds = [b\"gallery\" , gallery . art_id . as_bytes ()] , bump)]",
+        "field_type": "Account < 'info , GalleryAccount >"
+      },
+      {
+        "name": "contributor",
+        "attribute": "# [doc = \" 寄付者署名必須\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ChangeCreator",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "gallery",
+        "attribute": "# [doc = \" ギャラリー所有者署名チェック\"] # [account (mut , seeds = [b\"gallery\" , gallery . art_id . as_bytes ()] , bump , has_one = creator)]",
+        "field_type": "Account < 'info , GalleryAccount >"
+      },
+      {
+        "name": "creator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ViewStats",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "gallery",
+        "attribute": "# [doc = \" ギャラリーの統計を読むだけ\"] # [account (seeds = [b\"gallery\" , gallery . art_id . as_bytes ()] , bump)]",
+        "field_type": "Account < 'info , GalleryAccount >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GalleryAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "creator",
+        "attribute": "# [doc = \" アート所有者\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "art_id",
+        "attribute": "# [doc = \" ギャラリー識別子\"]",
+        "field_type": "String"
+      },
+      {
+        "name": "total_contributions",
+        "attribute": "# [doc = \" 総寄付額\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "contributor_count",
+        "attribute": "# [doc = \" 寄付者数\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

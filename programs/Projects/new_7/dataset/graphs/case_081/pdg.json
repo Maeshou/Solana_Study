@@ -1,0 +1,609 @@
+[
+  {
+    "name": "init",
+    "inputs": [
+      "ctx: Context < Init >",
+      "payout_limit: u64"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let mixer_state = & mut ctx . accounts . mixer_state ;"
+      },
+      {
+        "id": 2,
+        "label": "mixer_state . admin_authority = ctx . accounts . admin_authority . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "mixer_state . payout_limit = payout_limit ;"
+      },
+      {
+        "id": 4,
+        "label": "mixer_state . routed_count = 3 ;"
+      },
+      {
+        "id": 5,
+        "label": "mixer_state . score_accumulator = payout_limit % 13 ;"
+      },
+      {
+        "id": 6,
+        "label": "mixer_state . route_program_id = Pubkey :: new_from_array ([8u8 ; 32]) ;"
+      },
+      {
+        "id": 7,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: mixer_state"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: mixer_state"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: mixer_state"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: mixer_state"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: mixer_state"
+      },
+      {
+        "from": 1,
+        "to": 6,
+        "label": "data_dep: mixer_state"
+      }
+    ]
+  },
+  {
+    "name": "set_alt",
+    "inputs": [
+      "ctx: Context < SetAlt >",
+      "new_program_id: Pubkey"
+    ],
+    "nodes": [
+      {
+        "id": 8,
+        "label": "Entry"
+      },
+      {
+        "id": 9,
+        "label": "let mixer_state = & mut ctx . accounts . mixer_state ;"
+      },
+      {
+        "id": 10,
+        "label": "require_keys_eq ! (mixer_state . admin_authority , ctx . accounts . admin_authority . key () , ErrorCode :: Denied) ;"
+      },
+      {
+        "id": 11,
+        "label": "mixer_state . route_program_id = new_program_id ;"
+      },
+      {
+        "id": 12,
+        "label": "mixer_state . routed_count = mixer_state . routed_count . saturating_add (2) ;"
+      },
+      {
+        "id": 13,
+        "label": "mixer_state . score_accumulator = mixer_state . score_accumulator . wrapping_add (5) ;"
+      },
+      {
+        "id": 14,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 9,
+        "to": 9,
+        "label": "def: mixer_state"
+      },
+      {
+        "from": 9,
+        "to": 11,
+        "label": "data_dep: mixer_state"
+      },
+      {
+        "from": 9,
+        "to": 12,
+        "label": "data_dep: mixer_state"
+      },
+      {
+        "from": 9,
+        "to": 12,
+        "label": "data_dep: mixer_state"
+      },
+      {
+        "from": 9,
+        "to": 13,
+        "label": "data_dep: mixer_state"
+      },
+      {
+        "from": 9,
+        "to": 13,
+        "label": "data_dep: mixer_state"
+      }
+    ]
+  },
+  {
+    "name": "distribute",
+    "inputs": [
+      "ctx: Context < Distribute >",
+      "amount: u64",
+      "rounds: u8"
+    ],
+    "nodes": [
+      {
+        "id": 15,
+        "label": "Entry"
+      },
+      {
+        "id": 16,
+        "label": "let mixer_state = & mut ctx . accounts . mixer_state ;"
+      },
+      {
+        "id": 17,
+        "label": "if amount > mixer_state . payout_limit { mixer_state . routed_count = mixer_state . routed_count . saturating_add (1) ; mixer_state . score_accumulator = mixer_state . score_accumulator . wrapping_mul (2) . wrapping_add (7) ; return Ok (()) ; }"
+      },
+      {
+        "id": 18,
+        "label": "mixer_state . routed_count = mixer_state . routed_count . saturating_add (1) ;"
+      },
+      {
+        "id": 19,
+        "label": "mixer_state . score_accumulator = mixer_state . score_accumulator . wrapping_mul (2) . wrapping_add (7) ;"
+      },
+      {
+        "id": 20,
+        "label": "return Ok (()) ;"
+      },
+      {
+        "id": 21,
+        "label": "let mut remaining_amount = amount ;"
+      },
+      {
+        "id": 22,
+        "label": "let mut executed_rounds : u8 = 0 ;"
+      },
+      {
+        "id": 23,
+        "label": "while executed_rounds < rounds { let transfer_part = (remaining_amount / 2) . max (3) ; if transfer_part >= remaining_amount { break ; } let transfer_ix = token_ix :: transfer (& mixer_state . route_program_id , & ctx . accounts . pool_vault . key () , & ctx . accounts . receiver_vault . key () , & ctx . accounts . admin_authority . key () , & [] , transfer_part ,) ? ; let external_program_ai = ctx . remaining_accounts . get (0) . ok_or (ErrorCode :: NoProgram) ? ; invoke (& transfer_ix , & [external_program_ai . clone () , ctx . accounts . pool_vault . to_account_info () , ctx . accounts . receiver_vault . to_account_info () , ctx . accounts . admin_authority . to_account_info () ,] ,) ? ; remaining_amount = remaining_amount . saturating_sub (transfer_part) ; executed_rounds = executed_rounds . saturating_add (1) ; mixer_state . routed_count = mixer_state . routed_count . saturating_add (1) ; if remaining_amount < mixer_state . payout_limit / 4 { mixer_state . score_accumulator = mixer_state . score_accumulator . wrapping_add (transfer_part % 11) ; } else { mixer_state . score_accumulator = mixer_state . score_accumulator . wrapping_sub (transfer_part % 5) . wrapping_add (9) ; } }"
+      },
+      {
+        "id": 24,
+        "label": "let transfer_part = (remaining_amount / 2) . max (3) ;"
+      },
+      {
+        "id": 25,
+        "label": "if transfer_part >= remaining_amount { break ; }"
+      },
+      {
+        "id": 26,
+        "label": "break ;"
+      },
+      {
+        "id": 27,
+        "label": "let transfer_ix = token_ix :: transfer (& mixer_state . route_program_id , & ctx . accounts . pool_vault . key () , & ctx . accounts . receiver_vault . key () , & ctx . accounts . admin_authority . key () , & [] , transfer_part ,) ? ;"
+      },
+      {
+        "id": 28,
+        "label": "let external_program_ai = ctx . remaining_accounts . get (0) . ok_or (ErrorCode :: NoProgram) ? ;"
+      },
+      {
+        "id": 29,
+        "label": "invoke (& transfer_ix , & [external_program_ai . clone () , ctx . accounts . pool_vault . to_account_info () , ctx . accounts . receiver_vault . to_account_info () , ctx . accounts . admin_authority . to_account_info () ,] ,) ? ;"
+      },
+      {
+        "id": 30,
+        "label": "remaining_amount = remaining_amount . saturating_sub (transfer_part) ;"
+      },
+      {
+        "id": 31,
+        "label": "executed_rounds = executed_rounds . saturating_add (1) ;"
+      },
+      {
+        "id": 32,
+        "label": "mixer_state . routed_count = mixer_state . routed_count . saturating_add (1) ;"
+      },
+      {
+        "id": 33,
+        "label": "if remaining_amount < mixer_state . payout_limit / 4 { mixer_state . score_accumulator = mixer_state . score_accumulator . wrapping_add (transfer_part % 11) ; } else { mixer_state . score_accumulator = mixer_state . score_accumulator . wrapping_sub (transfer_part % 5) . wrapping_add (9) ; }"
+      },
+      {
+        "id": 34,
+        "label": "mixer_state . score_accumulator = mixer_state . score_accumulator . wrapping_add (transfer_part % 11) ;"
+      },
+      {
+        "id": 35,
+        "label": "mixer_state . score_accumulator = mixer_state . score_accumulator . wrapping_sub (transfer_part % 5) . wrapping_add (9) ;"
+      },
+      {
+        "id": 36,
+        "label": "if remaining_amount > 2 { let final_ix = token_ix :: transfer (& mixer_state . route_program_id , & ctx . accounts . pool_vault . key () , & ctx . accounts . receiver_vault . key () , & ctx . accounts . admin_authority . key () , & [] , remaining_amount - 2 ,) ? ; let external_program_ai = ctx . remaining_accounts . get (0) . ok_or (ErrorCode :: NoProgram) ? ; invoke (& final_ix , & [external_program_ai . clone () , ctx . accounts . pool_vault . to_account_info () , ctx . accounts . receiver_vault . to_account_info () , ctx . accounts . admin_authority . to_account_info () ,] ,) ? ; mixer_state . score_accumulator = mixer_state . score_accumulator . wrapping_add (remaining_amount - 2) ; }"
+      },
+      {
+        "id": 37,
+        "label": "let final_ix = token_ix :: transfer (& mixer_state . route_program_id , & ctx . accounts . pool_vault . key () , & ctx . accounts . receiver_vault . key () , & ctx . accounts . admin_authority . key () , & [] , remaining_amount - 2 ,) ? ;"
+      },
+      {
+        "id": 38,
+        "label": "let external_program_ai = ctx . remaining_accounts . get (0) . ok_or (ErrorCode :: NoProgram) ? ;"
+      },
+      {
+        "id": 39,
+        "label": "invoke (& final_ix , & [external_program_ai . clone () , ctx . accounts . pool_vault . to_account_info () , ctx . accounts . receiver_vault . to_account_info () , ctx . accounts . admin_authority . to_account_info () ,] ,) ? ;"
+      },
+      {
+        "id": 40,
+        "label": "mixer_state . score_accumulator = mixer_state . score_accumulator . wrapping_add (remaining_amount - 2) ;"
+      },
+      {
+        "id": 41,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 16,
+        "to": 16,
+        "label": "def: mixer_state"
+      },
+      {
+        "from": 16,
+        "to": 17,
+        "label": "data_dep: mixer_state"
+      },
+      {
+        "from": 16,
+        "to": 17,
+        "label": "data_dep: mixer_state"
+      },
+      {
+        "from": 16,
+        "to": 17,
+        "label": "data_dep: mixer_state"
+      },
+      {
+        "from": 16,
+        "to": 17,
+        "label": "data_dep: mixer_state"
+      },
+      {
+        "from": 16,
+        "to": 17,
+        "label": "data_dep: mixer_state"
+      },
+      {
+        "from": 16,
+        "to": 18,
+        "label": "data_dep: mixer_state"
+      },
+      {
+        "from": 16,
+        "to": 18,
+        "label": "data_dep: mixer_state"
+      },
+      {
+        "from": 16,
+        "to": 19,
+        "label": "data_dep: mixer_state"
+      },
+      {
+        "from": 16,
+        "to": 19,
+        "label": "data_dep: mixer_state"
+      },
+      {
+        "from": 21,
+        "to": 21,
+        "label": "def: remaining_amount"
+      },
+      {
+        "from": 21,
+        "to": 23,
+        "label": "data_dep: remaining_amount"
+      },
+      {
+        "from": 21,
+        "to": 23,
+        "label": "data_dep: remaining_amount"
+      },
+      {
+        "from": 16,
+        "to": 23,
+        "label": "data_dep: mixer_state"
+      },
+      {
+        "from": 21,
+        "to": 23,
+        "label": "data_dep: remaining_amount"
+      },
+      {
+        "from": 21,
+        "to": 23,
+        "label": "data_dep: remaining_amount"
+      },
+      {
+        "from": 16,
+        "to": 23,
+        "label": "data_dep: mixer_state"
+      },
+      {
+        "from": 16,
+        "to": 23,
+        "label": "data_dep: mixer_state"
+      },
+      {
+        "from": 21,
+        "to": 23,
+        "label": "data_dep: remaining_amount"
+      },
+      {
+        "from": 16,
+        "to": 23,
+        "label": "data_dep: mixer_state"
+      },
+      {
+        "from": 16,
+        "to": 23,
+        "label": "data_dep: mixer_state"
+      },
+      {
+        "from": 16,
+        "to": 23,
+        "label": "data_dep: mixer_state"
+      },
+      {
+        "from": 16,
+        "to": 23,
+        "label": "data_dep: mixer_state"
+      },
+      {
+        "from": 16,
+        "to": 23,
+        "label": "data_dep: mixer_state"
+      },
+      {
+        "from": 24,
+        "to": 24,
+        "label": "def: transfer_part"
+      },
+      {
+        "from": 21,
+        "to": 24,
+        "label": "data_dep: remaining_amount"
+      },
+      {
+        "from": 24,
+        "to": 25,
+        "label": "data_dep: transfer_part"
+      },
+      {
+        "from": 21,
+        "to": 25,
+        "label": "data_dep: remaining_amount"
+      },
+      {
+        "from": 27,
+        "to": 27,
+        "label": "def: transfer_ix"
+      },
+      {
+        "from": 16,
+        "to": 27,
+        "label": "data_dep: mixer_state"
+      },
+      {
+        "from": 24,
+        "to": 27,
+        "label": "data_dep: transfer_part"
+      },
+      {
+        "from": 28,
+        "to": 28,
+        "label": "def: external_program_ai"
+      },
+      {
+        "from": 27,
+        "to": 29,
+        "label": "data_dep: transfer_ix"
+      },
+      {
+        "from": 28,
+        "to": 29,
+        "label": "data_dep: external_program_ai"
+      },
+      {
+        "from": 21,
+        "to": 30,
+        "label": "data_dep: remaining_amount"
+      },
+      {
+        "from": 21,
+        "to": 30,
+        "label": "data_dep: remaining_amount"
+      },
+      {
+        "from": 24,
+        "to": 30,
+        "label": "data_dep: transfer_part"
+      },
+      {
+        "from": 16,
+        "to": 32,
+        "label": "data_dep: mixer_state"
+      },
+      {
+        "from": 16,
+        "to": 32,
+        "label": "data_dep: mixer_state"
+      },
+      {
+        "from": 21,
+        "to": 33,
+        "label": "data_dep: remaining_amount"
+      },
+      {
+        "from": 16,
+        "to": 33,
+        "label": "data_dep: mixer_state"
+      },
+      {
+        "from": 16,
+        "to": 33,
+        "label": "data_dep: mixer_state"
+      },
+      {
+        "from": 16,
+        "to": 33,
+        "label": "data_dep: mixer_state"
+      },
+      {
+        "from": 24,
+        "to": 33,
+        "label": "data_dep: transfer_part"
+      },
+      {
+        "from": 16,
+        "to": 33,
+        "label": "data_dep: mixer_state"
+      },
+      {
+        "from": 16,
+        "to": 33,
+        "label": "data_dep: mixer_state"
+      },
+      {
+        "from": 24,
+        "to": 33,
+        "label": "data_dep: transfer_part"
+      },
+      {
+        "from": 16,
+        "to": 34,
+        "label": "data_dep: mixer_state"
+      },
+      {
+        "from": 16,
+        "to": 34,
+        "label": "data_dep: mixer_state"
+      },
+      {
+        "from": 24,
+        "to": 34,
+        "label": "data_dep: transfer_part"
+      },
+      {
+        "from": 16,
+        "to": 35,
+        "label": "data_dep: mixer_state"
+      },
+      {
+        "from": 16,
+        "to": 35,
+        "label": "data_dep: mixer_state"
+      },
+      {
+        "from": 24,
+        "to": 35,
+        "label": "data_dep: transfer_part"
+      },
+      {
+        "from": 21,
+        "to": 36,
+        "label": "data_dep: remaining_amount"
+      },
+      {
+        "from": 16,
+        "to": 36,
+        "label": "data_dep: mixer_state"
+      },
+      {
+        "from": 21,
+        "to": 36,
+        "label": "data_dep: remaining_amount"
+      },
+      {
+        "from": 28,
+        "to": 36,
+        "label": "data_dep: external_program_ai"
+      },
+      {
+        "from": 16,
+        "to": 36,
+        "label": "data_dep: mixer_state"
+      },
+      {
+        "from": 16,
+        "to": 36,
+        "label": "data_dep: mixer_state"
+      },
+      {
+        "from": 21,
+        "to": 36,
+        "label": "data_dep: remaining_amount"
+      },
+      {
+        "from": 37,
+        "to": 37,
+        "label": "def: final_ix"
+      },
+      {
+        "from": 16,
+        "to": 37,
+        "label": "data_dep: mixer_state"
+      },
+      {
+        "from": 21,
+        "to": 37,
+        "label": "data_dep: remaining_amount"
+      },
+      {
+        "from": 38,
+        "to": 38,
+        "label": "def: external_program_ai"
+      },
+      {
+        "from": 37,
+        "to": 39,
+        "label": "data_dep: final_ix"
+      },
+      {
+        "from": 38,
+        "to": 39,
+        "label": "data_dep: external_program_ai"
+      },
+      {
+        "from": 16,
+        "to": 40,
+        "label": "data_dep: mixer_state"
+      },
+      {
+        "from": 16,
+        "to": 40,
+        "label": "data_dep: mixer_state"
+      },
+      {
+        "from": 21,
+        "to": 40,
+        "label": "data_dep: remaining_amount"
+      }
+    ]
+  }
+]

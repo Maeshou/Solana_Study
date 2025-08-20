@@ -1,17 +1,176 @@
 [
   {
-    "name": "LiquidateCtxcomz",
+    "name": "register_property",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RegisterProperty >",
+      "address: String",
+      "price: u64",
+      "property_type: PropertyType"
+    ],
+    "attributes": [],
+    "body": [
+      "let property = & mut ctx . accounts . property ;",
+      "property . owner = ctx . accounts . owner . key () ;",
+      "property . address = address ;",
+      "property . price = price ;",
+      "property . property_type = property_type ;",
+      "property . is_listed = true ;",
+      "property . tenant = None ;",
+      "property . bump = * ctx . bumps . get (\"property\") . unwrap () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "lease_property",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < LeaseProperty >",
+      "lease_duration: i64"
+    ],
+    "attributes": [],
+    "body": [
+      "let property = & mut ctx . accounts . property ;",
+      "let lease = & mut ctx . accounts . lease ;",
+      "require ! (property . is_listed , RealEstateError :: PropertyNotListed) ;",
+      "lease . property = property . key () ;",
+      "lease . tenant = ctx . accounts . tenant . key () ;",
+      "lease . landlord = property . owner ;",
+      "lease . start_date = Clock :: get () ? . unix_timestamp ;",
+      "lease . end_date = lease . start_date + lease_duration ;",
+      "lease . monthly_rent = property . price / 12 ;",
+      "lease . is_active = true ;",
+      "lease . bump = * ctx . bumps . get (\"lease\") . unwrap () ;",
+      "property . tenant = Some (ctx . accounts . tenant . key ()) ;",
+      "property . is_listed = false ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "pay_rent",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PayRent >"
+    ],
+    "attributes": [],
+    "body": [
+      "let lease = & ctx . accounts . lease ;",
+      "require ! (lease . is_active , RealEstateError :: LeaseNotActive) ;",
+      "require ! (Clock :: get () ?. unix_timestamp <= lease . end_date , RealEstateError :: LeaseExpired) ;",
+      "* * ctx . accounts . tenant . lamports . borrow_mut () -= lease . monthly_rent ;",
+      "* * ctx . accounts . landlord . lamports . borrow_mut () += lease . monthly_rent ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Property",
     "node_type": "struct",
     "fields": [
       {
-        "name": "position",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
       },
       {
-        "name": "liquidator",
+        "name": "address",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "price",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "property_type",
+        "attribute": null,
+        "field_type": "PropertyType"
+      },
+      {
+        "name": "is_listed",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "tenant",
+        "attribute": null,
+        "field_type": "Option < Pubkey >"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Lease",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "property",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "tenant",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "landlord",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "start_date",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "end_date",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "monthly_rent",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "is_active",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RegisterProperty",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "property",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 4 + address . len () + 8 + 32 + 1 + 33 + 1 , seeds = [b\"property\" , owner . key () . as_ref () , address . as_bytes ()] , bump)]",
+        "field_type": "Account < 'info , Property >"
+      },
+      {
+        "name": "owner",
         "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
+        "field_type": "Signer < 'info >"
       },
       {
         "name": "system_program",
@@ -24,13 +183,28 @@
     "body": null
   },
   {
-    "name": "DataAccount",
+    "name": "LeaseProperty",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data",
+        "name": "property",
+        "attribute": "# [account (mut , seeds = [b\"property\" , property . owner . as_ref () , property . address . as_bytes ()] , bump = property . bump , constraint = property . owner != tenant . key () @ RealEstateError :: OwnerCannotLease)]",
+        "field_type": "Account < 'info , Property >"
+      },
+      {
+        "name": "lease",
+        "attribute": "# [account (init , payer = tenant , space = 8 + 32 + 32 + 32 + 8 + 8 + 8 + 1 + 1 , seeds = [b\"lease\" , property . key () . as_ref () , tenant . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Lease >"
+      },
+      {
+        "name": "tenant",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -38,19 +212,27 @@
     "body": null
   },
   {
-    "name": "liquidate",
-    "node_type": "function",
-    "fields": null,
-    "inputs": [
-      "ctx: Context < LiquidateCtxcomz >",
-      "amount: u64"
+    "name": "PayRent",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "lease",
+        "attribute": "# [account (seeds = [b\"lease\" , lease . property . as_ref () , tenant . key () . as_ref ()] , bump = lease . bump , constraint = lease . tenant == tenant . key ())]",
+        "field_type": "Account < 'info , Lease >"
+      },
+      {
+        "name": "tenant",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "landlord",
+        "attribute": "# [doc = \" CHECK: Verified through lease landlord field\"] # [account (mut , constraint = landlord . key () == lease . landlord)]",
+        "field_type": "AccountInfo < 'info >"
+      }
     ],
-    "attributes": [],
-    "body": [
-      "let acct = & mut ctx . accounts . position ;",
-      "* * ctx . accounts . position . to_account_info () . try_borrow_mut_lamports () ? += amount ;",
-      "msg ! (\"Executed liquidate logic\") ;",
-      "Ok (())"
-    ]
+    "inputs": null,
+    "attributes": null,
+    "body": null
   }
 ]

@@ -1,0 +1,248 @@
+[
+  {
+    "name": "init_energy_hub",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitEnergyHub >",
+      "hub_name: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let hub = & mut ctx . accounts . hub ;",
+      "hub . admin = ctx . accounts . admin . key () ;",
+      "hub . name = hub_name ;",
+      "hub . total_energy = 10000 ;",
+      "hub . active_users = 0 ;",
+      "hub . regeneration_rate = 10 ;",
+      "hub . is_operational = true ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_player_energy",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitPlayerEnergy >",
+      "max_energy: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let player_energy = & mut ctx . accounts . player_energy ;",
+      "player_energy . hub = ctx . accounts . hub . key () ;",
+      "player_energy . owner = ctx . accounts . owner . key () ;",
+      "player_energy . current_energy = max_energy ;",
+      "player_energy . max_energy = max_energy ;",
+      "player_energy . last_regeneration = 2000 ;",
+      "player_energy . energy_type = Combat ;",
+      "player_energy . usage_count = 0 ;",
+      "let hub = & mut ctx . accounts . hub ;",
+      "hub . active_users = hub . active_users . checked_add (1) . unwrap_or (u32 :: MAX) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "transfer_energy",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < TransferEnergy >",
+      "amount: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let hub = & mut ctx . accounts . hub ;",
+      "let source_data = ctx . accounts . source_energy . try_borrow_mut_data () ? ;",
+      "let target_data = ctx . accounts . target_energy . try_borrow_mut_data () ? ;",
+      "hub . total_energy = hub . total_energy . checked_add (amount as u64) . unwrap_or (u64 :: MAX) ;",
+      "for transfer_step in 0 .. amount",
+      "{",
+      "let step_amount = transfer_step + 1 ;",
+      "if transfer_step % 2 == 0",
+      "{",
+      "hub . regeneration_rate = hub . regeneration_rate . checked_add (step_amount / 10) . unwrap_or (u32 :: MAX) ;",
+      "hub . total_energy = hub . total_energy ^ (transfer_step as u64) ;",
+      "hub . active_users = hub . active_users << 1 ;",
+      "msg ! (\"Source energy step",
+      "{",
+      "} processed\" , transfer_step) ;",
+      "} else",
+      "{",
+      "hub . regeneration_rate = hub . regeneration_rate . saturating_sub (1) ;",
+      "hub . total_energy = hub . total_energy + (step_amount as u64 * 5) ;",
+      "hub . active_users = hub . active_users . wrapping_add (step_amount) ;",
+      "msg ! (\"Target energy step",
+      "{",
+      "} processed\" , transfer_step) ;",
+      "}",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitEnergyHub",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "hub",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 64 + 8 + 4 + 4 + 1)]",
+        "field_type": "Account < 'info , EnergyHub >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitPlayerEnergy",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "player_energy",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 32 + 4 + 4 + 8 + 1 + 4)]",
+        "field_type": "Account < 'info , PlayerEnergy >"
+      },
+      {
+        "name": "hub",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , EnergyHub >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TransferEnergy",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "hub",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , EnergyHub >"
+      },
+      {
+        "name": "source_energy",
+        "attribute": "# [doc = \" CHECK: 脆弱 - 同じプレイヤーが送信者/受信者になれる\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "target_energy",
+        "attribute": "# [doc = \" CHECK: 脆弱 - 所有者検証なし\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EnergyHub",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "total_energy",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "active_users",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "regeneration_rate",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "is_operational",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PlayerEnergy",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "hub",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "current_energy",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "max_energy",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "last_regeneration",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "energy_type",
+        "attribute": null,
+        "field_type": "EnergyType"
+      },
+      {
+        "name": "usage_count",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

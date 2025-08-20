@@ -1,0 +1,164 @@
+[
+  {
+    "name": "init_station",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitStation >",
+      "chunk_input: u64",
+      "daily_limit_input: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let station = & mut ctx . accounts . station ;",
+      "station . manager = ctx . accounts . manager . key () ;",
+      "station . chunk = chunk_input ;",
+      "if station . chunk < 2",
+      "{",
+      "station . chunk = 2 ;",
+      "}",
+      "station . daily_limit = daily_limit_input ;",
+      "if station . daily_limit < station . chunk",
+      "{",
+      "station . daily_limit = station . chunk ;",
+      "}",
+      "station . sent_today = 0 ;",
+      "station . cool_level = 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_drip",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActDrip >",
+      "bursts: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let station = & mut ctx . accounts . station ;",
+      "let mut i : u8 = 0 ;",
+      "while i < bursts",
+      "{",
+      "let divisor = station . cool_level + 1 ;",
+      "let mut amount = station . chunk / divisor ;",
+      "if amount < 1",
+      "{",
+      "amount = 1 ;",
+      "} let projected = station . sent_today + amount ;",
+      "if projected > station . daily_limit",
+      "{",
+      "station . cool_level = station . cool_level + 1 ;",
+      "return Err (DripErr :: DailyLimit . into ()) ;",
+      "} token :: approve (ctx . accounts . approve_ctx () , amount) ? ;",
+      "token :: transfer (ctx . accounts . transfer_ctx () , amount) ? ;",
+      "token :: revoke (ctx . accounts . revoke_ctx ()) ? ;",
+      "station . sent_today = projected ;",
+      "let milestone = station . chunk * 3 ;",
+      "if milestone > 0",
+      "{",
+      "if station . sent_today % milestone == 0 { if station . cool_level > 0 { station . cool_level = station . cool_level - 1 ;",
+      "} } } i = i + 1 ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitStation",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "station",
+        "attribute": "# [account (init , payer = manager , space = 8 + 32 + 8 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , StationState >"
+      },
+      {
+        "name": "manager",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActDrip",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "station",
+        "attribute": "# [account (mut , has_one = manager)]",
+        "field_type": "Account < 'info , StationState >"
+      },
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "source_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "dest_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "delegate",
+        "attribute": "# [doc = \" CHECK: 任意の委任先\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "StationState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "chunk",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "daily_limit",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "sent_today",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "cool_level",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

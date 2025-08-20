@@ -1,0 +1,167 @@
+[
+  {
+    "name": "init_pool",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitPool >",
+      "base_rate_bps: u16",
+      "min_stake: u64",
+      "mode: RewardMode"
+    ],
+    "attributes": [],
+    "body": [
+      "let pool_state = & mut ctx . accounts . pool_state ;",
+      "pool_state . admin = ctx . accounts . admin . key () ;",
+      "pool_state . base_rate_bps = base_rate_bps . min (2500) ;",
+      "pool_state . minimum_required = min_stake ;",
+      "pool_state . active_round = 1 ;",
+      "pool_state . total_payout = 1 ;",
+      "pool_state . mode = mode ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_settle_rewards",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActSettleRewards >",
+      "staked_units: u64",
+      "epochs: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let pool_state = & mut ctx . accounts . pool_state ;",
+      "require ! (staked_units >= pool_state . minimum_required , StkErr :: TooSmall) ;",
+      "let mut bonus_bps : u64 = 0 ;",
+      "let mut counter = 0u32 ;",
+      "while counter < epochs",
+      "{",
+      "bonus_bps = bonus_bps . saturating_add (5) ;",
+      "counter = counter . saturating_add (1) ;",
+      "}",
+      "let mut effective_bps : u64 = pool_state . base_rate_bps as u64 ;",
+      "if pool_state . mode == RewardMode :: Conservative",
+      "{",
+      "effective_bps = effective_bps . saturating_sub (50) ;",
+      "}",
+      "if pool_state . mode == RewardMode :: Aggressive",
+      "{",
+      "effective_bps = effective_bps . saturating_add (75) ;",
+      "}",
+      "let total_bps = effective_bps . saturating_add (bonus_bps) ;",
+      "let gross = staked_units . saturating_mul (total_bps) / 10_000 ;",
+      "let fee = gross / 20 ;",
+      "let payable = gross . saturating_sub (fee) ;",
+      "if payable < pool_state . minimum_required / 10",
+      "{",
+      "pool_state . active_round = pool_state . active_round . saturating_add (1) ;",
+      "return Err (StkErr :: TooSmall . into ()) ;",
+      "} else",
+      "{",
+      "pool_state . total_payout = pool_state . total_payout . saturating_add (payable) ;",
+      "}",
+      "let cpi = ctx . accounts . transfer_from_pool_to_staker () ;",
+      "token :: transfer (cpi , payable) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitPool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool_state",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 2 + 8 + 8 + 8 + 1)]",
+        "field_type": "Account < 'info , PoolState >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActSettleRewards",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool_state",
+        "attribute": "# [account (mut , has_one = admin)]",
+        "field_type": "Account < 'info , PoolState >"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "pool_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "staker_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PoolState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "base_rate_bps",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "minimum_required",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "active_round",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_payout",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "mode",
+        "attribute": null,
+        "field_type": "RewardMode"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

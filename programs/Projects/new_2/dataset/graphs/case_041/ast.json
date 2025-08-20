@@ -1,0 +1,177 @@
+[
+  {
+    "name": "guarded_allocate",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < GuardedAllocate >",
+      "lamports: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 関数A：has_one + signer で完全検証し、均一に加算\"]"
+    ],
+    "body": [
+      "let vault_info = ctx . accounts . vault_account . to_account_info () ;",
+      "let previous = vault_info . lamports () ;",
+      "let updated = previous . saturating_add (lamports) ;",
+      "* * vault_info . try_borrow_mut_lamports () ? = updated ;",
+      "msg ! (\"guarded_allocate → {} ▶ {}\" , previous , updated) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "signer_allocate",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SignerAllocate >",
+      "lamports: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 関数B：署名のみ検証、checked_add を用いて安全に更新（オーナーチェックなし）\"]"
+    ],
+    "body": [
+      "let raw = & ctx . accounts . raw_account ;",
+      "let current = * * raw . try_borrow_lamports () ? ;",
+      "let new_balance = current . checked_add (lamports) . unwrap_or (current) ;",
+      "* * raw . try_borrow_mut_lamports () ? = new_balance ;",
+      "msg ! (\"signer_allocate ▶ {}\" , new_balance) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "pattern_allocate",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PatternAllocate >",
+      "lamports: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 関数C：matches! マクロで手動オーナーチェック（has_one は使わず）\"]"
+    ],
+    "body": [
+      "let vault = & ctx . accounts . data_vault ;",
+      "matches ! (vault . owner == ctx . accounts . caller . key () , true) . then (| | { let info = vault . to_account_info () ; * * info . try_borrow_mut_lamports () . unwrap () += lamports ; }) ;",
+      "msg ! (\"pattern_allocate 完了\") ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "flood_allocate",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < FloodAllocate >",
+      "lamports: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 関数D：remaining_accounts に含まれる全アカウントへ一括適用（無検証）\"]"
+    ],
+    "body": [
+      "ctx . remaining_accounts . iter () . for_each (| acct | { let _ = acct . try_borrow_mut_lamports () . map (| mut lam | * lam = lam . add (lamports)) ; }) ;",
+      "msg ! (\"flood_allocate 完了\") ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "GuardedAllocate",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault_account",
+        "attribute": "# [doc = \" Vault.owner == authority を has_one で検証\"] # [account (mut , has_one = authority)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SignerAllocate",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "raw_account",
+        "attribute": "# [doc = \" CHECK: raw AccountInfo、所有権チェックなし\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PatternAllocate",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "data_vault",
+        "attribute": "# [doc = \" mut のみ、has_one は使わず手動チェック\"] # [account (mut)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "caller",
+        "attribute": "# [doc = \" CHECK: 比較用に AccountInfo を受け取る\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "FloodAllocate",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "system_program",
+        "attribute": "# [doc = \" CHECK: remaining_accounts に任意のアカウントが渡される\"]",
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Vault",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 許可されたオーナーの Pubkey\"]",
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,117 @@
+[
+  {
+    "name": "rent_nft",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RentNFT >"
+    ],
+    "attributes": [
+      "# [doc = \" NFTを一定期間レンタルするが、所有者照合チェックがない\"]"
+    ],
+    "body": [
+      "let rent_acc = & mut ctx . accounts . rental_account ;",
+      "let fee = ctx . accounts . config . fee ;",
+      "* * ctx . accounts . user . to_account_info () . lamports . borrow_mut () -= fee ;",
+      "* * ctx . accounts . treasury . to_account_info () . lamports . borrow_mut () += fee ;",
+      "let cpi_accounts = Transfer { from : ctx . accounts . owner_nft_account . to_account_info () , to : ctx . accounts . user_nft_account . to_account_info () , authority : ctx . accounts . service_authority . to_account_info () , } ;",
+      "token :: transfer (CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) , 1 ,) ? ;",
+      "rent_acc . renter = ctx . accounts . user . key () ;",
+      "rent_acc . active = true ;",
+      "rent_acc . rental_count = rent_acc . rental_count . checked_add (1) . unwrap () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "RentNFT",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "rental_account",
+        "attribute": "# [account (mut)] # [doc = \" 本来は #[account(has_one = owner)] を指定して所有者照合を行うべき\"]",
+        "field_type": "Account < 'info , RentalAccount >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" レンタル実行者（署名者）\"]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "treasury",
+        "attribute": "# [doc = \" レンタル料受取口座\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "owner_nft_account",
+        "attribute": "# [doc = \" 所有者のNFT保管アカウント\"] # [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "user_nft_account",
+        "attribute": "# [doc = \" レンタルユーザーのNFT受取アカウント\"] # [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "service_authority",
+        "attribute": "# [doc = \" CPI実行権限を持つサービス権限アカウント\"]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": "# [doc = \" SPLトークンプログラム\"]",
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "config",
+        "attribute": "# [doc = \" レンタル料設定アカウント\"]",
+        "field_type": "Account < 'info , RentalConfig >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RentalAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 本来このレンタルを所有するユーザーのPubkey\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "renter",
+        "attribute": "# [doc = \" 現在レンタル中のユーザーPubkey\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "active",
+        "attribute": "# [doc = \" レンタル状態（true=レンタル中）\"]",
+        "field_type": "bool"
+      },
+      {
+        "name": "rental_count",
+        "attribute": "# [doc = \" これまでのレンタル回数\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RentalConfig",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "fee",
+        "attribute": "# [doc = \" 1回あたりのレンタル料（Lamports）\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

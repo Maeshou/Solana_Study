@@ -1,40 +1,197 @@
 [
   {
-    "name": "transfer_nft",
+    "name": "init_studio",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx030 >",
-      "amount: u64"
+      "ctx: Context < InitStudio >",
+      "ceiling: u32"
     ],
     "attributes": [],
     "body": [
-      "let src = & mut ctx . accounts . account_src ;",
-      "let dst = & mut ctx . accounts . account_dst ;",
-      "let before = * * src . to_account_info () . try_borrow_lamports () ? ;",
-      "* * src . to_account_info () . try_borrow_mut_lamports () ? = before . saturating_sub (amount) ;",
-      "* * dst . to_account_info () . try_borrow_mut_lamports () ? += amount ;",
+      "let a = & mut ctx . accounts ;",
+      "a . studio . producer = a . producer . key () ;",
+      "a . studio . ceiling = ceiling ;",
+      "a . studio . mode = MixMode :: Live ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx030",
+    "name": "mix",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Mix >",
+      "ticks: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let a = & mut ctx . accounts ;",
+      "assert_ne ! (a . bus . key () , a . track_a . key () , \"bus/track_a must differ\") ;",
+      "assert_ne ! (a . bus . key () , a . track_b . key () , \"bus/track_b must differ\") ;",
+      "for _ in 0 .. ticks",
+      "{",
+      "a . track_a . gain = a . track_a . gain . saturating_add (5) ;",
+      "a . track_b . gain = a . track_b . gain . saturating_add (7) ;",
+      "a . bus . sum = a . bus . sum . saturating_add (9) ;",
+      "}",
+      "if a . bus . sum > a . studio . ceiling as u64",
+      "{",
+      "a . studio . mode = MixMode :: Master ;",
+      "a . bus . peaks = a . bus . peaks . saturating_add (3) ;",
+      "a . track_b . flags = a . track_b . flags . saturating_add (2) ;",
+      "msg ! (\"ceiling exceeded;",
+      "mastering, peaks+3 flagsB+2\") ;",
+      "} else",
+      "{",
+      "a . studio . mode = MixMode :: Live ;",
+      "a . bus . peaks = a . bus . peaks . saturating_add (1) ;",
+      "a . track_a . flags = a . track_a . flags . saturating_add (1) ;",
+      "msg ! (\"live mixing;",
+      "peaks+1 flagsA+1\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitStudio",
     "node_type": "struct",
     "fields": [
       {
-        "name": "account_src",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "studio",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Studio >"
       },
       {
-        "name": "account_dst",
+        "name": "track_a",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Track >"
+      },
+      {
+        "name": "track_b",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Track >"
+      },
+      {
+        "name": "bus",
+        "attribute": "# [account (init , payer = payer , space = 8 + 8 + 4 , seeds = [b\"bus\" , producer . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , MixBus >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "producer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
       },
       {
         "name": "system_program",
         "attribute": null,
         "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Mix",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "studio",
+        "attribute": "# [account (mut , has_one = producer)]",
+        "field_type": "Account < 'info , Studio >"
+      },
+      {
+        "name": "track_a",
+        "attribute": "# [account (mut , constraint = track_a . key () != track_b . key () , error = EchoErr :: Dup)]",
+        "field_type": "Account < 'info , Track >"
+      },
+      {
+        "name": "track_b",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Track >"
+      },
+      {
+        "name": "bus",
+        "attribute": "# [account (mut , seeds = [b\"bus\" , producer . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , MixBus >"
+      },
+      {
+        "name": "producer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Studio",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "producer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "ceiling",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "mode",
+        "attribute": null,
+        "field_type": "MixMode"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Track",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "gain",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "flags",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MixBus",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "sum",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "peaks",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

@@ -1,0 +1,245 @@
+[
+  {
+    "name": "initialize_reputation_board",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeReputationBoard >",
+      "name: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let board = & mut ctx . accounts . reputation_board ;",
+      "board . governor = ctx . accounts . governor . key () ;",
+      "board . board_name = name ;",
+      "board . last_update_count = 0 ;",
+      "board . total_users = 0 ;",
+      "board . board_state = BoardState :: Running ;",
+      "msg ! (\"Reputation Board '{}' initialized. State is Running.\" , board . board_name) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "create_user_profile",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateUserProfile >",
+      "username: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let profile = & mut ctx . accounts . user_profile ;",
+      "let board = & mut ctx . accounts . reputation_board ;",
+      "if board . board_state != BoardState :: Running",
+      "{",
+      "return Err (error ! (ReputationError :: BoardPaused)) ;",
+      "}",
+      "profile . board = board . key () ;",
+      "profile . user = ctx . accounts . user . key () ;",
+      "profile . username = username ;",
+      "profile . trust_score = 500 ;",
+      "profile . last_score_change_count = 0 ;",
+      "profile . profile_status = ProfileStatus :: Active ;",
+      "board . total_users = board . total_users . saturating_add (1) ;",
+      "msg ! (\"User profile for '{}' created with a starting score of 500.\" , profile . username) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "transfer_trust_score",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < TransferTrustScore >",
+      "score_to_transfer: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let target_profile = & mut ctx . accounts . target_profile ;",
+      "let source_profile = & mut ctx . accounts . source_profile ;",
+      "if target_profile . profile_status != ProfileStatus :: Active || source_profile . profile_status != ProfileStatus :: Active",
+      "{",
+      "return Err (error ! (ReputationError :: ProfileInactive)) ;",
+      "}",
+      "let mut final_transfer = score_to_transfer ;",
+      "if source_profile . trust_score < final_transfer",
+      "{",
+      "final_transfer = source_profile . trust_score ;",
+      "}",
+      "let mut a_factor = 1 ;",
+      "let mut b_factor = 1 ;",
+      "if target_profile . trust_score > 1000",
+      "{",
+      "a_factor = 2 ;",
+      "msg ! (\"Target is high-reputation, receives double bonus.\") ;",
+      "}",
+      "if source_profile . trust_score < 100",
+      "{",
+      "b_factor = 0 ;",
+      "msg ! (\"Source is low-reputation, cannot transfer.\") ;",
+      "}",
+      "target_profile . trust_score = target_profile . trust_score . saturating_add (final_transfer . checked_mul (a_factor) . unwrap_or (u32 :: MAX)) ;",
+      "source_profile . trust_score = source_profile . trust_score . checked_sub (final_transfer . checked_mul (b_factor) . unwrap_or (0)) . unwrap_or (0) ;",
+      "if target_profile . trust_score > 10000",
+      "{",
+      "target_profile . profile_status = ProfileStatus :: Maxed ;",
+      "msg ! (\"Target profile achieved maximum reputation!\") ;",
+      "} else",
+      "{",
+      "msg ! (\"Target score is now {}.\" , target_profile . trust_score) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializeReputationBoard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "reputation_board",
+        "attribute": "# [account (init , payer = governor , space = 8 + 32 + 32 + 8 + 4 + 1)]",
+        "field_type": "Account < 'info , ReputationBoard >"
+      },
+      {
+        "name": "governor",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreateUserProfile",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "reputation_board",
+        "attribute": "# [account (mut , has_one = board)]",
+        "field_type": "Account < 'info , ReputationBoard >"
+      },
+      {
+        "name": "user_profile",
+        "attribute": "# [account (init , payer = user , space = 8 + 32 + 32 + 32 + 4 + 8 + 1)]",
+        "field_type": "Account < 'info , UserProfile >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TransferTrustScore",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "reputation_board",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , ReputationBoard >"
+      },
+      {
+        "name": "target_profile",
+        "attribute": "# [account (mut , has_one = board)]",
+        "field_type": "Account < 'info , UserProfile >"
+      },
+      {
+        "name": "source_profile",
+        "attribute": "# [account (mut , has_one = board)]",
+        "field_type": "Account < 'info , UserProfile >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ReputationBoard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "governor",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "board_name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "last_update_count",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_users",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "board_state",
+        "attribute": null,
+        "field_type": "BoardState"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "UserProfile",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "board",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "username",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "trust_score",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "last_score_change_count",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "profile_status",
+        "attribute": null,
+        "field_type": "ProfileStatus"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

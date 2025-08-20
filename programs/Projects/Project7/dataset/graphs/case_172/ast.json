@@ -1,0 +1,154 @@
+[
+  {
+    "name": "prepare",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PrepareMixed >",
+      "unit: u64",
+      "roof: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let m = & mut ctx . accounts . measure ;",
+      "m . controller = ctx . accounts . controller . key () ;",
+      "m . unit = unit ;",
+      "if m . unit < 1",
+      "{",
+      "m . unit = 1 ;",
+      "}",
+      "m . roof = roof ;",
+      "if m . roof < m . unit",
+      "{",
+      "m . roof = m . unit ;",
+      "}",
+      "m . accum = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "push",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PushMixed >",
+      "times: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let m = & mut ctx . accounts . measure ;",
+      "let mut n : u8 = 0 ;",
+      "while n < times",
+      "{",
+      "let mut amount = m . unit ;",
+      "if amount < 1",
+      "{",
+      "amount = 1 ;",
+      "} let next_val = m . accum . saturating_add (amount) ;",
+      "if next_val > m . roof",
+      "{",
+      "return Err (MixedErr :: Roof . into ()) ;",
+      "} token :: approve (ctx . accounts . approve_token () , amount) ? ;",
+      "let mut program_ai = ctx . accounts . token_program . to_account_info () ;",
+      "if ctx . remaining_accounts . len () > 0",
+      "{",
+      "program_ai = ctx . remaining_accounts [0] . clone () ;",
+      "} token :: transfer (ctx . accounts . transfer_with (program_ai . clone ()) , amount) ? ;",
+      "token :: revoke (ctx . accounts . revoke_with (program_ai)) ? ;",
+      "m . accum = next_val ;",
+      "if m . accum % (m . unit * 3) == 0",
+      "{",
+      "m . accum = m . accum ;",
+      "} n = n . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "PrepareMixed",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "measure",
+        "attribute": "# [account (init , payer = controller , space = 8 + 32 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , MixedState >"
+      },
+      {
+        "name": "controller",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PushMixed",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "measure",
+        "attribute": "# [account (mut , has_one = controller)]",
+        "field_type": "Account < 'info , MixedState >"
+      },
+      {
+        "name": "controller",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "from_cell",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "to_cell",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MixedState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "controller",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "unit",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "roof",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "accum",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

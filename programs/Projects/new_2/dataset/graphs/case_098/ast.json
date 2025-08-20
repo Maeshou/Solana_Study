@@ -1,0 +1,75 @@
+[
+  {
+    "name": "RentalHeader",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "lessee",
+        "attribute": null,
+        "field_type": "[u8 ; 32]"
+      },
+      {
+        "name": "expires",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "_pad",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "extend_rental",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ExtendRental >",
+      "extra_secs: u64",
+      "client_time: u64"
+    ],
+    "attributes": [
+      "# [doc = \" NFTレンタル期間を延長する  \"]",
+      "# [doc = \" (`rental_account` の owner チェックがないため、  \"]",
+      "# [doc = \" 攻撃者が他人の契約アカウントを指定して任意に延長できます)\"]"
+    ],
+    "body": [
+      "let data = & mut ctx . accounts . rental_account . data . borrow_mut () ;",
+      "if data . len () < std :: mem :: size_of :: < RentalHeader > ()",
+      "{",
+      "return err ! (ErrorCode :: DataTooShort) ;",
+      "}",
+      "let header : & mut RentalHeader = bytemuck :: from_bytes_mut (& mut data [.. std :: mem :: size_of :: < RentalHeader > ()]) ;",
+      "if client_time < header . expires",
+      "{",
+      "return err ! (ErrorCode :: NotYetExpired) ;",
+      "}",
+      "header . expires = header . expires . wrapping_add (extra_secs) ;",
+      "msg ! (\"Rental {} extended: old={} new={} (by {}s, client_time={})\" , ctx . accounts . rental_account . key () , header . expires . wrapping_sub (extra_secs) , header . expires , extra_secs , client_time) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "ExtendRental",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "rental_account",
+        "attribute": "# [doc = \" CHECK: owner チェックを行わない AccountInfo\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

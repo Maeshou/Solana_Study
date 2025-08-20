@@ -1,0 +1,245 @@
+[
+  {
+    "name": "init_artist",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitArtist >",
+      "seed: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let a = & mut ctx . accounts . artist ;",
+      "a . owner = ctx . accounts . owner . key () ;",
+      "a . seed = seed ;",
+      "a . curve = 0 ;",
+      "a . strokes = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_palette",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitPalette >",
+      "tag: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let p = & mut ctx . accounts . palette ;",
+      "p . parent = ctx . accounts . artist . key () ;",
+      "p . tag = tag ;",
+      "p . mode = Linear ;",
+      "p . base = 128 ;",
+      "p . range = 64 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "blend_two",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < BlendTwo >",
+      "intensity: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let a = & mut ctx . accounts . artist ;",
+      "let p1 = & mut ctx . accounts . palette_a ;",
+      "let p2 = & mut ctx . accounts . palette_b ;",
+      "let mut tone : u32 = a . seed ^ intensity ;",
+      "for _ in 0 .. 6",
+      "{",
+      "tone = ((tone << 3) ^ (tone >> 2)) & 1023 ;",
+      "a . strokes = a . strokes . saturating_add ((tone & 7) as u64) ;",
+      "a . curve = a . curve . saturating_add ((tone % 19) as u32) ;",
+      "}",
+      "if p1 . base + p1 . range < 255",
+      "{",
+      "p1 . mode = Linear ;",
+      "p1 . base = (p1 . base + (intensity % 11) as u16) . min (255) ;",
+      "p1 . range = (p1 . range + (a . curve % 9) as u16) . min (180) ;",
+      "a . curve = a . curve / 2 + 3 ;",
+      "msg ! (\"P1 linear;",
+      "base=",
+      "{",
+      "}, range={}, curve={}\" , p1 . base , p1 . range , a . curve) ;",
+      "} else",
+      "{",
+      "p1 . mode = Curve ;",
+      "p1 . base = p1 . base . saturating_sub ((intensity % 13) as u16) ;",
+      "p1 . range = (p1 . range / 2) . max (8) ;",
+      "a . curve = a . curve . saturating_sub (5) ;",
+      "msg ! (\"P1 curve;",
+      "base=",
+      "{",
+      "}, range={}, curve={}\" , p1 . base , p1 . range , a . curve) ;",
+      "}",
+      "for _ in 0 .. 3",
+      "{",
+      "if p2 . tag & 1 == 1",
+      "{",
+      "p2 . mode = Curve ;",
+      "p2 . base = p2 . base . saturating_add (((a . seed % 7) + 1) as u16) ;",
+      "p2 . range = p2 . range . saturating_add (((a . curve % 5) + 2) as u16) ;",
+      "msg ! (\"P2 curve+;",
+      "base=",
+      "{",
+      "}, range={}\" , p2 . base , p2 . range) ;",
+      "} else",
+      "{",
+      "p2 . mode = Linear ;",
+      "p2 . base = p2 . base / 2 + 12 ;",
+      "p2 . range = p2 . range . saturating_sub (3) ;",
+      "msg ! (\"P2 linear-;",
+      "base=",
+      "{",
+      "}, range={}\" , p2 . base , p2 . range) ;",
+      "}",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitArtist",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "artist",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 4 + 4 + 8)]",
+        "field_type": "Account < 'info , Artist >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitPalette",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "artist",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Artist >"
+      },
+      {
+        "name": "palette",
+        "attribute": "# [account (init , payer = painter , space = 8 + 32 + 1 + 1 + 2 + 2)]",
+        "field_type": "Account < 'info , Palette >"
+      },
+      {
+        "name": "painter",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BlendTwo",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "artist",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Artist >"
+      },
+      {
+        "name": "palette_a",
+        "attribute": "# [account (mut , has_one = parent)]",
+        "field_type": "Account < 'info , Palette >"
+      },
+      {
+        "name": "palette_b",
+        "attribute": "# [account (mut , has_one = parent)]",
+        "field_type": "Account < 'info , Palette >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Artist",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "seed",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "curve",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "strokes",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Palette",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "tag",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "mode",
+        "attribute": null,
+        "field_type": "ShadeMode"
+      },
+      {
+        "name": "base",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "range",
+        "attribute": null,
+        "field_type": "u16"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

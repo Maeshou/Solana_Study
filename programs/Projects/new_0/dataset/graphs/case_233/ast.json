@@ -1,0 +1,188 @@
+[
+  {
+    "name": "create_proposal",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateProposal >",
+      "bump: u8",
+      "id: u64",
+      "description: String"
+    ],
+    "attributes": [
+      "# [doc = \" 提案を作成\"]"
+    ],
+    "body": [
+      "if description . len () > 200",
+      "{",
+      "return Err (ProgramError :: InvalidInstructionData . into ()) ;",
+      "}",
+      "let prop = & mut ctx . accounts . proposal ;",
+      "prop . creator = * ctx . accounts . creator . key ;",
+      "prop . id = id ;",
+      "prop . description = description ;",
+      "prop . votes_for = 0 ;",
+      "prop . votes_against = 0 ;",
+      "prop . open = true ;",
+      "prop . bump = bump ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "cast_vote",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CastVote >",
+      "support: bool"
+    ],
+    "attributes": [
+      "# [doc = \" 投票を実行\"]"
+    ],
+    "body": [
+      "let prop = & mut ctx . accounts . proposal ;",
+      "if ! prop . open",
+      "{",
+      "return Err (ProgramError :: InvalidAccountData . into ()) ;",
+      "}",
+      "prop . votes_for = if support { prop . votes_for . checked_add (1) . ok_or (ProgramError :: InvalidInstructionData) ? } else { prop . votes_for } ;",
+      "prop . votes_against = if ! support { prop . votes_against . checked_add (1) . ok_or (ProgramError :: InvalidInstructionData) ? } else { prop . votes_against } ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "close_proposal",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CloseProposal >"
+    ],
+    "attributes": [
+      "# [doc = \" 提案を閉鎖\"]"
+    ],
+    "body": [
+      "let prop = & mut ctx . accounts . proposal ;",
+      "if prop . creator != * ctx . accounts . creator . key",
+      "{",
+      "return Err (ProgramError :: InvalidAccountData . into ()) ;",
+      "}",
+      "if ! prop . open",
+      "{",
+      "return Err (ProgramError :: InvalidAccountData . into ()) ;",
+      "}",
+      "prop . open = false ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CreateProposal",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "proposal",
+        "attribute": "# [account (init , seeds = [b\"proposal\" , & id . to_le_bytes ()] , bump = bump , payer = creator , space = 8 + 32 + 1 + 8 + 4 + 200 + 8 + 8 + 1 ,)]",
+        "field_type": "Account < 'info , Proposal >"
+      },
+      {
+        "name": "creator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "rent",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Rent >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CastVote",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "proposal",
+        "attribute": "# [account (mut , seeds = [b\"proposal\" , & proposal . id . to_le_bytes ()] , bump = proposal . bump ,)]",
+        "field_type": "Account < 'info , Proposal >"
+      },
+      {
+        "name": "voter",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CloseProposal",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "proposal",
+        "attribute": "# [account (mut , seeds = [b\"proposal\" , & proposal . id . to_le_bytes ()] , bump = proposal . bump ,)]",
+        "field_type": "Account < 'info , Proposal >"
+      },
+      {
+        "name": "creator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Proposal",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "creator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "description",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "votes_for",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "votes_against",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "open",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

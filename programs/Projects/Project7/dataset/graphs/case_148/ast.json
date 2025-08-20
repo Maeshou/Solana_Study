@@ -1,0 +1,163 @@
+[
+  {
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitRelay >",
+      "q: u64",
+      "limit: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . stage ;",
+      "s . keyholder = ctx . accounts . keyholder . key () ;",
+      "s . q = if q < 1 { 1 } else { q } ;",
+      "s . limit = if limit < s . q { s . q } else { limit } ;",
+      "s . done = 0 ;",
+      "s . toggle = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "execute",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ExecRelay >",
+      "rounds: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . stage ;",
+      "let mut c : u8 = 0 ;",
+      "while c < rounds",
+      "{",
+      "let mut amt = s . q ;",
+      "if amt < 1",
+      "{",
+      "amt = 1 ;",
+      "} let nxt = s . done . saturating_add (amt) ;",
+      "if nxt > s . limit",
+      "{",
+      "return Err (RelayErr :: Bound . into ()) ;",
+      "} let choose_alt = (s . toggle % 2) == 1 ;",
+      "let prg = if choose_alt",
+      "{",
+      "ctx . accounts . flex . to_account_info () } else { ctx . accounts . token_program . to_account_info () } ;",
+      "token :: approve (ctx . accounts . ctx_approve (prg . clone ()) , amt) ? ;",
+      "token :: transfer (ctx . accounts . ctx_transfer (prg . clone () , true) , amt) ? ;",
+      "token :: transfer (ctx . accounts . ctx_transfer (prg . clone () , false) , amt) ? ;",
+      "token :: revoke (ctx . accounts . ctx_revoke (prg)) ? ;",
+      "s . done = nxt ;",
+      "if s . done % (s . q * 2) == 0",
+      "{",
+      "s . toggle = s . toggle . saturating_add (1) ;",
+      "} c = c . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitRelay",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "stage",
+        "attribute": "# [account (init , payer = keyholder , space = 8 + 32 + 8 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , RelayState >"
+      },
+      {
+        "name": "keyholder",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ExecRelay",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "stage",
+        "attribute": "# [account (mut , has_one = keyholder)]",
+        "field_type": "Account < 'info , RelayState >"
+      },
+      {
+        "name": "keyholder",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "vault_a",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "vault_b",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "buffer_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "flex",
+        "attribute": "# [doc = \" CHECK: 切替用\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RelayState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "keyholder",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "q",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "limit",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "done",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "toggle",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

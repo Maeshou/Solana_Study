@@ -1,17 +1,93 @@
 [
   {
-    "name": "CreateMarketCtxqmog",
+    "name": "create_escrow",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateEscrow >",
+      "amount: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let escrow = & mut ctx . accounts . escrow_account ;",
+      "escrow . buyer = ctx . accounts . buyer . key () ;",
+      "escrow . seller = * ctx . accounts . seller . key ;",
+      "escrow . amount = amount ;",
+      "escrow . is_completed = false ;",
+      "escrow . bump = * ctx . bumps . get (\"escrow_account\") . unwrap () ;",
+      "let ix = anchor_lang :: solana_program :: system_instruction :: transfer (& ctx . accounts . buyer . key () , & escrow . key () , amount ,) ;",
+      "anchor_lang :: solana_program :: program :: invoke (& ix , & [ctx . accounts . buyer . to_account_info () , ctx . accounts . escrow_account . to_account_info () ,] ,) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "complete_escrow",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CompleteEscrow >"
+    ],
+    "attributes": [],
+    "body": [
+      "let escrow = & mut ctx . accounts . escrow_account ;",
+      "* * ctx . accounts . escrow_account . to_account_info () . lamports . borrow_mut () -= escrow . amount ;",
+      "* * ctx . accounts . seller . lamports . borrow_mut () += escrow . amount ;",
+      "escrow . is_completed = true ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "EscrowAccount",
     "node_type": "struct",
     "fields": [
       {
-        "name": "market",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
+        "name": "buyer",
+        "attribute": null,
+        "field_type": "Pubkey"
       },
       {
-        "name": "authority",
+        "name": "seller",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "is_completed",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreateEscrow",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "escrow_account",
+        "attribute": "# [account (init , payer = buyer , space = 8 + 32 + 32 + 8 + 1 + 1 , seeds = [b\"escrow\" , buyer . key () . as_ref () , seller . key . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , EscrowAccount >"
+      },
+      {
+        "name": "buyer",
         "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "seller",
+        "attribute": "# [doc = \" CHECK: This account is properly validated through seeds and stored in escrow\"]",
+        "field_type": "AccountInfo < 'info >"
       },
       {
         "name": "system_program",
@@ -24,33 +100,27 @@
     "body": null
   },
   {
-    "name": "DataAccount",
+    "name": "CompleteEscrow",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data",
+        "name": "escrow_account",
+        "attribute": "# [account (mut , seeds = [b\"escrow\" , escrow_account . buyer . as_ref () , escrow_account . seller . as_ref ()] , bump = escrow_account . bump , constraint = escrow_account . buyer == buyer . key () , constraint = ! escrow_account . is_completed @ EscrowError :: AlreadyCompleted)]",
+        "field_type": "Account < 'info , EscrowAccount >"
+      },
+      {
+        "name": "buyer",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "seller",
+        "attribute": "# [doc = \" CHECK: This account's pubkey is verified against the escrow's seller field\"] # [account (mut , constraint = seller . key () == escrow_account . seller)]",
+        "field_type": "AccountInfo < 'info >"
       }
     ],
     "inputs": null,
     "attributes": null,
     "body": null
-  },
-  {
-    "name": "create_market",
-    "node_type": "function",
-    "fields": null,
-    "inputs": [
-      "ctx: Context < CreateMarketCtxqmog >",
-      "amount: u64"
-    ],
-    "attributes": [],
-    "body": [
-      "let acct = & mut ctx . accounts . market ;",
-      "for _ in 0 .. amount { acct . data += 1 ; }",
-      "msg ! (\"Executed create_market logic\") ;",
-      "Ok (())"
-    ]
   }
 ]

@@ -1,0 +1,186 @@
+[
+  {
+    "name": "Timesheet",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "employee",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "period",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "submitted",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ApprovalRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "approver",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "timesheet",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "comment",
+        "attribute": null,
+        "field_type": "String"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SubmitSheet",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "timesheet",
+        "attribute": "# [account (init , payer = employee , space = 8 + 32 + 4 + 32 + 1)]",
+        "field_type": "Account < 'info , Timesheet >"
+      },
+      {
+        "name": "employee",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreateApproval",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "timesheet",
+        "attribute": "# [doc = \" Timesheet.employee == employee.key() は不要だが例示\"] # [account (mut , has_one = employee)]",
+        "field_type": "Account < 'info , Timesheet >"
+      },
+      {
+        "name": "approval",
+        "attribute": "# [doc = \" ApprovalRecord.timesheet ⇔ timesheet.key() の検証がないため、\"] # [doc = \" 偽のレコードで任意の勤怠を承認できる\"] # [account (init , payer = approver , space = 8 + 32 + 32 + 4 + 128)]",
+        "field_type": "Account < 'info , ApprovalRecord >"
+      },
+      {
+        "name": "employee",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "approver",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "FinalizeApproval",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "approval",
+        "attribute": "# [doc = \" ApprovalRecord.approver == approver.key() は検証される\"] # [account (mut , has_one = approver)]",
+        "field_type": "Account < 'info , ApprovalRecord >"
+      },
+      {
+        "name": "timesheet",
+        "attribute": "# [doc = \" timesheet.key() ⇔ approval.timesheet の検証がないため、\"] # [doc = \" 偽物のレコードで別の勤怠を最終承認できる\"] # [account (mut)]",
+        "field_type": "Account < 'info , Timesheet >"
+      },
+      {
+        "name": "approver",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "submit_sheet",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SubmitSheet >",
+      "period: String"
+    ],
+    "attributes": [
+      "# [doc = \" 勤怠を提出\"]"
+    ],
+    "body": [
+      "let ts = & mut ctx . accounts . timesheet ;",
+      "ts . employee = ctx . accounts . employee . key () ;",
+      "ts . period = period ;",
+      "ts . submitted = true ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "create_approval",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateApproval >",
+      "comment: String"
+    ],
+    "attributes": [
+      "# [doc = \" 承認を作成（コメント記録）\"]"
+    ],
+    "body": [
+      "let ap = & mut ctx . accounts . approval ;",
+      "ap . approver = ctx . accounts . approver . key () ;",
+      "ap . timesheet = ctx . accounts . timesheet . key () ;",
+      "ap . comment = comment ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "finalize_approval",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < FinalizeApproval >"
+    ],
+    "attributes": [
+      "# [doc = \" 承認を最終確定（勤怠提出に反映）\"]"
+    ],
+    "body": [
+      "let ts = & mut ctx . accounts . timesheet ;",
+      "ts . submitted = false ;",
+      "Ok (())"
+    ]
+  }
+]

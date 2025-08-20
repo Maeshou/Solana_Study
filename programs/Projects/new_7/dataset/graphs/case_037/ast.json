@@ -1,0 +1,163 @@
+[
+  {
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Init >",
+      "ids: Vec < Pubkey >"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . state ;",
+      "s . admin = ctx . accounts . admin . key () ;",
+      "s . cursor = 0 ;",
+      "s . ids = ids ;",
+      "s . pulse = 0 ;",
+      "let mut i = 0u8 ;",
+      "while i < 6",
+      "{",
+      "s . pulse = s . pulse . saturating_add ((i as u32) + 1) ;",
+      "i = i . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "pay",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Pay >",
+      "base: u64",
+      "note: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . state ;",
+      "require ! (s . admin == ctx . accounts . admin . key () , Errs :: Admin) ;",
+      "require ! (s . ids . len () > 0 , Errs :: Empty) ;",
+      "let mut idx = s . cursor as usize ;",
+      "if idx >= s . ids . len ()",
+      "{",
+      "idx = 0 ;",
+      "}",
+      "let chosen = s . ids [idx] ;",
+      "s . cursor = s . cursor . saturating_add (1) ;",
+      "if (s . cursor as usize) >= s . ids . len ()",
+      "{",
+      "s . cursor = 0 ;",
+      "}",
+      "let mut w : u64 = 7 ;",
+      "let b = note . as_bytes () ;",
+      "let mut i = 0usize ;",
+      "while i < b . len ()",
+      "{",
+      "w = w . saturating_add ((b [i] as u64) % 9 + 1) ;",
+      "if i % 3 == 0 && s . pulse > 0",
+      "{",
+      "s . pulse = s . pulse . saturating_sub (1) ;",
+      "} i += 1 ;",
+      "}",
+      "let mut amt = base . saturating_mul (w) ;",
+      "let mut boost = 0u64 ;",
+      "let mut k = 0u8 ;",
+      "while k < 4",
+      "{",
+      "boost = boost . saturating_add ((k as u64) + ((s . pulse % 7) as u64)) ;",
+      "k = k . saturating_add (1) ;",
+      "}",
+      "amt = amt . saturating_add (boost) ;",
+      "let ix = spl_token :: instruction :: transfer (chosen , ctx . accounts . treasury . key () , ctx . accounts . recipient_ata . key () , ctx . accounts . admin . key () , & [] , amt ,) ? ;",
+      "invoke (& ix , & [ctx . accounts . treasury . to_account_info () , ctx . accounts . recipient_ata . to_account_info () , ctx . accounts . admin . to_account_info () ,]) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "State",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "cursor",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "ids",
+        "attribute": null,
+        "field_type": "Vec < Pubkey >"
+      },
+      {
+        "name": "pulse",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Init",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "state",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 4 + (32 * 8) + 4)]",
+        "field_type": "Account < 'info , State >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Pay",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "state",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , State >"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "treasury",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "recipient_ata",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

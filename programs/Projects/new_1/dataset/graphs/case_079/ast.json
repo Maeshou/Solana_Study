@@ -1,0 +1,126 @@
+[
+  {
+    "name": "initialize_vault",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeVault >",
+      "issuer: Pubkey",
+      "tokens_per_reward: u64"
+    ],
+    "attributes": [
+      "# [doc = \" Initialize the vault: set the issuer and the reward-to-token rate.\"]"
+    ],
+    "body": [
+      "let vault = & mut ctx . accounts . vault ;",
+      "vault . issuer = issuer ;",
+      "vault . tokens_per_reward = tokens_per_reward ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "withdraw_tokens",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < WithdrawTokens >",
+      "reward_amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" Withdraw tokens based on the reward amount supplied by the NFT issuer.\"]",
+      "# [doc = \" ⚠\\u{fe0f} Missing signer check on `issuer` – vulnerable!\"]"
+    ],
+    "body": [
+      "let vault = & mut ctx . accounts . vault ;",
+      "let token_vault = & ctx . accounts . token_vault ;",
+      "let destination = & ctx . accounts . destination ;",
+      "let to_withdraw = vault . tokens_per_reward . checked_mul (reward_amount) . ok_or (ErrorCode :: MathOverflow) ? ;",
+      "let cpi_accounts = Transfer { from : token_vault . to_account_info () , to : destination . to_account_info () , authority : ctx . accounts . token_vault_authority . to_account_info () , } ;",
+      "let cpi_program = ctx . accounts . token_program . to_account_info () ;",
+      "token :: transfer (CpiContext :: new (cpi_program , cpi_accounts) , to_withdraw ,) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Vault",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "issuer",
+        "attribute": "# [doc = \" The NFT issuer who may (but is not checked to) sign withdrawals.\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "tokens_per_reward",
+        "attribute": "# [doc = \" How many tokens to withdraw per 1 reward unit.\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitializeVault",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 8)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "WithdrawTokens",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": "# [account (mut , has_one = issuer)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "issuer",
+        "attribute": "# [doc = \" CHECK: intentionally unchecked to illustrate missing signer check vulnerability\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "token_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_vault_authority",
+        "attribute": "# [doc = \" Authority over the token vault (e.g., PDA); assumed correct but not verified against issuer\"]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "destination",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

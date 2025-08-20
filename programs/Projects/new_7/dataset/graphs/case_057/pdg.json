@@ -1,0 +1,409 @@
+[
+  {
+    "name": "init",
+    "inputs": [
+      "ctx: Context < Init >",
+      "base_salt: u8"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let exchange_state = & mut ctx . accounts . exchange_state ;"
+      },
+      {
+        "id": 2,
+        "label": "exchange_state . admin = ctx . accounts . admin . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "exchange_state . base_salt = base_salt ;"
+      },
+      {
+        "id": 4,
+        "label": "exchange_state . bump = * ctx . bumps . get (\"issuer\") . unwrap () ;"
+      },
+      {
+        "id": 5,
+        "label": "exchange_state . counter = 4 ;"
+      },
+      {
+        "id": 6,
+        "label": "exchange_state . acc = 0x5150 ;"
+      },
+      {
+        "id": 7,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: exchange_state"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: exchange_state"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: exchange_state"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: exchange_state"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: exchange_state"
+      },
+      {
+        "from": 1,
+        "to": 6,
+        "label": "data_dep: exchange_state"
+      }
+    ]
+  },
+  {
+    "name": "rekey",
+    "inputs": [
+      "ctx: Context < Rekey >",
+      "new_salt: u8"
+    ],
+    "nodes": [
+      {
+        "id": 8,
+        "label": "Entry"
+      },
+      {
+        "id": 9,
+        "label": "let exchange_state = & mut ctx . accounts . exchange_state ;"
+      },
+      {
+        "id": 10,
+        "label": "require_keys_eq ! (exchange_state . admin , ctx . accounts . admin . key () , ExchangeError :: AdminOnly) ;"
+      },
+      {
+        "id": 11,
+        "label": "exchange_state . base_salt = new_salt ;"
+      },
+      {
+        "id": 12,
+        "label": "exchange_state . counter = exchange_state . counter . saturating_add (2) ;"
+      },
+      {
+        "id": 13,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 9,
+        "to": 9,
+        "label": "def: exchange_state"
+      },
+      {
+        "from": 9,
+        "to": 11,
+        "label": "data_dep: exchange_state"
+      },
+      {
+        "from": 9,
+        "to": 12,
+        "label": "data_dep: exchange_state"
+      },
+      {
+        "from": 9,
+        "to": 12,
+        "label": "data_dep: exchange_state"
+      }
+    ]
+  },
+  {
+    "name": "swap_with_target",
+    "inputs": [
+      "ctx: Context < SwapWithTarget >",
+      "target_program: Pubkey",
+      "units: u64",
+      "salt_offset: u8"
+    ],
+    "nodes": [
+      {
+        "id": 14,
+        "label": "Entry"
+      },
+      {
+        "id": 15,
+        "label": "let exchange_state = & mut ctx . accounts . exchange_state ;"
+      },
+      {
+        "id": 16,
+        "label": "if units == 0 { exchange_state . acc = exchange_state . acc . rotate_left (1) ; return Ok (()) ; }"
+      },
+      {
+        "id": 17,
+        "label": "exchange_state . acc = exchange_state . acc . rotate_left (1) ;"
+      },
+      {
+        "id": 18,
+        "label": "return Ok (()) ;"
+      },
+      {
+        "id": 19,
+        "label": "let combined_salt = exchange_state . base_salt . wrapping_add (salt_offset) ;"
+      },
+      {
+        "id": 20,
+        "label": "let (expected_issuer , _bump) = Pubkey :: find_program_address (& [b\"issuer\" , exchange_state . admin . as_ref () , & [combined_salt] ,] , ctx . program_id ,) ;"
+      },
+      {
+        "id": 21,
+        "label": "if expected_issuer != ctx . accounts . issuer . key () { exchange_state . acc = exchange_state . acc . wrapping_add (13) ; }"
+      },
+      {
+        "id": 22,
+        "label": "exchange_state . acc = exchange_state . acc . wrapping_add (13) ;"
+      },
+      {
+        "id": 23,
+        "label": "let ix = Instruction { program_id : target_program , accounts : vec ! [AccountMeta :: new (ctx . accounts . reserve . key () , false) , AccountMeta :: new (ctx . accounts . receiver . key () , false) , AccountMeta :: new_readonly (ctx . accounts . issuer . key () , true) ,] , data : { let mut payload = vec ! [0xEE] ; payload . extend_from_slice (& units . to_le_bytes ()) ; payload . extend_from_slice (& [combined_salt]) ; payload } , } ;"
+      },
+      {
+        "id": 24,
+        "label": "let mut payload = vec ! [0xEE] ;"
+      },
+      {
+        "id": 25,
+        "label": "payload . extend_from_slice (& units . to_le_bytes ()) ;"
+      },
+      {
+        "id": 26,
+        "label": "payload . extend_from_slice (& [combined_salt]) ;"
+      },
+      {
+        "id": 27,
+        "label": "payload"
+      },
+      {
+        "id": 28,
+        "label": "let program_ai = ctx . remaining_accounts . get (0) . ok_or (ExchangeError :: TargetProgramMissing) ? ;"
+      },
+      {
+        "id": 29,
+        "label": "let seeds : & [& [u8]] = & [b\"issuer\" , exchange_state . admin . as_ref () , & [combined_salt] , & [exchange_state . bump] ,] ;"
+      },
+      {
+        "id": 30,
+        "label": "invoke_signed (& ix , & [program_ai . clone () , ctx . accounts . reserve . to_account_info () , ctx . accounts . receiver . to_account_info () , ctx . accounts . issuer . to_account_info () ,] , & [seeds] ,) ? ;"
+      },
+      {
+        "id": 31,
+        "label": "exchange_state . counter = exchange_state . counter . saturating_add (1) ;"
+      },
+      {
+        "id": 32,
+        "label": "exchange_state . acc = exchange_state . acc . wrapping_add (units ^ 0x39) ;"
+      },
+      {
+        "id": 33,
+        "label": "let mut polish : u8 = 1 ;"
+      },
+      {
+        "id": 34,
+        "label": "while polish < 4 { exchange_state . acc = exchange_state . acc . rotate_right ((polish % 3) as u32) ; polish = polish . saturating_add (1) ; }"
+      },
+      {
+        "id": 35,
+        "label": "exchange_state . acc = exchange_state . acc . rotate_right ((polish % 3) as u32) ;"
+      },
+      {
+        "id": 36,
+        "label": "polish = polish . saturating_add (1) ;"
+      },
+      {
+        "id": 37,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 15,
+        "to": 15,
+        "label": "def: exchange_state"
+      },
+      {
+        "from": 15,
+        "to": 16,
+        "label": "data_dep: exchange_state"
+      },
+      {
+        "from": 15,
+        "to": 16,
+        "label": "data_dep: exchange_state"
+      },
+      {
+        "from": 15,
+        "to": 17,
+        "label": "data_dep: exchange_state"
+      },
+      {
+        "from": 15,
+        "to": 17,
+        "label": "data_dep: exchange_state"
+      },
+      {
+        "from": 19,
+        "to": 19,
+        "label": "def: combined_salt"
+      },
+      {
+        "from": 15,
+        "to": 19,
+        "label": "data_dep: exchange_state"
+      },
+      {
+        "from": 15,
+        "to": 20,
+        "label": "data_dep: exchange_state"
+      },
+      {
+        "from": 19,
+        "to": 20,
+        "label": "data_dep: combined_salt"
+      },
+      {
+        "from": 15,
+        "to": 21,
+        "label": "data_dep: exchange_state"
+      },
+      {
+        "from": 15,
+        "to": 21,
+        "label": "data_dep: exchange_state"
+      },
+      {
+        "from": 15,
+        "to": 22,
+        "label": "data_dep: exchange_state"
+      },
+      {
+        "from": 15,
+        "to": 22,
+        "label": "data_dep: exchange_state"
+      },
+      {
+        "from": 23,
+        "to": 23,
+        "label": "def: ix"
+      },
+      {
+        "from": 19,
+        "to": 23,
+        "label": "data_dep: combined_salt"
+      },
+      {
+        "from": 24,
+        "to": 24,
+        "label": "def: payload"
+      },
+      {
+        "from": 24,
+        "to": 25,
+        "label": "data_dep: payload"
+      },
+      {
+        "from": 24,
+        "to": 26,
+        "label": "data_dep: payload"
+      },
+      {
+        "from": 19,
+        "to": 26,
+        "label": "data_dep: combined_salt"
+      },
+      {
+        "from": 24,
+        "to": 27,
+        "label": "data_dep: payload"
+      },
+      {
+        "from": 28,
+        "to": 28,
+        "label": "def: program_ai"
+      },
+      {
+        "from": 15,
+        "to": 29,
+        "label": "data_dep: exchange_state"
+      },
+      {
+        "from": 19,
+        "to": 29,
+        "label": "data_dep: combined_salt"
+      },
+      {
+        "from": 15,
+        "to": 29,
+        "label": "data_dep: exchange_state"
+      },
+      {
+        "from": 23,
+        "to": 30,
+        "label": "data_dep: ix"
+      },
+      {
+        "from": 28,
+        "to": 30,
+        "label": "data_dep: program_ai"
+      },
+      {
+        "from": 15,
+        "to": 31,
+        "label": "data_dep: exchange_state"
+      },
+      {
+        "from": 15,
+        "to": 31,
+        "label": "data_dep: exchange_state"
+      },
+      {
+        "from": 15,
+        "to": 32,
+        "label": "data_dep: exchange_state"
+      },
+      {
+        "from": 15,
+        "to": 32,
+        "label": "data_dep: exchange_state"
+      },
+      {
+        "from": 15,
+        "to": 34,
+        "label": "data_dep: exchange_state"
+      },
+      {
+        "from": 15,
+        "to": 34,
+        "label": "data_dep: exchange_state"
+      },
+      {
+        "from": 15,
+        "to": 35,
+        "label": "data_dep: exchange_state"
+      },
+      {
+        "from": 15,
+        "to": 35,
+        "label": "data_dep: exchange_state"
+      }
+    ]
+  }
+]

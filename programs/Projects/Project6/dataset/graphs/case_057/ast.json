@@ -1,0 +1,278 @@
+[
+  {
+    "name": "init_workshop",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitWorkshop >",
+      "seed: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let w = & mut ctx . accounts . workshop ;",
+      "w . owner = ctx . accounts . owner . key () ;",
+      "w . seed = seed ;",
+      "w . tool_count = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "enroll_smith",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < EnrollSmith >",
+      "role: SmithRole",
+      "level: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let w = & mut ctx . accounts . workshop ;",
+      "let s = & mut ctx . accounts . smith ;",
+      "s . workshop = w . key () ;",
+      "s . role = role ;",
+      "s . level = level ;",
+      "s . reputation = 0 ;",
+      "w . tool_count = w . tool_count . saturating_add (1) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "upgrade_gear",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < UpgradeGear >",
+      "base_stats: Vec < u16 >"
+    ],
+    "attributes": [],
+    "body": [
+      "let w = & mut ctx . accounts . workshop ;",
+      "let smith = & mut ctx . accounts . smith ;",
+      "let inspector = & mut ctx . accounts . inspector ;",
+      "let gear = & mut ctx . accounts . gear ;",
+      "let panel = & mut ctx . accounts . panel ;",
+      "let mut total : u32 = 0 ;",
+      "let mut mask : u16 = 0 ;",
+      "for v in base_stats",
+      "{",
+      "let capped = v . min (500) ;",
+      "total = total . saturating_add (capped as u32) ;",
+      "mask ^= ((capped as u16) << 1) | ((capped as u16) >> 1) ;",
+      "}",
+      "let avg = if base_stats . is_empty () { 0 } else { (total / base_stats . len () as u32) as u16 } ;",
+      "if smith . role == Master",
+      "{",
+      "gear . power = gear . power . saturating_add (avg as u32 + (mask as u32 & 0x3FF)) ;",
+      "smith . reputation = smith . reputation . saturating_add (2) ;",
+      "inspector . reputation = inspector . reputation . saturating_add (1) ;",
+      "w . tool_count = w . tool_count . saturating_add (1) ;",
+      "msg ! (\"Master upgrade applied: avg=",
+      "{",
+      "}, mask={}, power={}\" , avg , mask , gear . power) ;",
+      "} else",
+      "{",
+      "gear . power = gear . power . saturating_add (avg as u32 / 2 + ((mask as u32 >> 2) & 0x1FF)) ;",
+      "smith . reputation = smith . reputation . saturating_add (1) ;",
+      "inspector . reputation = inspector . reputation . saturating_add (2) ;",
+      "w . tool_count = w . tool_count . saturating_add (1) ;",
+      "msg ! (\"Apprentice/Journeyman upgrade: avg=",
+      "{",
+      "}, mask={}, power={}\" , avg , mask , gear . power) ;",
+      "}",
+      "let mut x = (gear . power as u128) . max (1) ;",
+      "let mut i = 0 ;",
+      "while i < 3",
+      "{",
+      "x = (x + (gear . power as u128 / x)) . max (1) / 2 ;",
+      "i += 1 ;",
+      "}",
+      "panel . workshop = w . key () ;",
+      "panel . durability_meter = (x as u32) . min (1_000_000) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitWorkshop",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "workshop",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 4)]",
+        "field_type": "Account < 'info , Workshop >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EnrollSmith",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "workshop",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Workshop >"
+      },
+      {
+        "name": "smith",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 1 + 4)]",
+        "field_type": "Account < 'info , SmithCard >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "UpgradeGear",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "workshop",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Workshop >"
+      },
+      {
+        "name": "smith",
+        "attribute": "# [account (mut , has_one = workshop , constraint = smith . role != inspector . role @ ErrCode :: CosplayBlocked)]",
+        "field_type": "Account < 'info , SmithCard >"
+      },
+      {
+        "name": "inspector",
+        "attribute": "# [account (mut , has_one = workshop)]",
+        "field_type": "Account < 'info , SmithCard >"
+      },
+      {
+        "name": "gear",
+        "attribute": "# [account (mut , has_one = workshop)]",
+        "field_type": "Account < 'info , Gear >"
+      },
+      {
+        "name": "panel",
+        "attribute": "# [account (mut , has_one = workshop)]",
+        "field_type": "Account < 'info , ForgePanel >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Workshop",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "seed",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "tool_count",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SmithCard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "workshop",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "role",
+        "attribute": null,
+        "field_type": "SmithRole"
+      },
+      {
+        "name": "level",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "reputation",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Gear",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "workshop",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "power",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "slot",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ForgePanel",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "workshop",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "durability_meter",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

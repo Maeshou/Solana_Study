@@ -1,15 +1,58 @@
 [
   {
-    "name": "ResetCtxbayx",
+    "name": "initialize_poll",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializePoll >",
+      "question: String",
+      "duration: i64"
+    ],
+    "attributes": [],
+    "body": [
+      "let poll = & mut ctx . accounts . poll ;",
+      "poll . creator = ctx . accounts . creator . key () ;",
+      "poll . question = question ;",
+      "poll . yes_votes = 0 ;",
+      "poll . no_votes = 0 ;",
+      "poll . end_time = Clock :: get () ? . unix_timestamp + duration ;",
+      "poll . is_active = true ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "cast_vote",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CastVote >",
+      "vote_choice: bool"
+    ],
+    "attributes": [],
+    "body": [
+      "require ! (ctx . accounts . poll . is_active , ErrorCode :: PollInactive) ;",
+      "require ! (Clock :: get () ?. unix_timestamp < ctx . accounts . poll . end_time , ErrorCode :: PollExpired) ;",
+      "if vote_choice",
+      "{",
+      "ctx . accounts . poll . yes_votes += 1 ;",
+      "} else",
+      "{",
+      "ctx . accounts . poll . no_votes += 1 ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializePoll",
     "node_type": "struct",
     "fields": [
       {
-        "name": "counter",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
+        "name": "poll",
+        "attribute": "# [account (init , payer = creator , space = 8 + 300)]",
+        "field_type": "Account < 'info , Poll >"
       },
       {
-        "name": "authority",
+        "name": "creator",
         "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
       },
@@ -24,13 +67,18 @@
     "body": null
   },
   {
-    "name": "DataAccount",
+    "name": "CastVote",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data",
+        "name": "poll",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Poll >"
+      },
+      {
+        "name": "voter",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "Signer < 'info >"
       }
     ],
     "inputs": null,
@@ -38,20 +86,42 @@
     "body": null
   },
   {
-    "name": "reset",
-    "node_type": "function",
-    "fields": null,
-    "inputs": [
-      "ctx: Context < ResetCtxbayx >",
-      "amount: u64"
+    "name": "Poll",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "creator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "question",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "yes_votes",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "no_votes",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "end_time",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "is_active",
+        "attribute": null,
+        "field_type": "bool"
+      }
     ],
-    "attributes": [],
-    "body": [
-      "let acct = & mut ctx . accounts . counter ;",
-      "assert ! (ctx . accounts . counter . data > 0) ;",
-      "acct . data -= amount ;",
-      "msg ! (\"Executed reset logic\") ;",
-      "Ok (())"
-    ]
+    "inputs": null,
+    "attributes": null,
+    "body": null
   }
 ]

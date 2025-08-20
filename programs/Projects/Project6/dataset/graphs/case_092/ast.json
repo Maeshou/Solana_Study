@@ -1,0 +1,239 @@
+[
+  {
+    "name": "init_ladder",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitLadder >"
+    ],
+    "attributes": [],
+    "body": [
+      "let l = & mut ctx . accounts . ladder ;",
+      "l . owner = ctx . accounts . host . key () ;",
+      "l . epoch = 0 ;",
+      "l . seed = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_role_card",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitRoleCard >",
+      "role: Role"
+    ],
+    "attributes": [],
+    "body": [
+      "let c = & mut ctx . accounts . card ;",
+      "c . ladder = ctx . accounts . ladder . key () ;",
+      "c . role = role ;",
+      "c . points = 0 ;",
+      "c . hist = [0 ; 8] ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "run_epoch",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RunEpoch >",
+      "salt: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let l = & mut ctx . accounts . ladder ;",
+      "let a = & mut ctx . accounts . card_a ;",
+      "let b = & mut ctx . accounts . card_b ;",
+      "let t = & mut ctx . accounts . tally ;",
+      "let mut s = l . seed ^ salt ;",
+      "for i in 0 .. 8",
+      "{",
+      "s = s . rotate_left (9) ^ 0xD6E8FEB86659FD93u64 ;",
+      "a . hist [i] = a . hist [i] . saturating_add (((s >> (i * 7)) & 0x7F) as u32) ;",
+      "}",
+      "if a . role == Attacker",
+      "{",
+      "a . points = a . points . saturating_add (((s & 0xFFFF) as u32) + 5) ;",
+      "l . epoch = l . epoch . saturating_add (1) ;",
+      "t . lines = t . lines . saturating_add (1) ;",
+      "t . mix = t . mix . wrapping_add (s . rotate_left (13)) ;",
+      "msg ! (\"Attacker path applied\") ;",
+      "} else",
+      "{",
+      "b . points = b . points . saturating_add ((((s >> 3) & 0x7FFF) as u32) + 3) ;",
+      "l . epoch = l . epoch . saturating_add (1) ;",
+      "t . lines = t . lines . saturating_add (2) ;",
+      "t . mix = t . mix ^ s . rotate_right (11) ;",
+      "msg ! (\"Non-attacker path applied\") ;",
+      "}",
+      "l . seed = s ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitLadder",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ladder",
+        "attribute": "# [account (init , payer = host , space = 8 + Ladder :: MAX)]",
+        "field_type": "Account < 'info , Ladder >"
+      },
+      {
+        "name": "host",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitRoleCard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ladder",
+        "attribute": "# [account (mut , has_one = owner , owner = crate :: ID)]",
+        "field_type": "Account < 'info , Ladder >"
+      },
+      {
+        "name": "card",
+        "attribute": "# [account (init , payer = user , space = 8 + RoleCard :: MAX)]",
+        "field_type": "Account < 'info , RoleCard >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RunEpoch",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ladder",
+        "attribute": "# [account (mut , has_one = owner , owner = crate :: ID)]",
+        "field_type": "Account < 'info , Ladder >"
+      },
+      {
+        "name": "tally",
+        "attribute": "# [account (mut , has_one = ladder , owner = crate :: ID)]",
+        "field_type": "Account < 'info , Tally >"
+      },
+      {
+        "name": "card_a",
+        "attribute": "# [account (mut , has_one = ladder , owner = crate :: ID)]",
+        "field_type": "Account < 'info , RoleCard >"
+      },
+      {
+        "name": "card_b",
+        "attribute": "# [account (mut , has_one = ladder , owner = crate :: ID , constraint = card_a . role != card_b . role @ ErrCode :: CosplayBlocked)]",
+        "field_type": "Account < 'info , RoleCard >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Ladder",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "epoch",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "seed",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RoleCard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ladder",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "role",
+        "attribute": null,
+        "field_type": "Role"
+      },
+      {
+        "name": "points",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "hist",
+        "attribute": null,
+        "field_type": "[u32 ; 8]"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Tally",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ladder",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "mix",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "lines",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

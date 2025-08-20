@@ -1,0 +1,127 @@
+[
+  {
+    "name": "init_store",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitStore >",
+      "base_fee: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let st = & mut ctx . accounts . store ;",
+      "st . owner = ctx . accounts . merchant . key () ;",
+      "st . fee_bps = (base_fee % 900) + 50 ;",
+      "st . sales = base_fee as u32 / 4 + 5 ;",
+      "st . reviews = 3 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "place_order",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PlaceOrder >",
+      "price: u64",
+      "user_bump: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let st = & mut ctx . accounts . store ;",
+      "let seeds = & [b\"escrow_drawer\" , ctx . accounts . merchant . key . as_ref () , & [user_bump]] ;",
+      "let drawer = Pubkey :: create_program_address (seeds , ctx . program_id) . map_err (| _ | error ! (StoreErr :: SeedBad)) ? ;",
+      "if drawer != ctx . accounts . escrow_drawer . key ()",
+      "{",
+      "return Err (error ! (StoreErr :: DrawerMismatch)) ;",
+      "}",
+      "let ix = Instruction { program_id : * ctx . program_id , accounts : vec ! [AccountMeta :: new (ctx . accounts . store . key () , false) , AccountMeta :: new_readonly (ctx . accounts . merchant . key () , true) ,] , data : st . fee_bps . to_le_bytes () . to_vec () , } ;",
+      "let signer = & [b\"escrow_drawer\" , ctx . accounts . merchant . key . as_ref () , & [user_bump]] ;",
+      "invoke_signed (& ix , & [ctx . accounts . store . to_account_info () , ctx . accounts . merchant . to_account_info ()] , & [signer] ,) ? ;",
+      "let taxed = price . saturating_sub ((price * st . fee_bps as u64) / 10_000) ;",
+      "st . sales = st . sales . saturating_add ((taxed % 10_000) as u32) ;",
+      "if st . sales % 5 != 4",
+      "{",
+      "st . reviews = st . reviews . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitStore",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "store",
+        "attribute": "# [account (init , payer = merchant , space = 8 + 32 + 2 + 4 + 4 , seeds = [b\"store\" , merchant . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Store >"
+      },
+      {
+        "name": "merchant",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PlaceOrder",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "store",
+        "attribute": "# [account (mut , seeds = [b\"store\" , merchant . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Store >"
+      },
+      {
+        "name": "escrow_drawer",
+        "attribute": "# [doc = \" CHECK: 手動 bump の別PDA\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "merchant",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Store",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "fee_bps",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "sales",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "reviews",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,165 @@
+[
+  {
+    "name": "init_guild",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitGuild >",
+      "monthly: u64",
+      "refund_bps: u16",
+      "soft: bool"
+    ],
+    "attributes": [],
+    "body": [
+      "let g = & mut ctx . accounts . guild ;",
+      "g . leader = ctx . accounts . leader . key () ;",
+      "g . monthly_due = monthly . max (3) ;",
+      "g . refund_rate_bps = refund_bps . min (7000) . max (500) ;",
+      "g . period_index = 2 ;",
+      "g . net_collected = monthly . saturating_mul (2) ;",
+      "g . soft_mode = soft ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_cycle",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActCycle >",
+      "months: u8",
+      "request_refund: bool"
+    ],
+    "attributes": [],
+    "body": [
+      "let g = & mut ctx . accounts . guild ;",
+      "let mut total = g . monthly_due ;",
+      "let mut k = 1u8 ;",
+      "while k < months",
+      "{",
+      "let add = if k >= 2",
+      "{",
+      "g . monthly_due . saturating_mul (9) / 10 } else { g . monthly_due } ;",
+      "total = total . saturating_add (add) ;",
+      "k = k . saturating_add (1) ;",
+      "}",
+      "if request_refund",
+      "{",
+      "let mut rate = g . refund_rate_bps as u64 ;",
+      "if g . period_index % 2 == 0",
+      "{",
+      "rate = rate . saturating_sub (250) ;",
+      "} let give_back = total . saturating_mul (rate) / 10_000 ;",
+      "token :: transfer (ctx . accounts . treasury_to_member () , give_back) ? ;",
+      "g . net_collected = g . net_collected . saturating_sub (give_back) ;",
+      "} else",
+      "{",
+      "if g . soft_mode { token :: transfer (ctx . accounts . member_to_treasury () , total . saturating_div (2)) ? ;",
+      "token :: transfer (ctx . accounts . member_to_treasury () , total . saturating_div (2)) ? ;",
+      "} else",
+      "{",
+      "token :: transfer (ctx . accounts . member_to_treasury () , total) ? ;",
+      "} g . net_collected = g . net_collected . saturating_add (total) ;",
+      "}",
+      "g . period_index = g . period_index . saturating_add (1) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitGuild",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": "# [account (init , payer = leader , space = 8 + 32 + 8 + 2 + 8 + 8 + 1)]",
+        "field_type": "Account < 'info , GuildState >"
+      },
+      {
+        "name": "leader",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActCycle",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": "# [account (mut , has_one = leader)]",
+        "field_type": "Account < 'info , GuildState >"
+      },
+      {
+        "name": "leader",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "member_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "guild_treasury",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GuildState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "leader",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "monthly_due",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "refund_rate_bps",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "period_index",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "net_collected",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "soft_mode",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

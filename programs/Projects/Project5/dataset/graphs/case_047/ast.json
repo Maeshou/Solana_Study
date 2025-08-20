@@ -1,33 +1,214 @@
 [
   {
-    "name": "refresh_reserve",
+    "name": "init_loom",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx047 >"
+      "ctx: Context < InitLoomHash >",
+      "limit: u32"
     ],
     "attributes": [],
     "body": [
-      "let a = & ctx . accounts . first ;",
-      "let b = & ctx . accounts . second ;",
-      "msg ! (\"Account A: {}\" , a . key ()) ;",
-      "msg ! (\"Account B: {}\" , b . key ()) ;",
+      "let a = & mut ctx . accounts ;",
+      "a . loom . artist = a . artist . key () ;",
+      "a . loom . limit = limit ;",
+      "a . loom . state = Draft ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx047",
+    "name": "weave",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < DoWeave >",
+      "passes: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let a = & mut ctx . accounts ;",
+      "for i in 0 .. passes",
+      "{",
+      "let seed = [& a . loom . artist . as_ref () , & a . palette . hues . to_le_bytes () , & i . to_le_bytes ()] ;",
+      "let h = hashv (& seed) ;",
+      "let bump = u16 :: from_le_bytes ([h . 0 [0] , h . 0 [1]]) as u32 % 97 + 3 ;",
+      "a . thread_a . strands = a . thread_a . strands . wrapping_add (bump) ;",
+      "a . thread_b . strands = a . thread_b . strands . wrapping_add (bump ^ 0x55) ;",
+      "a . palette . hues = a . palette . hues . rotate_left ((bump % 13) + 1) ;",
+      "a . log . mixes = a . log . mixes . wrapping_add (1) ;",
+      "}",
+      "let sum = a . thread_a . strands . wrapping_add (a . thread_b . strands) ;",
+      "if sum > a . loom . limit",
+      "{",
+      "a . loom . state = Seal ;",
+      "a . log . events = a . log . events . wrapping_add (2) ;",
+      "a . palette . hues ^= 0xA5A5_5A5A ;",
+      "a . thread_b . strands = a . thread_b . strands ^ (a . thread_a . strands >> 1) ;",
+      "msg ! (\"sealed: events+2, palette xor, cross mask\") ;",
+      "} else",
+      "{",
+      "a . loom . state = Flow ;",
+      "a . thread_a . strands = a . thread_a . strands . rotate_left (2) ;",
+      "a . thread_b . strands = a . thread_b . strands . rotate_right (3) ;",
+      "a . log . mixes = a . log . mixes . wrapping_add (1) ;",
+      "msg ! (\"flow: rotate strands, mixes+1\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitLoomHash",
     "node_type": "struct",
     "fields": [
       {
-        "name": "first",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "loom",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , HashLoom >"
       },
       {
-        "name": "second",
+        "name": "thread_a",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4)]",
+        "field_type": "Account < 'info , Thread >"
+      },
+      {
+        "name": "thread_b",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4)]",
+        "field_type": "Account < 'info , Thread >"
+      },
+      {
+        "name": "palette",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4 , seeds = [b\"palette\" , artist . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , PaletteHash >"
+      },
+      {
+        "name": "log",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4 + 4)]",
+        "field_type": "Account < 'info , MixLog >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "artist",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DoWeave",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "loom",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , HashLoom >"
+      },
+      {
+        "name": "thread_a",
+        "attribute": "# [account (mut , constraint = thread_a . key () != thread_b . key () @ SwErr :: Dup , constraint = thread_a . key () != palette . key () @ SwErr :: Dup)]",
+        "field_type": "Account < 'info , Thread >"
+      },
+      {
+        "name": "thread_b",
+        "attribute": "# [account (mut , constraint = thread_b . key () != palette . key () @ SwErr :: Dup)]",
+        "field_type": "Account < 'info , Thread >"
+      },
+      {
+        "name": "palette",
+        "attribute": "# [account (mut , seeds = [b\"palette\" , artist . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , PaletteHash >"
+      },
+      {
+        "name": "log",
+        "attribute": "# [account (mut , constraint = log . key () != palette . key () @ SwErr :: Dup)]",
+        "field_type": "Account < 'info , MixLog >"
+      },
+      {
+        "name": "artist",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "HashLoom",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "artist",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "limit",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "state",
+        "attribute": null,
+        "field_type": "LoomState"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Thread",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "strands",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PaletteHash",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "hues",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MixLog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "mixes",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "events",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

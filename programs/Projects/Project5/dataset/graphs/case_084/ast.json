@@ -1,40 +1,224 @@
 [
   {
-    "name": "open_futures",
+    "name": "init_hive",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx084 >",
-      "amount: u64"
+      "ctx: Context < InitHive >",
+      "nectar: u32"
     ],
     "attributes": [],
     "body": [
-      "let src = & mut ctx . accounts . account_src ;",
-      "let dst = & mut ctx . accounts . account_dst ;",
-      "let before = * * src . to_account_info () . try_borrow_lamports () ? ;",
-      "* * src . to_account_info () . try_borrow_mut_lamports () ? = before . saturating_sub (amount) ;",
-      "* * dst . to_account_info () . try_borrow_mut_lamports () ? += amount ;",
+      "let h = & mut ctx . accounts . hive ;",
+      "h . owner = ctx . accounts . keeper . key () ;",
+      "h . nectar = nectar ;",
+      "h . stage = Build ;",
+      "let a = & mut ctx . accounts . frame_a ;",
+      "let b = & mut ctx . accounts . frame_b ;",
+      "let lg = & mut ctx . accounts . ledger ;",
+      "a . hive = h . key () ;",
+      "a . cell = (nectar & 7) as u8 ;",
+      "a . honey = nectar + 13 ;",
+      "b . hive = h . key () ;",
+      "b . cell = ((nectar >> 2) & 7) as u8 ;",
+      "b . honey = nectar . rotate_left (3) + 7 ;",
+      "lg . hive = h . key () ;",
+      "lg . cell = 9 ;",
+      "lg . frames = 0 ;",
+      "lg . chaos = nectar as u64 ^ 0x55AA_33CC ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx084",
+    "name": "forage",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Forage >",
+      "days: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let h = & mut ctx . accounts . hive ;",
+      "let a = & mut ctx . accounts . frame_a ;",
+      "let b = & mut ctx . accounts . frame_b ;",
+      "let lg = & mut ctx . accounts . ledger ;",
+      "for i in 0 .. days",
+      "{",
+      "let r = ((a . honey ^ b . honey) as u64) . wrapping_mul (11400714819323198485) ;",
+      "a . honey = a . honey . checked_add (((r & 31) as u32) + 2) . unwrap_or (u32 :: MAX) ;",
+      "b . honey = b . honey . saturating_add ((((r >> 5) & 31) as u32) + 3) ;",
+      "lg . frames = lg . frames . saturating_add (1) ;",
+      "lg . chaos ^= r . rotate_left ((i % 13) as u32) ;",
+      "}",
+      "let total = a . honey + b . honey ;",
+      "if total > h . nectar * 5",
+      "{",
+      "h . stage = Winter ;",
+      "a . cell ^= 1 ;",
+      "b . cell = b . cell . saturating_add (1) ;",
+      "lg . cell = lg . cell . saturating_add (1) ;",
+      "msg ! (\"winter: cell tweaks & ledger move\") ;",
+      "} else",
+      "{",
+      "h . stage = Harvest ;",
+      "a . honey = a . honey . saturating_add (9) ;",
+      "b . honey = b . honey / 2 + 11 ;",
+      "lg . chaos ^= 0x0F0F_F0F0 ;",
+      "msg ! (\"harvest: adjust honey & chaos flip\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitHive",
     "node_type": "struct",
     "fields": [
       {
-        "name": "account_src",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "hive",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Hive >"
       },
       {
-        "name": "account_dst",
+        "name": "frame_a",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Frame >"
+      },
+      {
+        "name": "frame_b",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Frame >"
+      },
+      {
+        "name": "ledger",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 8 + 8)]",
+        "field_type": "Account < 'info , HiveLog >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "keeper",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
       },
       {
         "name": "system_program",
         "attribute": null,
         "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Forage",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "hive",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Hive >"
+      },
+      {
+        "name": "frame_a",
+        "attribute": "# [account (mut , has_one = hive , constraint = frame_a . cell != frame_b . cell @ BeeErr :: Dup)]",
+        "field_type": "Account < 'info , Frame >"
+      },
+      {
+        "name": "frame_b",
+        "attribute": "# [account (mut , has_one = hive , constraint = frame_b . cell != ledger . cell @ BeeErr :: Dup)]",
+        "field_type": "Account < 'info , Frame >"
+      },
+      {
+        "name": "ledger",
+        "attribute": "# [account (mut , has_one = hive)]",
+        "field_type": "Account < 'info , HiveLog >"
+      },
+      {
+        "name": "keeper",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Hive",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "nectar",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "stage",
+        "attribute": null,
+        "field_type": "HiveStage"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Frame",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "hive",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "cell",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "honey",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "HiveLog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "hive",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "cell",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "frames",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "chaos",
+        "attribute": null,
+        "field_type": "u64"
       }
     ],
     "inputs": null,

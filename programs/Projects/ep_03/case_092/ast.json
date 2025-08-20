@@ -1,0 +1,190 @@
+[
+  {
+    "name": "deposit_liquidity",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyPool >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" ユーザーがプールに流動性を預けるが、\"]",
+      "# [doc = \" pool_account.owner と ctx.accounts.user.key() の一致検証がない\"]"
+    ],
+    "body": [
+      "let pool = & mut ctx . accounts . pool_account ;",
+      "let user_bal = & mut ctx . accounts . user_balance ;",
+      "debit_user (user_bal , amount) ? ;",
+      "credit_pool (pool , amount) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "withdraw_liquidity",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyPool >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" ユーザーがプールから流動性を引き出すが、\"]",
+      "# [doc = \" pool_account.owner と ctx.accounts.user.key() の一致検証がない\"]"
+    ],
+    "body": [
+      "let pool = & mut ctx . accounts . pool_account ;",
+      "let user_bal = & mut ctx . accounts . user_balance ;",
+      "debit_pool (pool , amount) ? ;",
+      "credit_user (user_bal , amount) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "debit_user",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "user_bal: & mut BalanceAccount",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" ユーザー残高を減らすヘルパー\"]"
+    ],
+    "body": [
+      "user_bal . balance = user_bal . balance . checked_sub (amount) . unwrap () ;",
+      "user_bal . debit_count = user_bal . debit_count . saturating_add (1) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "credit_user",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "user_bal: & mut BalanceAccount",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" ユーザー残高を増やすヘルパー\"]"
+    ],
+    "body": [
+      "user_bal . balance = user_bal . balance . saturating_add (amount) ;",
+      "user_bal . credit_count = user_bal . credit_count . saturating_add (1) ;"
+    ]
+  },
+  {
+    "name": "debit_pool",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "pool: & mut PoolAccount",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" プール残高を減らすヘルパー\"]"
+    ],
+    "body": [
+      "pool . total_liquidity = pool . total_liquidity . checked_sub (amount) . unwrap () ;",
+      "pool . withdraw_count = pool . withdraw_count . saturating_add (1) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "credit_pool",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "pool: & mut PoolAccount",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" プール残高を増やすヘルパー\"]"
+    ],
+    "body": [
+      "pool . total_liquidity = pool . total_liquidity . saturating_add (amount) ;",
+      "pool . deposit_count = pool . deposit_count . saturating_add (1) ;"
+    ]
+  },
+  {
+    "name": "ModifyPool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool_account",
+        "attribute": "# [account (mut)] # [doc = \" 本来は `#[account(has_one = owner)]` を指定して所有者照合を行うべき\"]",
+        "field_type": "Account < 'info , PoolAccount >"
+      },
+      {
+        "name": "user_balance",
+        "attribute": "# [doc = \" ユーザーの残高アカウント（流動性操作対象）\"] # [account (mut)]",
+        "field_type": "Account < 'info , BalanceAccount >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 操作をリクエストするユーザー（署名者）\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PoolAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 本来このプールを管理するべきユーザーの Pubkey\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "total_liquidity",
+        "attribute": "# [doc = \" プールに預けられた総流動性\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "deposit_count",
+        "attribute": "# [doc = \" 累計入金回数\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "withdraw_count",
+        "attribute": "# [doc = \" 累計出金回数\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BalanceAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 本来この残高を所有するべきユーザーの Pubkey\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "balance",
+        "attribute": "# [doc = \" ユーザーの保有残高\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "debit_count",
+        "attribute": "# [doc = \" 預け入れ（デビット）操作回数\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "credit_count",
+        "attribute": "# [doc = \" 引き出し（クレジット）操作回数\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

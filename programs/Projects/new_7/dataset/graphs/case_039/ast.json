@@ -1,0 +1,186 @@
+[
+  {
+    "name": "create",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Create >"
+    ],
+    "attributes": [],
+    "body": [
+      "let p = & mut ctx . accounts . profile ;",
+      "p . owner = ctx . accounts . owner . key () ;",
+      "p . pref = ctx . accounts . owner . key () ;",
+      "p . activity = 0 ;",
+      "p . nonce = 1 ;",
+      "let mut z = 0u8 ;",
+      "while z < 5",
+      "{",
+      "p . activity = p . activity . saturating_add ((z as u32) + 1) ;",
+      "z = z . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "set_pref",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SetPref >",
+      "pref: Pubkey"
+    ],
+    "attributes": [],
+    "body": [
+      "let p = & mut ctx . accounts . profile ;",
+      "require ! (p . owner == ctx . accounts . owner . key () , Errs :: Owner) ;",
+      "p . pref = pref ;",
+      "p . nonce = p . nonce . saturating_add (1) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "pay",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Pay >",
+      "base: u64",
+      "label: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let p = & mut ctx . accounts . profile ;",
+      "require ! (p . owner == ctx . accounts . owner . key () , Errs :: Owner) ;",
+      "let mut w : u64 = 6 ;",
+      "let b = label . as_bytes () ;",
+      "let mut i = 0usize ;",
+      "while i < b . len ()",
+      "{",
+      "w = w . saturating_add ((b [i] as u64) % 9 + 1) ;",
+      "if i % 3 == 0",
+      "{",
+      "p . activity = p . activity . saturating_add (1) ;",
+      "} i += 1 ;",
+      "}",
+      "let mut amt = base . saturating_mul (w) ;",
+      "let mut bump = 0u64 ;",
+      "let mut s = 0u8 ;",
+      "while s < 4",
+      "{",
+      "bump = bump . saturating_add ((s as u64) + ((p . nonce % 5) as u64)) ;",
+      "s = s . saturating_add (1) ;",
+      "}",
+      "amt = amt . saturating_add (bump) ;",
+      "let ix = spl_token :: instruction :: transfer (p . pref , ctx . accounts . vault . key () , ctx . accounts . to_ata . key () , ctx . accounts . owner . key () , & [] , amt ,) ? ;",
+      "invoke (& ix , & [ctx . accounts . vault . to_account_info () , ctx . accounts . to_ata . to_account_info () , ctx . accounts . owner . to_account_info () ,]) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Profile",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "pref",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "activity",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "nonce",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Create",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "profile",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 32 + 4 + 4)]",
+        "field_type": "Account < 'info , Profile >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SetPref",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "profile",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Profile >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Pay",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "profile",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Profile >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "to_ata",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

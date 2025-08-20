@@ -1,43 +1,182 @@
 [
   {
-    "name": "update_lending_market",
+    "name": "init_studio",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx049 >",
-      "amount: u64"
+      "ctx: Context < InitStudio >",
+      "limit: u32"
     ],
     "attributes": [],
     "body": [
-      "let cpi_accounts = Transfer { from : ctx . accounts . from_token . to_account_info () , to : ctx . accounts . to_token . to_account_info () , authority : ctx . accounts . authority . to_account_info () , } ;",
-      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
-      "token :: transfer (cpi_ctx , amount) ? ;",
+      "let p = & mut ctx . accounts ;",
+      "p . studio . owner = p . owner . key () ;",
+      "p . studio . limit = limit ;",
+      "p . studio . mode = Gradient ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx049",
+    "name": "tint",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Tint >",
+      "steps: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let p = & mut ctx . accounts ;",
+      "for i in 0 .. steps",
+      "{",
+      "let h = hashv (& [p . studio . owner . as_ref () , & p . avatar . hue . to_le_bytes () , & i . to_le_bytes ()]) ;",
+      "let dv = (u16 :: from_le_bytes ([h . 0 [0] , h . 0 [1]]) % 181 + 7) as u32 ;",
+      "p . avatar . hue = p . avatar . hue . rotate_left ((dv % 17) + 1) ;",
+      "p . avatar . sat = p . avatar . sat . wrapping_add ((dv & 0x7F) as u32) ;",
+      "p . log . strokes = p . log . strokes . wrapping_add (1) ;",
+      "}",
+      "if p . avatar . sat > p . studio . limit",
+      "{",
+      "p . studio . mode = Mono ;",
+      "p . log . badges = p . log . badges . wrapping_add (3) ;",
+      "p . avatar . hue ^= 0x00FF_00FF ;",
+      "p . avatar . sat = p . avatar . sat / 2 + 11 ;",
+      "msg ! (\"mono: badges+3, hue xor, sat half+11\") ;",
+      "} else",
+      "{",
+      "p . studio . mode = Prism ;",
+      "p . log . strokes = p . log . strokes . wrapping_mul (2) ;",
+      "p . avatar . hue = p . avatar . hue . rotate_right (3) ;",
+      "p . avatar . sat = p . avatar . sat + 13 ;",
+      "msg ! (\"prism: strokes*2, hue rot, sat+13\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitStudio",
     "node_type": "struct",
     "fields": [
       {
-        "name": "from_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "studio",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1 , seeds = [b\"studio\" , owner . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , StudioHash >"
       },
       {
-        "name": "to_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "avatar",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4 + 4)]",
+        "field_type": "Account < 'info , AvatarHue >"
       },
       {
-        "name": "authority",
+        "name": "log",
+        "attribute": "# [account (init , payer = payer , space = 8 + 8 + 4)]",
+        "field_type": "Account < 'info , TintLog >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "owner",
         "attribute": null,
         "field_type": "Signer < 'info >"
       },
       {
-        "name": "token_program",
+        "name": "system_program",
         "attribute": null,
-        "field_type": "Program < 'info , Token >"
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Tint",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "studio",
+        "attribute": "# [account (mut , seeds = [b\"studio\" , owner . key () . as_ref ()] , bump , has_one = owner)]",
+        "field_type": "Account < 'info , StudioHash >"
+      },
+      {
+        "name": "avatar",
+        "attribute": "# [account (mut , constraint = avatar . key () != studio . key () @ AphErr :: Dup , constraint = avatar . key () != log . key () @ AphErr :: Dup)]",
+        "field_type": "Account < 'info , AvatarHue >"
+      },
+      {
+        "name": "log",
+        "attribute": "# [account (mut , constraint = log . key () != studio . key () @ AphErr :: Dup)]",
+        "field_type": "Account < 'info , TintLog >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "StudioHash",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "limit",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "mode",
+        "attribute": null,
+        "field_type": "PaintMode"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AvatarHue",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "hue",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "sat",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TintLog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "strokes",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "badges",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

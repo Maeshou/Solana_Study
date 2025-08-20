@@ -1,40 +1,186 @@
 [
   {
-    "name": "deposit_to_vault",
+    "name": "init_raid",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx015 >",
-      "amount: u64"
+      "ctx: Context < InitRaid >",
+      "limit: u32"
     ],
     "attributes": [],
     "body": [
-      "let src = & mut ctx . accounts . account_src ;",
-      "let dst = & mut ctx . accounts . account_dst ;",
-      "let before = * * src . to_account_info () . try_borrow_lamports () ? ;",
-      "* * src . to_account_info () . try_borrow_mut_lamports () ? = before . saturating_sub (amount) ;",
-      "* * dst . to_account_info () . try_borrow_mut_lamports () ? += amount ;",
+      "ctx . accounts . raid . leader = ctx . accounts . captain . key () ;",
+      "ctx . accounts . raid . limit = limit ;",
+      "ctx . accounts . raid . active = true ;",
+      "ctx . accounts . roster . count = 0 ;",
+      "ctx . accounts . roster . ready = false ;",
+      "ctx . accounts . loot . total = 0 ;",
+      "ctx . accounts . loot . boxes = 0 ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx015",
+    "name": "enlist",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Enlist >",
+      "add: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "require ! (ctx . accounts . raid . key () != ctx . accounts . roster . key () , RPerr :: Dup) ;",
+      "require ! (ctx . accounts . raid . key () != ctx . accounts . loot . key () , RPerr :: Dup) ;",
+      "require ! (ctx . accounts . roster . key () != ctx . accounts . loot . key () , RPerr :: Dup) ;",
+      "let mut i = 0 ;",
+      "while i < add",
+      "{",
+      "ctx . accounts . roster . count = ctx . accounts . roster . count . saturating_add (1) ;",
+      "ctx . accounts . loot . total = ctx . accounts . loot . total . saturating_add (1) ;",
+      "ctx . accounts . loot . boxes = ctx . accounts . loot . boxes . saturating_add (0) ;",
+      "i += 1 ;",
+      "}",
+      "if ctx . accounts . roster . count > ctx . accounts . raid . limit",
+      "{",
+      "ctx . accounts . raid . active = false ;",
+      "ctx . accounts . roster . ready = true ;",
+      "ctx . accounts . loot . boxes = ctx . accounts . loot . boxes . saturating_add (3) ;",
+      "msg ! (\"too many;",
+      "locked\") ;",
+      "} else",
+      "{",
+      "ctx . accounts . raid . active = true ;",
+      "ctx . accounts . roster . ready = false ;",
+      "ctx . accounts . loot . total = ctx . accounts . loot . total . saturating_add (1) ;",
+      "msg ! (\"enlisted\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitRaid",
     "node_type": "struct",
     "fields": [
       {
-        "name": "account_src",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "raid",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1 , seeds = [b\"raid\" , payer . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Raid >"
       },
       {
-        "name": "account_dst",
+        "name": "roster",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4 + 1 , seeds = [b\"roster\" , payer . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Roster >"
+      },
+      {
+        "name": "loot",
+        "attribute": "# [account (init , payer = payer , space = 8 + 8 + 4 , seeds = [b\"loot\" , payer . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Loot >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "captain",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
       },
       {
         "name": "system_program",
         "attribute": null,
         "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Enlist",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "raid",
+        "attribute": "# [account (mut , seeds = [b\"raid\" , payer . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Raid >"
+      },
+      {
+        "name": "roster",
+        "attribute": "# [account (mut , seeds = [b\"roster\" , payer . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Roster >"
+      },
+      {
+        "name": "loot",
+        "attribute": "# [account (mut , seeds = [b\"loot\" , payer . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Loot >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [doc = \" CHECK: seeds固定\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Raid",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "leader",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "limit",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "active",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Roster",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "ready",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Loot",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "total",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "boxes",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

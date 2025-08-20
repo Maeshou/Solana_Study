@@ -1,57 +1,48 @@
 [
   {
-    "name": "SwapCtxigyw",
-    "node_type": "struct",
-    "fields": [
-      {
-        "name": "pool_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
-      },
-      {
-        "name": "user",
-        "attribute": "# [account (mut)]",
-        "field_type": "Signer < 'info >"
-      },
-      {
-        "name": "system_program",
-        "attribute": null,
-        "field_type": "Program < 'info , System >"
-      }
-    ],
-    "inputs": null,
-    "attributes": null,
-    "body": null
-  },
-  {
-    "name": "DataAccount",
-    "node_type": "struct",
-    "fields": [
-      {
-        "name": "data",
-        "attribute": null,
-        "field_type": "u64"
-      }
-    ],
-    "inputs": null,
-    "attributes": null,
-    "body": null
-  },
-  {
-    "name": "swap",
+    "name": "transfer_tokens",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < SwapCtxigyw >",
+      "ctx: Context < TransferTokens >",
       "amount: u64"
     ],
     "attributes": [],
     "body": [
-      "let acct = & mut ctx . accounts . pool_account ;",
-      "let temp = acct . data ;",
-      "acct . data = temp . checked_mul (2) . unwrap () ;",
-      "msg ! (\"Executed swap logic\") ;",
-      "Ok (())"
+      "require ! (ctx . accounts . from . owner == & token :: ID , ErrorCode :: InvalidTokenAccountOwner) ;",
+      "require ! (ctx . accounts . to . owner == & token :: ID , ErrorCode :: InvalidTokenAccountOwner) ;",
+      "let transfer_instruction = Transfer { from : ctx . accounts . from . to_account_info () , to : ctx . accounts . to . to_account_info () , authority : ctx . accounts . authority . to_account_info () , } ;",
+      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , transfer_instruction ,) ;",
+      "token :: transfer (cpi_ctx , amount)"
     ]
+  },
+  {
+    "name": "TransferTokens",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "from",
+        "attribute": "# [account (mut , constraint = from . owner == & token :: ID)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "to",
+        "attribute": "# [account (mut , constraint = to . owner == & token :: ID)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
   }
 ]

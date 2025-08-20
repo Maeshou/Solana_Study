@@ -1,0 +1,172 @@
+[
+  {
+    "name": "submit_document",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SubmitDocument >",
+      "title: String",
+      "content: String"
+    ],
+    "attributes": [
+      "# [doc = \" ドキュメントを提出\"]"
+    ],
+    "body": [
+      "let doc = & mut ctx . accounts . document ;",
+      "let now = ctx . accounts . clock . unix_timestamp ;",
+      "require ! (title . len () <= 64 , ErrorCode :: TitleTooLong) ;",
+      "require ! (content . len () <= 1024 , ErrorCode :: ContentTooLong) ;",
+      "require ! (ctx . accounts . requester . key () != ctx . accounts . approver . key () , ErrorCode :: SameApprover) ;",
+      "doc . owner = ctx . accounts . requester . key () ;",
+      "doc . approver = ctx . accounts . approver . key () ;",
+      "doc . title = title ;",
+      "doc . content = content ;",
+      "doc . status = Status :: Pending as u8 ;",
+      "doc . submitted_at = now ;",
+      "doc . reviewed_at = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "approve_document",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ReviewDocument >"
+    ],
+    "attributes": [
+      "# [doc = \" ドキュメントを承認\"]"
+    ],
+    "body": [
+      "let doc = & mut ctx . accounts . document ;",
+      "let now = ctx . accounts . clock . unix_timestamp ;",
+      "require ! (doc . approver == ctx . accounts . approver . key () , ErrorCode :: Unauthorized) ;",
+      "require ! (doc . status == Status :: Pending as u8 , ErrorCode :: InvalidStatus) ;",
+      "doc . status = Status :: Approved as u8 ;",
+      "doc . reviewed_at = now ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "reject_document",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ReviewDocument >"
+    ],
+    "attributes": [
+      "# [doc = \" ドキュメントを却下\"]"
+    ],
+    "body": [
+      "let doc = & mut ctx . accounts . document ;",
+      "let now = ctx . accounts . clock . unix_timestamp ;",
+      "require ! (doc . approver == ctx . accounts . approver . key () , ErrorCode :: Unauthorized) ;",
+      "require ! (doc . status == Status :: Pending as u8 , ErrorCode :: InvalidStatus) ;",
+      "doc . status = Status :: Rejected as u8 ;",
+      "doc . reviewed_at = now ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "SubmitDocument",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "document",
+        "attribute": "# [account (init , payer = requester , space = 8 + 32 + 32 + 4 + 64 + 4 + 1024 + 1 + 8 + 8)]",
+        "field_type": "Account < 'info , DocumentAccount >"
+      },
+      {
+        "name": "requester",
+        "attribute": "# [doc = \" 提出者\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "approver",
+        "attribute": "# [doc = \" 承認者として指定されるアカウント\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ReviewDocument",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "document",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , DocumentAccount >"
+      },
+      {
+        "name": "approver",
+        "attribute": "# [doc = \" 実際の承認者\"]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Clock >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DocumentAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "approver",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "title",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "content",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "status",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "submitted_at",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "reviewed_at",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

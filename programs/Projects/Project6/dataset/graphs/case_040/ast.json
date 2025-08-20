@@ -1,0 +1,326 @@
+[
+  {
+    "name": "advance_tournament_bracket",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AdvanceTournament >"
+    ],
+    "attributes": [],
+    "body": [
+      "let tournament = & mut ctx . accounts . tournament ;",
+      "let winner_profile = & mut ctx . accounts . winner_profile ;",
+      "let loser_profile = & mut ctx . accounts . loser_profile ;",
+      "require ! (matches ! (tournament . tournament_status , TournamentStatus :: InProgress) , TournamentError :: TournamentNotActive) ;",
+      "require ! (tournament . current_round < tournament . max_rounds , TournamentError :: TournamentCompleted) ;",
+      "let now = Clock :: get () ? . unix_timestamp ;",
+      "require ! (now >= tournament . round_start_time , TournamentError :: RoundNotStarted) ;",
+      "require ! (now <= tournament . round_end_time , TournamentError :: RoundExpired) ;",
+      "let mut winner_power : u64 = 0 ;",
+      "let mut loser_power : u64 = 0 ;",
+      "let multipliers : [u64 ; 3] = [150 , 100 , 75] ;",
+      "let mut wi = 0usize ;",
+      "while wi < winner_profile . equipped_items . len ()",
+      "{",
+      "let e = & winner_profile . equipped_items [wi] ;",
+      "let idx = e . kind_index () ;",
+      "let m = multipliers [idx] ;",
+      "winner_power = winner_power . checked_add (e . power_level . saturating_mul (m)) . unwrap () ;",
+      "wi += 1 ;",
+      "}",
+      "let mut li = 0usize ;",
+      "while li < loser_profile . equipped_items . len ()",
+      "{",
+      "let e = & loser_profile . equipped_items [li] ;",
+      "let idx = e . kind_index () ;",
+      "let m = multipliers [idx] ;",
+      "loser_power = loser_power . checked_add (e . power_level . saturating_mul (m)) . unwrap () ;",
+      "li += 1 ;",
+      "}",
+      "winner_power = winner_power . checked_add (winner_profile . skill_level . saturating_mul (200)) . unwrap () ;",
+      "loser_power = loser_power . checked_add (loser_profile . skill_level . saturating_mul (200)) . unwrap () ;",
+      "let diff = winner_power . saturating_sub (loser_power) ;",
+      "let mut margin = VictoryType :: Narrow ;",
+      "if diff > 500",
+      "{",
+      "margin = VictoryType :: Clear ;",
+      "}",
+      "if diff > 1000",
+      "{",
+      "margin = VictoryType :: Decisive ;",
+      "}",
+      "let base_reward = tournament . prize_pool / (tournament . remaining_participants as u64) ;",
+      "let mut victory_bonus = base_reward ;",
+      "if let VictoryType :: Clear = margin",
+      "{",
+      "victory_bonus = base_reward . checked_mul (125) . unwrap () / 100 ;",
+      "}",
+      "if let VictoryType :: Decisive = margin",
+      "{",
+      "victory_bonus = base_reward . checked_mul (150) . unwrap () / 100 ;",
+      "}",
+      "let round_multiplier = tournament . current_round . checked_add (1) . unwrap () ;",
+      "let final_reward = victory_bonus . checked_mul (round_multiplier as u64) . unwrap () ;",
+      "winner_profile . tournament_earnings = winner_profile . tournament_earnings . checked_add (final_reward) . unwrap () ;",
+      "winner_profile . wins = winner_profile . wins . saturating_add (1) ;",
+      "winner_profile . current_win_streak = winner_profile . current_win_streak . saturating_add (1) ;",
+      "loser_profile . losses = loser_profile . losses . saturating_add (1) ;",
+      "loser_profile . current_win_streak = 0 ;",
+      "loser_profile . elimination_round = tournament . current_round ;",
+      "if winner_profile . current_win_streak >= 5",
+      "{",
+      "let s = winner_profile . current_win_streak . saturating_mul (100) ;",
+      "winner_profile . tournament_earnings = winner_profile . tournament_earnings . saturating_add (s as u64) ;",
+      "}",
+      "tournament . remaining_participants = tournament . remaining_participants . saturating_sub (1) ;",
+      "tournament . completed_matches = tournament . completed_matches . saturating_add (1) ;",
+      "tournament . total_prize_distributed = tournament . total_prize_distributed . saturating_add (final_reward) ;",
+      "let matches_per_round = tournament . remaining_participants / 2 ;",
+      "if tournament . completed_matches >= matches_per_round",
+      "{",
+      "tournament . current_round = tournament . current_round . saturating_add (1) ;",
+      "tournament . completed_matches = 0 ;",
+      "tournament . round_start_time = now + 1800 ;",
+      "tournament . round_end_time = tournament . round_start_time + 3600 ;",
+      "}",
+      "if tournament . remaining_participants <= 2",
+      "{",
+      "if tournament . current_round >= tournament . max_rounds",
+      "{",
+      "tournament . tournament_status = TournamentStatus :: Finals ;",
+      "tournament . champion = winner_profile . player ;",
+      "let champion_bonus = tournament . prize_pool / 4 ;",
+      "winner_profile . tournament_earnings = winner_profile . tournament_earnings . saturating_add (champion_bonus) ;",
+      "winner_profile . championships_won = winner_profile . championships_won . saturating_add (1) ;",
+      "}",
+      "}",
+      "emit ! (MatchCompleted { tournament_id : tournament . tournament_id , winner : winner_profile . player , loser : loser_profile . player , round : tournament . current_round , victory_type : margin . clone () , reward_earned : final_reward , }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "AdvanceTournament",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "tournament",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Tournament >"
+      },
+      {
+        "name": "winner_profile",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , PlayerProfile >"
+      },
+      {
+        "name": "loser_profile",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , PlayerProfile >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MatchCompleted",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "tournament_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "winner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "loser",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "round",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "victory_type",
+        "attribute": null,
+        "field_type": "VictoryType"
+      },
+      {
+        "name": "reward_earned",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Tournament",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "tournament_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "tournament_name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "tournament_status",
+        "attribute": null,
+        "field_type": "TournamentStatus"
+      },
+      {
+        "name": "max_participants",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "remaining_participants",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "current_round",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "max_rounds",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "prize_pool",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_prize_distributed",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "completed_matches",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "round_start_time",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "round_end_time",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "champion",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PlayerProfile",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "player",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "player_name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "skill_level",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "wins",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "losses",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "current_win_streak",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "championships_won",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "tournament_earnings",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "elimination_round",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "equipped_items",
+        "attribute": null,
+        "field_type": "Vec < Equipment >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Equipment",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "item_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "equipment_type",
+        "attribute": null,
+        "field_type": "EquipmentType"
+      },
+      {
+        "name": "power_level",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "enhancement_level",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

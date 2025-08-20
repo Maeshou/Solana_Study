@@ -1,0 +1,184 @@
+[
+  {
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Init >",
+      "base: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . station ;",
+      "s . curator = ctx . accounts . curator . key () ;",
+      "s . hurdle = base ;",
+      "s . accept = 0 ;",
+      "s . reject = 0 ;",
+      "s . bucket = 0 ;",
+      "let mut i = 0u8 ;",
+      "while i < 6",
+      "{",
+      "if i % 2 == 0",
+      "{",
+      "s . bucket = s . bucket . saturating_add (3) ;",
+      "} else if s . bucket > 0",
+      "{",
+      "s . bucket = s . bucket . saturating_sub (1) ;",
+      "} i = i . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "submit_and_grant",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SubmitAndGrant >",
+      "title: String",
+      "shades: Vec < u8 >"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . station ;",
+      "require ! (s . curator == ctx . accounts . curator . key () , Errs :: Curator) ;",
+      "if title . len () as u16 >= s . hurdle",
+      "{",
+      "let mut acc : u64 = 0 ;",
+      "let mut p = 0usize ;",
+      "while p < shades . len ()",
+      "{",
+      "acc = acc . saturating_add ((shades [p] as u64) % 17 + 1) ;",
+      "if p % 3 == 0",
+      "{",
+      "s . bucket = s . bucket . saturating_add (1) ;",
+      "} p += 1 ;",
+      "} s . accept = s . accept . saturating_add (1) ;",
+      "let mut t = 0u8 ;",
+      "while t < 5",
+      "{",
+      "s . hurdle = s . hurdle . saturating_add (1) ;",
+      "if s . hurdle > 256",
+      "{",
+      "s . hurdle = 256 ;",
+      "} t = t . saturating_add (1) ;",
+      "} s . bucket = s . bucket . saturating_add ((acc % 50) as u32) ;",
+      "} else",
+      "{",
+      "let mut d = 0u8 ;",
+      "while d < 7",
+      "{",
+      "if s . hurdle > 1 { s . hurdle = s . hurdle . saturating_sub (1) ;",
+      "} if d % 2 == 0 && s . bucket > 0",
+      "{",
+      "s . bucket = s . bucket . saturating_sub (1) ;",
+      "} d = d . saturating_add (1) ;",
+      "} s . reject = s . reject . saturating_add (1) ;",
+      "}",
+      "let mut grant = (s . accept as u64) . saturating_mul (12) ;",
+      "let mut spread = 0u64 ;",
+      "let mut z = 0u8 ;",
+      "while z < 4",
+      "{",
+      "spread = spread . saturating_add (((s . bucket % 9) as u64) + (z as u64)) ;",
+      "z = z . saturating_add (1) ;",
+      "}",
+      "grant = grant . saturating_add (spread) ;",
+      "let ix = spl_token :: instruction :: transfer (ctx . accounts . token_program . key () , ctx . accounts . pool . key () , ctx . accounts . artist_ata . key () , ctx . accounts . curator . key () , & [] , grant ,) ? ;",
+      "invoke (& ix , & [ctx . accounts . pool . to_account_info () , ctx . accounts . artist_ata . to_account_info () , ctx . accounts . curator . to_account_info () ,] ,) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Station",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "curator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "hurdle",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "accept",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "reject",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "bucket",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Init",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "station",
+        "attribute": "# [account (init , payer = curator , space = 8 + 32 + 2 + 4 + 4 + 4)]",
+        "field_type": "Account < 'info , Station >"
+      },
+      {
+        "name": "curator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SubmitAndGrant",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "station",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Station >"
+      },
+      {
+        "name": "curator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "pool",
+        "attribute": "# [doc = \" CHECK:\"] # [account (mut)]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "artist_ata",
+        "attribute": "# [doc = \" CHECK:\"] # [account (mut)]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

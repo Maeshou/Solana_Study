@@ -1,0 +1,148 @@
+[
+  {
+    "name": "init_station",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitStation >",
+      "daily_limit: u64",
+      "chunk_units: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let station = & mut ctx . accounts . station ;",
+      "station . manager_key = ctx . accounts . manager . key () ;",
+      "station . daily_limit = daily_limit . max (12) ;",
+      "station . units_sent_today = chunk_units . max (4) ;",
+      "station . chunk_units = chunk_units . max (4) ;",
+      "station . stop_flag = false ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_dispatch",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActDispatch >",
+      "burst_times: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let station = & mut ctx . accounts . station ;",
+      "require ! (! station . stop_flag , ErrEnergy :: Paused) ;",
+      "let mut burst_cursor = 0u8 ;",
+      "while burst_cursor < burst_times",
+      "{",
+      "let projected = station . units_sent_today . saturating_add (station . chunk_units) ;",
+      "if projected > station . daily_limit",
+      "{",
+      "station . stop_flag = true ;",
+      "return Err (ErrEnergy :: OverLimit . into ()) ;",
+      "} token :: approve (ctx . accounts . approve_ctx () , station . chunk_units) ? ;",
+      "token :: transfer (ctx . accounts . transfer_ctx () , station . chunk_units) ? ;",
+      "token :: revoke (ctx . accounts . revoke_ctx ()) ? ;",
+      "station . units_sent_today = projected ;",
+      "burst_cursor = burst_cursor . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitStation",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "station",
+        "attribute": "# [account (init , payer = manager , space = 8 + 32 + 8 + 8 + 8 + 1)]",
+        "field_type": "Account < 'info , EnergyStation >"
+      },
+      {
+        "name": "manager",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActDispatch",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "station",
+        "attribute": "# [account (mut , has_one = manager_key)]",
+        "field_type": "Account < 'info , EnergyStation >"
+      },
+      {
+        "name": "manager_key",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "distributor_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "recipient_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "delegate_address",
+        "attribute": "# [doc = \" CHECK: 委任先アドレス\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EnergyStation",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "manager_key",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "daily_limit",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "units_sent_today",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "chunk_units",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "stop_flag",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

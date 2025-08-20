@@ -1,0 +1,170 @@
+[
+  {
+    "name": "init_pool",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitPool >",
+      "rate_numer: u64",
+      "rate_denom: u64"
+    ],
+    "attributes": [
+      "# [doc = \" プールを初期化：発行体署名必須\"]"
+    ],
+    "body": [
+      "let pool = & mut ctx . accounts . pool ;",
+      "pool . issuer = ctx . accounts . issuer . key () ;",
+      "pool . supply = 0 ;",
+      "pool . rate_numer = rate_numer ;",
+      "pool . rate_denom = rate_denom ;",
+      "msg ! (\"Pool initialized: rate = {}/{}\" , rate_numer , rate_denom) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "deposit_prizes",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < DepositPrizes >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 発行体が懸賞を供給（署名必須）\"]"
+    ],
+    "body": [
+      "require ! (amount > 0 , ErrorCode :: InvalidAmount) ;",
+      "require ! (ctx . accounts . issuer . is_signer , ErrorCode :: Unauthorized) ;",
+      "let pool = & mut ctx . accounts . pool ;",
+      "pool . supply = pool . supply . checked_add (amount) . unwrap () ;",
+      "* * ctx . accounts . issuer . to_account_info () . try_borrow_mut_lamports () ? -= amount ;",
+      "* * ctx . accounts . vault . to_account_info () . try_borrow_mut_lamports () ? += amount ;",
+      "msg ! (\"{} prizes deposited, total supply = {}\" , amount , pool . supply) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "withdraw_by_supply",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < WithdrawBySupply >"
+    ],
+    "attributes": [
+      "# [doc = \" 発行体が引き出し（署名必須）。\"]",
+      "# [doc = \" 供給量に応じた割合で引き出し可能。\"]"
+    ],
+    "body": [
+      "require ! (ctx . accounts . issuer . is_signer , ErrorCode :: Unauthorized) ;",
+      "let pool = & mut ctx . accounts . pool ;",
+      "let to_withdraw = pool . supply . checked_mul (pool . rate_numer) . unwrap () . checked_div (pool . rate_denom) . unwrap () ;",
+      "require ! (to_withdraw > 0 , ErrorCode :: NothingToWithdraw) ;",
+      "pool . supply = pool . supply . checked_sub (to_withdraw) . unwrap () ;",
+      "* * ctx . accounts . vault . to_account_info () . try_borrow_mut_lamports () ? -= to_withdraw ;",
+      "* * ctx . accounts . issuer . to_account_info () . try_borrow_mut_lamports () ? += to_withdraw ;",
+      "msg ! (\"{} lamports withdrawn by issuer (remaining supply = {})\" , to_withdraw , pool . supply) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitPool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": "# [doc = \" プール状態アカウントを初期化（PDA）\"] # [account (init , payer = issuer , space = 8 + 32 + 8 + 8 + 8 , seeds = [b\"prize_pool\" , issuer . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , PoolState >"
+      },
+      {
+        "name": "issuer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DepositPrizes",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": "# [doc = \" 既存プールアカウント（PDA）\"] # [account (mut , seeds = [b\"prize_pool\" , issuer . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , PoolState >"
+      },
+      {
+        "name": "issuer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "vault",
+        "attribute": "# [doc = \" プール用のLAMPORTS保管先（PDA）\"] # [account (mut , seeds = [b\"vault\" , pool . key () . as_ref ()] , bump)]",
+        "field_type": "SystemAccount < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "WithdrawBySupply",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": "# [account (mut , seeds = [b\"prize_pool\" , issuer . key () . as_ref ()] , bump , has_one = issuer)]",
+        "field_type": "Account < 'info , PoolState >"
+      },
+      {
+        "name": "issuer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "vault",
+        "attribute": "# [account (mut , seeds = [b\"vault\" , pool . key () . as_ref ()] , bump)]",
+        "field_type": "SystemAccount < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PoolState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "issuer",
+        "attribute": "# [doc = \" NFT発行体\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "supply",
+        "attribute": "# [doc = \" 供給された懸賞量\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "rate_numer",
+        "attribute": "# [doc = \" 引き出し比率 分子\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "rate_denom",
+        "attribute": "# [doc = \" 引き出し比率 分母\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

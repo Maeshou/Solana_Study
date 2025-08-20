@@ -1,0 +1,226 @@
+[
+  {
+    "name": "create_community",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateCommunity >",
+      "community_id: u64",
+      "max_artists: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let community = & mut ctx . accounts . community ;",
+      "community . founder = ctx . accounts . founder . key () ;",
+      "community . community_id = community_id ;",
+      "community . artist_count = 0 ;",
+      "community . max_artists = max_artists ;",
+      "community . is_moderated = false ;",
+      "msg ! (\"Artist community {} created.\" , community . community_id) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "register_artist",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RegisterArtist >",
+      "artist_id: u32",
+      "initial_rating: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let artist = & mut ctx . accounts . artist ;",
+      "let community = & mut ctx . accounts . community ;",
+      "if community . artist_count < community . max_artists",
+      "{",
+      "artist . current_rating = initial_rating ;",
+      "artist . is_active = ArtistStatus :: Active ;",
+      "community . artist_count = community . artist_count . saturating_add (1) ;",
+      "msg ! (\"Artist",
+      "{",
+      "} registered successfully.\" , artist . artist_id) ;",
+      "} else",
+      "{",
+      "artist . is_active = ArtistStatus :: Inactive ;",
+      "msg ! (\"Community is full. Artist",
+      "{",
+      "} registration failed.\" , artist . artist_id) ;",
+      "}",
+      "artist . community = community . key () ;",
+      "artist . artist_id = artist_id ;",
+      "artist . wallet_address = ctx . accounts . artist_wallet . key () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "rate_artworks",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RateArtworks >",
+      "rating: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let artist1 = & mut ctx . accounts . artist1 ;",
+      "let artist2 = & mut ctx . accounts . artist2 ;",
+      "if matches ! (artist1 . is_active , ArtistStatus :: Active) && matches ! (artist2 . is_active , ArtistStatus :: Active)",
+      "{",
+      "artist1 . current_rating = artist1 . current_rating . saturating_add (rating) . min (255) ;",
+      "artist2 . current_rating = artist2 . current_rating . saturating_sub (rating) . max (0) ;",
+      "msg ! (\"Artist 1 rating increased, artist 2 rating decreased.\") ;",
+      "} else",
+      "{",
+      "msg ! (\"One or both artists are not active.\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CreateCommunity",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "community",
+        "attribute": "# [account (init , payer = founder , space = 8 + 32 + 8 + 4 + 4 + 1)]",
+        "field_type": "Account < 'info , ArtistCommunity >"
+      },
+      {
+        "name": "founder",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RegisterArtist",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "community",
+        "attribute": "# [account (mut , has_one = community)]",
+        "field_type": "Account < 'info , ArtistCommunity >"
+      },
+      {
+        "name": "artist",
+        "attribute": "# [account (init , payer = artist_wallet , space = 8 + 32 + 4 + 32 + 1 + 1)]",
+        "field_type": "Account < 'info , Artist >"
+      },
+      {
+        "name": "artist_wallet",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RateArtworks",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "community",
+        "attribute": "# [account (mut , has_one = community)]",
+        "field_type": "Account < 'info , ArtistCommunity >"
+      },
+      {
+        "name": "artist1",
+        "attribute": "# [account (mut , has_one = community)]",
+        "field_type": "Account < 'info , Artist >"
+      },
+      {
+        "name": "artist2",
+        "attribute": "# [account (mut , has_one = community)]",
+        "field_type": "Account < 'info , Artist >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ArtistCommunity",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "founder",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "community_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "artist_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "max_artists",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "is_moderated",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Artist",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "community",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "artist_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "wallet_address",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "current_rating",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "is_active",
+        "attribute": null,
+        "field_type": "ArtistStatus"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

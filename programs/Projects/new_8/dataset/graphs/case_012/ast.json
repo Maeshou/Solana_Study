@@ -1,0 +1,946 @@
+[
+  {
+    "name": "create_avatar",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateAvatar >",
+      "name: Vec < u8 >",
+      "genes: [u8 ; 8]",
+      "bump: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut n = name . clone () ;",
+      "if n . len () > 24",
+      "{",
+      "n . truncate (24) ;",
+      "}",
+      "let mut entropy : u32 = 1 ;",
+      "for (i , b) in n . iter () . enumerate ()",
+      "{",
+      "entropy = entropy . wrapping_mul (131) . wrapping_add ((* b as u32) . wrapping_mul (i as u32 + 5)) ;",
+      "}",
+      "let mut dna = genes ;",
+      "for k in 0 .. dna . len ()",
+      "{",
+      "if ! dna [k] . is_ascii_alphanumeric ()",
+      "{",
+      "dna [k] = b'0' + (k as u8 % 10) ;",
+      "}",
+      "}",
+      "let seeds = [& ctx . accounts . creator . key () . to_bytes () [..] , & n [..]] ;",
+      "let addr = Pubkey :: create_program_address (& seeds , & ctx . program_id , & [bump]) . map_err (| _ | error ! (GameErr :: PdaMismatch)) ? ;",
+      "if addr != ctx . accounts . avatar_cell . key ()",
+      "{",
+      "return Err (error ! (GameErr :: PdaMismatch)) ;",
+      "}",
+      "let rec = & mut ctx . accounts . avatar ;",
+      "rec . owner = ctx . accounts . creator . key () ;",
+      "rec . name = n ;",
+      "rec . genes = dna ;",
+      "rec . power = rec . power . wrapping_add (entropy as u64) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "upgrade_gear",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < UpgradeGear >",
+      "code: [u8 ; 6]",
+      "shard: u16",
+      "bump: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut c = code ;",
+      "for i in 0 .. c . len ()",
+      "{",
+      "if c [i] . is_ascii_lowercase ()",
+      "{",
+      "c [i] = c [i] - 32 ;",
+      "}",
+      "}",
+      "let mut shards = shard ;",
+      "if shards > 500",
+      "{",
+      "shards = 500 ;",
+      "}",
+      "let mut cost : u32 = 0 ;",
+      "for x in c . iter ()",
+      "{",
+      "cost = cost . wrapping_add (* x as u32) ;",
+      "}",
+      "let seeds = [& ctx . accounts . player . key () . to_bytes () [..] , & c [..]] ;",
+      "let addr = Pubkey :: create_program_address (& seeds , & ctx . program_id , & [bump]) . map_err (| _ | error ! (GameErr :: PdaMismatch)) ? ;",
+      "if addr != ctx . accounts . gear_cell . key ()",
+      "{",
+      "return Err (error ! (GameErr :: PdaMismatch)) ;",
+      "}",
+      "let g = & mut ctx . accounts . gear ;",
+      "g . player = ctx . accounts . player . key () ;",
+      "g . code = c ;",
+      "g . level = g . level . saturating_add (1) ;",
+      "g . shards_used = g . shards_used . saturating_add (shards as u32) ;",
+      "g . total_cost = g . total_cost . wrapping_add (cost as u64) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "log_raid",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < LogRaid >",
+      "boss_id: [u8 ; 4]",
+      "damage: u64",
+      "bump: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut bid = boss_id ;",
+      "for j in 0 .. bid . len ()",
+      "{",
+      "if ! bid [j] . is_ascii_digit ()",
+      "{",
+      "bid [j] = b'1' + (j as u8 % 7) ;",
+      "}",
+      "}",
+      "let mut dealt = damage ;",
+      "if dealt > 50_000_000",
+      "{",
+      "dealt = 50_000_000 ;",
+      "}",
+      "let mut checksum : u32 = 5381 ;",
+      "for b in bid . iter ()",
+      "{",
+      "checksum = ((checksum << 5) . wrapping_add (checksum)) ^ (* b as u32) ;",
+      "}",
+      "let seeds = [& ctx . accounts . attacker . key () . to_bytes () [..] , & bid [..]] ;",
+      "let addr = Pubkey :: create_program_address (& seeds , & ctx . program_id , & [bump]) . map_err (| _ | error ! (GameErr :: PdaMismatch)) ? ;",
+      "if addr != ctx . accounts . raid_cell . key ()",
+      "{",
+      "return Err (error ! (GameErr :: PdaMismatch)) ;",
+      "}",
+      "let r = & mut ctx . accounts . raid ;",
+      "r . attacker = ctx . accounts . attacker . key () ;",
+      "r . boss = bid ;",
+      "r . total_damage = r . total_damage . saturating_add (dealt) ;",
+      "r . checksum = r . checksum . wrapping_add (checksum) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "grant_energy",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < GrantEnergy >",
+      "track: Vec < u8 >",
+      "amount: u32",
+      "bump: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut t = track . clone () ;",
+      "if t . is_empty ()",
+      "{",
+      "t . extend_from_slice (b\"default\") ;",
+      "}",
+      "if t . len () > 32",
+      "{",
+      "t . truncate (32) ;",
+      "}",
+      "let mut eval : u64 = 1 ;",
+      "for b in t . iter ()",
+      "{",
+      "eval = eval . wrapping_mul (257) . wrapping_add (* b as u64) ;",
+      "}",
+      "let seeds = [& ctx . accounts . user . key () . to_bytes () [..] , & t [..]] ;",
+      "let addr = Pubkey :: create_program_address (& seeds , & ctx . program_id , & [bump]) . map_err (| _ | error ! (GameErr :: PdaMismatch)) ? ;",
+      "if addr != ctx . accounts . energy_cell . key ()",
+      "{",
+      "return Err (error ! (GameErr :: PdaMismatch)) ;",
+      "}",
+      "let mut add = amount ;",
+      "if add > 20000",
+      "{",
+      "add = 20000 ;",
+      "}",
+      "let e = & mut ctx . accounts . energy ;",
+      "e . user = ctx . accounts . user . key () ;",
+      "e . track = t ;",
+      "e . value = e . value . saturating_add (add) ;",
+      "e . metric = e . metric . wrapping_add (eval) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "craft_rune",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CraftRune >",
+      "pattern: [u8 ; 12]",
+      "fuel: u32",
+      "bump: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut p = pattern ;",
+      "let mut bias : u32 = 0 ;",
+      "for i in 0 .. p . len ()",
+      "{",
+      "if ! (p [i] . is_ascii_alphanumeric ())",
+      "{",
+      "p [i] = b'*' ;",
+      "} bias = bias . wrapping_add ((p [i] as u32) . wrapping_mul (i as u32 + 3)) ;",
+      "}",
+      "let mut f = fuel ;",
+      "if f > bias",
+      "{",
+      "f = bias ;",
+      "}",
+      "let seeds = [& ctx . accounts . alchemist . key () . to_bytes () [..] , & p [..]] ;",
+      "let addr = Pubkey :: create_program_address (& seeds , & ctx . program_id , & [bump]) . map_err (| _ | error ! (GameErr :: PdaMismatch)) ? ;",
+      "if addr != ctx . accounts . rune_cell . key ()",
+      "{",
+      "return Err (error ! (GameErr :: PdaMismatch)) ;",
+      "}",
+      "let r = & mut ctx . accounts . rune ;",
+      "r . alchemist = ctx . accounts . alchemist . key () ;",
+      "r . pattern = p ;",
+      "r . charge = r . charge . saturating_add (f) ;",
+      "r . bias = r . bias . wrapping_add (bias) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "feed_pet",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < FeedPet >",
+      "pet_tag: [u8 ; 6]",
+      "food: u16",
+      "bump: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut tag = pet_tag ;",
+      "for i in 0 .. tag . len ()",
+      "{",
+      "if ! tag [i] . is_ascii_uppercase ()",
+      "{",
+      "tag [i] = b'A' + (i as u8 % 26) ;",
+      "}",
+      "}",
+      "let mut calories = food as u32 ;",
+      "if calories > 1000",
+      "{",
+      "calories = 1000 ;",
+      "}",
+      "let seeds = [& ctx . accounts . caretaker . key () . to_bytes () [..] , & tag [..]] ;",
+      "let addr = Pubkey :: create_program_address (& seeds , & ctx . program_id , & [bump]) . map_err (| _ | error ! (GameErr :: PdaMismatch)) ? ;",
+      "if addr != ctx . accounts . pet_cell . key ()",
+      "{",
+      "return Err (error ! (GameErr :: PdaMismatch)) ;",
+      "}",
+      "let p = & mut ctx . accounts . pet ;",
+      "p . caretaker = ctx . accounts . caretaker . key () ;",
+      "p . tag = tag ;",
+      "p . growth = p . growth . saturating_add (calories) ;",
+      "p . mood = p . mood . wrapping_add ((calories as u16) . saturating_add (7)) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "record_lot",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RecordLot >",
+      "lot_id: [u8 ; 8]",
+      "price: u64",
+      "bump: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut id = lot_id ;",
+      "let mut code : u32 = 1469598103 ;",
+      "for b in id . iter ()",
+      "{",
+      "code = code ^ (* b as u32) ;",
+      "code = code . wrapping_mul (1099511) ;",
+      "}",
+      "let mut px = price ;",
+      "if px > 9_000_000_000",
+      "{",
+      "px = 9_000_000_000 ;",
+      "}",
+      "let seeds = [& ctx . accounts . trader . key () . to_bytes () [..] , & id [..]] ;",
+      "let addr = Pubkey :: create_program_address (& seeds , & ctx . program_id , & [bump]) . map_err (| _ | error ! (GameErr :: PdaMismatch)) ? ;",
+      "if addr != ctx . accounts . lot_cell . key ()",
+      "{",
+      "return Err (error ! (GameErr :: PdaMismatch)) ;",
+      "}",
+      "let l = & mut ctx . accounts . lot ;",
+      "l . trader = ctx . accounts . trader . key () ;",
+      "l . id = id ;",
+      "l . price_acc = l . price_acc . wrapping_add (px) ;",
+      "l . code = l . code . wrapping_add (code) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "progress_season",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ProgressSeason >",
+      "label: Vec < u8 >",
+      "delta: u32",
+      "bump: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut lab = label . clone () ;",
+      "if lab . len () > 20",
+      "{",
+      "lab . truncate (20) ;",
+      "}",
+      "for x in lab . iter_mut ()",
+      "{",
+      "if * x == b' '",
+      "{",
+      "* x = b'_' ;",
+      "}",
+      "}",
+      "let mut d = delta ;",
+      "if d > 10000",
+      "{",
+      "d = 10000 ;",
+      "}",
+      "let seeds = [& ctx . accounts . organizer . key () . to_bytes () [..] , & lab [..]] ;",
+      "let addr = Pubkey :: create_program_address (& seeds , & ctx . program_id , & [bump]) . map_err (| _ | error ! (GameErr :: PdaMismatch)) ? ;",
+      "if addr != ctx . accounts . season_cell . key ()",
+      "{",
+      "return Err (error ! (GameErr :: PdaMismatch)) ;",
+      "}",
+      "let s = & mut ctx . accounts . season ;",
+      "s . organizer = ctx . accounts . organizer . key () ;",
+      "s . label = lab ;",
+      "s . progress = s . progress . saturating_add (d) ;",
+      "s . flags = s . flags . wrapping_add (1) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "open_chest",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < OpenChest >",
+      "chest: [u8 ; 5]",
+      "seed: u32",
+      "bump: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut c = chest ;",
+      "let mut rng = seed . wrapping_mul (48271) . wrapping_add (1) ;",
+      "for i in 0 .. c . len ()",
+      "{",
+      "if ! c [i] . is_ascii_alphanumeric ()",
+      "{",
+      "c [i] = b'Z' - (i as u8) ;",
+      "} rng = rng . rotate_left ((i as u32) + 3) . wrapping_add (c [i] as u32) ;",
+      "}",
+      "let roll = (rng & 1023) as u16 ;",
+      "let seeds = [& ctx . accounts . hunter . key () . to_bytes () [..] , & c [..]] ;",
+      "let addr = Pubkey :: create_program_address (& seeds , & ctx . program_id , & [bump]) . map_err (| _ | error ! (GameErr :: PdaMismatch)) ? ;",
+      "if addr != ctx . accounts . chest_cell . key ()",
+      "{",
+      "return Err (error ! (GameErr :: PdaMismatch)) ;",
+      "}",
+      "let o = & mut ctx . accounts . opened ;",
+      "o . hunter = ctx . accounts . hunter . key () ;",
+      "o . chest = c ;",
+      "o . rolls = o . rolls . saturating_add (1) ;",
+      "o . score = o . score . wrapping_add (roll as u32) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "set_skin",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SetSkin >",
+      "avatar_key: [u8 ; 4]",
+      "tone: [u8 ; 3]",
+      "bump: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut key = avatar_key ;",
+      "for i in 0 .. key . len ()",
+      "{",
+      "if ! key [i] . is_ascii_digit ()",
+      "{",
+      "key [i] = b'3' ;",
+      "}",
+      "}",
+      "let lum = (tone [0] as u16 * 30 + tone [1] as u16 * 59 + tone [2] as u16 * 11) as u16 ;",
+      "let seeds = [& ctx . accounts . stylist . key () . to_bytes () [..] , & key [..]] ;",
+      "let addr = Pubkey :: create_program_address (& seeds , & ctx . program_id , & [bump]) . map_err (| _ | error ! (GameErr :: PdaMismatch)) ? ;",
+      "if addr != ctx . accounts . skin_cell . key ()",
+      "{",
+      "return Err (error ! (GameErr :: PdaMismatch)) ;",
+      "}",
+      "let s = & mut ctx . accounts . skin ;",
+      "s . stylist = ctx . accounts . stylist . key () ;",
+      "s . avatar_key = key ;",
+      "s . tone = tone ;",
+      "s . luma = lum ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CreateAvatar",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "avatar",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Avatar >"
+      },
+      {
+        "name": "avatar_cell",
+        "attribute": "# [doc = \" CHECK: bump の正規化を行わず検証\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "creator",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "UpgradeGear",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "gear",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Gear >"
+      },
+      {
+        "name": "gear_cell",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "player",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "LogRaid",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "raid",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Raid >"
+      },
+      {
+        "name": "raid_cell",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "attacker",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GrantEnergy",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "energy",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Energy >"
+      },
+      {
+        "name": "energy_cell",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CraftRune",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "rune",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Rune >"
+      },
+      {
+        "name": "rune_cell",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "alchemist",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "FeedPet",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pet",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Pet >"
+      },
+      {
+        "name": "pet_cell",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "caretaker",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RecordLot",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "lot",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Lot >"
+      },
+      {
+        "name": "lot_cell",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "trader",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ProgressSeason",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "season",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Season >"
+      },
+      {
+        "name": "season_cell",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "organizer",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "OpenChest",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "opened",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , ChestOpen >"
+      },
+      {
+        "name": "chest_cell",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "hunter",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SetSkin",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "skin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Skin >"
+      },
+      {
+        "name": "skin_cell",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "stylist",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Avatar",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "Vec < u8 >"
+      },
+      {
+        "name": "genes",
+        "attribute": null,
+        "field_type": "[u8 ; 8]"
+      },
+      {
+        "name": "power",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Gear",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "player",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "code",
+        "attribute": null,
+        "field_type": "[u8 ; 6]"
+      },
+      {
+        "name": "level",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "shards_used",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "total_cost",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Raid",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "attacker",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "boss",
+        "attribute": null,
+        "field_type": "[u8 ; 4]"
+      },
+      {
+        "name": "total_damage",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "checksum",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Energy",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "track",
+        "attribute": null,
+        "field_type": "Vec < u8 >"
+      },
+      {
+        "name": "value",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "metric",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Rune",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "alchemist",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "pattern",
+        "attribute": null,
+        "field_type": "[u8 ; 12]"
+      },
+      {
+        "name": "charge",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "bias",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Pet",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "caretaker",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "tag",
+        "attribute": null,
+        "field_type": "[u8 ; 6]"
+      },
+      {
+        "name": "growth",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "mood",
+        "attribute": null,
+        "field_type": "u16"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Lot",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "trader",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "id",
+        "attribute": null,
+        "field_type": "[u8 ; 8]"
+      },
+      {
+        "name": "price_acc",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "code",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Season",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "organizer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "label",
+        "attribute": null,
+        "field_type": "Vec < u8 >"
+      },
+      {
+        "name": "progress",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "flags",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ChestOpen",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "hunter",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "chest",
+        "attribute": null,
+        "field_type": "[u8 ; 5]"
+      },
+      {
+        "name": "rolls",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "score",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Skin",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "stylist",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "avatar_key",
+        "attribute": null,
+        "field_type": "[u8 ; 4]"
+      },
+      {
+        "name": "tone",
+        "attribute": null,
+        "field_type": "[u8 ; 3]"
+      },
+      {
+        "name": "luma",
+        "attribute": null,
+        "field_type": "u16"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

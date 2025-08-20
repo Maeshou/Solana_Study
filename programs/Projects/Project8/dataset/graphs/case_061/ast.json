@@ -1,0 +1,151 @@
+[
+  {
+    "name": "create_ring",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateRing >",
+      "power: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let r = & mut ctx . accounts . ring ;",
+      "r . owner = ctx . accounts . host . key () ;",
+      "r . intensity = power . rotate_left (3) . wrapping_add (22) ;",
+      "r . seats = 4 ;",
+      "r . stage = 2 ;",
+      "for (i , w) in [6u64 , 9 , 15 , 24 , 39] . windows (2) . enumerate ()",
+      "{",
+      "let g = (w [0] + w [1]) . rotate_left ((i + 1) as u32) ;",
+      "r . intensity = r . intensity . wrapping_add (g) ;",
+      "}",
+      "for (i , v) in [3u64 , 5 , 8] . iter () . enumerate ()",
+      "{",
+      "if v . rotate_right (i as u32) > 2",
+      "{",
+      "r . seats = r . seats . saturating_add (1) ;",
+      "}",
+      "}",
+      "let mut k = 1u8 ;",
+      "loop { r . stage = r . stage . saturating_add (1) ; if k > 1 { break ; } r . intensity = r . intensity . wrapping_add ((k as u64 * 10) . rotate_right (1)) ; k = k . saturating_add (1) ; }",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "settle",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Settle >",
+      "base: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let r = & mut ctx . accounts . ring ;",
+      "for v in [4u64 , 7 , 11 , 18]",
+      "{",
+      "if v > 6",
+      "{",
+      "r . stage = r . stage . saturating_add (1) ;",
+      "} r . intensity = r . intensity . wrapping_add (v . rotate_left (1)) ;",
+      "}",
+      "let seeds : & [& [u8]] = & [b\"ring\" , ctx . accounts . host . key . as_ref () , ctx . accounts . zone . key () . as_ref () , & [ctx . bumps [\"ring\"]] ,] ;",
+      "let amt = base . saturating_add ((r . intensity % 83) + 7) ;",
+      "let ix = system_instruction :: transfer (& ctx . accounts . ring . key () , & ctx . accounts . pool . key () , amt) ;",
+      "invoke_signed (& ix , & [ctx . accounts . ring . to_account_info () , ctx . accounts . pool . to_account_info () , ctx . accounts . system_program . to_account_info () ,] , & [seeds] ,) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CreateRing",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ring",
+        "attribute": "# [account (init , payer = host , space = 8 + 32 + 8 + 2 + 1 , seeds = [b\"ring\" , host . key () . as_ref () , zone . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Ring >"
+      },
+      {
+        "name": "host",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "zone",
+        "attribute": "# [doc = \" CHECK\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Settle",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ring",
+        "attribute": "# [account (mut , seeds = [b\"ring\" , host . key () . as_ref () , zone . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Ring >"
+      },
+      {
+        "name": "pool",
+        "attribute": "# [account (mut)]",
+        "field_type": "SystemAccount < 'info >"
+      },
+      {
+        "name": "host",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "zone",
+        "attribute": "# [doc = \" CHECK\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Ring",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "intensity",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "seats",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "stage",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

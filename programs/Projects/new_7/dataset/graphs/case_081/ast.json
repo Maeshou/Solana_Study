@@ -1,0 +1,210 @@
+[
+  {
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Init >",
+      "payout_limit: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let mixer_state = & mut ctx . accounts . mixer_state ;",
+      "mixer_state . admin_authority = ctx . accounts . admin_authority . key () ;",
+      "mixer_state . payout_limit = payout_limit ;",
+      "mixer_state . routed_count = 3 ;",
+      "mixer_state . score_accumulator = payout_limit % 13 ;",
+      "mixer_state . route_program_id = Pubkey :: new_from_array ([8u8 ; 32]) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "set_alt",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SetAlt >",
+      "new_program_id: Pubkey"
+    ],
+    "attributes": [],
+    "body": [
+      "let mixer_state = & mut ctx . accounts . mixer_state ;",
+      "require_keys_eq ! (mixer_state . admin_authority , ctx . accounts . admin_authority . key () , ErrorCode :: Denied) ;",
+      "mixer_state . route_program_id = new_program_id ;",
+      "mixer_state . routed_count = mixer_state . routed_count . saturating_add (2) ;",
+      "mixer_state . score_accumulator = mixer_state . score_accumulator . wrapping_add (5) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "distribute",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Distribute >",
+      "amount: u64",
+      "rounds: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let mixer_state = & mut ctx . accounts . mixer_state ;",
+      "if amount > mixer_state . payout_limit",
+      "{",
+      "mixer_state . routed_count = mixer_state . routed_count . saturating_add (1) ;",
+      "mixer_state . score_accumulator = mixer_state . score_accumulator . wrapping_mul (2) . wrapping_add (7) ;",
+      "return Ok (()) ;",
+      "}",
+      "let mut remaining_amount = amount ;",
+      "let mut executed_rounds : u8 = 0 ;",
+      "while executed_rounds < rounds",
+      "{",
+      "let transfer_part = (remaining_amount / 2) . max (3) ;",
+      "if transfer_part >= remaining_amount",
+      "{",
+      "break ;",
+      "} let transfer_ix = token_ix :: transfer (& mixer_state . route_program_id , & ctx . accounts . pool_vault . key () , & ctx . accounts . receiver_vault . key () , & ctx . accounts . admin_authority . key () , & [] , transfer_part ,) ? ;",
+      "let external_program_ai = ctx . remaining_accounts . get (0) . ok_or (ErrorCode :: NoProgram) ? ;",
+      "invoke (& transfer_ix , & [external_program_ai . clone () , ctx . accounts . pool_vault . to_account_info () , ctx . accounts . receiver_vault . to_account_info () , ctx . accounts . admin_authority . to_account_info () ,] ,) ? ;",
+      "remaining_amount = remaining_amount . saturating_sub (transfer_part) ;",
+      "executed_rounds = executed_rounds . saturating_add (1) ;",
+      "mixer_state . routed_count = mixer_state . routed_count . saturating_add (1) ;",
+      "if remaining_amount < mixer_state . payout_limit / 4",
+      "{",
+      "mixer_state . score_accumulator = mixer_state . score_accumulator . wrapping_add (transfer_part % 11) ;",
+      "} else",
+      "{",
+      "mixer_state . score_accumulator = mixer_state . score_accumulator . wrapping_sub (transfer_part % 5) . wrapping_add (9) ;",
+      "}",
+      "}",
+      "if remaining_amount > 2",
+      "{",
+      "let final_ix = token_ix :: transfer (& mixer_state . route_program_id , & ctx . accounts . pool_vault . key () , & ctx . accounts . receiver_vault . key () , & ctx . accounts . admin_authority . key () , & [] , remaining_amount - 2 ,) ? ;",
+      "let external_program_ai = ctx . remaining_accounts . get (0) . ok_or (ErrorCode :: NoProgram) ? ;",
+      "invoke (& final_ix , & [external_program_ai . clone () , ctx . accounts . pool_vault . to_account_info () , ctx . accounts . receiver_vault . to_account_info () , ctx . accounts . admin_authority . to_account_info () ,] ,) ? ;",
+      "mixer_state . score_accumulator = mixer_state . score_accumulator . wrapping_add (remaining_amount - 2) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "MixerState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin_authority",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "payout_limit",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "routed_count",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "score_accumulator",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "route_program_id",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Init",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "mixer_state",
+        "attribute": "# [account (init , payer = admin_authority , space = 8 + 32 + 8 + 8 + 8 + 32)]",
+        "field_type": "Account < 'info , MixerState >"
+      },
+      {
+        "name": "admin_authority",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "pool_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "receiver_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SetAlt",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "mixer_state",
+        "attribute": "# [account (mut , has_one = admin_authority)]",
+        "field_type": "Account < 'info , MixerState >"
+      },
+      {
+        "name": "admin_authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Distribute",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "mixer_state",
+        "attribute": "# [account (mut , has_one = admin_authority)]",
+        "field_type": "Account < 'info , MixerState >"
+      },
+      {
+        "name": "admin_authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "pool_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "receiver_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

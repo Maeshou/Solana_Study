@@ -1,9 +1,9 @@
 [
   {
-    "name": "initialize_bridge",
+    "name": "freeze",
     "inputs": [
-      "ctx: Context < InitializeBridgeCtxfjgj >",
-      "amount: u64"
+      "ctx: Context < Freeze >",
+      "new_authority: Pubkey"
     ],
     "nodes": [
       {
@@ -12,18 +12,22 @@
       },
       {
         "id": 1,
-        "label": "let acct = & mut ctx . accounts . bridge ;"
+        "label": "let cpi_accounts = SetAuthority { account_or_mint : ctx . accounts . token . to_account_info () , current_authority : ctx . accounts . auth . to_account_info () , } ;"
       },
       {
         "id": 2,
-        "label": "* * ctx . accounts . bridge . to_account_info () . try_borrow_mut_lamports () ? += amount ;"
+        "label": "let cpi = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;"
       },
       {
         "id": 3,
-        "label": "msg ! (\"Executed initialize_bridge logic\") ;"
+        "label": "anchor_spl :: token :: set_authority (cpi , Some (new_authority) , AuthorityType :: FreezeAccount ,) ? ;"
       },
       {
         "id": 4,
+        "label": "emit ! (AccountFrozen { by : ctx . accounts . auth . key () }) ;"
+      },
+      {
+        "id": 5,
         "label": "Ok (())"
       }
     ],
@@ -31,7 +35,76 @@
       {
         "from": 1,
         "to": 1,
-        "label": "def: acct"
+        "label": "def: cpi_accounts"
+      },
+      {
+        "from": 2,
+        "to": 2,
+        "label": "def: cpi"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: cpi_accounts"
+      },
+      {
+        "from": 2,
+        "to": 3,
+        "label": "data_dep: cpi"
+      }
+    ]
+  },
+  {
+    "name": "unfreeze",
+    "inputs": [
+      "ctx: Context < Freeze >"
+    ],
+    "nodes": [
+      {
+        "id": 6,
+        "label": "Entry"
+      },
+      {
+        "id": 7,
+        "label": "let cpi_accounts = SetAuthority { account_or_mint : ctx . accounts . token . to_account_info () , current_authority : ctx . accounts . auth . to_account_info () , } ;"
+      },
+      {
+        "id": 8,
+        "label": "let cpi = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;"
+      },
+      {
+        "id": 9,
+        "label": "anchor_spl :: token :: set_authority (cpi , None , AuthorityType :: FreezeAccount ,) ? ;"
+      },
+      {
+        "id": 10,
+        "label": "emit ! (AccountUnfrozen { by : ctx . accounts . auth . key () }) ;"
+      },
+      {
+        "id": 11,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 7,
+        "to": 7,
+        "label": "def: cpi_accounts"
+      },
+      {
+        "from": 8,
+        "to": 8,
+        "label": "def: cpi"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: cpi_accounts"
+      },
+      {
+        "from": 8,
+        "to": 9,
+        "label": "data_dep: cpi"
       }
     ]
   }

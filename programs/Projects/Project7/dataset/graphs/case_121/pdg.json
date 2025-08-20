@@ -1,0 +1,282 @@
+[
+  {
+    "name": "set_route",
+    "inputs": [
+      "ctx: Context < SetRoute >",
+      "target_program_key: Pubkey",
+      "daily_cap: u64"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let route_config = & mut ctx . accounts . route_config ;"
+      },
+      {
+        "id": 2,
+        "label": "route_config . admin = ctx . accounts . admin . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "route_config . program_key = target_program_key ;"
+      },
+      {
+        "id": 4,
+        "label": "route_config . daily_cap = daily_cap ;"
+      },
+      {
+        "id": 5,
+        "label": "route_config . moved_today = 0 ;"
+      },
+      {
+        "id": 6,
+        "label": "route_config . last_day = 0 ;"
+      },
+      {
+        "id": 7,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: route_config"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: route_config"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: route_config"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: route_config"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: route_config"
+      },
+      {
+        "from": 1,
+        "to": 6,
+        "label": "data_dep: route_config"
+      }
+    ]
+  },
+  {
+    "name": "hop",
+    "inputs": [
+      "ctx: Context < Hop >",
+      "move_amount: u64"
+    ],
+    "nodes": [
+      {
+        "id": 8,
+        "label": "Entry"
+      },
+      {
+        "id": 9,
+        "label": "let route_config = & mut ctx . accounts . route_config ;"
+      },
+      {
+        "id": 10,
+        "label": "let current_day = (Clock :: get () ? . unix_timestamp as u64) / 86_400 ;"
+      },
+      {
+        "id": 11,
+        "label": "if route_config . last_day != current_day { route_config . last_day = current_day ; route_config . moved_today = 0 ; }"
+      },
+      {
+        "id": 12,
+        "label": "route_config . last_day = current_day ;"
+      },
+      {
+        "id": 13,
+        "label": "route_config . moved_today = 0 ;"
+      },
+      {
+        "id": 14,
+        "label": "let planned_total = route_config . moved_today . saturating_add (move_amount) ;"
+      },
+      {
+        "id": 15,
+        "label": "require ! (planned_total <= route_config . daily_cap , RouteErr :: DailyLimit) ;"
+      },
+      {
+        "id": 16,
+        "label": "let wanted_key = route_config . program_key ;"
+      },
+      {
+        "id": 17,
+        "label": "let mut selected_program : Option < AccountInfo > = None ;"
+      },
+      {
+        "id": 18,
+        "label": "for candidate in ctx . remaining_accounts . iter () { if candidate . key () == wanted_key { selected_program = Some (candidate . clone ()) ; break ; } }"
+      },
+      {
+        "id": 19,
+        "label": "if candidate . key () == wanted_key { selected_program = Some (candidate . clone ()) ; break ; }"
+      },
+      {
+        "id": 20,
+        "label": "selected_program = Some (candidate . clone ()) ;"
+      },
+      {
+        "id": 21,
+        "label": "break ;"
+      },
+      {
+        "id": 22,
+        "label": "let selected_program = selected_program . ok_or (RouteErr :: ProgramNotFound) ? ;"
+      },
+      {
+        "id": 23,
+        "label": "token :: approve (CpiContext :: new (selected_program . clone () , Approve { to : ctx . accounts . from_account . to_account_info () , delegate : ctx . accounts . to_account . to_account_info () , authority : ctx . accounts . admin . to_account_info () , }) , move_amount) ? ;"
+      },
+      {
+        "id": 24,
+        "label": "token :: transfer (CpiContext :: new (selected_program . clone () , Transfer { from : ctx . accounts . from_account . to_account_info () , to : ctx . accounts . to_account . to_account_info () , authority : ctx . accounts . admin . to_account_info () , }) , move_amount) ? ;"
+      },
+      {
+        "id": 25,
+        "label": "token :: revoke (CpiContext :: new (selected_program , Revoke { source : ctx . accounts . from_account . to_account_info () , authority : ctx . accounts . admin . to_account_info () , })) ? ;"
+      },
+      {
+        "id": 26,
+        "label": "route_config . moved_today = planned_total ;"
+      },
+      {
+        "id": 27,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 9,
+        "to": 9,
+        "label": "def: route_config"
+      },
+      {
+        "from": 10,
+        "to": 10,
+        "label": "def: current_day"
+      },
+      {
+        "from": 9,
+        "to": 11,
+        "label": "data_dep: route_config"
+      },
+      {
+        "from": 10,
+        "to": 11,
+        "label": "data_dep: current_day"
+      },
+      {
+        "from": 9,
+        "to": 11,
+        "label": "data_dep: route_config"
+      },
+      {
+        "from": 10,
+        "to": 11,
+        "label": "data_dep: current_day"
+      },
+      {
+        "from": 9,
+        "to": 11,
+        "label": "data_dep: route_config"
+      },
+      {
+        "from": 9,
+        "to": 12,
+        "label": "data_dep: route_config"
+      },
+      {
+        "from": 10,
+        "to": 12,
+        "label": "data_dep: current_day"
+      },
+      {
+        "from": 9,
+        "to": 13,
+        "label": "data_dep: route_config"
+      },
+      {
+        "from": 14,
+        "to": 14,
+        "label": "def: planned_total"
+      },
+      {
+        "from": 9,
+        "to": 14,
+        "label": "data_dep: route_config"
+      },
+      {
+        "from": 16,
+        "to": 16,
+        "label": "def: wanted_key"
+      },
+      {
+        "from": 9,
+        "to": 16,
+        "label": "data_dep: route_config"
+      },
+      {
+        "from": 16,
+        "to": 18,
+        "label": "data_dep: wanted_key"
+      },
+      {
+        "from": 16,
+        "to": 19,
+        "label": "data_dep: wanted_key"
+      },
+      {
+        "from": 22,
+        "to": 22,
+        "label": "def: selected_program"
+      },
+      {
+        "from": 22,
+        "to": 22,
+        "label": "data_dep: selected_program"
+      },
+      {
+        "from": 22,
+        "to": 23,
+        "label": "data_dep: selected_program"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: selected_program"
+      },
+      {
+        "from": 22,
+        "to": 25,
+        "label": "data_dep: selected_program"
+      },
+      {
+        "from": 9,
+        "to": 26,
+        "label": "data_dep: route_config"
+      },
+      {
+        "from": 14,
+        "to": 26,
+        "label": "data_dep: planned_total"
+      }
+    ]
+  }
+]

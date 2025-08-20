@@ -1,0 +1,145 @@
+[
+  {
+    "name": "strict_deposit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < StrictDepositCtx >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 完全ガード：Vault.owner を has_one で検証し、authority の署名を必須化\"]"
+    ],
+    "body": [
+      "let vault = & mut ctx . accounts . vault_account ;",
+      "let current = * * vault . to_account_info () . try_borrow_lamports () ? ;",
+      "* * vault . to_account_info () . try_borrow_mut_lamports () ? = current + amount ;",
+      "msg ! (\"strict_deposit: {} lamports\" , ** vault . to_account_info () . lamports . borrow ()) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "semi_deposit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SemiDepositCtx >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 部分ガード：authority の署名は検証するが、Vault.owner は未検証\"]"
+    ],
+    "body": [
+      "let vault_info = & mut ctx . accounts . vault_blob ;",
+      "let current = * * vault_info . try_borrow_lamports () ? ;",
+      "* * vault_info . try_borrow_mut_lamports () ? = current + amount ;",
+      "msg ! (\"semi_deposit (owner unchecked): {} lamports\" , ** vault_info . try_borrow_lamports () ?) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "open_deposit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < OpenDepositCtx >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 全く検証なし：raw AccountInfo で署名も所有権もチェックせず\"]"
+    ],
+    "body": [
+      "let vault_info = & mut ctx . accounts . vault_blob ;",
+      "let current = * * vault_info . try_borrow_lamports () ? ;",
+      "* * vault_info . try_borrow_mut_lamports () ? = current + amount ;",
+      "msg ! (\"open_deposit (no checks): {} lamports\" , ** vault_info . try_borrow_lamports () ?) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "StrictDepositCtx",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault_account",
+        "attribute": "# [doc = \" ここで Vault.owner == authority キーを検証\"] # [account (mut , has_one = authority)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [doc = \" 署名を必須化\"]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SemiDepositCtx",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault_blob",
+        "attribute": "# [doc = \" CHECK: raw AccountInfo、プログラム所有者チェックをスキップ\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [doc = \" 署名は検証するが、vault_blob.owner は未検証\"]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "OpenDepositCtx",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault_blob",
+        "attribute": "# [doc = \" CHECK: raw AccountInfo、所有権・署名チェックなし\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user_blob",
+        "attribute": "# [doc = \" CHECK: raw AccountInfo、誰でもアクセス可能\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Vault",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "authority",
+        "attribute": "# [doc = \" 正当なオーナーの Pubkey\"]",
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

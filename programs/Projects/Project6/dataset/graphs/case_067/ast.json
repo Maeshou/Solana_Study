@@ -1,0 +1,286 @@
+[
+  {
+    "name": "init_stable",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitStable >",
+      "region: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . stable ;",
+      "s . owner = ctx . accounts . owner . key () ;",
+      "s . region = region ;",
+      "s . rides = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "register",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Register >",
+      "role: RiderRole",
+      "tag: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . stable ;",
+      "let r = & mut ctx . accounts . rider_a ;",
+      "r . stable = s . key () ;",
+      "r . role = role ;",
+      "r . tag = tag ;",
+      "r . energy = 100 ;",
+      "let m = & mut ctx . accounts . horse ;",
+      "m . stable = s . key () ;",
+      "m . mood = 50 ;",
+      "m . distance = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "ride",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Ride >",
+      "segments: Vec < u16 >"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . stable ;",
+      "let a = & mut ctx . accounts . actor ;",
+      "let b = & mut ctx . accounts . partner ;",
+      "let h = & mut ctx . accounts . horse ;",
+      "let log = & mut ctx . accounts . ride_log ;",
+      "let mut total : u32 = 0 ;",
+      "let mut mix : u16 = 0 ;",
+      "for seg in segments",
+      "{",
+      "total = total . saturating_add ((seg & 0x3FF) as u32) ;",
+      "mix ^= seg . rotate_left (3) ^ 0x5A5A ;",
+      "}",
+      "let gain = total + (mix as u32 & 0xFF) ;",
+      "if a . role == Leader",
+      "{",
+      "a . energy = a . energy . saturating_add ((gain & 0x7F) as u16) ;",
+      "b . energy = b . energy . saturating_add (((mix >> 2) & 0x7F) as u16) ;",
+      "h . distance = h . distance . saturating_add ((gain / 2) as u32) ;",
+      "s . rides = s . rides . saturating_add (1) ;",
+      "msg ! (\"Leader branch: gain=",
+      "{",
+      "}, aE={}, bE={}, dist={}\" , gain , a . energy , b . energy , h . distance) ;",
+      "} else",
+      "{",
+      "a . energy = a . energy . saturating_add (((mix >> 1) & 0x7F) as u16) ;",
+      "b . energy = b . energy . saturating_add ((gain & 0x7F) as u16) ;",
+      "h . distance = h . distance . saturating_add ((gain / 3) as u32) ;",
+      "s . rides = s . rides . saturating_add (1) ;",
+      "msg ! (\"Support/Scout branch: gain=",
+      "{",
+      "}, aE={}, bE={}, dist={}\" , gain , a . energy , b . energy , h . distance) ;",
+      "}",
+      "let mut x = (s . rides as u128) . max (1) ;",
+      "let mut i = 0 ;",
+      "while i < 3",
+      "{",
+      "x = (x + (s . rides as u128 / x)) . max (1) / 2 ;",
+      "i += 1 ;",
+      "}",
+      "h . mood = (h . mood . saturating_add ((x as u16) & 0x3FF)) . min (2000) ;",
+      "log . stable = s . key () ;",
+      "log . index = (x as u32) . min (1_000_000) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitStable",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "stable",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 2 + 4)]",
+        "field_type": "Account < 'info , Stable >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Register",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "stable",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Stable >"
+      },
+      {
+        "name": "rider_a",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 1 + 2)]",
+        "field_type": "Account < 'info , RiderCard >"
+      },
+      {
+        "name": "horse",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 2 + 4)]",
+        "field_type": "Account < 'info , HorseCard >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Ride",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "stable",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Stable >"
+      },
+      {
+        "name": "ride_log",
+        "attribute": "# [account (mut , has_one = stable)]",
+        "field_type": "Account < 'info , RideLog >"
+      },
+      {
+        "name": "actor",
+        "attribute": "# [account (mut , has_one = stable , constraint = actor . tag != partner . tag @ ErrCode :: CosplayBlocked)]",
+        "field_type": "Account < 'info , RiderCard >"
+      },
+      {
+        "name": "partner",
+        "attribute": "# [account (mut , has_one = stable)]",
+        "field_type": "Account < 'info , RiderCard >"
+      },
+      {
+        "name": "horse",
+        "attribute": "# [account (mut , has_one = stable)]",
+        "field_type": "Account < 'info , HorseCard >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Stable",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "region",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "rides",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RiderCard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "stable",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "role",
+        "attribute": null,
+        "field_type": "RiderRole"
+      },
+      {
+        "name": "tag",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "energy",
+        "attribute": null,
+        "field_type": "u16"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "HorseCard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "stable",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "mood",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "distance",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RideLog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "stable",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "index",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

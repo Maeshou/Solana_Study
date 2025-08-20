@@ -1,0 +1,154 @@
+[
+  {
+    "name": "add_expense",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AddExpense >",
+      "timestamp: i64",
+      "amount: u64",
+      "category: String",
+      "description: String"
+    ],
+    "attributes": [
+      "# [doc = \" 支出を記録\"]"
+    ],
+    "body": [
+      "if amount == 0",
+      "{",
+      "return Err (ErrorCode :: InvalidAmount . into ()) ;",
+      "}",
+      "if category . len () > 32",
+      "{",
+      "return Err (ErrorCode :: CategoryTooLong . into ()) ;",
+      "}",
+      "if description . len () > 128",
+      "{",
+      "return Err (ErrorCode :: DescriptionTooLong . into ()) ;",
+      "}",
+      "let exp = & mut ctx . accounts . expense ;",
+      "exp . owner = ctx . accounts . user . key () ;",
+      "exp . timestamp = timestamp ;",
+      "exp . amount = amount ;",
+      "exp . category = category ;",
+      "exp . description = description ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "edit_expense",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < EditExpense >",
+      "new_timestamp: i64",
+      "new_amount: u64",
+      "new_category: String",
+      "new_description: String"
+    ],
+    "attributes": [
+      "# [doc = \" 記録済み支出を編集\"]"
+    ],
+    "body": [
+      "if new_amount == 0",
+      "{",
+      "return Err (ErrorCode :: InvalidAmount . into ()) ;",
+      "}",
+      "if new_category . len () > 32",
+      "{",
+      "return Err (ErrorCode :: CategoryTooLong . into ()) ;",
+      "}",
+      "if new_description . len () > 128",
+      "{",
+      "return Err (ErrorCode :: DescriptionTooLong . into ()) ;",
+      "}",
+      "let exp = & mut ctx . accounts . expense ;",
+      "if exp . owner != ctx . accounts . user . key ()",
+      "{",
+      "return Err (ErrorCode :: Unauthorized . into ()) ;",
+      "}",
+      "exp . timestamp = new_timestamp ;",
+      "exp . amount = new_amount ;",
+      "exp . category = new_category ;",
+      "exp . description = new_description ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "AddExpense",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "expense",
+        "attribute": "# [doc = \" 同じアカウントを二度初期化できない（Reinit Attack 防止）\"] # [account (init , payer = user , space = 8 + 32 + 8 + 8 + 4 + 32 + 4 + 128)]",
+        "field_type": "Account < 'info , Expense >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 操作を行うユーザー（署名必須）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EditExpense",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "expense",
+        "attribute": "# [doc = \" Anchor の Account<> による Owner Check & Type Cosplay\"] # [account (mut)]",
+        "field_type": "Account < 'info , Expense >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 実際に署名したユーザー\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Expense",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" この記録を操作できるユーザー\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "timestamp",
+        "attribute": "# [doc = \" タイムスタンプ (UNIX)\"]",
+        "field_type": "i64"
+      },
+      {
+        "name": "amount",
+        "attribute": "# [doc = \" 金額 (Lamports 単位)\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "category",
+        "attribute": "# [doc = \" 支出カテゴリ（最大32文字）\"]",
+        "field_type": "String"
+      },
+      {
+        "name": "description",
+        "attribute": "# [doc = \" 詳細説明（最大128文字）\"]",
+        "field_type": "String"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

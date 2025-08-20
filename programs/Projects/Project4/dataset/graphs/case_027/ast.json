@@ -1,33 +1,72 @@
 [
   {
-    "name": "initialize_reward_pool",
+    "name": "add_stock",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Initialize027 >",
-      "param: u64"
+      "ctx: Context < AddStock >",
+      "amount: u32"
     ],
     "attributes": [],
     "body": [
-      "let mut data = RewardPoolData :: try_from_slice (& ctx . accounts . data_account . data . borrow ()) ? ;",
-      "data . value = param ;",
-      "data . serialize (& mut * ctx . accounts . data_account . data . borrow_mut ()) ? ;",
+      "let stock = & mut ctx . accounts . stock ;",
+      "stock . level += amount ;",
+      "stock . total_added += amount ;",
+      "if stock . level > stock . alert_threshold",
+      "{",
+      "stock . alert = true ;",
+      "} else",
+      "{",
+      "stock . alert = false ;",
+      "}",
       "Ok (())"
     ]
   },
   {
-    "name": "Initialize027",
+    "name": "consume_stock",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ConsumeStock >",
+      "want: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let st = & mut ctx . accounts . stock ;",
+      "let mut consumed = 0 ;",
+      "let mut i = 0 ;",
+      "while i < want",
+      "{",
+      "if st . level == 0",
+      "{",
+      "break ;",
+      "} st . level -= 1 ;",
+      "consumed += 1 ;",
+      "i += 1 ;",
+      "}",
+      "st . last_consumed = consumed ;",
+      "st . shortage = want - consumed ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "AddStock",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "stock",
+        "attribute": "# [account (init , payer = mgr , space = 8 + 4 * 4 + 1)]",
+        "field_type": "Account < 'info , StockData >"
       },
       {
-        "name": "authority",
-        "attribute": null,
+        "name": "mgr",
+        "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -35,13 +74,62 @@
     "body": null
   },
   {
-    "name": "RewardPoolData",
+    "name": "ConsumeStock",
     "node_type": "struct",
     "fields": [
       {
-        "name": "value",
+        "name": "stock",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "Account < 'info , StockData >"
+      },
+      {
+        "name": "mgr",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "StockData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "level",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "total_added",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "alert_threshold",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "alert",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "last_consumed",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "shortage",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

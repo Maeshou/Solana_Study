@@ -1,40 +1,227 @@
 [
   {
-    "name": "claim_vesting",
+    "name": "init_map",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx075 >",
-      "amount: u64"
+      "ctx: Context < InitMap >",
+      "pop: u32"
     ],
     "attributes": [],
     "body": [
-      "let src = & mut ctx . accounts . account_src ;",
-      "let dst = & mut ctx . accounts . account_dst ;",
-      "let before = * * src . to_account_info () . try_borrow_lamports () ? ;",
-      "* * src . to_account_info () . try_borrow_mut_lamports () ? = before . saturating_sub (amount) ;",
-      "* * dst . to_account_info () . try_borrow_mut_lamports () ? += amount ;",
+      "let m = & mut ctx . accounts . map ;",
+      "m . owner = ctx . accounts . overseer . key () ;",
+      "m . limit = pop . saturating_mul (3) + 100 ;",
+      "m . phase = Prep ;",
+      "let p = & mut ctx . accounts . path_a ;",
+      "let q = & mut ctx . accounts . path_b ;",
+      "let g = & mut ctx . accounts . grid ;",
+      "let mut x = (pop as u64) . max (1) ;",
+      "let k = 1000u64 ;",
+      "let delta = (x * (k - x)) / k ;",
+      "p . parent = m . key () ;",
+      "p . node = (pop & 7) as u8 ;",
+      "p . strength = (x + delta) as u32 % 777 + 33 ;",
+      "q . parent = m . key () ;",
+      "q . node = ((pop >> 2) & 7) as u8 ;",
+      "q . strength = ((x / 2 + delta) as u32 % 701) + 21 ;",
+      "g . parent = m . key () ;",
+      "g . node = 9 ;",
+      "g . ticks = 0 ;",
+      "g . hash = (x ^ delta) as u64 ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx075",
+    "name": "hold",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Hold >",
+      "t: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let m = & mut ctx . accounts . map ;",
+      "let p = & mut ctx . accounts . path_a ;",
+      "let q = & mut ctx . accounts . path_b ;",
+      "let g = & mut ctx . accounts . grid ;",
+      "for i in 0 .. t",
+      "{",
+      "let z = ((p . strength ^ q . strength) as u64) . wrapping_mul (1469598103934665603) ;",
+      "p . strength = p . strength . checked_add (((z & 63) as u32) + 3) . unwrap_or (u32 :: MAX) ;",
+      "q . strength = q . strength . saturating_add ((((z >> 6) & 63) as u32) + 5) ;",
+      "g . ticks = g . ticks . saturating_add (1) ;",
+      "g . hash ^= z . rotate_left ((i % 19) as u32) ;",
+      "}",
+      "let total = p . strength + q . strength ;",
+      "if total > m . limit",
+      "{",
+      "m . phase = Surge ;",
+      "p . node ^= 0x1 ;",
+      "q . node = q . node . saturating_add (1) ;",
+      "g . ticks = g . ticks . saturating_add (10) ;",
+      "msg ! (\"surge: node tweak & ticks+10\") ;",
+      "} else",
+      "{",
+      "m . phase = Hold ;",
+      "p . strength = p . strength . saturating_add (7) ;",
+      "q . strength = q . strength / 2 + 9 ;",
+      "g . hash ^= 0x0FF0_FF0F ;",
+      "msg ! (\"hold: adjust strengths & hash flip\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitMap",
     "node_type": "struct",
     "fields": [
       {
-        "name": "account_src",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "map",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , MapCore >"
       },
       {
-        "name": "account_dst",
+        "name": "path_a",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Path >"
+      },
+      {
+        "name": "path_b",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Path >"
+      },
+      {
+        "name": "grid",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 8 + 8)]",
+        "field_type": "Account < 'info , GridTape >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "overseer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
       },
       {
         "name": "system_program",
         "attribute": null,
         "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Hold",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "map",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , MapCore >"
+      },
+      {
+        "name": "path_a",
+        "attribute": "# [account (mut , has_one = map , constraint = path_a . node != path_b . node @ TowerErr :: Dup)]",
+        "field_type": "Account < 'info , Path >"
+      },
+      {
+        "name": "path_b",
+        "attribute": "# [account (mut , has_one = map , constraint = path_b . node != grid . node @ TowerErr :: Dup)]",
+        "field_type": "Account < 'info , Path >"
+      },
+      {
+        "name": "grid",
+        "attribute": "# [account (mut , has_one = map)]",
+        "field_type": "Account < 'info , GridTape >"
+      },
+      {
+        "name": "overseer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MapCore",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "limit",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "phase",
+        "attribute": null,
+        "field_type": "Wave"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Path",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "node",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "strength",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GridTape",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "node",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "ticks",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "hash",
+        "attribute": null,
+        "field_type": "u64"
       }
     ],
     "inputs": null,

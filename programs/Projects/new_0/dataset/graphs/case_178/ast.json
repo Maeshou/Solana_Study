@@ -1,0 +1,153 @@
+[
+  {
+    "name": "DonationTracker",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "",
+        "attribute": null,
+        "field_type": "Vec < (Pubkey , u64) >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "initialize",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Initialize >"
+    ],
+    "attributes": [
+      "# [doc = \" トラッカー初期化：内部 Vec はデフォルトで空、bump のみ設定\"]"
+    ],
+    "body": [
+      "let tracker_bump = ctx . bumps . get (\"tracker\") . unwrap () ;",
+      "ctx . accounts . tracker . 0 = * tracker_bump ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "donate",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Modify >",
+      "donor: Pubkey",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 寄付受付：既存の寄付者なら累計加算、なければ新規エントリ追加\"]"
+    ],
+    "body": [
+      "let entries = & mut ctx . accounts . tracker . 1 ;",
+      "let mut found = false ;",
+      "for entry in entries . iter_mut ()",
+      "{",
+      "if entry . 0 == donor",
+      "{",
+      "entry . 1 = entry . 1 . wrapping_add (amount) ;",
+      "found = true ;",
+      "}",
+      "}",
+      "if ! found",
+      "{",
+      "entries . push ((donor , amount)) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "purge_small",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Modify >",
+      "min_amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 閾値以下の寄付者を一括削除\"]"
+    ],
+    "body": [
+      "let entries = & mut ctx . accounts . tracker . 1 ;",
+      "entries . retain (| & (_ , amt) | amt > min_amount) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "report_top",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Modify >"
+    ],
+    "attributes": [
+      "# [doc = \" 最高寄付者をログ出力\"]"
+    ],
+    "body": [
+      "let entries = & ctx . accounts . tracker . 1 ;",
+      "let mut top_amt = 0u64 ;",
+      "let mut top_dnr = Pubkey :: default () ;",
+      "for & (donor , amt) in entries . iter ()",
+      "{",
+      "if amt > top_amt",
+      "{",
+      "top_amt = amt ;",
+      "top_dnr = donor ;",
+      "}",
+      "}",
+      "msg ! (\"Top donor: {}\" , top_dnr) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Initialize",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "tracker",
+        "attribute": "# [account (init_zeroed , payer = authority , seeds = [b\"donation_tracker\" , authority . key () . as_ref ()] , bump , space = 8 + 1 + 4 + 10 * (32 + 8))]",
+        "field_type": "Account < 'info , DonationTracker >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Modify",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "tracker",
+        "attribute": "# [account (mut , seeds = [b\"donation_tracker\" , authority . key () . as_ref ()] , bump = tracker . 0 ,)]",
+        "field_type": "Account < 'info , DonationTracker >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (signer)]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

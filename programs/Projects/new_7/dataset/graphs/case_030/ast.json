@@ -1,0 +1,246 @@
+[
+  {
+    "name": "open",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Open >",
+      "min_lock: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let p = & mut ctx . accounts . pool ;",
+      "p . admin = ctx . accounts . admin . key () ;",
+      "p . min_lock = min_lock ;",
+      "p . active = true ;",
+      "p . epochs = 0 ;",
+      "p . total = 0 ;",
+      "p . tag_sum = 0 ;",
+      "let mut i = 0u8 ;",
+      "while i < 6",
+      "{",
+      "p . epochs = p . epochs . saturating_add (1) ;",
+      "if i % 2 == 0",
+      "{",
+      "p . tag_sum = p . tag_sum . saturating_add (3) ;",
+      "} else if p . tag_sum > 0",
+      "{",
+      "p . tag_sum = p . tag_sum . saturating_sub (1) ;",
+      "} i = i . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "mixed",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Mixed >",
+      "claimed_token_program: Pubkey",
+      "stake: u64",
+      "rounds: u8",
+      "tag: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let p = & mut ctx . accounts . pool ;",
+      "require ! (p . admin == ctx . accounts . admin . key () , Errs :: Admin) ;",
+      "require ! (p . active , Errs :: Inactive) ;",
+      "require ! (stake >= p . min_lock , Errs :: TooSmall) ;",
+      "let bytes = tag . as_bytes () ;",
+      "let mut pos = 0usize ;",
+      "let mut weight : u64 = 10 ;",
+      "while pos < bytes . len ()",
+      "{",
+      "weight = weight . saturating_add ((bytes [pos] as u64) % 7 + 1) ;",
+      "if pos % 4 == 0 && p . tag_sum > 0",
+      "{",
+      "p . tag_sum = p . tag_sum . saturating_sub (1) ;",
+      "} else",
+      "{",
+      "p . tag_sum = p . tag_sum . saturating_add (2) ;",
+      "} pos += 1 ;",
+      "}",
+      "let mut r = 0u8 ;",
+      "while r < rounds",
+      "{",
+      "weight = weight . saturating_add ((r as u64) % 5 + 1) ;",
+      "if r % 2 == 0",
+      "{",
+      "p . epochs = p . epochs . saturating_add (1) ;",
+      "} else if p . epochs > 0",
+      "{",
+      "p . epochs = p . epochs . saturating_sub (1) ;",
+      "} r = r . saturating_add (1) ;",
+      "}",
+      "let gross = stake . saturating_mul (weight) ;",
+      "let mut fee = gross / 100 ;",
+      "let mut net = 0u64 ;",
+      "if gross > fee",
+      "{",
+      "net = gross - fee ;",
+      "let mut parts = [0u64 ;",
+      "3] ;",
+      "let mut i = 0usize ;",
+      "while i < 3",
+      "{",
+      "parts [i] = (net / 3) . saturating_add ((i as u64) + (p . epochs as u64 % 5)) ;",
+      "i += 1 ;",
+      "} let mut recon = 0u64 ;",
+      "let mut k = 0usize ;",
+      "while k < parts . len ()",
+      "{",
+      "let mut block = parts [k] ;",
+      "let mut hop = 0u8 ;",
+      "while hop < 4",
+      "{",
+      "block = block . saturating_add (((hop + k as u8) % 7) as u64) ;",
+      "hop = hop . saturating_add (1) ;",
+      "} recon = recon . saturating_add (block) ;",
+      "k += 1 ;",
+      "} let mut fstep = 0u8 ;",
+      "while fstep < 3",
+      "{",
+      "fee = fee . saturating_add ((fstep as u64) + (p . tag_sum as u64 % 3)) ;",
+      "fstep = fstep . saturating_add (1) ;",
+      "} if recon > fee",
+      "{",
+      "net = recon - fee ;",
+      "} else",
+      "{",
+      "net = 0 ;",
+      "} p . total = p . total . saturating_add (net) ;",
+      "} else",
+      "{",
+      "let mut cool = 0u8 ;",
+      "while cool < 6",
+      "{",
+      "if p . tag_sum > 0 { p . tag_sum = p . tag_sum . saturating_sub (1) ;",
+      "} cool = cool . saturating_add (1) ;",
+      "} p . active = false ;",
+      "net = 0 ;",
+      "}",
+      "let ix = spl_token :: instruction :: transfer (claimed_token_program , ctx . accounts . treasury . key () , ctx . accounts . receiver_ata . key () , ctx . accounts . payer . key () , & [] , net ,) ? ;",
+      "invoke (& ix , & [ctx . accounts . treasury . to_account_info () , ctx . accounts . receiver_ata . to_account_info () , ctx . accounts . payer . to_account_info () ,] ,) ? ;",
+      "if p . total < net",
+      "{",
+      "p . total = net ;",
+      "}",
+      "let mut smooth = 0u8 ;",
+      "while smooth < 4",
+      "{",
+      "if p . tag_sum > 0",
+      "{",
+      "p . tag_sum = p . tag_sum . saturating_sub (1) ;",
+      "} else",
+      "{",
+      "p . tag_sum = p . tag_sum . saturating_add (1) ;",
+      "} smooth = smooth . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Pool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "min_lock",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "active",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "epochs",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "total",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "tag_sum",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Open",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 8 + 1 + 4 + 8 + 4)]",
+        "field_type": "Account < 'info , Pool >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Mixed",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Pool >"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "treasury",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "receiver_ata",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "payer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

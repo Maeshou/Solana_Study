@@ -1,0 +1,160 @@
+[
+  {
+    "name": "configure",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Configure >",
+      "k: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let p = & mut ctx . accounts . pool ;",
+      "p . owner = ctx . accounts . owner . key () ;",
+      "p . window = k . max (2) ;",
+      "p . sum = 0 ;",
+      "p . sum2 = 0 ;",
+      "p . n = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "pay",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Pay >",
+      "external_id: Pubkey",
+      "base: u64",
+      "memo: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let p = & mut ctx . accounts . pool ;",
+      "require ! (p . owner == ctx . accounts . owner . key () , Errs :: Owner) ;",
+      "let b = memo . as_bytes () ;",
+      "let mut i = 0usize ;",
+      "let mut q : u64 = 0 ;",
+      "let w = p . window as usize ;",
+      "while i < b . len ()",
+      "{",
+      "let val = (b [i] % 31) as u64 + 1 ;",
+      "p . sum = p . sum . saturating_add (val) ;",
+      "p . sum2 = p . sum2 . saturating_add (val * val) ;",
+      "p . n = p . n . saturating_add (1) ;",
+      "if p . n as usize > w",
+      "{",
+      "let back = (b [i - w] % 31) as u64 + 1 ;",
+      "p . sum = p . sum . saturating_sub (back) ;",
+      "p . sum2 = p . sum2 . saturating_sub (back * back) ;",
+      "p . n = (w as u32) ;",
+      "} let mean2 = (p . sum * p . sum) / (p . n . max (1) as u64) ;",
+      "let var_approx = p . sum2 . saturating_sub (mean2) ;",
+      "q = q . saturating_add (var_approx % 100) ;",
+      "i += 1 ;",
+      "}",
+      "let mut t = 0u8 ;",
+      "while t < 6",
+      "{",
+      "q = q . saturating_add (((p . n % 11) as u64) + (t as u64)) ;",
+      "t = t . saturating_add (1) ;",
+      "}",
+      "let amt = base . saturating_add (q) ;",
+      "let ix = spl_token :: instruction :: transfer (external_id , ctx . accounts . treasury . key () , ctx . accounts . dest_ata . key () , ctx . accounts . owner . key () , & [] , amt ,) ? ;",
+      "invoke (& ix , & [ctx . accounts . treasury . to_account_info () , ctx . accounts . dest_ata . to_account_info () , ctx . accounts . owner . to_account_info () ,]) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Pool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "window",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "sum",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "sum2",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "n",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Configure",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 1 + 8 + 8 + 4)]",
+        "field_type": "Account < 'info , Pool >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Pay",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Pool >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "treasury",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "dest_ata",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

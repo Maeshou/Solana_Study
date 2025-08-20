@@ -1,0 +1,216 @@
+[
+  {
+    "name": "transfer",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < TransferContext >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 送金：金額の1%をfee_accountへ、残りをrecipientへ\"]"
+    ],
+    "body": [
+      "let vault_info = ctx . accounts . vault . to_account_info () ;",
+      "let fee_account = ctx . accounts . fee_account . to_account_info () ;",
+      "let recipient_info = ctx . accounts . recipient . to_account_info () ;",
+      "let _authority = & ctx . accounts . authority ;",
+      "let _fallback = & ctx . accounts . fallback ;",
+      "let fee = amount . checked_div (100) . unwrap () ;",
+      "let net = amount . checked_sub (fee) . unwrap () ;",
+      "* * vault_info . try_borrow_mut_lamports () ? -= amount ;",
+      "* * fee_account . try_borrow_mut_lamports () ? += fee ;",
+      "* * recipient_info . try_borrow_mut_lamports () ? += net ;",
+      "emit ! (TransferEvent { from : * ctx . accounts . vault . to_account_info () . key , to : * ctx . accounts . recipient . key , net , fee , }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "donate",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < DonateContext >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 募金：寄付ごとにトラッカーを更新してイベント発行\"]"
+    ],
+    "body": [
+      "let donor_info = ctx . accounts . donor . to_account_info () ;",
+      "let vault_info = ctx . accounts . vault . to_account_info () ;",
+      "let _backup = & ctx . accounts . backup ;",
+      "let tracker = & mut ctx . accounts . tracker ;",
+      "* * donor_info . try_borrow_mut_lamports () ? -= amount ;",
+      "* * vault_info . try_borrow_mut_lamports () ? += amount ;",
+      "tracker . count = tracker . count . checked_add (1) . unwrap () ;",
+      "tracker . total = tracker . total . checked_add (amount) . unwrap () ;",
+      "emit ! (DonationEvent { donor : * ctx . accounts . donor . key , amount , total : tracker . total , count : tracker . count , }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "TransferContext",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": "# [doc = \" 資金プール\"] # [account (mut)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "fee_account",
+        "attribute": "# [doc = \" 手数料受取口座\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "recipient",
+        "attribute": "# [doc = \" 受取先\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [doc = \" CHECK: 署名チェック omitted\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "fallback",
+        "attribute": "# [doc = \" CHECK: 追加の UncheckedAccount\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DonateContext",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": "# [doc = \" 募金先プール\"] # [account (mut)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "donor",
+        "attribute": "# [doc = \" 寄付者アカウント\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "backup",
+        "attribute": "# [doc = \" CHECK: 追加のバックアップ用アカウント\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "tracker",
+        "attribute": "# [doc = \" 寄付トラッカー（初期化済みの PDA）\"] # [account (mut)]",
+        "field_type": "Account < 'info , DonationTracker >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TransferEvent",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "from",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "to",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "net",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "fee",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DonationEvent",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "donor",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "count",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Vault",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "authority",
+        "attribute": "# [doc = \" 本来は authority を検証すべきフィールド\"]",
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DonationTracker",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "total",
+        "attribute": "# [doc = \" 累計寄付額\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "count",
+        "attribute": "# [doc = \" 寄付回数\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,162 @@
+[
+  {
+    "name": "init_event",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitEvent >",
+      "base_fee_input: u64",
+      "cap_per_round_input: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let event = & mut ctx . accounts . event_state ;",
+      "event . organizer = ctx . accounts . organizer . key () ;",
+      "event . base_fee = base_fee_input ;",
+      "if event . base_fee < 1",
+      "{",
+      "event . base_fee = 1 ;",
+      "}",
+      "event . cap_per_round = cap_per_round_input ;",
+      "if event . cap_per_round < event . base_fee",
+      "{",
+      "event . cap_per_round = event . base_fee ;",
+      "}",
+      "event . issued_in_round = 0 ;",
+      "event . first_bonus_issued = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_rebate",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActRebate >",
+      "entrants_count: u16",
+      "is_early_bird: bool"
+    ],
+    "attributes": [],
+    "body": [
+      "let event = & mut ctx . accounts . event_state ;",
+      "let mut rebate_units : u64 = event . base_fee / 5 + 1 ;",
+      "let mut entrant_cursor : u16 = 1 ;",
+      "while entrant_cursor < entrants_count",
+      "{",
+      "rebate_units = rebate_units + (entrant_cursor as u64 % 5) ;",
+      "entrant_cursor = entrant_cursor + 1 ;",
+      "}",
+      "if is_early_bird",
+      "{",
+      "rebate_units = rebate_units + 2 ;",
+      "}",
+      "let projected = event . issued_in_round + rebate_units ;",
+      "if projected > event . cap_per_round",
+      "{",
+      "let remaining = event . cap_per_round - event . issued_in_round ;",
+      "token :: transfer (ctx . accounts . pool_to_participant () , remaining) ? ;",
+      "event . issued_in_round = event . cap_per_round ;",
+      "return Err (EventErr :: Cap . into ()) ;",
+      "}",
+      "token :: transfer (ctx . accounts . pool_to_participant () , rebate_units) ? ;",
+      "event . issued_in_round = projected ;",
+      "if is_early_bird",
+      "{",
+      "event . first_bonus_issued = event . first_bonus_issued + 1 ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitEvent",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "event_state",
+        "attribute": "# [account (init , payer = organizer , space = 8 + 32 + 8 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , EventState >"
+      },
+      {
+        "name": "organizer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActRebate",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "event_state",
+        "attribute": "# [account (mut , has_one = organizer)]",
+        "field_type": "Account < 'info , EventState >"
+      },
+      {
+        "name": "organizer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "rebate_pool_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "participant_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EventState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "organizer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "base_fee",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "cap_per_round",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "issued_in_round",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "first_bonus_issued",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

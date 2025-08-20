@@ -1,0 +1,190 @@
+[
+  {
+    "name": "init_tracker",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitTracker >"
+    ],
+    "attributes": [
+      "# [doc = \" トラッカーの初期化：空のペナルティレコードと収集額を０にセット\"]"
+    ],
+    "body": [
+      "let t = & mut ctx . accounts . tracker ;",
+      "t . records = Vec :: new () ;",
+      "t . total_collected = 0 ;"
+    ]
+  },
+  {
+    "name": "penalize_account",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PenalizeAccount >",
+      "target: Pubkey",
+      "fine_amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" アカウントにペナルティ設定：target と fine_amount を記録\"]",
+      "# [doc = \" ⚠\\u{fe0f} 呼び出し元の署名チェック・権限チェックは一切なし\"]"
+    ],
+    "body": [
+      "let t = & mut ctx . accounts . tracker ;",
+      "t . records . push (PenaltyRecord { user : target , fine : fine_amount , paid : false , timestamp : Clock :: get () . unwrap () . unix_timestamp , }) ;",
+      "msg ! (\"Penalized {} with {} points\" , target , fine_amount) ;"
+    ]
+  },
+  {
+    "name": "settle_penalty",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SettlePenalty >",
+      "target: Pubkey",
+      "paid_amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 罰金精算：支払い額を受け取り、レコードを更新して total_collected に加算\"]",
+      "# [doc = \" ⚠\\u{fe0f} payer の署名チェックや実際の lamports の移動は行わない脆弱性あり\"]"
+    ],
+    "body": [
+      "let t = & mut ctx . accounts . tracker ;",
+      "if let Some (rec) = t . records . iter_mut () . find (| r | r . user == target && ! r . paid)",
+      "{",
+      "if paid_amount >= rec . fine",
+      "{",
+      "rec . paid = true ;",
+      "t . total_collected = t . total_collected . checked_add (rec . fine) . unwrap () ;",
+      "msg ! (\"Settled penalty for",
+      "{",
+      "} ({} points)\" , target , rec . fine) ;",
+      "} else",
+      "{",
+      "msg ! (\"Insufficient payment for {}\" , target) ;",
+      "} } else",
+      "{",
+      "msg ! (\"No active penalty for {}\" , target) ;",
+      "}"
+    ]
+  },
+  {
+    "name": "Tracker",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "records",
+        "attribute": "# [doc = \" 設定されたペナルティレコード一覧\"]",
+        "field_type": "Vec < PenaltyRecord >"
+      },
+      {
+        "name": "total_collected",
+        "attribute": "# [doc = \" 実際に“回収”された罰金ポイント総額\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PenaltyRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "fine",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "paid",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "timestamp",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitTracker",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "tracker",
+        "attribute": "# [account (init , payer = payer , space = 8 + (4 + (32 + 8 + 1 + 8) * 100) + 8)]",
+        "field_type": "Account < 'info , Tracker >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PenalizeAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "tracker",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Tracker >"
+      },
+      {
+        "name": "target",
+        "attribute": "# [doc = \" CHECK: 権限検証なしで target を指定\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "extra_info",
+        "attribute": "# [doc = \" 追加情報用（未使用）\"]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SettlePenalty",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "tracker",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Tracker >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [doc = \" CHECK: payer の署名検証なし\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "extra_info",
+        "attribute": "# [doc = \" 追加情報用（未使用）\"]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

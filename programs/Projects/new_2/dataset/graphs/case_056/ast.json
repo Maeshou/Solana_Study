@@ -1,0 +1,51 @@
+[
+  {
+    "name": "list_nft_enumerate",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ListNftEnumerate >",
+      "price: u64",
+      "expiry_ts: i64"
+    ],
+    "attributes": [
+      "# [doc = \" NFTをマーケットプレイスに出品する  \"]",
+      "# [doc = \" （`listing_account` の owner チェックを一切行っていないため、  \"]",
+      "# [doc = \"  攻撃者が任意のアカウントを指定して他人のNFTを無断で出品できます）\"]"
+    ],
+    "body": [
+      "let acct = & mut ctx . accounts . listing_account . to_account_info () ;",
+      "let data = & mut acct . data . borrow_mut () ;",
+      "let price_bytes = price . to_le_bytes () ;",
+      "let expiry_bytes = expiry_ts . to_le_bytes () ;",
+      "let seller_bytes = ctx . accounts . seller . key () . to_bytes () ;",
+      "let payload : Vec < u8 > = price_bytes . iter () . chain (expiry_bytes . iter ()) . chain (seller_bytes . iter ()) . copied () . collect () ;",
+      "if data . len () < payload . len ()",
+      "{",
+      "return err ! (ErrorCode :: DataTooShort) ;",
+      "}",
+      "data . iter_mut () . zip (payload . iter ()) . for_each (| (dst , & src) | * dst = src) ;",
+      "msg ! (\"NFT {} listed by {} → price={} lamports, expires={} (chain v2)\" , acct . key () , ctx . accounts . seller . key () , price , expiry_ts) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "ListNftEnumerate",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "listing_account",
+        "attribute": "# [doc = \" CHECK: owner == program_id の検証を全く行っていない AccountInfo\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "seller",
+        "attribute": "# [doc = \" 出品者署名のみ検証\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,33 +1,73 @@
 [
   {
-    "name": "initialize_futures_contract",
+    "name": "init_calibration",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Initialize078 >",
-      "param: u64"
+      "ctx: Context < InitCalibration >",
+      "target: u16"
     ],
     "attributes": [],
     "body": [
-      "let mut data = FuturesContractData :: try_from_slice (& ctx . accounts . data_account . data . borrow ()) ? ;",
-      "data . value = param ;",
-      "data . serialize (& mut * ctx . accounts . data_account . data . borrow_mut ()) ? ;",
+      "let c = & mut ctx . accounts . calib ;",
+      "c . samples_count = 0 ;",
+      "c . error_sum = 0 ;",
+      "c . calibrate_flag = false ;",
+      "let mut step = 1u16 ;",
+      "while step < target",
+      "{",
+      "c . error_sum += step as u32 ;",
+      "step += 1 ;",
+      "}",
+      "if c . error_sum > (target as u32 * 10)",
+      "{",
+      "c . calibrate_flag = true ;",
+      "}",
       "Ok (())"
     ]
   },
   {
-    "name": "Initialize078",
+    "name": "process_sample",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ProcessSample >",
+      "error: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let c = & mut ctx . accounts . calib ;",
+      "c . samples_count = c . samples_count . saturating_add (1) ;",
+      "c . error_sum = c . error_sum . saturating_add (error as u32) ;",
+      "let avg = c . error_sum / c . samples_count as u32 ;",
+      "if avg > 5",
+      "{",
+      "c . calibrate_flag = true ;",
+      "} else",
+      "{",
+      "c . calibrate_flag = false ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitCalibration",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "calib",
+        "attribute": "# [account (init , payer = user , space = 8 + 4 + 4 + 1)]",
+        "field_type": "Account < 'info , CalibrationData >"
       },
       {
-        "name": "authority",
-        "attribute": null,
+        "name": "user",
+        "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -35,13 +75,37 @@
     "body": null
   },
   {
-    "name": "FuturesContractData",
+    "name": "ProcessSample",
     "node_type": "struct",
     "fields": [
       {
-        "name": "value",
+        "name": "calib",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , CalibrationData >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CalibrationData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "samples_count",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "u32"
+      },
+      {
+        "name": "error_sum",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "calibrate_flag",
+        "attribute": null,
+        "field_type": "bool"
       }
     ],
     "inputs": null,

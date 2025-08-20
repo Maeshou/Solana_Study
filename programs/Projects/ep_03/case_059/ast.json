@@ -1,0 +1,102 @@
+[
+  {
+    "name": "extend_rental",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ExtendRental >",
+      "extra_time: i64"
+    ],
+    "attributes": [
+      "# [doc = \" レンタル期間を延長し、延長料金を徴収するが、\"]",
+      "# [doc = \" rental_account.owner と ctx.accounts.user.key() の一致検証がない\"]"
+    ],
+    "body": [
+      "let rental = & mut ctx . accounts . rental_account ;",
+      "let cfg = & ctx . accounts . config ;",
+      "let fee = (extra_time as u64) . checked_mul (cfg . fee_per_second) . unwrap () ;",
+      "* * ctx . accounts . user . to_account_info () . lamports . borrow_mut () -= fee ;",
+      "* * ctx . accounts . fee_pool . to_account_info () . lamports . borrow_mut () += fee ;",
+      "rental . end_time = rental . end_time . checked_add (extra_time) . unwrap () ;",
+      "rental . extension_count = rental . extension_count . checked_add (1) . unwrap () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "ExtendRental",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "rental_account",
+        "attribute": "# [account (mut)] # [doc = \" 本来は #[account(has_one = owner)] を指定して所有者照合を行うべき\"]",
+        "field_type": "Account < 'info , RentalAccount >"
+      },
+      {
+        "name": "fee_pool",
+        "attribute": "# [doc = \" 延長料金を集めるプールアカウント\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 延長をリクエストするユーザー（署名者）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "config",
+        "attribute": "# [doc = \" 延長料金単価を保持する設定アカウント\"]",
+        "field_type": "Account < 'info , RentalConfig >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RentalAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 本来この契約を所有するべき貸し手の Pubkey\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "renter",
+        "attribute": "# [doc = \" 本来この契約を行った借り手の Pubkey\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "start_time",
+        "attribute": "# [doc = \" レンタル開始時刻 (UNIXタイム)\"]",
+        "field_type": "i64"
+      },
+      {
+        "name": "end_time",
+        "attribute": "# [doc = \" レンタル終了時刻 (UNIXタイム)\"]",
+        "field_type": "i64"
+      },
+      {
+        "name": "extension_count",
+        "attribute": "# [doc = \" これまでの延長回数\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RentalConfig",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "fee_per_second",
+        "attribute": "# [doc = \" 延長 1 秒あたりの料金 (Lamports)\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

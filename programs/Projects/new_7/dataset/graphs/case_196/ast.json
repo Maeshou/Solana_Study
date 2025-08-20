@@ -1,0 +1,136 @@
+[
+  {
+    "name": "count_like_primes",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "n: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut c = 0u64 ;",
+      "let mut i = 2u64 ;",
+      "while i <= n",
+      "{",
+      "let mut d = 2u64 ;",
+      "let mut ok = true ;",
+      "while d * d <= i",
+      "{",
+      "if i % d == 0 { ok = false ;",
+      "} d += 1 ;",
+      "} if ok",
+      "{",
+      "c = c . saturating_add (1) ;",
+      "} i += 1 ;",
+      "}",
+      "c"
+    ]
+  },
+  {
+    "name": "run",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Run >",
+      "n: u64",
+      "reward: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let k = count_like_primes (n) ;",
+      "if k > 0",
+      "{",
+      "ctx . accounts . book . primes = ctx . accounts . book . primes . saturating_add (k) ;",
+      "}",
+      "let blob = k . to_le_bytes () . to_vec () ;",
+      "invoke (& Instruction { program_id : FIXED_BOOK_ID , accounts : vec ! [AccountMeta :: new (ctx . accounts . book_cell . key () , false) , AccountMeta :: new_readonly (ctx . accounts . user . key () , false) ,] , data : blob } , & [ctx . accounts . book_hint . to_account_info () , ctx . accounts . book_cell . to_account_info () , ctx . accounts . user . to_account_info () ,]) ? ;",
+      "let mut nprg = ctx . accounts . notice_hint . to_account_info () ;",
+      "if ! ctx . remaining_accounts . is_empty ()",
+      "{",
+      "nprg = ctx . remaining_accounts [0] . clone () ;",
+      "ctx . accounts . book . paths = ctx . accounts . book . paths . saturating_add (2) ;",
+      "}",
+      "invoke (& Instruction { program_id : * nprg . key , accounts : vec ! [AccountMeta :: new (ctx . accounts . notice_board . key () , false) , AccountMeta :: new_readonly (ctx . accounts . user . key () , false) ,] , data : reward . rotate_left ((k & 31) as u32) . to_le_bytes () . to_vec () } , & [nprg , ctx . accounts . notice_board . to_account_info () , ctx . accounts . user . to_account_info () ,]) ? ;",
+      "token :: transfer (CpiContext :: new (ctx . accounts . token_program . to_account_info () , Transfer { from : ctx . accounts . bank . to_account_info () , to : ctx . accounts . user_token . to_account_info () , authority : ctx . accounts . bank_auth . to_account_info () , }) , reward ,) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Book",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "primes",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "paths",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Run",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "book",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Book >"
+      },
+      {
+        "name": "book_cell",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "book_hint",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "notice_board",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "notice_hint",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "bank",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "user_token",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "bank_auth",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

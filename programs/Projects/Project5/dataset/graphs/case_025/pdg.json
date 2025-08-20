@@ -1,9 +1,9 @@
 [
   {
-    "name": "init_auction",
+    "name": "init_bench",
     "inputs": [
-      "ctx: Context < Ctx025 >",
-      "amount: u64"
+      "ctx: Context < InitBench >",
+      "limit: u32"
     ],
     "nodes": [
       {
@@ -12,18 +12,22 @@
       },
       {
         "id": 1,
-        "label": "let cpi_accounts = Transfer { from : ctx . accounts . from_token . to_account_info () , to : ctx . accounts . to_token . to_account_info () , authority : ctx . accounts . authority . to_account_info () , } ;"
+        "label": "let accs = & mut ctx . accounts ;"
       },
       {
         "id": 2,
-        "label": "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;"
+        "label": "accs . bench . owner = accs . crafter . key () ;"
       },
       {
         "id": 3,
-        "label": "token :: transfer (cpi_ctx , amount) ? ;"
+        "label": "accs . bench . limit = limit ;"
       },
       {
         "id": 4,
+        "label": "accs . bench . mode = BenchMode :: Warm ;"
+      },
+      {
+        "id": 5,
         "label": "Ok (())"
       }
     ],
@@ -31,22 +35,292 @@
       {
         "from": 1,
         "to": 1,
-        "label": "def: cpi_accounts"
-      },
-      {
-        "from": 2,
-        "to": 2,
-        "label": "def: cpi_ctx"
+        "label": "def: accs"
       },
       {
         "from": 1,
         "to": 2,
-        "label": "data_dep: cpi_accounts"
+        "label": "data_dep: accs"
       },
       {
-        "from": 2,
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: accs"
+      },
+      {
+        "from": 1,
         "to": 3,
-        "label": "data_dep: cpi_ctx"
+        "label": "data_dep: accs"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: accs"
+      }
+    ]
+  },
+  {
+    "name": "craft",
+    "inputs": [
+      "ctx: Context < Craft >",
+      "passes: u8"
+    ],
+    "nodes": [
+      {
+        "id": 6,
+        "label": "Entry"
+      },
+      {
+        "id": 7,
+        "label": "let accs = & mut ctx . accounts ;"
+      },
+      {
+        "id": 8,
+        "label": "let (bench , bin , ledger) = (& mut accs . bench , & mut accs . ore_bin , & mut accs . ledger) ;"
+      },
+      {
+        "id": 9,
+        "label": "assert_ne ! (bench . key () , bin . key () , \"bench/bin must differ\") ;"
+      },
+      {
+        "id": 10,
+        "label": "let rarity_delta = simulate_crafting (bin , passes) ;"
+      },
+      {
+        "id": 11,
+        "label": "ledger . rarity_score = ledger . rarity_score . saturating_add (rarity_delta) ;"
+      },
+      {
+        "id": 12,
+        "label": "ledger . crafts = ledger . crafts . saturating_add (passes as u64) ;"
+      },
+      {
+        "id": 13,
+        "label": "let hue_boost = hue_mix (& [bench . owner . as_ref () , & passes . to_le_bytes () , & ledger . crafts . to_le_bytes ()]) ;"
+      },
+      {
+        "id": 14,
+        "label": "bin . chromatic = bin . chromatic . saturating_add (hue_boost as u32) ;"
+      },
+      {
+        "id": 15,
+        "label": "if bin . iron . saturating_add (bin . silica) > bench . limit { bench . mode = BenchMode :: Overdrive ; ledger . rarity_score = ledger . rarity_score . saturating_add (7) ; bin . hardness = bin . hardness . saturating_add (5) ; msg ! (\"limit exceeded: overdrive on, rarity+7 hardness+5\") ; } else { bench . mode = BenchMode :: Warm ; ledger . crafts = ledger . crafts . saturating_add (1) ; bin . hardness = bin . hardness . saturating_add (2) ; msg ! (\"within limit: warm mode, crafts+1 hardness+2\") ; }"
+      },
+      {
+        "id": 16,
+        "label": "bench . mode = BenchMode :: Overdrive ;"
+      },
+      {
+        "id": 17,
+        "label": "ledger . rarity_score = ledger . rarity_score . saturating_add (7) ;"
+      },
+      {
+        "id": 18,
+        "label": "bin . hardness = bin . hardness . saturating_add (5) ;"
+      },
+      {
+        "id": 19,
+        "label": "msg ! (\"limit exceeded: overdrive on, rarity+7 hardness+5\") ;"
+      },
+      {
+        "id": 20,
+        "label": "bench . mode = BenchMode :: Warm ;"
+      },
+      {
+        "id": 21,
+        "label": "ledger . crafts = ledger . crafts . saturating_add (1) ;"
+      },
+      {
+        "id": 22,
+        "label": "bin . hardness = bin . hardness . saturating_add (2) ;"
+      },
+      {
+        "id": 23,
+        "label": "msg ! (\"within limit: warm mode, crafts+1 hardness+2\") ;"
+      },
+      {
+        "id": 24,
+        "label": "emit ! (CraftEvent { owner : bench . owner , passes , rarity_delta }) ;"
+      },
+      {
+        "id": 25,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 7,
+        "to": 7,
+        "label": "def: accs"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: accs"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: accs"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: accs"
+      },
+      {
+        "from": 10,
+        "to": 10,
+        "label": "def: rarity_delta"
+      },
+      {
+        "from": 10,
+        "to": 11,
+        "label": "data_dep: rarity_delta"
+      },
+      {
+        "from": 13,
+        "to": 13,
+        "label": "def: hue_boost"
+      },
+      {
+        "from": 13,
+        "to": 14,
+        "label": "data_dep: hue_boost"
+      }
+    ]
+  },
+  {
+    "name": "simulate_crafting",
+    "inputs": [
+      "bin: & mut OreBin",
+      "passes: u8"
+    ],
+    "nodes": [
+      {
+        "id": 26,
+        "label": "Entry"
+      },
+      {
+        "id": 27,
+        "label": "let mut rarity = 0u64 ;"
+      },
+      {
+        "id": 28,
+        "label": "for step in 0 .. passes { let gain = (2 + (step % 3)) as u32 ; bin . iron = bin . iron . saturating_add (gain) ; bin . silica = bin . silica . saturating_add (gain + 1) ; bin . cutlines = bin . cutlines . saturating_add (3) ; rarity = rarity . saturating_add ((gain as u64) * 2) ; }"
+      },
+      {
+        "id": 29,
+        "label": "let gain = (2 + (step % 3)) as u32 ;"
+      },
+      {
+        "id": 30,
+        "label": "bin . iron = bin . iron . saturating_add (gain) ;"
+      },
+      {
+        "id": 31,
+        "label": "bin . silica = bin . silica . saturating_add (gain + 1) ;"
+      },
+      {
+        "id": 32,
+        "label": "bin . cutlines = bin . cutlines . saturating_add (3) ;"
+      },
+      {
+        "id": 33,
+        "label": "rarity = rarity . saturating_add ((gain as u64) * 2) ;"
+      },
+      {
+        "id": 34,
+        "label": "rarity"
+      }
+    ],
+    "edges": [
+      {
+        "from": 27,
+        "to": 27,
+        "label": "def: rarity"
+      },
+      {
+        "from": 27,
+        "to": 28,
+        "label": "data_dep: rarity"
+      },
+      {
+        "from": 27,
+        "to": 28,
+        "label": "data_dep: rarity"
+      },
+      {
+        "from": 29,
+        "to": 29,
+        "label": "def: gain"
+      },
+      {
+        "from": 29,
+        "to": 30,
+        "label": "data_dep: gain"
+      },
+      {
+        "from": 29,
+        "to": 31,
+        "label": "data_dep: gain"
+      },
+      {
+        "from": 27,
+        "to": 33,
+        "label": "data_dep: rarity"
+      },
+      {
+        "from": 27,
+        "to": 33,
+        "label": "data_dep: rarity"
+      },
+      {
+        "from": 29,
+        "to": 33,
+        "label": "data_dep: gain"
+      },
+      {
+        "from": 27,
+        "to": 34,
+        "label": "data_dep: rarity"
+      }
+    ]
+  },
+  {
+    "name": "hue_mix",
+    "inputs": [
+      "parts: & [& [u8]]"
+    ],
+    "nodes": [
+      {
+        "id": 35,
+        "label": "Entry"
+      },
+      {
+        "id": 36,
+        "label": "let h = hashv (parts) ;"
+      },
+      {
+        "id": 37,
+        "label": "u16 :: from_le_bytes ([h . 0 [0] , h . 0 [1]]) % 97 + 3"
+      }
+    ],
+    "edges": [
+      {
+        "from": 36,
+        "to": 36,
+        "label": "def: h"
+      },
+      {
+        "from": 36,
+        "to": 37,
+        "label": "data_dep: h"
+      },
+      {
+        "from": 36,
+        "to": 37,
+        "label": "data_dep: h"
       }
     ]
   }

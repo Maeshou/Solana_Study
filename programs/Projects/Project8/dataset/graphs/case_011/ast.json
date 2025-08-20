@@ -1,0 +1,137 @@
+[
+  {
+    "name": "init_bank",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitBank >",
+      "season: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let b = & mut ctx . accounts . bank ;",
+      "b . guardian = ctx . accounts . guardian . key () ;",
+      "b . season = season . rotate_left (2) . wrapping_add (12) ;",
+      "b . counter = 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "pay_mixed",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PayMixed >",
+      "lamports: u64",
+      "tokens: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let bump = * ctx . bumps . get (\"bank\") . ok_or (error ! (E :: MissingBump)) ? ;",
+      "let seeds : & [& [u8]] = & [b\"bank\" , ctx . accounts . guardian . key . as_ref () , & ctx . accounts . bank . season . to_le_bytes () , & [bump]] ;",
+      "let ix = system_instruction :: transfer (& ctx . accounts . bank . key () , & ctx . accounts . user . key () , lamports) ;",
+      "invoke_signed (& ix , & [ctx . accounts . bank . to_account_info () , ctx . accounts . user . to_account_info () , ctx . accounts . system_program . to_account_info () ,] , & [seeds] ,) ? ;",
+      "let cpi_accounts = Transfer { from : ctx . accounts . bank_token . to_account_info () , to : ctx . accounts . user_token . to_account_info () , authority : ctx . accounts . bank . to_account_info () , } ;",
+      "let cpi_ctx = CpiContext :: new_with_signer (ctx . accounts . token_program . to_account_info () , cpi_accounts , & [seeds]) ;",
+      "token :: transfer (cpi_ctx , tokens) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitBank",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "bank",
+        "attribute": "# [account (init , payer = guardian , space = 8 + 32 + 8 + 8 , seeds = [b\"bank\" , guardian . key () . as_ref () , season . to_le_bytes () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Bank >"
+      },
+      {
+        "name": "guardian",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "season",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PayMixed",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "bank",
+        "attribute": "# [account (mut , seeds = [b\"bank\" , guardian . key () . as_ref () , bank . season . to_le_bytes () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Bank >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "SystemAccount < 'info >"
+      },
+      {
+        "name": "bank_token",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "user_token",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "guardian",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Bank",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guardian",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "season",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "counter",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

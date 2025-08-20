@@ -1,15 +1,181 @@
 [
   {
-    "name": "ClaimRewardsCtxvjsu",
+    "name": "create_event",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateEvent >",
+      "name: String",
+      "venue: String",
+      "date: i64",
+      "ticket_price: u64",
+      "max_tickets: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let event = & mut ctx . accounts . event ;",
+      "event . organizer = ctx . accounts . organizer . key () ;",
+      "event . name = name ;",
+      "event . venue = venue ;",
+      "event . date = date ;",
+      "event . ticket_price = ticket_price ;",
+      "event . max_tickets = max_tickets ;",
+      "event . tickets_sold = 0 ;",
+      "event . is_active = true ;",
+      "event . bump = * ctx . bumps . get (\"event\") . unwrap () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "purchase_ticket",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PurchaseTicket >",
+      "quantity: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let event = & mut ctx . accounts . event ;",
+      "let ticket = & mut ctx . accounts . ticket ;",
+      "require ! (event . is_active , TicketingError :: EventNotActive) ;",
+      "require ! (event . tickets_sold + quantity <= event . max_tickets , TicketingError :: NotEnoughTickets) ;",
+      "require ! (Clock :: get () ?. unix_timestamp < event . date , TicketingError :: EventPassed) ;",
+      "ticket . event = event . key () ;",
+      "ticket . owner = ctx . accounts . buyer . key () ;",
+      "ticket . quantity = quantity ;",
+      "ticket . purchased_at = Clock :: get () ? . unix_timestamp ;",
+      "ticket . is_used = false ;",
+      "ticket . bump = * ctx . bumps . get (\"ticket\") . unwrap () ;",
+      "event . tickets_sold += quantity ;",
+      "let total_cost = event . ticket_price * quantity ;",
+      "* * ctx . accounts . buyer . lamports . borrow_mut () -= total_cost ;",
+      "* * ctx . accounts . organizer . lamports . borrow_mut () += total_cost ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "validate_ticket",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ValidateTicket >"
+    ],
+    "attributes": [],
+    "body": [
+      "let ticket = & mut ctx . accounts . ticket ;",
+      "let event = & ctx . accounts . event ;",
+      "require ! (! ticket . is_used , TicketingError :: TicketAlreadyUsed) ;",
+      "require ! (Clock :: get () ?. unix_timestamp >= event . date - 3600 , TicketingError :: TooEarlyForEntry) ;",
+      "require ! (Clock :: get () ?. unix_timestamp <= event . date + 86400 , TicketingError :: EventExpired) ;",
+      "ticket . is_used = true ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Event",
     "node_type": "struct",
     "fields": [
       {
-        "name": "reward_vault",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
+        "name": "organizer",
+        "attribute": null,
+        "field_type": "Pubkey"
       },
       {
-        "name": "user",
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "venue",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "date",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "ticket_price",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "max_tickets",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "tickets_sold",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "is_active",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Ticket",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "event",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "quantity",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "purchased_at",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "is_used",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreateEvent",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "event",
+        "attribute": "# [account (init , payer = organizer , space = 8 + 32 + 4 + name . len () + 4 + venue . len () + 8 + 8 + 8 + 8 + 1 + 1 , seeds = [b\"event\" , organizer . key () . as_ref () , name . as_bytes ()] , bump)]",
+        "field_type": "Account < 'info , Event >"
+      },
+      {
+        "name": "organizer",
         "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
       },
@@ -24,13 +190,33 @@
     "body": null
   },
   {
-    "name": "DataAccount",
+    "name": "PurchaseTicket",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data",
+        "name": "event",
+        "attribute": "# [account (mut , seeds = [b\"event\" , event . organizer . as_ref () , event . name . as_bytes ()] , bump = event . bump)]",
+        "field_type": "Account < 'info , Event >"
+      },
+      {
+        "name": "ticket",
+        "attribute": "# [account (init , payer = buyer , space = 8 + 32 + 32 + 8 + 8 + 1 + 1 , seeds = [b\"ticket\" , event . key () . as_ref () , buyer . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Ticket >"
+      },
+      {
+        "name": "buyer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "organizer",
+        "attribute": "# [doc = \" CHECK: Verified through event organizer field\"] # [account (mut , constraint = organizer . key () == event . organizer)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -38,19 +224,27 @@
     "body": null
   },
   {
-    "name": "claim_rewards",
-    "node_type": "function",
-    "fields": null,
-    "inputs": [
-      "ctx: Context < ClaimRewardsCtxvjsu >",
-      "amount: u64"
+    "name": "ValidateTicket",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "event",
+        "attribute": "# [account (seeds = [b\"event\" , event . organizer . as_ref () , event . name . as_bytes ()] , bump = event . bump)]",
+        "field_type": "Account < 'info , Event >"
+      },
+      {
+        "name": "ticket",
+        "attribute": "# [account (mut , seeds = [b\"ticket\" , event . key () . as_ref () , ticket . owner . as_ref ()] , bump = ticket . bump , constraint = ticket . event == event . key ())]",
+        "field_type": "Account < 'info , Ticket >"
+      },
+      {
+        "name": "validator",
+        "attribute": "# [doc = \" CHECK: Event organizer or authorized validator\"]",
+        "field_type": "Signer < 'info >"
+      }
     ],
-    "attributes": [],
-    "body": [
-      "let acct = & mut ctx . accounts . reward_vault ;",
-      "for _ in 0 .. amount { acct . data += 1 ; }",
-      "msg ! (\"Executed claim_rewards logic\") ;",
-      "Ok (())"
-    ]
+    "inputs": null,
+    "attributes": null,
+    "body": null
   }
 ]

@@ -1,0 +1,196 @@
+[
+  {
+    "name": "protected_credit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ProtectedCredit >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" フルガード：Vault.owner と署名を検証して直接加算\"]"
+    ],
+    "body": [
+      "let account_info = ctx . accounts . vault_account . to_account_info () ;",
+      "let before = * * account_info . try_borrow_lamports () ? ;",
+      "let new_total = before + amount ;",
+      "* * account_info . try_borrow_mut_lamports () ? = new_total ;",
+      "msg ! (\"protected_credit 完了: {}\" , new_total) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "signer_credit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SignerCredit >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 署名のみチェック：raw AccountInfo を使って加算（owner 未検証）\"]"
+    ],
+    "body": [
+      "let raw = & ctx . accounts . raw_vault ;",
+      "let prev = * * raw . try_borrow_lamports () ? ;",
+      "* * raw . try_borrow_mut_lamports () ? = prev + amount ;",
+      "msg ! (\"signer_credit 完了: {}\" , ** raw . try_borrow_lamports () ?) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "manual_credit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ManualCredit >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 手動オーナーチェック：has_one は使わず if 文で比較、署名は不要\"]"
+    ],
+    "body": [
+      "let vault = & ctx . accounts . vault_data ;",
+      "let caller = ctx . accounts . user_info . key () ;",
+      "if vault . owner == caller",
+      "{",
+      "let info = vault . to_account_info () ;",
+      "let before = * * info . try_borrow_lamports () ? ;",
+      "* * info . try_borrow_mut_lamports () ? = before + amount ;",
+      "msg ! (\"manual_credit 適用:",
+      "{",
+      "}\" , before + amount) ;",
+      "} else",
+      "{",
+      "msg ! (\"manual_credit: オーナーでないためスキップ\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "broadcast_credit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < BroadcastCredit >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" remaining_accounts に含まれるすべてのアカウントにまとめて加算\"]"
+    ],
+    "body": [
+      "for acct in ctx . remaining_accounts . iter ()",
+      "{",
+      "let balance = acct . lamports () ;",
+      "* * acct . try_borrow_mut_lamports () ? = balance + amount ;",
+      "}",
+      "msg ! (\"broadcast_credit 完了\") ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "ProtectedCredit",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault_account",
+        "attribute": "# [doc = \" Vault.owner == authority を has_one で検証\"] # [account (mut , has_one = authority)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SignerCredit",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "raw_vault",
+        "attribute": "# [doc = \" CHECK: raw AccountInfo、所有権は検証しない\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ManualCredit",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault_data",
+        "attribute": "# [doc = \" mut のみ、has_one は使わず手動チェック\"] # [account (mut)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "user_info",
+        "attribute": "# [doc = \" CHECK: 比較のための AccountInfo\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BroadcastCredit",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Vault",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 正当なオーナーの Pubkey\"]",
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

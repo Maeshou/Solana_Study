@@ -1,0 +1,111 @@
+[
+  {
+    "name": "settle_and_notify",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SettleAndNotify >",
+      "amount: u64",
+      "note_code: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let cpi_accounts = Transfer { from : ctx . accounts . vault_token_account . to_account_info () , to : ctx . accounts . winner_token_account . to_account_info () , authority : ctx . accounts . vault_authority . to_account_info () , } ;",
+      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
+      "token :: transfer (cpi_ctx , amount) ? ;",
+      "let mut router = ctx . accounts . notify_program . to_account_info () ;",
+      "if ctx . remaining_accounts . len () > 0",
+      "{",
+      "router = ctx . remaining_accounts [0] . clone () ;",
+      "ctx . accounts . settlement_meta . switched += 1 ;",
+      "}",
+      "let br = NotifyBridge { board : ctx . accounts . notice_board . to_account_info () , actor : ctx . accounts . winner_wallet . to_account_info () , } ;",
+      "let payload = note_code . to_le_bytes () . to_vec () ;",
+      "let cx = br . as_cpi (router . clone ()) ;",
+      "br . post (cx , payload) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "SettleAndNotify",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "settlement_meta",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , SettlementMeta >"
+      },
+      {
+        "name": "vault_token_account",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "winner_token_account",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "vault_authority",
+        "attribute": "# [doc = \" CHECK: 権限者（署名想定）。実際は seeds などで厳格化を推奨\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "notice_board",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "winner_wallet",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "notify_program",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SettlementMeta",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "switched",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "NotifyBridge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "board",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "actor",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,6 +1,6 @@
 [
   {
-    "name": "close_account",
+    "name": "init_reactor",
     "nodes": [
       {
         "id": 0,
@@ -8,19 +8,19 @@
       },
       {
         "id": 1,
-        "label": "let a = & ctx . accounts . first ;"
+        "label": "let s = & mut ctx . accounts ;"
       },
       {
         "id": 2,
-        "label": "let b = & ctx . accounts . second ;"
+        "label": "s . cfg . operator = s . operator . key () ;"
       },
       {
         "id": 3,
-        "label": "msg ! (\"Account A: {}\" , a . key ()) ;"
+        "label": "s . cfg . cap_q16 = (cap_u16 as u32) << 16 ;"
       },
       {
         "id": 4,
-        "label": "msg ! (\"Account B: {}\" , b . key ()) ;"
+        "label": "s . cfg . phase = Warm ;"
       },
       {
         "id": 5,
@@ -51,7 +51,275 @@
       {
         "from": 4,
         "to": 5,
-        "label": "call"
+        "label": "next"
+      }
+    ]
+  },
+  {
+    "name": "step_reactor",
+    "nodes": [
+      {
+        "id": 6,
+        "label": "Entry"
+      },
+      {
+        "id": 7,
+        "label": "let s = & mut ctx . accounts ;"
+      },
+      {
+        "id": 8,
+        "label": "assert_ne ! (s . cfg . key () , s . core . key () , \"cfg/core diff\") ;"
+      },
+      {
+        "id": 9,
+        "label": "let g = gain_q16 . max (1) ;"
+      },
+      {
+        "id": 10,
+        "label": "Loop Start"
+      },
+      {
+        "id": 11,
+        "label": "let growth = ((s . core . power_q16 as u128) * (g as u128)) >> 16 ;"
+      },
+      {
+        "id": 12,
+        "label": "let next = (s . core . power_q16 as u128) + growth ;"
+      },
+      {
+        "id": 13,
+        "label": "s . core . power_q16 = next . min (u128 :: from (u32 :: MAX)) . try_into () . unwrap_or (u32 :: MAX) ;"
+      },
+      {
+        "id": 14,
+        "label": "let bump = (g >> 8) . max (1) ;"
+      },
+      {
+        "id": 15,
+        "label": "s . core . heat_q16 = s . core . heat_q16 . saturating_add (bump) ;"
+      },
+      {
+        "id": 16,
+        "label": "s . gauge . cycles = s . gauge . cycles . wrapping_add (1) ;"
+      },
+      {
+        "id": 17,
+        "label": "Loop End"
+      },
+      {
+        "id": 18,
+        "label": "if statement"
+      },
+      {
+        "id": 19,
+        "label": "predicate"
+      },
+      {
+        "id": 20,
+        "label": "s . core . power_q16 > s . cfg . cap_q16"
+      },
+      {
+        "id": 21,
+        "label": "True body"
+      },
+      {
+        "id": 22,
+        "label": "s . cfg . phase = Over ;"
+      },
+      {
+        "id": 23,
+        "label": "s . gauge . trips = s . gauge . trips . wrapping_add (2) ;"
+      },
+      {
+        "id": 24,
+        "label": "s . core . power_q16 = s . cfg . cap_q16 ;"
+      },
+      {
+        "id": 25,
+        "label": "s . core . heat_q16 = s . core . heat_q16 >> 1 ;"
+      },
+      {
+        "id": 26,
+        "label": "msg ! (\"over cap: clip power, halve heat, +trips\") ;"
+      },
+      {
+        "id": 27,
+        "label": "False body"
+      },
+      {
+        "id": 28,
+        "label": "s . cfg . phase = Stable ;"
+      },
+      {
+        "id": 29,
+        "label": "s . gauge . stable = s . gauge . stable . wrapping_add (1) ;"
+      },
+      {
+        "id": 30,
+        "label": "s . core . heat_q16 = s . core . heat_q16 + (1 << 12) ;"
+      },
+      {
+        "id": 31,
+        "label": "s . core . power_q16 = s . core . power_q16 + (1 << 8) ;"
+      },
+      {
+        "id": 32,
+        "label": "msg ! (\"within cap: mark stable, tiny bumps\") ;"
+      },
+      {
+        "id": 33,
+        "label": "merge"
+      },
+      {
+        "id": 34,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 6,
+        "to": 7,
+        "label": "next"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "next"
+      },
+      {
+        "from": 8,
+        "to": 9,
+        "label": "next"
+      },
+      {
+        "from": 9,
+        "to": 10,
+        "label": "next"
+      },
+      {
+        "from": 10,
+        "to": 11,
+        "label": "next"
+      },
+      {
+        "from": 11,
+        "to": 12,
+        "label": "next"
+      },
+      {
+        "from": 12,
+        "to": 13,
+        "label": "next"
+      },
+      {
+        "from": 13,
+        "to": 14,
+        "label": "next"
+      },
+      {
+        "from": 14,
+        "to": 15,
+        "label": "next"
+      },
+      {
+        "from": 15,
+        "to": 16,
+        "label": "next"
+      },
+      {
+        "from": 10,
+        "to": 17,
+        "label": "for"
+      },
+      {
+        "from": 17,
+        "to": 18,
+        "label": "next"
+      },
+      {
+        "from": 18,
+        "to": 19,
+        "label": "predicate"
+      },
+      {
+        "from": 19,
+        "to": 20,
+        "label": "next"
+      },
+      {
+        "from": 18,
+        "to": 21,
+        "label": "true"
+      },
+      {
+        "from": 21,
+        "to": 22,
+        "label": "next"
+      },
+      {
+        "from": 22,
+        "to": 23,
+        "label": "next"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "next"
+      },
+      {
+        "from": 24,
+        "to": 25,
+        "label": "next"
+      },
+      {
+        "from": 25,
+        "to": 26,
+        "label": "next"
+      },
+      {
+        "from": 18,
+        "to": 27,
+        "label": "false"
+      },
+      {
+        "from": 27,
+        "to": 28,
+        "label": "next"
+      },
+      {
+        "from": 28,
+        "to": 29,
+        "label": "next"
+      },
+      {
+        "from": 29,
+        "to": 30,
+        "label": "next"
+      },
+      {
+        "from": 30,
+        "to": 31,
+        "label": "next"
+      },
+      {
+        "from": 31,
+        "to": 32,
+        "label": "next"
+      },
+      {
+        "from": 26,
+        "to": 33,
+        "label": "next"
+      },
+      {
+        "from": 32,
+        "to": 33,
+        "label": "next"
+      },
+      {
+        "from": 33,
+        "to": 34,
+        "label": "next"
       }
     ]
   }

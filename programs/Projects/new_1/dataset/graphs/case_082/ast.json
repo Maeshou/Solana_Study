@@ -1,0 +1,108 @@
+[
+  {
+    "name": "configure",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Configure >",
+      "lamports_per_nft: u64"
+    ],
+    "attributes": [
+      "# [doc = \" NFT あたりの報酬 lamports を設定する\"]"
+    ],
+    "body": [
+      "let cfg = & mut ctx . accounts . config ;",
+      "cfg . lamports_per_nft = lamports_per_nft ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "withdraw",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Withdraw >",
+      "nft_count: u64"
+    ],
+    "attributes": [
+      "# [doc = \" NFT 数に応じた lamports を引き出し、vault から recipient へ直接移動させる\"]",
+      "# [doc = \" CPI は一切使わず、直接 lamports 値を操作する\"]"
+    ],
+    "body": [
+      "let cfg = & ctx . accounts . config ;",
+      "let vault_info = ctx . accounts . vault . to_account_info () ;",
+      "let recipient_info = ctx . accounts . recipient . to_account_info () ;",
+      "let total = cfg . lamports_per_nft . checked_mul (nft_count) . ok_or (ErrorCode :: Overflow) ? ;",
+      "let vault_balance = * * vault_info . lamports . borrow () ;",
+      "if vault_balance < total",
+      "{",
+      "return Err (ErrorCode :: InsufficientFunds . into ()) ;",
+      "}",
+      "* * vault_info . lamports . borrow_mut () = vault_balance - total ;",
+      "* * recipient_info . lamports . borrow_mut () = * * recipient_info . lamports . borrow () + total ;",
+      "Ok (total)"
+    ]
+  },
+  {
+    "name": "Config",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "lamports_per_nft",
+        "attribute": "# [doc = \" NFT 1枚あたりの lamports 報酬\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Configure",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "config",
+        "attribute": "# [doc = \" 設定アカウント（PDA 等でも可）\"] # [account (init , payer = payer , space = 8 + 8)]",
+        "field_type": "Account < 'info , Config >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Withdraw",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": "# [doc = \" 報酬支払い用 vault（lamports を保有する任意のアカウント）\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "recipient",
+        "attribute": "# [doc = \" 報酬受取先アカウント\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "config",
+        "attribute": "# [doc = \" 設定アカウント\"]",
+        "field_type": "Account < 'info , Config >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

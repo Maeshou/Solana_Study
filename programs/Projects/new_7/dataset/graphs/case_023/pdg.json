@@ -1,0 +1,856 @@
+[
+  {
+    "name": "open",
+    "inputs": [
+      "ctx: Context < Open >",
+      "cap_bps: u16"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let s = & mut ctx . accounts . state ;"
+      },
+      {
+        "id": 2,
+        "label": "s . owner = ctx . accounts . owner . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "s . cap_bps = if cap_bps > 2500 { 2500 } else { cap_bps } ;"
+      },
+      {
+        "id": 4,
+        "label": "2500"
+      },
+      {
+        "id": 5,
+        "label": "cap_bps"
+      },
+      {
+        "id": 6,
+        "label": "s . trades = 0 ;"
+      },
+      {
+        "id": 7,
+        "label": "s . cashback = 0 ;"
+      },
+      {
+        "id": 8,
+        "label": "s . salt = 0 ;"
+      },
+      {
+        "id": 9,
+        "label": "let seed = s . owner . as_ref () [0] as u32 ;"
+      },
+      {
+        "id": 10,
+        "label": "let mut i = 0u8 ;"
+      },
+      {
+        "id": 11,
+        "label": "while i < 7 { s . salt = s . salt . saturating_add (((seed + i as u32) % 5) + 1) ; i = i . saturating_add (1) ; }"
+      },
+      {
+        "id": 12,
+        "label": "s . salt = s . salt . saturating_add (((seed + i as u32) % 5) + 1) ;"
+      },
+      {
+        "id": 13,
+        "label": "i = i . saturating_add (1) ;"
+      },
+      {
+        "id": 14,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: s"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 1,
+        "to": 6,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 1,
+        "to": 7,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 1,
+        "to": 8,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 9,
+        "to": 9,
+        "label": "def: seed"
+      },
+      {
+        "from": 1,
+        "to": 9,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 10,
+        "to": 10,
+        "label": "def: i"
+      },
+      {
+        "from": 10,
+        "to": 11,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 1,
+        "to": 11,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 1,
+        "to": 11,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 9,
+        "to": 11,
+        "label": "data_dep: seed"
+      },
+      {
+        "from": 10,
+        "to": 11,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 10,
+        "to": 11,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 10,
+        "to": 11,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 1,
+        "to": 12,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 1,
+        "to": 12,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 9,
+        "to": 12,
+        "label": "data_dep: seed"
+      },
+      {
+        "from": 10,
+        "to": 12,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 10,
+        "to": 13,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 10,
+        "to": 13,
+        "label": "data_dep: i"
+      }
+    ]
+  },
+  {
+    "name": "fill_and_cashback",
+    "inputs": [
+      "ctx: Context < FillAndCashback >",
+      "price: u64",
+      "qty: u64",
+      "tag: String"
+    ],
+    "nodes": [
+      {
+        "id": 15,
+        "label": "Entry"
+      },
+      {
+        "id": 16,
+        "label": "let s = & mut ctx . accounts . state ;"
+      },
+      {
+        "id": 17,
+        "label": "require ! (s . owner == ctx . accounts . owner . key () , Errs :: Owner) ;"
+      },
+      {
+        "id": 18,
+        "label": "s . trades = s . trades . saturating_add (1) ;"
+      },
+      {
+        "id": 19,
+        "label": "let value = price . saturating_mul (qty) ;"
+      },
+      {
+        "id": 20,
+        "label": "let mut cb = value . saturating_mul (s . cap_bps as u64) / 10_000 ;"
+      },
+      {
+        "id": 21,
+        "label": "if s . trades % 2 == 0 { let b = tag . as_bytes () ; let mut i = 0usize ; let mut wave = 0u64 ; while i < b . len () { wave = wave . saturating_add ((b [i] as u64) % 7 + 1) ; if i % 4 == 0 { wave = wave . saturating_add (2) ; } i += 1 ; } let mut j = 0u8 ; while j < 5 { cb = cb . saturating_add ((j as u64) + (wave % 3)) ; if cb > value { cb = value ; } j = j . saturating_add (1) ; } } else { let mut d = 0u8 ; while d < 6 { if cb > (value / 25) { cb = cb . saturating_sub (((d + 1) as u64)) ; } d = d . saturating_add (1) ; } if tag . len () < 6 { let mut bump = 0u8 ; while bump < 4 { cb = cb . saturating_add (1) ; bump = bump . saturating_add (1) ; } } }"
+      },
+      {
+        "id": 22,
+        "label": "let b = tag . as_bytes () ;"
+      },
+      {
+        "id": 23,
+        "label": "let mut i = 0usize ;"
+      },
+      {
+        "id": 24,
+        "label": "let mut wave = 0u64 ;"
+      },
+      {
+        "id": 25,
+        "label": "while i < b . len () { wave = wave . saturating_add ((b [i] as u64) % 7 + 1) ; if i % 4 == 0 { wave = wave . saturating_add (2) ; } i += 1 ; }"
+      },
+      {
+        "id": 26,
+        "label": "wave = wave . saturating_add ((b [i] as u64) % 7 + 1) ;"
+      },
+      {
+        "id": 27,
+        "label": "if i % 4 == 0 { wave = wave . saturating_add (2) ; }"
+      },
+      {
+        "id": 28,
+        "label": "wave = wave . saturating_add (2) ;"
+      },
+      {
+        "id": 29,
+        "label": "i += 1 ;"
+      },
+      {
+        "id": 30,
+        "label": "let mut j = 0u8 ;"
+      },
+      {
+        "id": 31,
+        "label": "while j < 5 { cb = cb . saturating_add ((j as u64) + (wave % 3)) ; if cb > value { cb = value ; } j = j . saturating_add (1) ; }"
+      },
+      {
+        "id": 32,
+        "label": "cb = cb . saturating_add ((j as u64) + (wave % 3)) ;"
+      },
+      {
+        "id": 33,
+        "label": "if cb > value { cb = value ; }"
+      },
+      {
+        "id": 34,
+        "label": "cb = value ;"
+      },
+      {
+        "id": 35,
+        "label": "j = j . saturating_add (1) ;"
+      },
+      {
+        "id": 36,
+        "label": "let mut d = 0u8 ;"
+      },
+      {
+        "id": 37,
+        "label": "while d < 6 { if cb > (value / 25) { cb = cb . saturating_sub (((d + 1) as u64)) ; } d = d . saturating_add (1) ; }"
+      },
+      {
+        "id": 38,
+        "label": "if cb > (value / 25) { cb = cb . saturating_sub (((d + 1) as u64)) ; }"
+      },
+      {
+        "id": 39,
+        "label": "cb = cb . saturating_sub (((d + 1) as u64)) ;"
+      },
+      {
+        "id": 40,
+        "label": "d = d . saturating_add (1) ;"
+      },
+      {
+        "id": 41,
+        "label": "if tag . len () < 6 { let mut bump = 0u8 ; while bump < 4 { cb = cb . saturating_add (1) ; bump = bump . saturating_add (1) ; } }"
+      },
+      {
+        "id": 42,
+        "label": "let mut bump = 0u8 ;"
+      },
+      {
+        "id": 43,
+        "label": "while bump < 4 { cb = cb . saturating_add (1) ; bump = bump . saturating_add (1) ; }"
+      },
+      {
+        "id": 44,
+        "label": "cb = cb . saturating_add (1) ;"
+      },
+      {
+        "id": 45,
+        "label": "bump = bump . saturating_add (1) ;"
+      },
+      {
+        "id": 46,
+        "label": "s . cashback = s . cashback . saturating_add (cb) ;"
+      },
+      {
+        "id": 47,
+        "label": "let ix = spl_token :: instruction :: transfer (ctx . accounts . token_program . key () , ctx . accounts . fee_vault . key () , ctx . accounts . trader_ata . key () , ctx . accounts . owner . key () , & [] , cb ,) ? ;"
+      },
+      {
+        "id": 48,
+        "label": "invoke (& ix , & [ctx . accounts . fee_vault . to_account_info () , ctx . accounts . trader_ata . to_account_info () , ctx . accounts . owner . to_account_info () ,] ,) ? ;"
+      },
+      {
+        "id": 49,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 16,
+        "to": 16,
+        "label": "def: s"
+      },
+      {
+        "from": 16,
+        "to": 18,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 16,
+        "to": 18,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 19,
+        "to": 19,
+        "label": "def: value"
+      },
+      {
+        "from": 20,
+        "to": 20,
+        "label": "def: cb"
+      },
+      {
+        "from": 19,
+        "to": 20,
+        "label": "data_dep: value"
+      },
+      {
+        "from": 16,
+        "to": 20,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 16,
+        "to": 21,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 20,
+        "to": 21,
+        "label": "data_dep: cb"
+      },
+      {
+        "from": 20,
+        "to": 21,
+        "label": "data_dep: cb"
+      },
+      {
+        "from": 20,
+        "to": 21,
+        "label": "data_dep: cb"
+      },
+      {
+        "from": 19,
+        "to": 21,
+        "label": "data_dep: value"
+      },
+      {
+        "from": 20,
+        "to": 21,
+        "label": "data_dep: cb"
+      },
+      {
+        "from": 19,
+        "to": 21,
+        "label": "data_dep: value"
+      },
+      {
+        "from": 20,
+        "to": 21,
+        "label": "data_dep: cb"
+      },
+      {
+        "from": 19,
+        "to": 21,
+        "label": "data_dep: value"
+      },
+      {
+        "from": 20,
+        "to": 21,
+        "label": "data_dep: cb"
+      },
+      {
+        "from": 20,
+        "to": 21,
+        "label": "data_dep: cb"
+      },
+      {
+        "from": 20,
+        "to": 21,
+        "label": "data_dep: cb"
+      },
+      {
+        "from": 20,
+        "to": 21,
+        "label": "data_dep: cb"
+      },
+      {
+        "from": 22,
+        "to": 22,
+        "label": "def: b"
+      },
+      {
+        "from": 23,
+        "to": 23,
+        "label": "def: i"
+      },
+      {
+        "from": 24,
+        "to": 24,
+        "label": "def: wave"
+      },
+      {
+        "from": 23,
+        "to": 25,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 22,
+        "to": 25,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 24,
+        "to": 25,
+        "label": "data_dep: wave"
+      },
+      {
+        "from": 24,
+        "to": 25,
+        "label": "data_dep: wave"
+      },
+      {
+        "from": 22,
+        "to": 25,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 23,
+        "to": 25,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 23,
+        "to": 25,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 24,
+        "to": 25,
+        "label": "data_dep: wave"
+      },
+      {
+        "from": 24,
+        "to": 25,
+        "label": "data_dep: wave"
+      },
+      {
+        "from": 23,
+        "to": 25,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 24,
+        "to": 26,
+        "label": "data_dep: wave"
+      },
+      {
+        "from": 24,
+        "to": 26,
+        "label": "data_dep: wave"
+      },
+      {
+        "from": 22,
+        "to": 26,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 23,
+        "to": 26,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 23,
+        "to": 27,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 24,
+        "to": 27,
+        "label": "data_dep: wave"
+      },
+      {
+        "from": 24,
+        "to": 27,
+        "label": "data_dep: wave"
+      },
+      {
+        "from": 24,
+        "to": 28,
+        "label": "data_dep: wave"
+      },
+      {
+        "from": 24,
+        "to": 28,
+        "label": "data_dep: wave"
+      },
+      {
+        "from": 23,
+        "to": 29,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 30,
+        "to": 30,
+        "label": "def: j"
+      },
+      {
+        "from": 30,
+        "to": 31,
+        "label": "data_dep: j"
+      },
+      {
+        "from": 20,
+        "to": 31,
+        "label": "data_dep: cb"
+      },
+      {
+        "from": 20,
+        "to": 31,
+        "label": "data_dep: cb"
+      },
+      {
+        "from": 30,
+        "to": 31,
+        "label": "data_dep: j"
+      },
+      {
+        "from": 24,
+        "to": 31,
+        "label": "data_dep: wave"
+      },
+      {
+        "from": 20,
+        "to": 31,
+        "label": "data_dep: cb"
+      },
+      {
+        "from": 19,
+        "to": 31,
+        "label": "data_dep: value"
+      },
+      {
+        "from": 20,
+        "to": 31,
+        "label": "data_dep: cb"
+      },
+      {
+        "from": 19,
+        "to": 31,
+        "label": "data_dep: value"
+      },
+      {
+        "from": 30,
+        "to": 31,
+        "label": "data_dep: j"
+      },
+      {
+        "from": 30,
+        "to": 31,
+        "label": "data_dep: j"
+      },
+      {
+        "from": 20,
+        "to": 32,
+        "label": "data_dep: cb"
+      },
+      {
+        "from": 20,
+        "to": 32,
+        "label": "data_dep: cb"
+      },
+      {
+        "from": 30,
+        "to": 32,
+        "label": "data_dep: j"
+      },
+      {
+        "from": 24,
+        "to": 32,
+        "label": "data_dep: wave"
+      },
+      {
+        "from": 20,
+        "to": 33,
+        "label": "data_dep: cb"
+      },
+      {
+        "from": 19,
+        "to": 33,
+        "label": "data_dep: value"
+      },
+      {
+        "from": 20,
+        "to": 33,
+        "label": "data_dep: cb"
+      },
+      {
+        "from": 19,
+        "to": 33,
+        "label": "data_dep: value"
+      },
+      {
+        "from": 20,
+        "to": 34,
+        "label": "data_dep: cb"
+      },
+      {
+        "from": 19,
+        "to": 34,
+        "label": "data_dep: value"
+      },
+      {
+        "from": 30,
+        "to": 35,
+        "label": "data_dep: j"
+      },
+      {
+        "from": 30,
+        "to": 35,
+        "label": "data_dep: j"
+      },
+      {
+        "from": 36,
+        "to": 36,
+        "label": "def: d"
+      },
+      {
+        "from": 36,
+        "to": 37,
+        "label": "data_dep: d"
+      },
+      {
+        "from": 20,
+        "to": 37,
+        "label": "data_dep: cb"
+      },
+      {
+        "from": 19,
+        "to": 37,
+        "label": "data_dep: value"
+      },
+      {
+        "from": 20,
+        "to": 37,
+        "label": "data_dep: cb"
+      },
+      {
+        "from": 20,
+        "to": 37,
+        "label": "data_dep: cb"
+      },
+      {
+        "from": 36,
+        "to": 37,
+        "label": "data_dep: d"
+      },
+      {
+        "from": 36,
+        "to": 37,
+        "label": "data_dep: d"
+      },
+      {
+        "from": 36,
+        "to": 37,
+        "label": "data_dep: d"
+      },
+      {
+        "from": 20,
+        "to": 38,
+        "label": "data_dep: cb"
+      },
+      {
+        "from": 19,
+        "to": 38,
+        "label": "data_dep: value"
+      },
+      {
+        "from": 20,
+        "to": 38,
+        "label": "data_dep: cb"
+      },
+      {
+        "from": 20,
+        "to": 38,
+        "label": "data_dep: cb"
+      },
+      {
+        "from": 36,
+        "to": 38,
+        "label": "data_dep: d"
+      },
+      {
+        "from": 20,
+        "to": 39,
+        "label": "data_dep: cb"
+      },
+      {
+        "from": 20,
+        "to": 39,
+        "label": "data_dep: cb"
+      },
+      {
+        "from": 36,
+        "to": 39,
+        "label": "data_dep: d"
+      },
+      {
+        "from": 36,
+        "to": 40,
+        "label": "data_dep: d"
+      },
+      {
+        "from": 36,
+        "to": 40,
+        "label": "data_dep: d"
+      },
+      {
+        "from": 20,
+        "to": 41,
+        "label": "data_dep: cb"
+      },
+      {
+        "from": 20,
+        "to": 41,
+        "label": "data_dep: cb"
+      },
+      {
+        "from": 42,
+        "to": 42,
+        "label": "def: bump"
+      },
+      {
+        "from": 42,
+        "to": 43,
+        "label": "data_dep: bump"
+      },
+      {
+        "from": 20,
+        "to": 43,
+        "label": "data_dep: cb"
+      },
+      {
+        "from": 20,
+        "to": 43,
+        "label": "data_dep: cb"
+      },
+      {
+        "from": 42,
+        "to": 43,
+        "label": "data_dep: bump"
+      },
+      {
+        "from": 42,
+        "to": 43,
+        "label": "data_dep: bump"
+      },
+      {
+        "from": 20,
+        "to": 44,
+        "label": "data_dep: cb"
+      },
+      {
+        "from": 20,
+        "to": 44,
+        "label": "data_dep: cb"
+      },
+      {
+        "from": 42,
+        "to": 45,
+        "label": "data_dep: bump"
+      },
+      {
+        "from": 42,
+        "to": 45,
+        "label": "data_dep: bump"
+      },
+      {
+        "from": 16,
+        "to": 46,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 16,
+        "to": 46,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 20,
+        "to": 46,
+        "label": "data_dep: cb"
+      },
+      {
+        "from": 47,
+        "to": 47,
+        "label": "def: ix"
+      },
+      {
+        "from": 20,
+        "to": 47,
+        "label": "data_dep: cb"
+      },
+      {
+        "from": 47,
+        "to": 48,
+        "label": "data_dep: ix"
+      }
+    ]
+  }
+]

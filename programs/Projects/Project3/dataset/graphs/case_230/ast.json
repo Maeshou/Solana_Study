@@ -1,0 +1,173 @@
+[
+  {
+    "name": "create_listing",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateListing >",
+      "price: u64"
+    ],
+    "attributes": [
+      "# [doc = \" NFT 出品\"]"
+    ],
+    "body": [
+      "let listing = & mut ctx . accounts . listing ;",
+      "listing . seller = * ctx . accounts . seller . key ;",
+      "listing . mint = ctx . accounts . mint . key () ;",
+      "listing . price = price ;",
+      "let cpi_accounts = Transfer { from : ctx . accounts . seller_nft_account . to_account_info () , to : ctx . accounts . escrow_nft_account . to_account_info () , authority : ctx . accounts . seller . to_account_info () , } ;",
+      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
+      "transfer (cpi_ctx , 1) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "buy",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < BuyNft >"
+    ],
+    "attributes": [
+      "# [doc = \" NFT 購入\"]"
+    ],
+    "body": [
+      "let listing = & ctx . accounts . listing ;",
+      "let seller = & ctx . accounts . seller ;",
+      "let buyer = & ctx . accounts . buyer ;",
+      "require ! (listing . seller != * buyer . key , MarketplaceError :: SelfPurchase) ;",
+      "* * buyer . to_account_info () . try_borrow_mut_lamports () ? = buyer . to_account_info () . lamports () . checked_sub (listing . price) . ok_or (MarketplaceError :: InsufficientFunds) ? ;",
+      "* * seller . to_account_info () . try_borrow_mut_lamports () ? = seller . to_account_info () . lamports () . checked_add (listing . price) . ok_or (MarketplaceError :: Overflow) ? ;",
+      "let expected_escrow = Pubkey :: find_program_address (& [b\"listing\" , listing . mint . as_ref ()] , ctx . program_id) . 0 ;",
+      "require ! (ctx . accounts . escrow_nft_account . key () == expected_escrow , MarketplaceError :: MismatchEscrow) ;",
+      "let cpi_accounts = Transfer { from : ctx . accounts . escrow_nft_account . to_account_info () , to : ctx . accounts . buyer_nft_account . to_account_info () , authority : ctx . accounts . listing . to_account_info () , } ;",
+      "let seeds = & [b\"listing\" , listing . mint . as_ref () , & [listing . bump]] ;",
+      "let signer = & [& seeds [..]] ;",
+      "let cpi_ctx = CpiContext :: new_with_signer (ctx . accounts . token_program . to_account_info () , cpi_accounts , signer ,) ;",
+      "transfer (cpi_ctx , 1) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CreateListing",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "listing",
+        "attribute": "# [account (init , seeds = [b\"listing\" , mint . key () . as_ref ()] , bump = bump , payer = seller , space = 8 + 32 + 32 + 8 + 1 ,)]",
+        "field_type": "Account < 'info , Listing >"
+      },
+      {
+        "name": "seller",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "seller_nft_account",
+        "attribute": "# [account (mut , constraint = seller_nft_account . owner == seller . key () && seller_nft_account . mint == mint . key () , error = MarketplaceError :: Unauthorized)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "escrow_nft_account",
+        "attribute": "# [account (init , seeds = [b\"listing\" , mint . key () . as_ref ()] , bump = bump , token :: mint = mint , token :: authority = listing , payer = seller)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "rent",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Rent >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BuyNft",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "listing",
+        "attribute": "# [account (mut , seeds = [b\"listing\" , listing . mint . as_ref ()] , bump = listing . bump , has_one = seller @ MarketplaceError :: Unauthorized)]",
+        "field_type": "Account < 'info , Listing >"
+      },
+      {
+        "name": "buyer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "seller",
+        "attribute": "# [doc = \" CHECK: lamports 送金先（署名不要）\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "buyer_nft_account",
+        "attribute": "# [account (mut , constraint = buyer_nft_account . owner == buyer . key () && buyer_nft_account . mint == listing . mint , error = MarketplaceError :: Unauthorized)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "escrow_nft_account",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Listing",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "seller",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "mint",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "price",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

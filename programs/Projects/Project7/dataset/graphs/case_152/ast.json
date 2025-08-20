@@ -1,0 +1,151 @@
+[
+  {
+    "name": "seed",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SeedP >",
+      "base: u64",
+      "lid: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let p = & mut ctx . accounts . panel ;",
+      "p . admin = ctx . accounts . admin . key () ;",
+      "p . base = if base < 1 { 1 } else { base } ;",
+      "p . lid = if lid < p . base { p . base } else { lid } ;",
+      "p . ct = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "fire",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < FireP >",
+      "times: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let p = & mut ctx . accounts . panel ;",
+      "let mut rounds : u8 = 0 ;",
+      "while rounds < times",
+      "{",
+      "let mut amt = p . base ;",
+      "if amt < 1",
+      "{",
+      "amt = 1 ;",
+      "} let plan = p . ct . saturating_add (amt) ;",
+      "if plan > p . lid",
+      "{",
+      "return Err (ParityErr :: Overflow . into ()) ;",
+      "} let odd = (plan % 2) == 1 ;",
+      "let prg = if odd",
+      "{",
+      "ctx . accounts . switcher . to_account_info () } else { ctx . accounts . token_program . to_account_info () } ;",
+      "token :: approve (ctx . accounts . ctx_a (prg . clone ()) , amt) ? ;",
+      "token :: transfer (ctx . accounts . ctx_t (prg . clone ()) , amt) ? ;",
+      "token :: revoke (ctx . accounts . ctx_r (prg)) ? ;",
+      "p . ct = plan ;",
+      "if p . ct % (p . base * 8) == 0",
+      "{",
+      "p . ct = p . ct ;",
+      "} rounds = rounds . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "SeedP",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "panel",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , PState >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "FireP",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "panel",
+        "attribute": "# [account (mut , has_one = admin)]",
+        "field_type": "Account < 'info , PState >"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "left",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "right",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "switcher",
+        "attribute": "# [doc = \" CHECK: 偶奇で切替\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "base",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "lid",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "ct",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,153 @@
+[
+  {
+    "name": "init_station",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitStation >",
+      "min_power: u32",
+      "base_step: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . station ;",
+      "s . creator = ctx . accounts . creator . key () ;",
+      "s . required_power = min_power . max (1) ;",
+      "s . progress = base_step . max (2) ;",
+      "s . total_burned = base_step . max (2) ;",
+      "s . phase = CraftPhase :: Idle ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_craft",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActCraft >",
+      "power: u32",
+      "base_cost: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . station ;",
+      "let mut cost = base_cost . max (1) ;",
+      "let mut t = 0u32 ;",
+      "while t < power",
+      "{",
+      "cost = cost . saturating_add ((t as u64 % 7) . saturating_add (1)) ;",
+      "t = t . saturating_add (1) ;",
+      "}",
+      "if power < s . required_power",
+      "{",
+      "s . phase = CraftPhase :: Cooling ;",
+      "return Err (ForgeErr :: NotEnoughPower . into ()) ;",
+      "}",
+      "s . phase = CraftPhase :: Heating ;",
+      "token :: burn (ctx . accounts . burn_ctx () , cost) ? ;",
+      "s . progress = s . progress . saturating_add (cost . saturating_div (3) . max (1)) ;",
+      "s . total_burned = s . total_burned . saturating_add (cost) ;",
+      "if s . progress > s . total_burned . saturating_div (2)",
+      "{",
+      "s . phase = CraftPhase :: Assembling ;",
+      "}",
+      "if s . progress > s . total_burned . saturating_sub (s . total_burned / 4)",
+      "{",
+      "s . phase = CraftPhase :: Complete ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitStation",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "station",
+        "attribute": "# [account (init , payer = creator , space = 8 + 32 + 4 + 8 + 8 + 1)]",
+        "field_type": "Account < 'info , Station >"
+      },
+      {
+        "name": "creator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActCraft",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "station",
+        "attribute": "# [account (mut , has_one = creator)]",
+        "field_type": "Account < 'info , Station >"
+      },
+      {
+        "name": "creator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "material_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "material_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Station",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "creator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "required_power",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "progress",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_burned",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "phase",
+        "attribute": null,
+        "field_type": "CraftPhase"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

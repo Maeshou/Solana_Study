@@ -1,0 +1,158 @@
+[
+  {
+    "name": "init_board",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitBoard >",
+      "max_today: u64",
+      "week_base: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let b = & mut ctx . accounts . board ;",
+      "b . owner = ctx . accounts . owner . key () ;",
+      "b . daily_max = max_today . max (9) ;",
+      "b . issued_today = week_base . saturating_div (7) . max (2) ;",
+      "b . weekly_base = week_base . max (10) ;",
+      "b . streak = 2 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_claim",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActClaim >",
+      "tasks_done: u8",
+      "proof_cost: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let b = & mut ctx . accounts . board ;",
+      "token :: burn (ctx . accounts . burn_ctx () , proof_cost . max (1)) ? ;",
+      "let mut reward = b . weekly_base . saturating_div (20) . max (1) ;",
+      "let mut i = 0u8 ;",
+      "while i < tasks_done",
+      "{",
+      "reward = reward . saturating_add ((i as u64 % 3) . saturating_add (1)) ;",
+      "i = i . saturating_add (1) ;",
+      "}",
+      "let projected = b . issued_today . saturating_add (reward) ;",
+      "if projected > b . daily_max",
+      "{",
+      "let overflow = projected . saturating_sub (b . daily_max) ;",
+      "b . weekly_base = b . weekly_base . saturating_add (overflow) ;",
+      "b . streak = 1 ;",
+      "return Err (ErrDaily :: OverLimit . into ()) ;",
+      "}",
+      "token :: mint_to (ctx . accounts . mint_ctx () , reward) ? ;",
+      "b . issued_today = projected ;",
+      "b . streak = b . streak . saturating_add (1) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitBoard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "board",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , BoardState >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActClaim",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "board",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , BoardState >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "proof_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "user_proof",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "reward_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "user_reward",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BoardState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "daily_max",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "issued_today",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "weekly_base",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "streak",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,515 @@
+[
+  {
+    "name": "init_guild",
+    "inputs": [
+      "ctx: Context < InitGuild >",
+      "name: String"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let guild = & mut ctx . accounts . guild ;"
+      },
+      {
+        "id": 2,
+        "label": "guild . owner = ctx . accounts . admin . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "guild . name = name ;"
+      },
+      {
+        "id": 4,
+        "label": "guild . total_posts = 0 ;"
+      },
+      {
+        "id": 5,
+        "label": "guild . flags = 0 ;"
+      },
+      {
+        "id": 6,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: guild"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: guild"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: guild"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: guild"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: guild"
+      }
+    ]
+  },
+  {
+    "name": "init_member_card",
+    "inputs": [
+      "ctx: Context < InitMemberCard >",
+      "role: MemberRole"
+    ],
+    "nodes": [
+      {
+        "id": 7,
+        "label": "Entry"
+      },
+      {
+        "id": 8,
+        "label": "let card = & mut ctx . accounts . card ;"
+      },
+      {
+        "id": 9,
+        "label": "card . guild = ctx . accounts . guild . key () ;"
+      },
+      {
+        "id": 10,
+        "label": "card . role = role ;"
+      },
+      {
+        "id": 11,
+        "label": "card . reputation = 0 ;"
+      },
+      {
+        "id": 12,
+        "label": "card . active = true ;"
+      },
+      {
+        "id": 13,
+        "label": "card . counters = [0 ; 8] ;"
+      },
+      {
+        "id": 14,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 8,
+        "to": 8,
+        "label": "def: card"
+      },
+      {
+        "from": 8,
+        "to": 9,
+        "label": "data_dep: card"
+      },
+      {
+        "from": 8,
+        "to": 10,
+        "label": "data_dep: card"
+      },
+      {
+        "from": 8,
+        "to": 11,
+        "label": "data_dep: card"
+      },
+      {
+        "from": 8,
+        "to": 12,
+        "label": "data_dep: card"
+      },
+      {
+        "from": 8,
+        "to": 13,
+        "label": "data_dep: card"
+      }
+    ]
+  },
+  {
+    "name": "update_post_flow",
+    "inputs": [
+      "ctx: Context < UpdatePostFlow >",
+      "weight: u16",
+      "boost: u16"
+    ],
+    "nodes": [
+      {
+        "id": 15,
+        "label": "Entry"
+      },
+      {
+        "id": 16,
+        "label": "let guild = & mut ctx . accounts . guild ;"
+      },
+      {
+        "id": 17,
+        "label": "let actor = & mut ctx . accounts . actor ;"
+      },
+      {
+        "id": 18,
+        "label": "let reviewer = & mut ctx . accounts . reviewer ;"
+      },
+      {
+        "id": 19,
+        "label": "let board = & mut ctx . accounts . board ;"
+      },
+      {
+        "id": 20,
+        "label": "let mut acc : u64 = 0 ;"
+      },
+      {
+        "id": 21,
+        "label": "for i in 0 .. actor . counters . len () { let rotated = actor . counters [i] . rotate_left ((i as u32) & 7) ; let mixed = rotated ^ ((boost as u64) << (i as u32 & 15)) ; let next = mixed . checked_add (weight as u64) . unwrap_or (u64 :: MAX) ; actor . counters [i] = if next > 1_000_000 { 1_000_000 } else { next } ; acc = acc . saturating_add (actor . counters [i] & 0xFFFF) ; }"
+      },
+      {
+        "id": 22,
+        "label": "let rotated = actor . counters [i] . rotate_left ((i as u32) & 7) ;"
+      },
+      {
+        "id": 23,
+        "label": "let mixed = rotated ^ ((boost as u64) << (i as u32 & 15)) ;"
+      },
+      {
+        "id": 24,
+        "label": "let next = mixed . checked_add (weight as u64) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 25,
+        "label": "actor . counters [i] = if next > 1_000_000 { 1_000_000 } else { next } ;"
+      },
+      {
+        "id": 26,
+        "label": "1_000_000"
+      },
+      {
+        "id": 27,
+        "label": "next"
+      },
+      {
+        "id": 28,
+        "label": "acc = acc . saturating_add (actor . counters [i] & 0xFFFF) ;"
+      },
+      {
+        "id": 29,
+        "label": "if actor . role == Leader { actor . reputation = actor . reputation . saturating_add ((acc % 97) as u32) ; guild . total_posts = guild . total_posts . saturating_add (1) ; board . last_hash = board . last_hash . wrapping_mul (1_146_295) . wrapping_add (acc as u64) ; board . queue_len = board . queue_len . saturating_add (1) ; msg ! (\"Leader actor updated reputation and queued a post\") ; } else { reviewer . reputation = reviewer . reputation . saturating_add (((acc >> 2) % 53) as u32) ; guild . flags = guild . flags | 0b10 ; board . queue_len = board . queue_len . saturating_add (2) ; board . last_hash = board . last_hash ^ (acc as u64) . rotate_right (7) ; msg ! (\"Non-leader path: reviewer reputation adjusted and board queued\") ; }"
+      },
+      {
+        "id": 30,
+        "label": "actor . reputation = actor . reputation . saturating_add ((acc % 97) as u32) ;"
+      },
+      {
+        "id": 31,
+        "label": "guild . total_posts = guild . total_posts . saturating_add (1) ;"
+      },
+      {
+        "id": 32,
+        "label": "board . last_hash = board . last_hash . wrapping_mul (1_146_295) . wrapping_add (acc as u64) ;"
+      },
+      {
+        "id": 33,
+        "label": "board . queue_len = board . queue_len . saturating_add (1) ;"
+      },
+      {
+        "id": 34,
+        "label": "msg ! (\"Leader actor updated reputation and queued a post\") ;"
+      },
+      {
+        "id": 35,
+        "label": "reviewer . reputation = reviewer . reputation . saturating_add (((acc >> 2) % 53) as u32) ;"
+      },
+      {
+        "id": 36,
+        "label": "guild . flags = guild . flags | 0b10 ;"
+      },
+      {
+        "id": 37,
+        "label": "board . queue_len = board . queue_len . saturating_add (2) ;"
+      },
+      {
+        "id": 38,
+        "label": "board . last_hash = board . last_hash ^ (acc as u64) . rotate_right (7) ;"
+      },
+      {
+        "id": 39,
+        "label": "msg ! (\"Non-leader path: reviewer reputation adjusted and board queued\") ;"
+      },
+      {
+        "id": 40,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 16,
+        "to": 16,
+        "label": "def: guild"
+      },
+      {
+        "from": 17,
+        "to": 17,
+        "label": "def: actor"
+      },
+      {
+        "from": 18,
+        "to": 18,
+        "label": "def: reviewer"
+      },
+      {
+        "from": 19,
+        "to": 19,
+        "label": "def: board"
+      },
+      {
+        "from": 17,
+        "to": 21,
+        "label": "data_dep: actor"
+      },
+      {
+        "from": 17,
+        "to": 21,
+        "label": "data_dep: actor"
+      },
+      {
+        "from": 17,
+        "to": 21,
+        "label": "data_dep: actor"
+      },
+      {
+        "from": 17,
+        "to": 21,
+        "label": "data_dep: actor"
+      },
+      {
+        "from": 22,
+        "to": 22,
+        "label": "def: rotated"
+      },
+      {
+        "from": 17,
+        "to": 22,
+        "label": "data_dep: actor"
+      },
+      {
+        "from": 23,
+        "to": 23,
+        "label": "def: mixed"
+      },
+      {
+        "from": 22,
+        "to": 23,
+        "label": "data_dep: rotated"
+      },
+      {
+        "from": 24,
+        "to": 24,
+        "label": "def: next"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "data_dep: mixed"
+      },
+      {
+        "from": 17,
+        "to": 25,
+        "label": "data_dep: actor"
+      },
+      {
+        "from": 24,
+        "to": 25,
+        "label": "data_dep: next"
+      },
+      {
+        "from": 24,
+        "to": 25,
+        "label": "data_dep: next"
+      },
+      {
+        "from": 24,
+        "to": 27,
+        "label": "data_dep: next"
+      },
+      {
+        "from": 17,
+        "to": 28,
+        "label": "data_dep: actor"
+      },
+      {
+        "from": 17,
+        "to": 29,
+        "label": "data_dep: actor"
+      },
+      {
+        "from": 17,
+        "to": 29,
+        "label": "data_dep: actor"
+      },
+      {
+        "from": 17,
+        "to": 29,
+        "label": "data_dep: actor"
+      },
+      {
+        "from": 16,
+        "to": 29,
+        "label": "data_dep: guild"
+      },
+      {
+        "from": 16,
+        "to": 29,
+        "label": "data_dep: guild"
+      },
+      {
+        "from": 19,
+        "to": 29,
+        "label": "data_dep: board"
+      },
+      {
+        "from": 19,
+        "to": 29,
+        "label": "data_dep: board"
+      },
+      {
+        "from": 19,
+        "to": 29,
+        "label": "data_dep: board"
+      },
+      {
+        "from": 19,
+        "to": 29,
+        "label": "data_dep: board"
+      },
+      {
+        "from": 18,
+        "to": 29,
+        "label": "data_dep: reviewer"
+      },
+      {
+        "from": 18,
+        "to": 29,
+        "label": "data_dep: reviewer"
+      },
+      {
+        "from": 16,
+        "to": 29,
+        "label": "data_dep: guild"
+      },
+      {
+        "from": 16,
+        "to": 29,
+        "label": "data_dep: guild"
+      },
+      {
+        "from": 19,
+        "to": 29,
+        "label": "data_dep: board"
+      },
+      {
+        "from": 19,
+        "to": 29,
+        "label": "data_dep: board"
+      },
+      {
+        "from": 19,
+        "to": 29,
+        "label": "data_dep: board"
+      },
+      {
+        "from": 19,
+        "to": 29,
+        "label": "data_dep: board"
+      },
+      {
+        "from": 17,
+        "to": 30,
+        "label": "data_dep: actor"
+      },
+      {
+        "from": 17,
+        "to": 30,
+        "label": "data_dep: actor"
+      },
+      {
+        "from": 16,
+        "to": 31,
+        "label": "data_dep: guild"
+      },
+      {
+        "from": 16,
+        "to": 31,
+        "label": "data_dep: guild"
+      },
+      {
+        "from": 19,
+        "to": 32,
+        "label": "data_dep: board"
+      },
+      {
+        "from": 19,
+        "to": 32,
+        "label": "data_dep: board"
+      },
+      {
+        "from": 19,
+        "to": 33,
+        "label": "data_dep: board"
+      },
+      {
+        "from": 19,
+        "to": 33,
+        "label": "data_dep: board"
+      },
+      {
+        "from": 18,
+        "to": 35,
+        "label": "data_dep: reviewer"
+      },
+      {
+        "from": 18,
+        "to": 35,
+        "label": "data_dep: reviewer"
+      },
+      {
+        "from": 16,
+        "to": 36,
+        "label": "data_dep: guild"
+      },
+      {
+        "from": 16,
+        "to": 36,
+        "label": "data_dep: guild"
+      },
+      {
+        "from": 19,
+        "to": 37,
+        "label": "data_dep: board"
+      },
+      {
+        "from": 19,
+        "to": 37,
+        "label": "data_dep: board"
+      },
+      {
+        "from": 19,
+        "to": 38,
+        "label": "data_dep: board"
+      },
+      {
+        "from": 19,
+        "to": 38,
+        "label": "data_dep: board"
+      }
+    ]
+  }
+]

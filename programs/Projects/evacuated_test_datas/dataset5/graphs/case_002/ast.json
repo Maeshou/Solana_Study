@@ -1,0 +1,65 @@
+[
+  {
+    "name": "deposit_and_merge",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < DepositAndMerge >",
+      "deposit_amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 1) デポジット（Owner Check を行わず lamports を加算）\"]",
+      "# [doc = \" 2) 2 つの同じ型アカウントをマージ（重複チェックなし）\"]"
+    ],
+    "body": [
+      "let target_acc = & ctx . accounts . target_account ;",
+      "let source1 = & ctx . accounts . merge_account1 ;",
+      "let source2 = & ctx . accounts . merge_account2 ;",
+      "let fee_acc = & ctx . accounts . fee_account ;",
+      "let depositor = & ctx . accounts . depositor ;",
+      "{ if deposit_amount < 10 { msg ! (\"[STEP1] deposit_amount は最低 10 を要求\") ; return Err (error ! (ProgramError :: InvalidArgument)) ; } let mut fee = deposit_amount / 20 ; if fee == 0 { fee = 1 ; } let net = deposit_amount . checked_sub (fee) . unwrap () ; msg ! (\"[STEP1] deposit_amount: {}, fee: {}, net: {}\" , deposit_amount , fee , net) ; * * target_acc . try_borrow_mut_lamports () ? += net ; * * fee_acc . try_borrow_mut_lamports () ? += fee ; }",
+      "{ let mut raw1 = source1 . try_borrow_mut_data () ? ; let mut raw2 = source2 . try_borrow_data () ? ; let v1 = raw1 [0] ; let v2 = raw2 [0] ; let merged = v1 . wrapping_add (v2) ; raw1 [0] = merged ; msg ! (\"[STEP2] source1.meta ({}) + source2.meta ({}) = merged ({})\" , v1 , v2 , merged) ; }",
+      "{ let mut raw2 = source2 . try_borrow_mut_data () ? ; for i in 0 .. raw2 . len () { raw2 [i] = 0 ; } msg ! (\"[STEP3] source2 をゼロクリア\") ; }",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "DepositAndMerge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "target_account",
+        "attribute": "# [doc = \" lamports 加算先（owner チェック省略）\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "merge_account1",
+        "attribute": "# [doc = \" 同じ型のアカウントを2つ受け取るが、重複チェックを行わずにマージしてしまう\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "merge_account2",
+        "attribute": "# [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "fee_account",
+        "attribute": "# [doc = \" 手数料受取先（owner チェック省略）\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "depositor",
+        "attribute": "# [doc = \" デポジット実行者の署名アカウント\"]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

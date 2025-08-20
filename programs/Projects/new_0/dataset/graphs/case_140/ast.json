@@ -1,0 +1,197 @@
+[
+  {
+    "name": "create_thread",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateThread >",
+      "title: String",
+      "body: String"
+    ],
+    "attributes": [
+      "# [doc = \" スレッドを新規作成\"]"
+    ],
+    "body": [
+      "let thread = & mut ctx . accounts . thread ;",
+      "require ! (ctx . accounts . author . key () == ctx . accounts . authority . key () , ErrorCode :: Unauthorized) ;",
+      "require ! (title . len () <= 64 , ErrorCode :: TitleTooLong) ;",
+      "require ! (body . len () <= 256 , ErrorCode :: BodyTooLong) ;",
+      "thread . owner = ctx . accounts . authority . key () ;",
+      "thread . title = title ;",
+      "thread . body = body ;",
+      "thread . created_at = ctx . accounts . clock . unix_timestamp ;",
+      "thread . replies = Vec :: new () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "post_reply",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PostReply >",
+      "content: String"
+    ],
+    "attributes": [
+      "# [doc = \" スレッドに返信を投稿\"]"
+    ],
+    "body": [
+      "let thread = & mut ctx . accounts . thread ;",
+      "let now = ctx . accounts . clock . unix_timestamp ;",
+      "require ! (content . len () <= 200 , ErrorCode :: ContentTooLong) ;",
+      "require ! (thread . replies . len () < MAX_REPLIES , ErrorCode :: RepliesFull) ;",
+      "thread . replies . push (ReplyItem { replier : ctx . accounts . user . key () , content , replied_at : now , }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "delete_reply",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < DeleteReply >",
+      "index: u32"
+    ],
+    "attributes": [
+      "# [doc = \" 返信を削除（投稿者のみ可能）\"]"
+    ],
+    "body": [
+      "let thread = & mut ctx . accounts . thread ;",
+      "let idx = index as usize ;",
+      "require ! (idx < thread . replies . len () , ErrorCode :: IndexOutOfBounds) ;",
+      "require ! (thread . replies [idx] . replier == ctx . accounts . user . key () , ErrorCode :: Unauthorized) ;",
+      "thread . replies . remove (idx) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CreateThread",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "thread",
+        "attribute": "# [account (init , payer = authority , space = 8 + 32 + 8 + 4 + 64 + 4 + 256 + 4 + (MAX_REPLIES * (32 + 4 + 200 + 8)))]",
+        "field_type": "Account < 'info , ThreadAccount >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PostReply",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "thread",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , ThreadAccount >"
+      },
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Clock >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DeleteReply",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "thread",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , ThreadAccount >"
+      },
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ThreadAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "created_at",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "title",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "body",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "replies",
+        "attribute": null,
+        "field_type": "Vec < ReplyItem >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ReplyItem",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "replier",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "content",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "replied_at",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

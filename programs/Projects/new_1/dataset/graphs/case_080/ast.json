@@ -1,0 +1,118 @@
+[
+  {
+    "name": "configure_rate",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ConfigureRate >",
+      "tokens_per_nft: u64"
+    ],
+    "attributes": [
+      "# [doc = \" Set how many reward tokens per NFT unit.\"]",
+      "# [doc = \" ⚠\\u{fe0f} No signer check anywhere!\"]"
+    ],
+    "body": [
+      "let cfg = & mut ctx . accounts . config ;",
+      "cfg . tokens_per_nft = tokens_per_nft ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "mint_reward",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < MintReward >",
+      "nft_count: u64"
+    ],
+    "attributes": [
+      "# [doc = \" Mint reward tokens based on the number of NFTs provided.\"]",
+      "# [doc = \" ⚠\\u{fe0f} No signer check: anyone can call and mint unlimited tokens.\"]"
+    ],
+    "body": [
+      "let cfg = & ctx . accounts . config ;",
+      "let amount = cfg . tokens_per_nft . checked_mul (nft_count) . ok_or (ErrorCode :: Overflow) ? ;",
+      "let cpi_accounts = MintTo { mint : ctx . accounts . reward_mint . to_account_info () , to : ctx . accounts . recipient . to_account_info () , authority : ctx . accounts . mint_authority . to_account_info () , } ;",
+      "let cpi_program = ctx . accounts . token_program . to_account_info () ;",
+      "token :: mint_to (CpiContext :: new (cpi_program , cpi_accounts) , amount) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Config",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "tokens_per_nft",
+        "attribute": "# [doc = \" Number of reward tokens per single NFT\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ConfigureRate",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "config",
+        "attribute": "# [doc = \" Configuration account\"] # [account (init , payer = initializer , space = 8 + 8)]",
+        "field_type": "Account < 'info , Config >"
+      },
+      {
+        "name": "initializer",
+        "attribute": "# [doc = \" CHECK: initializer is unchecked—no Signer constraint\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MintReward",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "config",
+        "attribute": "# [doc = \" Must match the same config, but not enforced by any signer\"] # [account (mut)]",
+        "field_type": "Account < 'info , Config >"
+      },
+      {
+        "name": "nft_source",
+        "attribute": "# [doc = \" CHECK: NFT ownership/account is never validated\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "reward_mint",
+        "attribute": "# [doc = \" The SPL Mint to mint reward tokens\"] # [account (mut)]",
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "recipient",
+        "attribute": "# [doc = \" The token account to receive minted tokens\"] # [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "mint_authority",
+        "attribute": "# [doc = \" CHECK: mint authority is unchecked—no Signer constraint\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

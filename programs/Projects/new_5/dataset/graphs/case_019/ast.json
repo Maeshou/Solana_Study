@@ -1,0 +1,239 @@
+[
+  {
+    "name": "init_game",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitGame >",
+      "game_id: u64",
+      "name: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let game = & mut ctx . accounts . game ;",
+      "game . admin = ctx . accounts . admin . key () ;",
+      "game . game_id = game_id ;",
+      "game . name = name ;",
+      "game . is_active = true ;",
+      "game . total_players = 0 ;",
+      "game . total_score = 0 ;",
+      "msg ! (\"Game {} initialized.\" , game . name) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_player_state",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitPlayerState >",
+      "player_id: u32",
+      "initial_level: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let player = & mut ctx . accounts . player_state ;",
+      "let game = & mut ctx . accounts . game ;",
+      "player . game = game . key () ;",
+      "player . player_id = player_id ;",
+      "player . owner = ctx . accounts . owner . key () ;",
+      "player . level = initial_level ;",
+      "player . xp = 0 ;",
+      "player . is_online = true ;",
+      "game . total_players = game . total_players . saturating_add (1) ;",
+      "msg ! (\"Player {} added to game {}.\" , player . player_id , game . name) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "update_player_scores",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < UpdatePlayerScores >",
+      "updates: Vec < u32 >"
+    ],
+    "attributes": [],
+    "body": [
+      "let player_a = & mut ctx . accounts . player_a ;",
+      "let player_b = & mut ctx . accounts . player_b ;",
+      "let mut total_score_a = 0 ;",
+      "let mut total_score_b = 0 ;",
+      "for score in updates . iter ()",
+      "{",
+      "let bonus_factor = if * score > 50",
+      "{",
+      "2 } else { 1 } ;",
+      "if score % 2 == 0",
+      "{",
+      "player_a . xp = player_a . xp . saturating_add ((* score as u64) * bonus_factor) ;",
+      "total_score_a = total_score_a . saturating_add (score) ;",
+      "} else",
+      "{",
+      "player_b . xp = player_b . xp . saturating_add ((* score as u64) * bonus_factor) ;",
+      "total_score_b = total_score_b . saturating_add (score) ;",
+      "}",
+      "}",
+      "player_a . level = (player_a . xp / 1000) as u8 ;",
+      "player_b . level = (player_b . xp / 1000) as u8 ;",
+      "ctx . accounts . game . total_score = ctx . accounts . game . total_score . saturating_add (total_score_a as u64) . saturating_add (total_score_b as u64) ;",
+      "msg ! (\"Updated scores for two players. Player A gained {} XP, Player B gained {} XP.\" , total_score_a , total_score_b) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitGame",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "game",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 8 + 32 + 1 + 4 + 8)]",
+        "field_type": "Account < 'info , GameConfig >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitPlayerState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "game",
+        "attribute": "# [account (mut , has_one = game)]",
+        "field_type": "Account < 'info , GameConfig >"
+      },
+      {
+        "name": "player_state",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 4 + 32 + 1 + 8 + 1)]",
+        "field_type": "Account < 'info , PlayerState >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "UpdatePlayerScores",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "game",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , GameConfig >"
+      },
+      {
+        "name": "player_a",
+        "attribute": "# [account (mut , has_one = game)]",
+        "field_type": "Account < 'info , PlayerState >"
+      },
+      {
+        "name": "player_b",
+        "attribute": "# [account (mut , has_one = game)]",
+        "field_type": "Account < 'info , PlayerState >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GameConfig",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "game_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "is_active",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "total_players",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "total_score",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PlayerState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "game",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "player_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "level",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "xp",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "is_online",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

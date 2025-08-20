@@ -1,0 +1,49 @@
+[
+  {
+    "name": "cancel_rental",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CancelRental >",
+      "current_time: u64"
+    ],
+    "attributes": [
+      "# [doc = \" NFTレンタル契約をキャンセルし、アイテムを返却する  \"]",
+      "# [doc = \" (`rental_account` の owner チェックを一切行っていないため、  \"]",
+      "# [doc = \"  攻撃者が他人のレンタル契約を指定して勝手にキャンセル＆返却を行えます)  \"]"
+    ],
+    "body": [
+      "let mut data = ctx . accounts . rental_account . data . borrow_mut () ;",
+      "let (head , tail) = data . split_at_mut (32) ;",
+      "let (expires_bytes , _rest) = tail . split_at_mut (8) ;",
+      "let lessee = Pubkey :: new (head) ;",
+      "let expiry = expires_bytes . try_into () . map (u64 :: from_le_bytes) . map_err (| _ | ErrorCode :: DataTooShort) ? ;",
+      "if current_time < expiry",
+      "{",
+      "return err ! (ErrorCode :: NotYetExpired) ;",
+      "}",
+      "data . fill (0) ;",
+      "msg ! (\"Rental {} canceled at {} (lessee was {})\" , ctx . accounts . rental_account . key () , current_time , lessee) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CancelRental",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "rental_account",
+        "attribute": "# [doc = \" CHECK: owner == program_id の検証を行っていない\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "operator",
+        "attribute": "# [doc = \" キャンセルを実行するユーザー（署名のみ検証）\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

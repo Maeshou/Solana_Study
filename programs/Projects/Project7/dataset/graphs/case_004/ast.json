@@ -1,0 +1,141 @@
+[
+  {
+    "name": "init_station",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitStation >",
+      "min_power: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . station ;",
+      "s . owner = ctx . accounts . owner . key () ;",
+      "s . min_power = min_power ;",
+      "s . total_burn = 0 ;",
+      "s . stage = CraftStage :: Idle ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_craft",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActCraft >",
+      "base_cost: u64",
+      "power: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . station ;",
+      "let mut cost = base_cost ;",
+      "let mut step = 0u32 ;",
+      "while step < power",
+      "{",
+      "cost = cost . saturating_add (5) ;",
+      "step += 1 ;",
+      "}",
+      "if power < s . min_power",
+      "{",
+      "s . stage = CraftStage :: Cooling ;",
+      "return Err (ErrorCode :: PowerTooLow . into ()) ;",
+      "} else",
+      "{",
+      "s . stage = CraftStage :: Working ;",
+      "}",
+      "let cpi_ctx = ctx . accounts . burn_ctx () ;",
+      "token :: burn (cpi_ctx , cost) ? ;",
+      "s . total_burn = s . total_burn . saturating_add (cost) ;",
+      "s . stage = CraftStage :: Complete ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitStation",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "station",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 4 + 8 + 1)]",
+        "field_type": "Account < 'info , Station >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActCraft",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "station",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Station >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "user_materials",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "material_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Station",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "min_power",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "total_burn",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "stage",
+        "attribute": null,
+        "field_type": "CraftStage"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

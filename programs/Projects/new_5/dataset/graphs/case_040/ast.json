@@ -1,0 +1,230 @@
+[
+  {
+    "name": "establish_guild",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < EstablishGuild >",
+      "guild_id: u32",
+      "name: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let guild = & mut ctx . accounts . guild ;",
+      "guild . founder = ctx . accounts . founder . key () ;",
+      "guild . guild_id = guild_id ;",
+      "guild . name = name ;",
+      "guild . prestige = 0 ;",
+      "guild . member_count = 0 ;",
+      "guild . rank_system = RankSystem :: Beginner ;",
+      "msg ! (\"Guild '{}' established.\" , guild . name) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "enroll_new_member",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < EnrollNewMember >",
+      "member_id: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let member_profile = & mut ctx . accounts . member_profile ;",
+      "let guild = & mut ctx . accounts . guild ;",
+      "member_profile . guild = guild . key () ;",
+      "member_profile . player = ctx . accounts . player . key () ;",
+      "member_profile . member_id = member_id ;",
+      "member_profile . contribution_points = 0 ;",
+      "member_profile . current_rank = MemberRank :: Trainee ;",
+      "guild . member_count = guild . member_count . saturating_add (1) ;",
+      "msg ! (\"New member {} enrolled in guild {}.\" , member_profile . member_id , guild . name) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "conduct_training_session",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ConductTrainingSession >",
+      "points_to_transfer: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let leader_profile = & mut ctx . accounts . leader_profile ;",
+      "let trainee_profile = & mut ctx . accounts . trainee_profile ;",
+      "let mut points_transferred = points_to_transfer ;",
+      "let mut loop_counter = 0 ;",
+      "while loop_counter < 4",
+      "{",
+      "if leader_profile . contribution_points > trainee_profile . contribution_points",
+      "{",
+      "leader_profile . contribution_points = leader_profile . contribution_points . checked_add (points_transferred) . unwrap_or (u32 :: MAX) ;",
+      "trainee_profile . contribution_points = trainee_profile . contribution_points . checked_sub (points_transferred) . unwrap_or (0) ;",
+      "msg ! (\"Leader has more points, adding transfer points to leader.\") ;",
+      "} else",
+      "{",
+      "leader_profile . contribution_points = leader_profile . contribution_points . checked_sub (points_transferred) . unwrap_or (0) ;",
+      "trainee_profile . contribution_points = trainee_profile . contribution_points . checked_add (points_transferred) . unwrap_or (u32 :: MAX) ;",
+      "msg ! (\"Trainee has more or equal points, adding transfer points to trainee.\") ;",
+      "} loop_counter += 1 ;",
+      "}",
+      "let new_prestige = (leader_profile . contribution_points . saturating_add (trainee_profile . contribution_points)) / 1000 ;",
+      "ctx . accounts . guild . prestige = ctx . accounts . guild . prestige . saturating_add (new_prestige as u64) ;",
+      "msg ! (\"Training session finished. Guild prestige increased by {}.\" , new_prestige) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "EstablishGuild",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": "# [account (init , payer = founder , space = 8 + 32 + 4 + 32 + 8 + 4 + 1)]",
+        "field_type": "Account < 'info , Guild >"
+      },
+      {
+        "name": "founder",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EnrollNewMember",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": "# [account (mut , has_one = guild)]",
+        "field_type": "Account < 'info , Guild >"
+      },
+      {
+        "name": "member_profile",
+        "attribute": "# [account (init , payer = player , space = 8 + 32 + 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , MemberProfile >"
+      },
+      {
+        "name": "player",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ConductTrainingSession",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Guild >"
+      },
+      {
+        "name": "leader_profile",
+        "attribute": "# [account (mut , has_one = guild)]",
+        "field_type": "Account < 'info , MemberProfile >"
+      },
+      {
+        "name": "trainee_profile",
+        "attribute": "# [account (mut , has_one = guild)]",
+        "field_type": "Account < 'info , MemberProfile >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Guild",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "founder",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "guild_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "prestige",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "member_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "rank_system",
+        "attribute": null,
+        "field_type": "RankSystem"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MemberProfile",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "player",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "member_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "contribution_points",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "current_rank",
+        "attribute": null,
+        "field_type": "MemberRank"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

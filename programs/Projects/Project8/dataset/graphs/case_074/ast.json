@@ -1,0 +1,105 @@
+[
+  {
+    "name": "adjust",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Adjust >",
+      "base_rating: u64",
+      "recent_scores: Vec < u32 >",
+      "victories: Vec < bool >",
+      "draws: Vec < bool >"
+    ],
+    "attributes": [],
+    "body": [
+      "let n = recent_scores . len () . min (20) ;",
+      "let mut sum = 0u64 ;",
+      "let mut win_count = 0u64 ;",
+      "let mut i = 0usize ;",
+      "while i < n",
+      "{",
+      "if victories . get (i) . copied () . unwrap_or (false)",
+      "{",
+      "win_count = win_count . saturating_add (1) ;",
+      "sum = sum . saturating_add (recent_scores [i] as u64) ;",
+      "} else",
+      "{",
+      "if draws . get (i) . copied () . unwrap_or (false) { sum = sum . saturating_add ((recent_scores [i] as u64 * 3) / 4) ;",
+      "} else",
+      "{",
+      "sum = sum . saturating_add ((recent_scores [i] as u64) / 2) ;",
+      "} } i = i . saturating_add (1) ;",
+      "}",
+      "let denom = (n as u64) . max (1) ;",
+      "let weighted = (base_rating . saturating_mul (40) + (sum . saturating_mul (60) / denom)) / 100 ;",
+      "ctx . accounts . rating_state . adjusted_rating = weighted ;",
+      "let mut trend = PerformanceTrend :: Poor ;",
+      "let mut rate = 0u64 ;",
+      "if n > 0",
+      "{",
+      "rate = win_count . saturating_mul (100) / (n as u64) ;",
+      "}",
+      "if rate >= 80",
+      "{",
+      "trend = PerformanceTrend :: Excellent ;",
+      "}",
+      "if rate < 80 && rate >= 65",
+      "{",
+      "trend = PerformanceTrend :: Strong ;",
+      "}",
+      "if rate < 65 && rate >= 50",
+      "{",
+      "trend = PerformanceTrend :: Stable ;",
+      "}",
+      "if rate < 50 && rate >= 35",
+      "{",
+      "trend = PerformanceTrend :: Declining ;",
+      "}",
+      "ctx . accounts . rating_state . trend = trend ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Adjust",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "rating_state",
+        "attribute": "# [account (init , payer = user , space = 8 + RatingState :: LEN , seeds = [b\"rating\" , user . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , RatingState >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RatingState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "adjusted_rating",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "trend",
+        "attribute": null,
+        "field_type": "PerformanceTrend"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,51 @@
+[
+  {
+    "name": "claim_reward",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ClaimReward >",
+      "reward_amount: u64",
+      "last_claim_ts: u64"
+    ],
+    "attributes": [
+      "# [doc = \" デイリー報酬クレームを記録する（ownerチェックなし）\"]",
+      "# [doc = \" - `reward_amount` と `last_claim_ts` はクライアント提供値をそのまま使用  \"]"
+    ],
+    "body": [
+      "let acct = & mut ctx . accounts . reward_account . to_account_info () ;",
+      "let data = & mut acct . data . borrow_mut () ;",
+      "let mut buf = Vec :: with_capacity (1 + 8 + 8) ;",
+      "buf . push (1u8) ;",
+      "buf . extend_from_slice (& reward_amount . to_le_bytes ()) ;",
+      "buf . extend_from_slice (& last_claim_ts . to_le_bytes ()) ;",
+      "let n = buf . len () ;",
+      "if data . len () < n",
+      "{",
+      "return err ! (ErrorCode :: DataTooShort) ;",
+      "}",
+      "unsafe { std :: ptr :: copy_nonoverlapping (buf . as_ptr () , data . as_mut_ptr () , n) ; }",
+      "msg ! (\"Reward claimed: {} lamports at {} by {}\" , reward_amount , last_claim_ts , ctx . accounts . user . key ()) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "ClaimReward",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "reward_account",
+        "attribute": "# [doc = \" CHECK: owner == program_id の検証を一切行っていない AccountInfo\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" クレーム実行者が署名者であることのみ検証\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

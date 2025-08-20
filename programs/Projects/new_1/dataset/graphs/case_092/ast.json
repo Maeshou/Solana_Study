@@ -1,0 +1,171 @@
+[
+  {
+    "name": "create_poll",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreatePoll >",
+      "question: String"
+    ],
+    "attributes": [
+      "# [doc = \" 新しい投票を作成：質問文だけ設定\"]",
+      "# [doc = \" → `initializer` の署名チェックは一切行われない脆弱性あり\"]"
+    ],
+    "body": [
+      "let poll = & mut ctx . accounts . poll ;",
+      "poll . question = question ;",
+      "poll . options = Vec :: new () ;",
+      "poll . votes = Vec :: new () ;"
+    ]
+  },
+  {
+    "name": "add_poll_option",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyPoll >",
+      "option: String"
+    ],
+    "attributes": [
+      "# [doc = \" 投票オプションを追加  \"]",
+      "# [doc = \" → `operator` の署名チェックなしで誰でもオプションを追加可能\"]"
+    ],
+    "body": [
+      "let poll = & mut ctx . accounts . poll ;",
+      "poll . options . push (option) ;"
+    ]
+  },
+  {
+    "name": "cast_vote",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CastVote >",
+      "option_index: u8"
+    ],
+    "attributes": [
+      "# [doc = \" 投票を行う：選択肢のインデックスを記録  \"]",
+      "# [doc = \" → `voter` の署名チェックも所有者確認も一切なし\"]"
+    ],
+    "body": [
+      "let poll = & mut ctx . accounts . poll ;",
+      "let now = Clock :: get () . unwrap () . unix_timestamp ;",
+      "poll . votes . push (VoteRecord { voter : ctx . accounts . voter . key () , choice : option_index , timestamp : now , }) ;"
+    ]
+  },
+  {
+    "name": "Poll",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "question",
+        "attribute": "# [doc = \" 投票の質問\"]",
+        "field_type": "String"
+      },
+      {
+        "name": "options",
+        "attribute": "# [doc = \" 選択肢のリスト\"]",
+        "field_type": "Vec < String >"
+      },
+      {
+        "name": "votes",
+        "attribute": "# [doc = \" 投票記録\"]",
+        "field_type": "Vec < VoteRecord >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "VoteRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "voter",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "choice",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "timestamp",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreatePoll",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "poll",
+        "attribute": "# [doc = \" 新規 Poll アカウント\"] # [account (init , payer = payer , space = 8 + 4 + 128 + 4 + 640 + 4 + 4100)]",
+        "field_type": "Account < 'info , Poll >"
+      },
+      {
+        "name": "initializer",
+        "attribute": "# [doc = \" CHECK: 署名者チェックなしで初期化者を指定\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ModifyPoll",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "poll",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Poll >"
+      },
+      {
+        "name": "operator",
+        "attribute": "# [doc = \" CHECK: 署名検証なしで操作主体を指定\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CastVote",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "poll",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Poll >"
+      },
+      {
+        "name": "voter",
+        "attribute": "# [doc = \" CHECK: 署名検証なしで投票者を指定\"]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

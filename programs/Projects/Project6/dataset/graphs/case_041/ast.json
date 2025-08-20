@@ -1,0 +1,245 @@
+[
+  {
+    "name": "init_guild",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitGuild >",
+      "guild_name: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let guild = & mut ctx . accounts . guild ;",
+      "guild . owner = ctx . accounts . owner . key () ;",
+      "guild . name = guild_name ;",
+      "guild . total_members = 0 ;",
+      "guild . treasury_balance = 0 ;",
+      "guild . active = true ;",
+      "guild . creation_slot = Clock :: get () ? . slot ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_member",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitMember >",
+      "rank: GuildRank"
+    ],
+    "attributes": [],
+    "body": [
+      "let member = & mut ctx . accounts . member ;",
+      "member . guild = ctx . accounts . guild . key () ;",
+      "member . player = ctx . accounts . player . key () ;",
+      "member . rank = rank ;",
+      "member . contribution = 0 ;",
+      "member . join_timestamp = Clock :: get () ? . unix_timestamp ;",
+      "member . active_missions = 0 ;",
+      "let guild = & mut ctx . accounts . guild ;",
+      "guild . total_members = guild . total_members . checked_add (1) . unwrap_or (u32 :: MAX) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "update_guild_operations",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < UpdateGuildOps >"
+    ],
+    "attributes": [],
+    "body": [
+      "let member_a = & mut ctx . accounts . member_a ;",
+      "let member_b = & mut ctx . accounts . member_b ;",
+      "let guild = & mut ctx . accounts . guild ;",
+      "for i in 0 .. 3",
+      "{",
+      "if i % 2 == 0",
+      "{",
+      "let base_contrib = member_a . contribution ;",
+      "member_a . contribution = base_contrib . checked_add (15 + i as u64) . unwrap_or (u64 :: MAX) ;",
+      "member_a . active_missions = (member_a . active_missions ^ 0x0F) & 0x3F ;",
+      "guild . treasury_balance = guild . treasury_balance . checked_add (100) . unwrap_or (u64 :: MAX) ;",
+      "msg ! (\"Member A contribution increased to:",
+      "{",
+      "}\" , member_a . contribution) ;",
+      "} else",
+      "{",
+      "let old_rank = member_b . rank as u8 ;",
+      "let new_val = old_rank . wrapping_add (1) % 4 ;",
+      "member_b . rank = match new_val",
+      "{",
+      "0 => Recruit , 1 => Veteran , 2 => Elite , _ => Leader , } ;",
+      "member_b . active_missions = (member_b . active_missions << 1) | 0x01 ;",
+      "guild . creation_slot = guild . creation_slot . checked_add (i as u64) . unwrap_or (u64 :: MAX) ;",
+      "msg ! (\"Member B promoted to:",
+      "{",
+      ":?}\" , member_b . rank) ;",
+      "}",
+      "}",
+      "guild . active = guild . total_members > 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitGuild",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 64 + 4 + 8 + 1 + 8)]",
+        "field_type": "Account < 'info , Guild >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitMember",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Guild >"
+      },
+      {
+        "name": "member",
+        "attribute": "# [account (init , payer = player , space = 8 + 32 + 32 + 1 + 8 + 8 + 4)]",
+        "field_type": "Account < 'info , GuildMember >"
+      },
+      {
+        "name": "player",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "UpdateGuildOps",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Guild >"
+      },
+      {
+        "name": "member_a",
+        "attribute": "# [account (mut , has_one = guild , constraint = member_a . rank != member_b . rank @ GuildError :: CosplayBlocked , owner = crate :: ID)]",
+        "field_type": "Account < 'info , GuildMember >"
+      },
+      {
+        "name": "member_b",
+        "attribute": "# [account (mut , has_one = guild , owner = crate :: ID)]",
+        "field_type": "Account < 'info , GuildMember >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Guild",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "total_members",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "treasury_balance",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "active",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "creation_slot",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GuildMember",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "player",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "rank",
+        "attribute": null,
+        "field_type": "GuildRank"
+      },
+      {
+        "name": "contribution",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "join_timestamp",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "active_missions",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

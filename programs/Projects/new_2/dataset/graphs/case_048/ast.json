@@ -1,0 +1,198 @@
+[
+  {
+    "name": "safe_add",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SafeAddCtx >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" パターン1：has_one + signer で saturating_add を使った安全加算\"]"
+    ],
+    "body": [
+      "let acct = ctx . accounts . vault . to_account_info () ;",
+      "let before = acct . lamports () ;",
+      "* * acct . try_borrow_mut_lamports () ? = before . saturating_add (amount) ;",
+      "msg ! (\"safe_add: {}→{}\" , before , before . saturating_add (amount)) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "replace_add",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ReplaceAddCtx >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" パターン2：mem::replace を使ってバランスを置き換え（ownerチェックなし、署名のみ）\"]"
+    ],
+    "body": [
+      "let info = & ctx . accounts . raw_vault ;",
+      "let mut balance = * * info . try_borrow_lamports () ? ;",
+      "let old = mem :: replace (& mut balance , balance + amount) ;",
+      "* * info . try_borrow_mut_lamports () ? = balance ;",
+      "msg ! (\"replace_add: {}→{}\" , old , balance) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "owner_guard",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < OwnerGuardCtx >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" パターン3：オーナー不正時に早期リターン（manual owner check）\"]"
+    ],
+    "body": [
+      "if ctx . accounts . vault . owner != ctx . accounts . user . key ()",
+      "{",
+      "msg ! (\"owner_guard: unauthorized\") ;",
+      "return Ok (()) ;",
+      "}",
+      "let acct = ctx . accounts . vault . to_account_info () ;",
+      "let prev = acct . lamports () ;",
+      "* * acct . try_borrow_mut_lamports () ? = prev + amount ;",
+      "msg ! (\"owner_guard applied: {}→{}\" , prev , prev + amount) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "split_add",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SplitAddCtx >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" パターン4：primary vault にフル、残りアカウントには半額だけ加算\"]"
+    ],
+    "body": [
+      "let primary_info = ctx . accounts . primary . to_account_info () ;",
+      "* * primary_info . try_borrow_mut_lamports () ? += amount ;",
+      "let bonus = amount / 2 ;",
+      "for acct in & ctx . remaining_accounts",
+      "{",
+      "* * acct . try_borrow_mut_lamports () ? += bonus ;",
+      "}",
+      "msg ! (\"split_add done\") ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "SafeAddCtx",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": "# [account (mut , has_one = authority)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ReplaceAddCtx",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "raw_vault",
+        "attribute": "# [doc = \" CHECK: raw AccountInfo、所有権未検証\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "OwnerGuardCtx",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SplitAddCtx",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "primary",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Vault",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 正当なオーナーの Pubkey\"]",
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

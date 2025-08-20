@@ -1,17 +1,175 @@
 [
   {
-    "name": "AddLiquidityCtxmafh",
+    "name": "create_patient_record",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreatePatientRecord >",
+      "name: String",
+      "date_of_birth: i64"
+    ],
+    "attributes": [],
+    "body": [
+      "let patient_record = & mut ctx . accounts . patient_record ;",
+      "patient_record . patient = ctx . accounts . patient . key () ;",
+      "patient_record . name = name ;",
+      "patient_record . date_of_birth = date_of_birth ;",
+      "patient_record . created_at = Clock :: get () ? . unix_timestamp ;",
+      "patient_record . authorized_doctors = Vec :: new () ;",
+      "patient_record . bump = * ctx . bumps . get (\"patient_record\") . unwrap () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "authorize_doctor",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AuthorizeDoctor >"
+    ],
+    "attributes": [],
+    "body": [
+      "let patient_record = & mut ctx . accounts . patient_record ;",
+      "require ! (! patient_record . authorized_doctors . contains (ctx . accounts . doctor . key) , HealthcareError :: DoctorAlreadyAuthorized) ;",
+      "patient_record . authorized_doctors . push (* ctx . accounts . doctor . key) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "add_medical_record",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AddMedicalRecord >",
+      "diagnosis: String",
+      "treatment: String",
+      "notes: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let patient_record = & ctx . accounts . patient_record ;",
+      "let medical_record = & mut ctx . accounts . medical_record ;",
+      "require ! (patient_record . authorized_doctors . contains (& ctx . accounts . doctor . key ()) , HealthcareError :: DoctorNotAuthorized) ;",
+      "medical_record . patient_record = patient_record . key () ;",
+      "medical_record . doctor = ctx . accounts . doctor . key () ;",
+      "medical_record . diagnosis = diagnosis ;",
+      "medical_record . treatment = treatment ;",
+      "medical_record . notes = notes ;",
+      "medical_record . created_at = Clock :: get () ? . unix_timestamp ;",
+      "medical_record . bump = * ctx . bumps . get (\"medical_record\") . unwrap () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "revoke_doctor_access",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RevokeDoctorAccess >"
+    ],
+    "attributes": [],
+    "body": [
+      "let patient_record = & mut ctx . accounts . patient_record ;",
+      "patient_record . authorized_doctors . retain (| & x | x != * ctx . accounts . doctor . key) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "PatientRecord",
     "node_type": "struct",
     "fields": [
       {
-        "name": "pool_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
+        "name": "patient",
+        "attribute": null,
+        "field_type": "Pubkey"
       },
       {
-        "name": "provider",
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "date_of_birth",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "created_at",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "authorized_doctors",
+        "attribute": null,
+        "field_type": "Vec < Pubkey >"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MedicalRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "patient_record",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "doctor",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "diagnosis",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "treatment",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "notes",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "created_at",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreatePatientRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "patient_record",
+        "attribute": "# [account (init , payer = patient , space = 8 + 32 + 4 + name . len () + 8 + 8 + 4 + (32 * 10) + 1 , seeds = [b\"patient\" , patient . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , PatientRecord >"
+      },
+      {
+        "name": "patient",
         "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
+        "field_type": "Signer < 'info >"
       },
       {
         "name": "system_program",
@@ -24,13 +182,23 @@
     "body": null
   },
   {
-    "name": "DataAccount",
+    "name": "AuthorizeDoctor",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data",
+        "name": "patient_record",
+        "attribute": "# [account (mut , seeds = [b\"patient\" , patient . key () . as_ref ()] , bump = patient_record . bump , constraint = patient_record . patient == patient . key ())]",
+        "field_type": "Account < 'info , PatientRecord >"
+      },
+      {
+        "name": "patient",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "doctor",
+        "attribute": "# [doc = \" CHECK: Doctor account to be authorized\"]",
+        "field_type": "AccountInfo < 'info >"
       }
     ],
     "inputs": null,
@@ -38,20 +206,56 @@
     "body": null
   },
   {
-    "name": "add_liquidity",
-    "node_type": "function",
-    "fields": null,
-    "inputs": [
-      "ctx: Context < AddLiquidityCtxmafh >",
-      "amount: u64"
+    "name": "AddMedicalRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "patient_record",
+        "attribute": "# [account (seeds = [b\"patient\" , patient_record . patient . as_ref ()] , bump = patient_record . bump)]",
+        "field_type": "Account < 'info , PatientRecord >"
+      },
+      {
+        "name": "medical_record",
+        "attribute": "# [account (init , payer = doctor , space = 8 + 32 + 32 + 4 + diagnosis . len () + 4 + treatment . len () + 4 + notes . len () + 8 + 1 , seeds = [b\"medical_record\" , patient_record . key () . as_ref () , & Clock :: get () . unwrap () . unix_timestamp . to_le_bytes ()] , bump)]",
+        "field_type": "Account < 'info , MedicalRecord >"
+      },
+      {
+        "name": "doctor",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
     ],
-    "attributes": [],
-    "body": [
-      "let acct = & mut ctx . accounts . pool_account ;",
-      "let temp = acct . data ;",
-      "acct . data = temp . checked_mul (2) . unwrap () ;",
-      "msg ! (\"Executed add_liquidity logic\") ;",
-      "Ok (())"
-    ]
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RevokeDoctorAccess",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "patient_record",
+        "attribute": "# [account (mut , seeds = [b\"patient\" , patient . key () . as_ref ()] , bump = patient_record . bump , constraint = patient_record . patient == patient . key ())]",
+        "field_type": "Account < 'info , PatientRecord >"
+      },
+      {
+        "name": "patient",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "doctor",
+        "attribute": "# [doc = \" CHECK: Doctor account to revoke access from\"]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
   }
 ]

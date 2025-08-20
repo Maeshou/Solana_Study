@@ -1,0 +1,185 @@
+[
+  {
+    "name": "deposit_restricted",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < DepositRestricted >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 安全：Vault.owner と署名を検証して正しく預け入れ\"]"
+    ],
+    "body": [
+      "* * ctx . accounts . secure_vault . to_account_info () . try_borrow_mut_lamports () ? += amount ;",
+      "msg ! (\"deposit_restricted executed\") ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "deposit_collateral",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < DepositCollateral >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 部分的な漏れ：安全 Vault と追加の未検証アカウントを同時に更新\"]"
+    ],
+    "body": [
+      "let targets = [& ctx . accounts . secure_vault , & ctx . accounts . unchecked_vault] ;",
+      "targets . iter () . for_each (| acct | { * * acct . to_account_info () . try_borrow_mut_lamports () . unwrap () += amount ; }) ;",
+      "msg ! (\"deposit_collateral executed\") ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "deposit_spread",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < DepositSpread >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 拡散：remaining_accounts を使って任意のアカウントを不正に更新\"]"
+    ],
+    "body": [
+      "for extra in & ctx . remaining_accounts",
+      "{",
+      "let _ = extra . try_borrow_mut_lamports () . map (| mut lam | * lam += amount) ;",
+      "}",
+      "msg ! (\"deposit_spread executed\") ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "deposit_loose",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < DepositLoose >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 完全未検証：提供された AccountInfo 一つを直接更新\"]"
+    ],
+    "body": [
+      "let vault = ctx . accounts . free_vault . clone () ;",
+      "* * vault . try_borrow_mut_lamports () ? += amount ;",
+      "msg ! (\"deposit_loose executed\") ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "DepositRestricted",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "secure_vault",
+        "attribute": "# [account (mut , has_one = authority)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DepositCollateral",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "secure_vault",
+        "attribute": "# [account (mut , has_one = authority)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "unchecked_vault",
+        "attribute": "# [doc = \" CHECK: 生の AccountInfo、所有者チェックなし\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DepositSpread",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "secure_vault",
+        "attribute": "# [account (mut , has_one = authority)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DepositLoose",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "free_vault",
+        "attribute": "# [doc = \" CHECK: 完全未検証\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Vault",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

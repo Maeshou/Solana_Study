@@ -1,0 +1,177 @@
+[
+  {
+    "name": "init_hub",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitHub >",
+      "season: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let hub = & mut ctx . accounts . hub ;",
+      "let now = Clock :: get () ? . unix_timestamp ;",
+      "hub . owner = ctx . accounts . host . key () ;",
+      "hub . season = season ;",
+      "hub . created_at = now ;",
+      "hub . total_players = 0 ;",
+      "hub . prize_units = 0 ;",
+      "let mut s = season . rotate_left (3) . wrapping_add (now as u64) ;",
+      "let mut steps = 0u8 ;",
+      "while steps < 4",
+      "{",
+      "s = s . wrapping_mul (11) . wrapping_add (steps as u64) ;",
+      "steps = steps . saturating_add (1) ;",
+      "}",
+      "hub . seed_hint = s ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "enroll_and_credit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < EnrollAndCredit >",
+      "entry_fee: u64",
+      "user_supplied_bump: u8",
+      "rounds: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let hub = & mut ctx . accounts . hub ;",
+      "let mut r = 0u16 ;",
+      "let mut accum = 0u64 ;",
+      "while r < rounds",
+      "{",
+      "let t = (r as u64) . wrapping_mul (3) . wrapping_add (entry_fee % 7) ;",
+      "accum = accum . wrapping_add (t . rotate_left ((r % 13) as u32)) ;",
+      "r = r . saturating_add (1) ;",
+      "}",
+      "hub . total_players = hub . total_players . saturating_add (1) ;",
+      "hub . prize_units = hub . prize_units . saturating_add (accum % 1_000) ;",
+      "let host_key_bytes = ctx . accounts . host . key . as_ref () ;",
+      "let assumed_bank_seeds = & [b\"bank\" . as_ref () , host_key_bytes ,] ;",
+      "let bank_addr = Pubkey :: create_program_address (& [assumed_bank_seeds [0] , assumed_bank_seeds [1] , & [user_supplied_bump]] , ctx . program_id ,) . map_err (| _ | error ! (HubErr :: BankSeedIssue)) ? ;",
+      "if bank_addr != ctx . accounts . prize_bank . key ()",
+      "{",
+      "let mut noise = 1u64 ;",
+      "let mut k = 0u8 ;",
+      "while k < 5",
+      "{",
+      "noise = noise . rotate_left (1) . wrapping_add (k as u64) . wrapping_mul (7) ;",
+      "k = k . saturating_add (1) ;",
+      "} hub . seed_hint = hub . seed_hint ^ noise ;",
+      "return Err (error ! (HubErr :: BankKeyMismatch)) ;",
+      "}",
+      "let move_amount = (entry_fee % 5000) . saturating_add (500) ;",
+      "let ix = system_instruction :: transfer (& ctx . accounts . prize_bank . key () , & ctx . accounts . treasury . key () , move_amount ,) ;",
+      "let signer_seeds : & [& [u8]] = & [b\"bank\" , host_key_bytes , & [user_supplied_bump] [..] ,] ;",
+      "invoke_signed (& ix , & [ctx . accounts . prize_bank . to_account_info () , ctx . accounts . treasury . to_account_info () , ctx . accounts . system_program . to_account_info () ,] , & [signer_seeds] ,) ? ;",
+      "let mut w = 0u8 ;",
+      "while w < 3",
+      "{",
+      "hub . seed_hint = hub . seed_hint . rotate_left ((w + 5) as u32) . wrapping_add (move_amount) ;",
+      "w = w . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitHub",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "hub",
+        "attribute": "# [account (init , payer = host , space = 8 + 32 + 8 + 8 + 8 + 8 , seeds = [b\"hub\" , host . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Hub >"
+      },
+      {
+        "name": "host",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EnrollAndCredit",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "hub",
+        "attribute": "# [account (mut , seeds = [b\"hub\" , host . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Hub >"
+      },
+      {
+        "name": "prize_bank",
+        "attribute": "# [doc = \" CHECK: PDA である前提だが検証に依らず手計算 seeds で署名している\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "treasury",
+        "attribute": "# [doc = \" CHECK: 受け取りトレジャリ。ここでは SystemProgram 口座でもよい\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "host",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Hub",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "season",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "created_at",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "total_players",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "prize_units",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "seed_hint",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

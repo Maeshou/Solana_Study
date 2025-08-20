@@ -1,0 +1,171 @@
+[
+  {
+    "name": "init_guild",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitGuild >",
+      "tier_seed: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let g = & mut ctx . accounts . guild ;",
+      "g . leader = ctx . accounts . leader . key () ;",
+      "g . tier = tier_seed . rotate_left (2) . wrapping_add (17) ;",
+      "g . power = 1 ;",
+      "let mut rolling = g . tier . rotate_right (1) . wrapping_add (9) ;",
+      "let mut i = 0u8 ;",
+      "while i < 5",
+      "{",
+      "rolling = rolling . rotate_left (1) . wrapping_mul (3) . wrapping_add (11 + i as u64) ;",
+      "let gain = (rolling % 23) as u32 + 1 ;",
+      "g . power = g . power . saturating_add (gain) ;",
+      "i += 1 ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "pay_from_guild",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PayFromGuild >",
+      "lamports: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let bump = * ctx . bumps . get (\"vault\") . ok_or (error ! (GuildErr :: MissingBump)) ? ;",
+      "let seeds : & [& [u8]] = & [b\"vault\" , ctx . accounts . leader . key . as_ref () , & ctx . accounts . guild . tier . to_le_bytes () , & [bump] ,] ;",
+      "let g = & mut ctx . accounts . guild ;",
+      "let portion = (lamports % 97) as u32 + 3 ;",
+      "g . power = g . power . saturating_add (portion) ;",
+      "if g . power > 1_000_000",
+      "{",
+      "let dec = (g . power % 997) + 13 ;",
+      "g . power = g . power . saturating_sub (dec) ;",
+      "}",
+      "let mut steps = 0u8 ;",
+      "while steps < 3",
+      "{",
+      "g . power = g . power . saturating_add (((g . tier . rotate_left (steps as u32) % 29) as u32) + 2) ;",
+      "steps += 1 ;",
+      "}",
+      "let ix = system_instruction :: transfer (& ctx . accounts . vault . key () , & ctx . accounts . receiver . key () , lamports) ;",
+      "invoke_signed (& ix , & [ctx . accounts . vault . to_account_info () , ctx . accounts . receiver . to_account_info () , ctx . accounts . system_program . to_account_info () ,] , & [seeds] ,) ? ;",
+      "emit ! (GuildPaid { to : ctx . accounts . receiver . key () , amount : lamports }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "GuildPaid",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "to",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "amount",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitGuild",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": "# [account (init , payer = leader , space = 8 + 32 + 8 + 4 ,)]",
+        "field_type": "Account < 'info , GuildState >"
+      },
+      {
+        "name": "vault",
+        "attribute": "# [account (init , payer = leader , space = 8 , seeds = [b\"vault\" , leader . key () . as_ref () , tier_seed . to_le_bytes () . as_ref ()] , bump)]",
+        "field_type": "SystemAccount < 'info >"
+      },
+      {
+        "name": "leader",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "tier_seed",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PayFromGuild",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": "# [account (mut , seeds = [b\"vault\" , leader . key () . as_ref () , guild . tier . to_le_bytes () . as_ref ()] , bump)]",
+        "field_type": "SystemAccount < 'info >"
+      },
+      {
+        "name": "guild",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , GuildState >"
+      },
+      {
+        "name": "receiver",
+        "attribute": "# [account (mut)]",
+        "field_type": "SystemAccount < 'info >"
+      },
+      {
+        "name": "leader",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GuildState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "leader",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "tier",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "power",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,51 @@
+[
+  {
+    "name": "batch_transfer",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < BatchTransfer >",
+      "amounts: Vec < u64 >"
+    ],
+    "attributes": [
+      "# [doc = \" `reserve` から複数アカウントへ一括で lamports を送金する\"]",
+      "# [doc = \" （Owner Check を一切行っていないため脆弱性あり）\"]"
+    ],
+    "body": [
+      "let reserve = & mut ctx . accounts . reserve . to_account_info () ;",
+      "let recipients = & ctx . remaining_accounts ;",
+      "let total : u64 = amounts . iter () . copied () . sum () ;",
+      "if * * reserve . lamports . borrow () < total",
+      "{",
+      "return err ! (ErrorCode :: InsufficientFunds) ;",
+      "}",
+      "for (i , rcpt) in recipients . iter () . enumerate ()",
+      "{",
+      "let amt = amounts . get (i) . copied () . ok_or (ErrorCode :: InvalidInput) ? ;",
+      "* * reserve . lamports . borrow_mut () -= amt ;",
+      "* * rcpt . lamports . borrow_mut () += amt ;",
+      "}",
+      "msg ! (\"Batch transferred total {} lamports\" , total) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "BatchTransfer",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "reserve",
+        "attribute": "# [doc = \" CHECK: owner==program_id の検証を行っていない生の AccountInfo\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "initiator",
+        "attribute": "# [doc = \" 呼び出し元が署名していることのみ検証\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

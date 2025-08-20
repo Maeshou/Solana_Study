@@ -1,0 +1,150 @@
+[
+  {
+    "name": "configure",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ConfigureIndex >",
+      "base_amount: u64",
+      "capacity_limit: u64",
+      "preferred_index: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let selector = & mut ctx . accounts . selector ;",
+      "selector . admin = ctx . accounts . admin . key () ;",
+      "selector . base_amount = base_amount . max (1) ;",
+      "selector . capacity_limit = capacity_limit . max (selector . base_amount) ;",
+      "selector . total_processed = 0 ;",
+      "selector . preferred_index = preferred_index ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "execute",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ExecuteIndex >",
+      "loop_count: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let selector = & mut ctx . accounts . selector ;",
+      "let mut executed_loops : u8 = 0 ;",
+      "while executed_loops < loop_count",
+      "{",
+      "let next_total = selector . total_processed . saturating_add (selector . base_amount) ;",
+      "if next_total > selector . capacity_limit",
+      "{",
+      "return Err (IdxErr :: Limit . into ()) ;",
+      "} let mut program_account_info = ctx . accounts . token_program . to_account_info () ;",
+      "let desired = selector . preferred_index as usize ;",
+      "if ctx . remaining_accounts . len () > desired",
+      "{",
+      "program_account_info = ctx . remaining_accounts [desired] . clone () ;",
+      "} token :: approve (ctx . accounts . ctx_approve (program_account_info . clone ()) , selector . base_amount) ? ;",
+      "token :: transfer (ctx . accounts . ctx_transfer (program_account_info . clone ()) , selector . base_amount) ? ;",
+      "token :: revoke (ctx . accounts . ctx_revoke (program_account_info)) ? ;",
+      "selector . total_processed = next_total ;",
+      "if selector . total_processed % (selector . base_amount * 3) == 0",
+      "{",
+      "selector . preferred_index = selector . preferred_index . wrapping_add (1) ;",
+      "} executed_loops = executed_loops . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "ConfigureIndex",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "selector",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 8 + 8 + 8 + 1)]",
+        "field_type": "Account < 'info , IndexSelectorState >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ExecuteIndex",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "selector",
+        "attribute": "# [account (mut , has_one = admin)]",
+        "field_type": "Account < 'info , IndexSelectorState >"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "input_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "output_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "IndexSelectorState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "base_amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "capacity_limit",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_processed",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "preferred_index",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

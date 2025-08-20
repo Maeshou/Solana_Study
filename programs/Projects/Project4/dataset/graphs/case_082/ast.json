@@ -1,33 +1,66 @@
 [
   {
-    "name": "initialize_developer_rewards",
+    "name": "init_switch",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Initialize082 >",
-      "param: u64"
+      "ctx: Context < InitSwitch >",
+      "on_count: u32"
     ],
     "attributes": [],
     "body": [
-      "let mut data = DeveloperRewardsData :: try_from_slice (& ctx . accounts . data_account . data . borrow ()) ? ;",
-      "data . value = param ;",
-      "data . serialize (& mut * ctx . accounts . data_account . data . borrow_mut ()) ? ;",
+      "let s = & mut ctx . accounts . switch ;",
+      "s . on_count = on_count ;",
+      "s . off_count = 0 ;",
+      "s . state = false ;",
+      "let mut i = 0u32 ;",
+      "while i < on_count",
+      "{",
+      "s . state = ! s . state ;",
+      "i += 1 ;",
+      "}",
       "Ok (())"
     ]
   },
   {
-    "name": "Initialize082",
+    "name": "toggle",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Toggle >"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . switch ;",
+      "s . state = ! s . state ;",
+      "if s . state",
+      "{",
+      "s . on_count = s . on_count . saturating_add (1) ;",
+      "} else",
+      "{",
+      "s . off_count = s . off_count . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitSwitch",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "switch",
+        "attribute": "# [account (init , payer = user , space = 8 + 4 + 4 + 1)]",
+        "field_type": "Account < 'info , SwitchData >"
       },
       {
-        "name": "authority",
-        "attribute": null,
+        "name": "user",
+        "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -35,13 +68,37 @@
     "body": null
   },
   {
-    "name": "DeveloperRewardsData",
+    "name": "Toggle",
     "node_type": "struct",
     "fields": [
       {
-        "name": "value",
+        "name": "switch",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , SwitchData >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SwitchData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "on_count",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "u32"
+      },
+      {
+        "name": "off_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "state",
+        "attribute": null,
+        "field_type": "bool"
       }
     ],
     "inputs": null,

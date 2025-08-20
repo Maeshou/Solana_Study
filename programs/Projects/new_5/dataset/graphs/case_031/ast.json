@@ -1,0 +1,244 @@
+[
+  {
+    "name": "init_moderator",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitModerator >",
+      "level: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let m = & mut ctx . accounts . moderator ;",
+      "m . owner = ctx . accounts . owner . key () ;",
+      "m . level = level ;",
+      "m . queue = 0 ;",
+      "m . bias = 50 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_draft",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitDraft >",
+      "tag: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let d = & mut ctx . accounts . draft ;",
+      "d . parent = ctx . accounts . moderator . key () ;",
+      "d . tag = tag ;",
+      "d . score = 0 ;",
+      "d . verdict = Pending ;",
+      "d . flags = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "judge_pair",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < JudgePair >",
+      "weight: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let m = & mut ctx . accounts . moderator ;",
+      "let d1 = & mut ctx . accounts . first ;",
+      "let d2 = & mut ctx . accounts . second ;",
+      "for t in 0 .. 5",
+      "{",
+      "let jitter = ((m . level as u32 + weight + t) % 9) as u32 ;",
+      "m . bias = (m . bias + jitter) . min (100) ;",
+      "m . queue = m . queue . saturating_add (1) ;",
+      "}",
+      "if d1 . tag & 2 == 0",
+      "{",
+      "d1 . verdict = Approved ;",
+      "d1 . score = d1 . score . saturating_add (weight / 2 + (m . level as u32)) ;",
+      "d1 . flags = d1 . flags . saturating_sub (d1 . flags . min (1)) ;",
+      "m . queue = m . queue . saturating_sub (1) ;",
+      "msg ! (\"D1 approved;",
+      "score=",
+      "{",
+      "}, queue={}\" , d1 . score , m . queue) ;",
+      "} else",
+      "{",
+      "d1 . verdict = Rejected ;",
+      "d1 . score = d1 . score / 2 + 3 ;",
+      "d1 . flags = d1 . flags . saturating_add (2) ;",
+      "m . bias = m . bias . saturating_sub (1) ;",
+      "msg ! (\"D1 rejected;",
+      "score=",
+      "{",
+      "}, bias={}\" , d1 . score , m . bias) ;",
+      "}",
+      "for _ in 0 .. 3",
+      "{",
+      "if d2 . score & 1 == 1",
+      "{",
+      "d2 . verdict = Approved ;",
+      "d2 . score = d2 . score . saturating_add ((m . bias % 13) as u32 + 1) ;",
+      "m . queue = m . queue . saturating_sub (1) ;",
+      "msg ! (\"D2 approve+;",
+      "score=",
+      "{",
+      "}, queue={}\" , d2 . score , m . queue) ;",
+      "} else",
+      "{",
+      "d2 . verdict = Pending ;",
+      "d2 . flags = d2 . flags . saturating_add (1) ;",
+      "m . bias = m . bias / 2 + 10 ;",
+      "msg ! (\"D2 pending;",
+      "flags=",
+      "{",
+      "}, bias={}\" , d2 . flags , m . bias) ;",
+      "}",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitModerator",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "moderator",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 1 + 8 + 4)]",
+        "field_type": "Account < 'info , Moderator >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitDraft",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "moderator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Moderator >"
+      },
+      {
+        "name": "draft",
+        "attribute": "# [account (init , payer = author , space = 8 + 32 + 4 + 4 + 1 + 4)]",
+        "field_type": "Account < 'info , Draft >"
+      },
+      {
+        "name": "author",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "JudgePair",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "moderator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Moderator >"
+      },
+      {
+        "name": "first",
+        "attribute": "# [account (mut , has_one = parent)]",
+        "field_type": "Account < 'info , Draft >"
+      },
+      {
+        "name": "second",
+        "attribute": "# [account (mut , has_one = parent)]",
+        "field_type": "Account < 'info , Draft >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Moderator",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "level",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "queue",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "bias",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Draft",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "tag",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "score",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "verdict",
+        "attribute": null,
+        "field_type": "Verdict"
+      },
+      {
+        "name": "flags",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

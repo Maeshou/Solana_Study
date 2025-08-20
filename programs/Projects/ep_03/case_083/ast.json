@@ -1,0 +1,149 @@
+[
+  {
+    "name": "join_arena",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyArena >",
+      "entry_fee: u64"
+    ],
+    "attributes": [
+      "# [doc = \" アリーナに参加登録し、参加料を徴収するが、\"]",
+      "# [doc = \" entry.owner と ctx.accounts.user.key() の一致検証がない\"]"
+    ],
+    "body": [
+      "let entry = & mut ctx . accounts . arena_entry ;",
+      "collect_fee (& ctx . accounts . user , & ctx . accounts . treasury , entry_fee) ? ;",
+      "entry . join_count = entry . join_count . checked_add (1) . unwrap () ;",
+      "entry . last_arena = ctx . accounts . config . arena_id ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "leave_arena",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyArena >",
+      "refund_amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" アリーナから退会し、（一部）返金するが、\"]",
+      "# [doc = \" entry.owner と ctx.accounts.user.key() の一致検証がない\"]"
+    ],
+    "body": [
+      "let entry = & mut ctx . accounts . arena_entry ;",
+      "entry . leave_count = entry . leave_count . checked_add (1) . unwrap () ;",
+      "refund_fee (& ctx . accounts . treasury , & ctx . accounts . user , refund_amount) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "collect_fee",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "from: & AccountInfo",
+      "to: & AccountInfo",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 直接 lamports を操作して参加料をプールに移動するヘルパー\"]"
+    ],
+    "body": [
+      "* * from . lamports . borrow_mut () -= amount ;",
+      "* * to . lamports . borrow_mut () += amount ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "refund_fee",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "from: & AccountInfo",
+      "to: & AccountInfo",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 直接 lamports を操作して返金を行うヘルパー\"]"
+    ],
+    "body": [
+      "* * from . lamports . borrow_mut () -= amount ;",
+      "* * to . lamports . borrow_mut () += amount ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "ModifyArena",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "arena_entry",
+        "attribute": "# [account (mut)] # [doc = \" 本来は `#[account(has_one = owner)]` を指定して所有者照合を行うべき\"]",
+        "field_type": "Account < 'info , ArenaEntry >"
+      },
+      {
+        "name": "treasury",
+        "attribute": "# [doc = \" 参加料／返金用プール\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 操作をリクエストするユーザー（署名者）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "config",
+        "attribute": "# [doc = \" アリーナ設定（IDなど）を保持するアカウント\"]",
+        "field_type": "Account < 'info , ArenaConfig >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ArenaEntry",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 本来この登録を所有するべきユーザーの Pubkey\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "join_count",
+        "attribute": "# [doc = \" 参加登録回数\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "leave_count",
+        "attribute": "# [doc = \" 退会回数\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "last_arena",
+        "attribute": "# [doc = \" 最後に参加したアリーナの ID\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ArenaConfig",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "arena_id",
+        "attribute": "# [doc = \" 固定のアリーナ識別子\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

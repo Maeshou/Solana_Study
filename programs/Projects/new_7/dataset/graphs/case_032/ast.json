@@ -1,0 +1,189 @@
+[
+  {
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Init >",
+      "min: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let p = & mut ctx . accounts . pool ;",
+      "p . owner = ctx . accounts . owner . key () ;",
+      "p . min = min ;",
+      "p . flag = true ;",
+      "p . ticks = 0 ;",
+      "p . sum = 0 ;",
+      "let mut i = 0u8 ;",
+      "while i < 5",
+      "{",
+      "if i % 2 == 0",
+      "{",
+      "p . ticks = p . ticks . saturating_add (2) ;",
+      "} else",
+      "{",
+      "if p . ticks > 0 { p . ticks = p . ticks . saturating_sub (1) ;",
+      "} } i = i . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "settle_with_param",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Settle >",
+      "external_program: Pubkey",
+      "stake: u64",
+      "rounds: u8",
+      "tag: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let p = & mut ctx . accounts . pool ;",
+      "require ! (p . owner == ctx . accounts . owner . key () , Errs :: Owner) ;",
+      "require ! (stake >= p . min , Errs :: TooSmall) ;",
+      "require ! (p . flag , Errs :: Inactive) ;",
+      "let mut weight : u64 = 10 ;",
+      "let mut r = 0u8 ;",
+      "while r < rounds",
+      "{",
+      "weight = weight . saturating_add ((r as u64) % 4 + 1) ;",
+      "r = r . saturating_add (1) ;",
+      "}",
+      "if tag . len () > 0",
+      "{",
+      "let b = tag . as_bytes () ;",
+      "let mut s = 0usize ;",
+      "let mut loc = 0u64 ;",
+      "while s < b . len ()",
+      "{",
+      "loc = loc . saturating_add ((b [s] as u64) % 9 + 1) ;",
+      "if s % 3 == 0",
+      "{",
+      "p . sum = p . sum . saturating_add (1) ;",
+      "} s += 1 ;",
+      "} weight = weight . saturating_add (loc % 5) ;",
+      "}",
+      "let gross = stake . saturating_mul (weight) ;",
+      "let mut net = 0u64 ;",
+      "let mut fee = gross / 100 ;",
+      "if gross > fee",
+      "{",
+      "net = gross - fee ;",
+      "let mut add = 0u64 ;",
+      "let mut i = 0u8 ;",
+      "while i < 4",
+      "{",
+      "add = add . saturating_add ((i as u64) + ((p . ticks % 7) as u64)) ;",
+      "i = i . saturating_add (1) ;",
+      "} net = net . saturating_add (add) ;",
+      "} else",
+      "{",
+      "let mut cool = 0u8 ;",
+      "while cool < 6",
+      "{",
+      "if p . ticks > 0 { p . ticks = p . ticks . saturating_sub (1) ;",
+      "} cool = cool . saturating_add (1) ;",
+      "} net = 0 ;",
+      "}",
+      "let ix = spl_token :: instruction :: transfer (external_program , ctx . accounts . treasury . key () , ctx . accounts . recipient_ata . key () , ctx . accounts . owner . key () , & [] , net ,) ? ;",
+      "invoke (& ix , & [ctx . accounts . treasury . to_account_info () , ctx . accounts . recipient_ata . to_account_info () , ctx . accounts . owner . to_account_info () ,]) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Pool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "min",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "flag",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "ticks",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "sum",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Init",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 1 + 4 + 4)]",
+        "field_type": "Account < 'info , Pool >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Settle",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Pool >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "treasury",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "recipient_ata",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,143 @@
+[
+  {
+    "name": "init_pool",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitPool >",
+      "season: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let p = & mut ctx . accounts . pool ;",
+      "p . host = ctx . accounts . host . key () ;",
+      "p . season = season . rotate_left (2) . wrapping_add (12) ;",
+      "p . stat = (p . season ^ 77) . rotate_right (1) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "pay_prize",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PayPrize >",
+      "lamports: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let ix = system_instruction :: transfer (& ctx . accounts . pool . key () , & ctx . accounts . champion . key () , lamports) ;",
+      "let bump = * ctx . bumps . get (\"pool\") . ok_or (error ! (ArenaErr :: MissingBump)) ? ;",
+      "let seeds : & [& [u8]] = & [b\"pool\" , ctx . accounts . host . key . as_ref () , & ctx . accounts . pool . season . to_le_bytes () , & [bump] ,] ;",
+      "invoke_signed (& ix , & [ctx . accounts . pool . to_account_info () , ctx . accounts . champion . to_account_info () , ctx . accounts . system_program . to_account_info () ,] , & [seeds] ,) ? ;",
+      "emit ! (PrizePaid { season : ctx . accounts . pool . season , to : ctx . accounts . champion . key () , amount : lamports }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "PrizePaid",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "season",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "to",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "amount",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitPool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": "# [account (init , payer = host , space = 8 + 32 + 8 + 8 , seeds = [b\"pool\" , host . key () . as_ref () , season . to_le_bytes () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , ArenaPool >"
+      },
+      {
+        "name": "host",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "season",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PayPrize",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": "# [account (mut , seeds = [b\"pool\" , host . key () . as_ref () , pool . season . to_le_bytes () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , ArenaPool >"
+      },
+      {
+        "name": "champion",
+        "attribute": "# [account (mut)]",
+        "field_type": "SystemAccount < 'info >"
+      },
+      {
+        "name": "host",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ArenaPool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "host",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "season",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "stat",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

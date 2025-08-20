@@ -1,43 +1,192 @@
 [
   {
-    "name": "mint_tokens",
+    "name": "init_forge",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx010 >",
-      "amount: u64"
+      "ctx: Context < InitForge >",
+      "heat: u32"
     ],
     "attributes": [],
     "body": [
-      "let cpi_accounts = Transfer { from : ctx . accounts . from_token . to_account_info () , to : ctx . accounts . to_token . to_account_info () , authority : ctx . accounts . authority . to_account_info () , } ;",
-      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
-      "token :: transfer (cpi_ctx , amount) ? ;",
+      "ctx . accounts . anvil . durability = 100 ;",
+      "ctx . accounts . anvil . owner = ctx . accounts . blacksmith . key () ;",
+      "ctx . accounts . anvil . hot = false ;",
+      "ctx . accounts . materials . ore = 0 ;",
+      "ctx . accounts . materials . spark = 0 ;",
+      "ctx . accounts . materials . ready = true ;",
+      "ctx . accounts . rules . heat = heat ;",
+      "ctx . accounts . rules . cost = 3 ;",
+      "ctx . accounts . rules . bump = * ctx . bumps . get (\"rules\") . unwrap () ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx010",
+    "name": "forge",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Forge >",
+      "steps: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "assert_ne ! (ctx . accounts . anvil . key () , ctx . accounts . materials . key () , \"dup anvil/materials\") ;",
+      "assert_ne ! (ctx . accounts . anvil . key () , ctx . accounts . rules . key () , \"dup anvil/rules\") ;",
+      "assert_ne ! (ctx . accounts . materials . key () , ctx . accounts . rules . key () , \"dup materials/rules\") ;",
+      "for _ in 0 .. steps",
+      "{",
+      "ctx . accounts . anvil . durability = ctx . accounts . anvil . durability . saturating_sub (1) ;",
+      "ctx . accounts . materials . ore = ctx . accounts . materials . ore . saturating_add (2) ;",
+      "ctx . accounts . materials . spark = ctx . accounts . materials . spark . saturating_add (1) ;",
+      "}",
+      "if steps > ctx . accounts . rules . heat",
+      "{",
+      "ctx . accounts . anvil . hot = true ;",
+      "ctx . accounts . rules . cost = ctx . accounts . rules . cost . saturating_add (1) ;",
+      "ctx . accounts . materials . ready = false ;",
+      "msg ! (\"overheat;",
+      "cost raised, materials cooling\") ;",
+      "} else",
+      "{",
+      "ctx . accounts . anvil . hot = false ;",
+      "ctx . accounts . rules . cost = ctx . accounts . rules . cost . saturating_add (0) ;",
+      "ctx . accounts . materials . ready = true ;",
+      "msg ! (\"temper ok;",
+      "materials stable\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitForge",
     "node_type": "struct",
     "fields": [
       {
-        "name": "from_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "anvil",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Anvil >"
       },
       {
-        "name": "to_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "materials",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4 + 4 + 1)]",
+        "field_type": "Account < 'info , MaterialBin >"
       },
       {
-        "name": "authority",
+        "name": "rules",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4 + 4 + 1 , seeds = [b\"rules\" , payer . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , ForgeRules >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "blacksmith",
         "attribute": null,
         "field_type": "Signer < 'info >"
       },
       {
-        "name": "token_program",
+        "name": "system_program",
         "attribute": null,
-        "field_type": "Program < 'info , Token >"
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Forge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "anvil",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Anvil >"
+      },
+      {
+        "name": "materials",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , MaterialBin >"
+      },
+      {
+        "name": "rules",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , ForgeRules >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Anvil",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "durability",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "hot",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MaterialBin",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ore",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "spark",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "ready",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ForgeRules",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "heat",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "cost",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
       }
     ],
     "inputs": null,

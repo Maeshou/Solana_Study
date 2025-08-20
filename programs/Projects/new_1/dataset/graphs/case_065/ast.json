@@ -1,0 +1,101 @@
+[
+  {
+    "name": "draw_lottery",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < DrawLottery >",
+      "base_percent: u8"
+    ],
+    "attributes": [
+      "# [doc = \" １ NFT あたりの当選確率を「%」で受け取り、\"]",
+      "# [doc = \" 保有数に応じて最大100%までキャップして抽選結果を記録します。\"]",
+      "# [doc = \" 署名チェック omitted intentionally\"]"
+    ],
+    "body": [
+      "let hold = ctx . accounts . hold_acc . amount ;",
+      "let raw = hold . checked_mul (base_percent as u64) . unwrap_or (0) ;",
+      "let chance = raw . min (100) . try_into () . unwrap () ;",
+      "let rand = (ctx . accounts . clock . unix_timestamp as u64 % 100) as u8 ;",
+      "let won = rand < chance ;",
+      "let s = & mut ctx . accounts . lottery_data ;",
+      "s . chance = chance ;",
+      "s . random = rand ;",
+      "s . is_win = won ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "DrawLottery",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "fee_payer",
+        "attribute": "# [doc = \" 手数料支払い用アカウント（署名必須）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 実際の参加者（署名チェック omitted intentionally）\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "hold_acc",
+        "attribute": "# [doc = \" 対象 NFT 保有量を参照する TokenAccount\"] # [account (constraint = hold_acc . owner == * user . key , constraint = hold_acc . mint == nft_mint . key ())]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "nft_mint",
+        "attribute": "# [doc = \" 対象 NFT Mint（参照用）\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "lottery_data",
+        "attribute": "# [doc = \" 結果を保持する PDA\"] # [account (init_if_needed , payer = fee_payer , space = 8 + 1 + 1 + 1 , seeds = [b\"lotteryP\" , user . key () . as_ref () , nft_mint . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , LotteryData >"
+      },
+      {
+        "name": "clock",
+        "attribute": "# [doc = \" 乱数源\"]",
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "rent",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Rent >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "LotteryData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "chance",
+        "attribute": "# [doc = \" 計算された当選率（0–100）\"]",
+        "field_type": "u8"
+      },
+      {
+        "name": "random",
+        "attribute": "# [doc = \" 生成された乱数（0–99）\"]",
+        "field_type": "u8"
+      },
+      {
+        "name": "is_win",
+        "attribute": "# [doc = \" 当選フラグ\"]",
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

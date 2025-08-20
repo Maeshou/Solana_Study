@@ -1,56 +1,87 @@
 [
   {
-    "name": "InitializeBridgeCtxfjgj",
-    "node_type": "struct",
-    "fields": [
-      {
-        "name": "bridge",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
-      },
-      {
-        "name": "authority",
-        "attribute": "# [account (mut)]",
-        "field_type": "Signer < 'info >"
-      },
-      {
-        "name": "system_program",
-        "attribute": null,
-        "field_type": "Program < 'info , System >"
-      }
-    ],
-    "inputs": null,
-    "attributes": null,
-    "body": null
-  },
-  {
-    "name": "DataAccount",
-    "node_type": "struct",
-    "fields": [
-      {
-        "name": "data",
-        "attribute": null,
-        "field_type": "u64"
-      }
-    ],
-    "inputs": null,
-    "attributes": null,
-    "body": null
-  },
-  {
-    "name": "initialize_bridge",
+    "name": "freeze",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < InitializeBridgeCtxfjgj >",
-      "amount: u64"
+      "ctx: Context < Freeze >",
+      "new_authority: Pubkey"
     ],
     "attributes": [],
     "body": [
-      "let acct = & mut ctx . accounts . bridge ;",
-      "* * ctx . accounts . bridge . to_account_info () . try_borrow_mut_lamports () ? += amount ;",
-      "msg ! (\"Executed initialize_bridge logic\") ;",
+      "let cpi_accounts = SetAuthority { account_or_mint : ctx . accounts . token . to_account_info () , current_authority : ctx . accounts . auth . to_account_info () , } ;",
+      "let cpi = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
+      "anchor_spl :: token :: set_authority (cpi , Some (new_authority) , AuthorityType :: FreezeAccount ,) ? ;",
+      "emit ! (AccountFrozen { by : ctx . accounts . auth . key () }) ;",
       "Ok (())"
     ]
+  },
+  {
+    "name": "unfreeze",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Freeze >"
+    ],
+    "attributes": [],
+    "body": [
+      "let cpi_accounts = SetAuthority { account_or_mint : ctx . accounts . token . to_account_info () , current_authority : ctx . accounts . auth . to_account_info () , } ;",
+      "let cpi = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
+      "anchor_spl :: token :: set_authority (cpi , None , AuthorityType :: FreezeAccount ,) ? ;",
+      "emit ! (AccountUnfrozen { by : ctx . accounts . auth . key () }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Freeze",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "token",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "auth",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AccountFrozen",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "by",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AccountUnfrozen",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "by",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
   }
 ]

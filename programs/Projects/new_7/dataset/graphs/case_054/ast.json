@@ -1,0 +1,161 @@
+[
+  {
+    "name": "open",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Open >",
+      "chunk: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . stream ;",
+      "s . owner = ctx . accounts . owner . key () ;",
+      "s . chunk = chunk . max (2) ;",
+      "s . swap_count = 0 ;",
+      "s . cache = Vec :: new () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "pay",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Pay >",
+      "external_id: Pubkey",
+      "payload: String",
+      "base: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . stream ;",
+      "require ! (s . owner == ctx . accounts . owner . key () , Errs :: Owner) ;",
+      "let b = payload . as_bytes () ;",
+      "s . cache . clear () ;",
+      "let mut i = 0usize ;",
+      "while i < b . len ()",
+      "{",
+      "let mut sum = 0u64 ;",
+      "let mut j = 0u8 ;",
+      "while j < s . chunk",
+      "{",
+      "let idx = i + j as usize ;",
+      "if idx < b . len ()",
+      "{",
+      "sum = sum . saturating_add ((b [idx] % 31) as u64 + 1) ;",
+      "} j = j . saturating_add (1) ;",
+      "} s . cache . push (sum) ;",
+      "i += s . chunk as usize ;",
+      "}",
+      "let mut k = 0usize ;",
+      "while k + 1 < s . cache . len ()",
+      "{",
+      "if (s . cache [k] % 2) == 1",
+      "{",
+      "let tmp = s . cache [k] ;",
+      "s . cache [k] = s . cache [k + 1] ;",
+      "s . cache [k + 1] = tmp ;",
+      "s . swap_count = s . swap_count . saturating_add (1) ;",
+      "} k += 2 ;",
+      "}",
+      "let mut total = base ;",
+      "let mut m = 0usize ;",
+      "while m < s . cache . len ()",
+      "{",
+      "total = total . saturating_add (s . cache [m] * ((m as u64) + 1)) ;",
+      "m += 1 ;",
+      "}",
+      "let ix = spl_token :: instruction :: transfer (external_id , ctx . accounts . reserve . key () , ctx . accounts . user_ata . key () , ctx . accounts . owner . key () , & [] , total ,) ? ;",
+      "invoke (& ix , & [ctx . accounts . reserve . to_account_info () , ctx . accounts . user_ata . to_account_info () , ctx . accounts . owner . to_account_info () ,]) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Stream",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "chunk",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "swap_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "cache",
+        "attribute": null,
+        "field_type": "Vec < u64 >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Open",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "stream",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 1 + 4 + (8 * 16))]",
+        "field_type": "Account < 'info , Stream >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Pay",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "stream",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Stream >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "reserve",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "user_ata",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

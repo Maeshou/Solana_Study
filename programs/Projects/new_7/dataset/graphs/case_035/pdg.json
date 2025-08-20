@@ -1,0 +1,723 @@
+[
+  {
+    "name": "init",
+    "inputs": [
+      "ctx: Context < Init >",
+      "batch_cap: u64"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let driver_state = & mut ctx . accounts . driver_state ;"
+      },
+      {
+        "id": 2,
+        "label": "driver_state . admin = ctx . accounts . admin . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "driver_state . batch_cap = batch_cap ;"
+      },
+      {
+        "id": 4,
+        "label": "driver_state . tick = 5 ;"
+      },
+      {
+        "id": 5,
+        "label": "driver_state . meter = batch_cap ^ 0xACAC ;"
+      },
+      {
+        "id": 6,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: driver_state"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: driver_state"
+      }
+    ]
+  },
+  {
+    "name": "airdrop",
+    "inputs": [
+      "ctx: Context < Airdrop >",
+      "total_units: u64",
+      "rounds: u8"
+    ],
+    "nodes": [
+      {
+        "id": 7,
+        "label": "Entry"
+      },
+      {
+        "id": 8,
+        "label": "let driver_state = & mut ctx . accounts . driver_state ;"
+      },
+      {
+        "id": 9,
+        "label": "if total_units == 1 { driver_state . tick = driver_state . tick . saturating_add (2) ; driver_state . meter = driver_state . meter . rotate_left (1) ; let mut warm_turn : u8 = 1 ; while warm_turn < 3 { driver_state . meter = driver_state . meter . wrapping_add (warm_turn as u64) ; warm_turn = warm_turn . saturating_add (1) ; } return Ok (()) ; }"
+      },
+      {
+        "id": 10,
+        "label": "driver_state . tick = driver_state . tick . saturating_add (2) ;"
+      },
+      {
+        "id": 11,
+        "label": "driver_state . meter = driver_state . meter . rotate_left (1) ;"
+      },
+      {
+        "id": 12,
+        "label": "let mut warm_turn : u8 = 1 ;"
+      },
+      {
+        "id": 13,
+        "label": "while warm_turn < 3 { driver_state . meter = driver_state . meter . wrapping_add (warm_turn as u64) ; warm_turn = warm_turn . saturating_add (1) ; }"
+      },
+      {
+        "id": 14,
+        "label": "driver_state . meter = driver_state . meter . wrapping_add (warm_turn as u64) ;"
+      },
+      {
+        "id": 15,
+        "label": "warm_turn = warm_turn . saturating_add (1) ;"
+      },
+      {
+        "id": 16,
+        "label": "return Ok (()) ;"
+      },
+      {
+        "id": 17,
+        "label": "if total_units > driver_state . batch_cap { driver_state . meter = driver_state . meter . wrapping_add (total_units ^ 0x33) ; return Err (DriverError :: BatchCapExceeded . into ()) ; }"
+      },
+      {
+        "id": 18,
+        "label": "driver_state . meter = driver_state . meter . wrapping_add (total_units ^ 0x33) ;"
+      },
+      {
+        "id": 19,
+        "label": "return Err (DriverError :: BatchCapExceeded . into ()) ;"
+      },
+      {
+        "id": 20,
+        "label": "let metadata_bytes = ctx . accounts . program_metadata . try_borrow_data () . map_err (| _ | DriverError :: MetadataUnreadable) ? ;"
+      },
+      {
+        "id": 21,
+        "label": "if metadata_bytes . len () < 32 { return Err (DriverError :: MetadataTooSmall . into ()) ; }"
+      },
+      {
+        "id": 22,
+        "label": "return Err (DriverError :: MetadataTooSmall . into ()) ;"
+      },
+      {
+        "id": 23,
+        "label": "let mut id_slice = [0u8 ; 32] ;"
+      },
+      {
+        "id": 24,
+        "label": "id_slice . copy_from_slice (& metadata_bytes [0 .. 32]) ;"
+      },
+      {
+        "id": 25,
+        "label": "let derived_program_id = Pubkey :: new_from_array (id_slice) ;"
+      },
+      {
+        "id": 26,
+        "label": "let mut remaining_units = total_units ;"
+      },
+      {
+        "id": 27,
+        "label": "let mut round_index : u8 = 0 ;"
+      },
+      {
+        "id": 28,
+        "label": "while round_index < rounds { let part = (remaining_units / 3) . max (3) ; if part >= remaining_units { break ; } let transfer_ix = token_ix :: transfer (& derived_program_id , & ctx . accounts . source_vault . key () , & ctx . accounts . receiver_vault . key () , & ctx . accounts . admin . key () , & [] , part ,) ? ; let external_program_ai = ctx . remaining_accounts . get (0) . ok_or (DriverError :: ProgramHandleMissing) ? ; invoke (& transfer_ix , & [external_program_ai . clone () , ctx . accounts . source_vault . to_account_info () , ctx . accounts . receiver_vault . to_account_info () , ctx . accounts . admin . to_account_info () ,] ,) ? ; remaining_units = remaining_units . saturating_sub (part) ; driver_state . tick = driver_state . tick . saturating_add (1) ; driver_state . meter = driver_state . meter . wrapping_add (part ^ 0x21) ; if driver_state . meter % 2 == 0 { driver_state . meter = driver_state . meter . rotate_left (2) . wrapping_add (7) ; let mut micro_loop : u8 = 1 ; while micro_loop < 3 { driver_state . tick = driver_state . tick . saturating_add (1) ; micro_loop = micro_loop . saturating_add (1) ; } } else { driver_state . meter = driver_state . meter . rotate_right (3) . wrapping_add (5) ; } round_index = round_index . saturating_add (1) ; }"
+      },
+      {
+        "id": 29,
+        "label": "let part = (remaining_units / 3) . max (3) ;"
+      },
+      {
+        "id": 30,
+        "label": "if part >= remaining_units { break ; }"
+      },
+      {
+        "id": 31,
+        "label": "break ;"
+      },
+      {
+        "id": 32,
+        "label": "let transfer_ix = token_ix :: transfer (& derived_program_id , & ctx . accounts . source_vault . key () , & ctx . accounts . receiver_vault . key () , & ctx . accounts . admin . key () , & [] , part ,) ? ;"
+      },
+      {
+        "id": 33,
+        "label": "let external_program_ai = ctx . remaining_accounts . get (0) . ok_or (DriverError :: ProgramHandleMissing) ? ;"
+      },
+      {
+        "id": 34,
+        "label": "invoke (& transfer_ix , & [external_program_ai . clone () , ctx . accounts . source_vault . to_account_info () , ctx . accounts . receiver_vault . to_account_info () , ctx . accounts . admin . to_account_info () ,] ,) ? ;"
+      },
+      {
+        "id": 35,
+        "label": "remaining_units = remaining_units . saturating_sub (part) ;"
+      },
+      {
+        "id": 36,
+        "label": "driver_state . tick = driver_state . tick . saturating_add (1) ;"
+      },
+      {
+        "id": 37,
+        "label": "driver_state . meter = driver_state . meter . wrapping_add (part ^ 0x21) ;"
+      },
+      {
+        "id": 38,
+        "label": "if driver_state . meter % 2 == 0 { driver_state . meter = driver_state . meter . rotate_left (2) . wrapping_add (7) ; let mut micro_loop : u8 = 1 ; while micro_loop < 3 { driver_state . tick = driver_state . tick . saturating_add (1) ; micro_loop = micro_loop . saturating_add (1) ; } } else { driver_state . meter = driver_state . meter . rotate_right (3) . wrapping_add (5) ; }"
+      },
+      {
+        "id": 39,
+        "label": "driver_state . meter = driver_state . meter . rotate_left (2) . wrapping_add (7) ;"
+      },
+      {
+        "id": 40,
+        "label": "let mut micro_loop : u8 = 1 ;"
+      },
+      {
+        "id": 41,
+        "label": "while micro_loop < 3 { driver_state . tick = driver_state . tick . saturating_add (1) ; micro_loop = micro_loop . saturating_add (1) ; }"
+      },
+      {
+        "id": 42,
+        "label": "driver_state . tick = driver_state . tick . saturating_add (1) ;"
+      },
+      {
+        "id": 43,
+        "label": "micro_loop = micro_loop . saturating_add (1) ;"
+      },
+      {
+        "id": 44,
+        "label": "driver_state . meter = driver_state . meter . rotate_right (3) . wrapping_add (5) ;"
+      },
+      {
+        "id": 45,
+        "label": "round_index = round_index . saturating_add (1) ;"
+      },
+      {
+        "id": 46,
+        "label": "if remaining_units > 2 { let finalize_ix = token_ix :: transfer (& derived_program_id , & ctx . accounts . source_vault . key () , & ctx . accounts . receiver_vault . key () , & ctx . accounts . admin . key () , & [] , remaining_units - 2 ,) ? ; let external_program_ai = ctx . remaining_accounts . get (0) . ok_or (DriverError :: ProgramHandleMissing) ? ; invoke (& finalize_ix , & [external_program_ai . clone () , ctx . accounts . source_vault . to_account_info () , ctx . accounts . receiver_vault . to_account_info () , ctx . accounts . admin . to_account_info () ,] ,) ? ; driver_state . meter = driver_state . meter . wrapping_add (remaining_units - 2) . rotate_left (1) ; }"
+      },
+      {
+        "id": 47,
+        "label": "let finalize_ix = token_ix :: transfer (& derived_program_id , & ctx . accounts . source_vault . key () , & ctx . accounts . receiver_vault . key () , & ctx . accounts . admin . key () , & [] , remaining_units - 2 ,) ? ;"
+      },
+      {
+        "id": 48,
+        "label": "let external_program_ai = ctx . remaining_accounts . get (0) . ok_or (DriverError :: ProgramHandleMissing) ? ;"
+      },
+      {
+        "id": 49,
+        "label": "invoke (& finalize_ix , & [external_program_ai . clone () , ctx . accounts . source_vault . to_account_info () , ctx . accounts . receiver_vault . to_account_info () , ctx . accounts . admin . to_account_info () ,] ,) ? ;"
+      },
+      {
+        "id": 50,
+        "label": "driver_state . meter = driver_state . meter . wrapping_add (remaining_units - 2) . rotate_left (1) ;"
+      },
+      {
+        "id": 51,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 8,
+        "to": 8,
+        "label": "def: driver_state"
+      },
+      {
+        "from": 8,
+        "to": 9,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 8,
+        "to": 9,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 8,
+        "to": 9,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 8,
+        "to": 9,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 8,
+        "to": 9,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 8,
+        "to": 9,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 8,
+        "to": 10,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 8,
+        "to": 10,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 8,
+        "to": 11,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 8,
+        "to": 11,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 8,
+        "to": 13,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 8,
+        "to": 13,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 8,
+        "to": 14,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 8,
+        "to": 14,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 8,
+        "to": 17,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 8,
+        "to": 17,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 8,
+        "to": 17,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 8,
+        "to": 18,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 8,
+        "to": 18,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 20,
+        "to": 20,
+        "label": "def: metadata_bytes"
+      },
+      {
+        "from": 20,
+        "to": 21,
+        "label": "data_dep: metadata_bytes"
+      },
+      {
+        "from": 23,
+        "to": 23,
+        "label": "def: id_slice"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "data_dep: id_slice"
+      },
+      {
+        "from": 20,
+        "to": 24,
+        "label": "data_dep: metadata_bytes"
+      },
+      {
+        "from": 25,
+        "to": 25,
+        "label": "def: derived_program_id"
+      },
+      {
+        "from": 23,
+        "to": 25,
+        "label": "data_dep: id_slice"
+      },
+      {
+        "from": 26,
+        "to": 26,
+        "label": "def: remaining_units"
+      },
+      {
+        "from": 26,
+        "to": 28,
+        "label": "data_dep: remaining_units"
+      },
+      {
+        "from": 26,
+        "to": 28,
+        "label": "data_dep: remaining_units"
+      },
+      {
+        "from": 25,
+        "to": 28,
+        "label": "data_dep: derived_program_id"
+      },
+      {
+        "from": 26,
+        "to": 28,
+        "label": "data_dep: remaining_units"
+      },
+      {
+        "from": 26,
+        "to": 28,
+        "label": "data_dep: remaining_units"
+      },
+      {
+        "from": 8,
+        "to": 28,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 8,
+        "to": 28,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 8,
+        "to": 28,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 8,
+        "to": 28,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 8,
+        "to": 28,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 8,
+        "to": 28,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 8,
+        "to": 28,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 8,
+        "to": 28,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 8,
+        "to": 28,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 8,
+        "to": 28,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 8,
+        "to": 28,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 29,
+        "to": 29,
+        "label": "def: part"
+      },
+      {
+        "from": 26,
+        "to": 29,
+        "label": "data_dep: remaining_units"
+      },
+      {
+        "from": 29,
+        "to": 30,
+        "label": "data_dep: part"
+      },
+      {
+        "from": 26,
+        "to": 30,
+        "label": "data_dep: remaining_units"
+      },
+      {
+        "from": 32,
+        "to": 32,
+        "label": "def: transfer_ix"
+      },
+      {
+        "from": 25,
+        "to": 32,
+        "label": "data_dep: derived_program_id"
+      },
+      {
+        "from": 29,
+        "to": 32,
+        "label": "data_dep: part"
+      },
+      {
+        "from": 33,
+        "to": 33,
+        "label": "def: external_program_ai"
+      },
+      {
+        "from": 32,
+        "to": 34,
+        "label": "data_dep: transfer_ix"
+      },
+      {
+        "from": 33,
+        "to": 34,
+        "label": "data_dep: external_program_ai"
+      },
+      {
+        "from": 26,
+        "to": 35,
+        "label": "data_dep: remaining_units"
+      },
+      {
+        "from": 26,
+        "to": 35,
+        "label": "data_dep: remaining_units"
+      },
+      {
+        "from": 29,
+        "to": 35,
+        "label": "data_dep: part"
+      },
+      {
+        "from": 8,
+        "to": 36,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 8,
+        "to": 36,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 8,
+        "to": 37,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 8,
+        "to": 37,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 29,
+        "to": 37,
+        "label": "data_dep: part"
+      },
+      {
+        "from": 8,
+        "to": 38,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 8,
+        "to": 38,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 8,
+        "to": 38,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 8,
+        "to": 38,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 8,
+        "to": 38,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 8,
+        "to": 38,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 8,
+        "to": 38,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 8,
+        "to": 39,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 8,
+        "to": 39,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 8,
+        "to": 41,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 8,
+        "to": 41,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 8,
+        "to": 42,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 8,
+        "to": 42,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 8,
+        "to": 44,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 8,
+        "to": 44,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 26,
+        "to": 46,
+        "label": "data_dep: remaining_units"
+      },
+      {
+        "from": 25,
+        "to": 46,
+        "label": "data_dep: derived_program_id"
+      },
+      {
+        "from": 26,
+        "to": 46,
+        "label": "data_dep: remaining_units"
+      },
+      {
+        "from": 33,
+        "to": 46,
+        "label": "data_dep: external_program_ai"
+      },
+      {
+        "from": 8,
+        "to": 46,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 8,
+        "to": 46,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 26,
+        "to": 46,
+        "label": "data_dep: remaining_units"
+      },
+      {
+        "from": 47,
+        "to": 47,
+        "label": "def: finalize_ix"
+      },
+      {
+        "from": 25,
+        "to": 47,
+        "label": "data_dep: derived_program_id"
+      },
+      {
+        "from": 26,
+        "to": 47,
+        "label": "data_dep: remaining_units"
+      },
+      {
+        "from": 48,
+        "to": 48,
+        "label": "def: external_program_ai"
+      },
+      {
+        "from": 47,
+        "to": 49,
+        "label": "data_dep: finalize_ix"
+      },
+      {
+        "from": 48,
+        "to": 49,
+        "label": "data_dep: external_program_ai"
+      },
+      {
+        "from": 8,
+        "to": 50,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 8,
+        "to": 50,
+        "label": "data_dep: driver_state"
+      },
+      {
+        "from": 26,
+        "to": 50,
+        "label": "data_dep: remaining_units"
+      }
+    ]
+  }
+]

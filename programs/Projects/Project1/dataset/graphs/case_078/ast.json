@@ -1,0 +1,134 @@
+[
+  {
+    "name": "initialize_donation",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeDonation >"
+    ],
+    "attributes": [
+      "# [doc = \" 初回のみドネーションアカウントを初期化し、累計額を 0 にします。\"]"
+    ],
+    "body": [
+      "let rec = & mut ctx . accounts . donation_record ;",
+      "rec . user = ctx . accounts . user . key () ;",
+      "rec . total_donated = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "donate",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Donate >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 署名者チェック済みユーザーが任意の額を寄付します（累計に加算）。\"]"
+    ],
+    "body": [
+      "let rec = & mut ctx . accounts . donation_record ;",
+      "rec . total_donated = rec . total_donated . saturating_add (amount) ;",
+      "msg ! (\"User {:?} donated {}, total now {}\" , rec . user , amount , rec . total_donated) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "view_total",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ViewTotal >"
+    ],
+    "attributes": [
+      "# [doc = \" 累計寄付額をログ出力します。\"]"
+    ],
+    "body": [
+      "let rec = & ctx . accounts . donation_record ;",
+      "msg ! (\"User {:?} total donated: {}\" , rec . user , rec . total_donated) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializeDonation",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "donation_record",
+        "attribute": "# [doc = \" 初回のみ PDA を生成・初期化\"] # [account (init , payer = user , space = 8 + 32 + 8 , seeds = [b\"donation\" , user . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , DonationRecord >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 操作にはユーザーの署名が必要\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Donate",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "donation_record",
+        "attribute": "# [doc = \" PDA と所有者チェックで不正アクセス防止\"] # [account (seeds = [b\"donation\" , user . key () . as_ref ()] , bump , has_one = user)]",
+        "field_type": "Account < 'info , DonationRecord >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 操作にはユーザーの署名が必要\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ViewTotal",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "donation_record",
+        "attribute": "# [doc = \" PDA と所有者チェックで不正アクセス防止\"] # [account (seeds = [b\"donation\" , user . key () . as_ref ()] , bump , has_one = user)]",
+        "field_type": "Account < 'info , DonationRecord >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 操作にはユーザーの署名が必要\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DonationRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": "# [doc = \" レコード所有者\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "total_donated",
+        "attribute": "# [doc = \" 累計寄付額\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

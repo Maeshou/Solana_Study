@@ -1,0 +1,196 @@
+[
+  {
+    "name": "initialize",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeWhitelist >",
+      "bump: u8"
+    ],
+    "attributes": [
+      "# [doc = \" ホワイトリストアカウントの初期化\"]"
+    ],
+    "body": [
+      "let wl = & mut ctx . accounts . whitelist ;",
+      "wl . authority = * ctx . accounts . authority . key ;",
+      "wl . entries = Default :: default () ;",
+      "wl . bump = bump ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "add_member",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyWhitelist >",
+      "member: Pubkey"
+    ],
+    "attributes": [
+      "# [doc = \" ホワイトリストへのアドレス追加\"]"
+    ],
+    "body": [
+      "let wl = & mut ctx . accounts . whitelist ;",
+      "require ! (ctx . accounts . authority . key == & wl . authority , ProgramError :: InvalidAccountData) ;",
+      "wl . entries . push (member) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "remove_member",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyWhitelist >",
+      "member: Pubkey"
+    ],
+    "attributes": [
+      "# [doc = \" ホワイトリストからアドレス削除\"]"
+    ],
+    "body": [
+      "let wl = & mut ctx . accounts . whitelist ;",
+      "require ! (ctx . accounts . authority . key == & wl . authority , ProgramError :: InvalidAccountData) ;",
+      "wl . entries . retain (| & x | x != member) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "mint_nft",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < MintNft >",
+      "bump: u8"
+    ],
+    "attributes": [
+      "# [doc = \" ホワイトリスト済みアドレスによるNFTミント\"]"
+    ],
+    "body": [
+      "let wl = & ctx . accounts . whitelist ;",
+      "let user = & ctx . accounts . user ;",
+      "require ! (wl . entries . contains (& user . key ()) , ProgramError :: InvalidAccountData) ;",
+      "let seeds = & [b\"whitelist\" , ctx . accounts . mint . key () . as_ref () , & [bump]] ;",
+      "let signer = & [& seeds [..]] ;",
+      "let cpi_accounts = MintTo { mint : ctx . accounts . mint . to_account_info () , to : ctx . accounts . user_token_account . to_account_info () , authority : ctx . accounts . whitelist . to_account_info () , } ;",
+      "let cpi_ctx = CpiContext :: new_with_signer (ctx . accounts . token_program . to_account_info () , cpi_accounts , signer ,) ;",
+      "mint_to (cpi_ctx , 1) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializeWhitelist",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "whitelist",
+        "attribute": "# [account (init , seeds = [b\"whitelist\" , mint . key () . as_ref ()] , bump = bump , payer = authority , space = 8 + 32 + 4 + 100 * 32 + 1 ,)]",
+        "field_type": "Account < 'info , Whitelist >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "rent",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Rent >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ModifyWhitelist",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "whitelist",
+        "attribute": "# [account (mut , seeds = [b\"whitelist\" , mint . key () . as_ref ()] , bump = whitelist . bump ,)]",
+        "field_type": "Account < 'info , Whitelist >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MintNft",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "whitelist",
+        "attribute": "# [account (seeds = [b\"whitelist\" , mint . key () . as_ref ()] , bump = bump ,)]",
+        "field_type": "Account < 'info , Whitelist >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "user_token_account",
+        "attribute": "# [account (mut , constraint = user_token_account . owner == user . key () , constraint = user_token_account . mint == mint . key () ,)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Whitelist",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "entries",
+        "attribute": null,
+        "field_type": "Vec < Pubkey >"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

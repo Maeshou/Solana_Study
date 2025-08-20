@@ -1,0 +1,234 @@
+[
+  {
+    "name": "init_loyalty_program",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitLoyaltyProgram >"
+    ],
+    "attributes": [],
+    "body": [
+      "let program = & mut ctx . accounts . loyalty_program ;",
+      "program . operator = ctx . accounts . operator . key () ;",
+      "program . total_members = 0 ;",
+      "program . points_issued = 0 ;",
+      "program . tier_multiplier = 100 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "register_member",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RegisterMember >"
+    ],
+    "attributes": [],
+    "body": [
+      "let member = & mut ctx . accounts . member_account ;",
+      "member . program = ctx . accounts . loyalty_program . key () ;",
+      "member . owner = ctx . accounts . owner . key () ;",
+      "member . points_balance = 0 ;",
+      "member . tier_level = 1 ;",
+      "member . last_activity = Clock :: get () ? . unix_timestamp ;",
+      "let program = & mut ctx . accounts . loyalty_program ;",
+      "program . total_members = program . total_members . checked_add (1) . unwrap_or (u64 :: MAX) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "vulnerable_points_transfer",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < VulnerableTransfer >"
+    ],
+    "attributes": [],
+    "body": [
+      "let program = & mut ctx . accounts . loyalty_program ;",
+      "assert_ne ! (ctx . accounts . from_member . key () , ctx . accounts . to_member . key ()) ;",
+      "let from_data = ctx . accounts . from_member . try_borrow_mut_data () ? ;",
+      "let to_data = ctx . accounts . to_member . try_borrow_mut_data () ? ;",
+      "if from_data . len () >= 48 && to_data . len () >= 48",
+      "{",
+      "let mut from_points_bytes = [0u8 ;",
+      "8] ;",
+      "from_points_bytes . copy_from_slice (& from_data [40 .. 48]) ;",
+      "let mut from_points = u64 :: from_le_bytes (from_points_bytes) ;",
+      "let mut to_points_bytes = [0u8 ;",
+      "8] ;",
+      "to_points_bytes . copy_from_slice (& to_data [40 .. 48]) ;",
+      "let mut to_points = u64 :: from_le_bytes (to_points_bytes) ;",
+      "for transfer_round in 0 .. 5",
+      "{",
+      "if from_points > 100 { let transfer_amount = (from_points >> transfer_round) & 0x3F ;",
+      "from_points = from_points . saturating_sub (transfer_amount) ;",
+      "to_points = to_points . checked_add (transfer_amount * 2) . unwrap_or (u64 :: MAX) ;",
+      "program . tier_multiplier = program . tier_multiplier . checked_add (transfer_round as u32 * 5) . unwrap_or (500) ;",
+      "program . points_issued = program . points_issued . checked_add (transfer_amount) . unwrap_or (u64 :: MAX) ;",
+      "msg ! (\"Transfer round",
+      "{",
+      "}: amount={}, bonus applied\" , transfer_round , transfer_amount) ;",
+      "} else",
+      "{",
+      "let tier_bonus = (program . tier_multiplier as u64 * to_points) / 100 ;",
+      "to_points = to_points . checked_add (tier_bonus) . unwrap_or (u64 :: MAX) ;",
+      "program . points_issued = program . points_issued . checked_add (tier_bonus * 3) . unwrap_or (u64 :: MAX) ;",
+      "program . total_members = program . total_members . checked_add (transfer_round as u64) . unwrap_or (u64 :: MAX) ;",
+      "msg ! (\"Tier bonus applied:",
+      "{",
+      "}\" , tier_bonus) ;",
+      "} } let new_from_bytes = from_points . to_le_bytes () ;",
+      "from_data [40 .. 48] . copy_from_slice (& new_from_bytes) ;",
+      "let new_to_bytes = to_points . to_le_bytes () ;",
+      "to_data [40 .. 48] . copy_from_slice (& new_to_bytes) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitLoyaltyProgram",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "loyalty_program",
+        "attribute": "# [account (init , payer = operator , space = 8 + 32 + 8 + 8 + 4)]",
+        "field_type": "Account < 'info , LoyaltyProgram >"
+      },
+      {
+        "name": "operator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RegisterMember",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "loyalty_program",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , LoyaltyProgram >"
+      },
+      {
+        "name": "member_account",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 32 + 8 + 1 + 8)]",
+        "field_type": "Account < 'info , MemberAccount >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "VulnerableTransfer",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "loyalty_program",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , LoyaltyProgram >"
+      },
+      {
+        "name": "from_member",
+        "attribute": "# [doc = \" CHECK: 脆弱性 - assert_ne!のみの検証\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "to_member",
+        "attribute": "# [doc = \" CHECK: 脆弱性 - 送金先検証不十分\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "LoyaltyProgram",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "total_members",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "points_issued",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "tier_multiplier",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MemberAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "program",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "points_balance",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "tier_level",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "last_activity",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

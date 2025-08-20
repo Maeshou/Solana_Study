@@ -1,0 +1,132 @@
+[
+  {
+    "name": "add_movie",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AddMovie >",
+      "title: String",
+      "year: u16"
+    ],
+    "attributes": [
+      "# [doc = \" 映画をウォッチリストに追加\"]"
+    ],
+    "body": [
+      "if title . len () > 100",
+      "{",
+      "return Err (ErrorCode :: TitleTooLong . into ()) ;",
+      "}",
+      "if year < 1888",
+      "{",
+      "return Err (ErrorCode :: InvalidYear . into ()) ;",
+      "}",
+      "if year > 2100",
+      "{",
+      "return Err (ErrorCode :: InvalidYear . into ()) ;",
+      "}",
+      "let movie = & mut ctx . accounts . movie ;",
+      "movie . owner = ctx . accounts . user . key () ;",
+      "movie . title = title ;",
+      "movie . year = year ;",
+      "movie . watched = false ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "mark_watched",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < MarkWatched >"
+    ],
+    "attributes": [
+      "# [doc = \" 登録済み映画を「視聴済み」にマーク\"]"
+    ],
+    "body": [
+      "let movie = & mut ctx . accounts . movie ;",
+      "let user_key = ctx . accounts . user . key () ;",
+      "if movie . owner != user_key",
+      "{",
+      "return Err (ErrorCode :: Unauthorized . into ()) ;",
+      "}",
+      "if movie . watched",
+      "{",
+      "return Err (ErrorCode :: AlreadyWatched . into ()) ;",
+      "}",
+      "movie . watched = true ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "AddMovie",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "movie",
+        "attribute": "# [doc = \" 二度の初期化を防止（Reinit Attack）\"] # [account (init , payer = user , space = 8 + 32 + 4 + 100 + 2 + 1)]",
+        "field_type": "Account < 'info , MovieAccount >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 操作を行うユーザー（署名必須）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MarkWatched",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "movie",
+        "attribute": "# [doc = \" 型チェック＆所有者チェック（Owner Check / Type Cosplay）\"] # [account (mut)]",
+        "field_type": "Account < 'info , MovieAccount >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 実際に署名したユーザー（Signer Authorization）\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MovieAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" このエントリを操作できるユーザー\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "title",
+        "attribute": "# [doc = \" 映画のタイトル（最大100文字）\"]",
+        "field_type": "String"
+      },
+      {
+        "name": "year",
+        "attribute": "# [doc = \" 公開年 (u16)\"]",
+        "field_type": "u16"
+      },
+      {
+        "name": "watched",
+        "attribute": "# [doc = \" 視聴済みフラグ\"]",
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

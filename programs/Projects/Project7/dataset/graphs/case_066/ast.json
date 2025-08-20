@@ -1,0 +1,159 @@
+[
+  {
+    "name": "init_drop",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitDrop >",
+      "base_units_input: u64",
+      "cap_per_day_input: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let drop = & mut ctx . accounts . drop ;",
+      "drop . operator = ctx . accounts . operator . key () ;",
+      "drop . base_units = base_units_input ;",
+      "if drop . base_units < 1",
+      "{",
+      "drop . base_units = 1 ;",
+      "}",
+      "drop . cap_per_day = cap_per_day_input ;",
+      "if drop . cap_per_day < drop . base_units",
+      "{",
+      "drop . cap_per_day = drop . base_units ;",
+      "}",
+      "drop . issued_today = 0 ;",
+      "drop . first_movers = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_claim",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActClaim >",
+      "ladder_steps: u8",
+      "is_early: bool"
+    ],
+    "attributes": [],
+    "body": [
+      "let drop = & mut ctx . accounts . drop ;",
+      "let mut grant = drop . base_units ;",
+      "let mut s : u8 = 0 ;",
+      "while s < ladder_steps",
+      "{",
+      "grant = grant + (s as u64 + 1) ;",
+      "s = s + 1 ;",
+      "}",
+      "if is_early",
+      "{",
+      "grant = grant + 2 ;",
+      "drop . first_movers = drop . first_movers + 1 ;",
+      "}",
+      "let projected = drop . issued_today + grant ;",
+      "if projected > drop . cap_per_day",
+      "{",
+      "let rest = drop . cap_per_day - drop . issued_today ;",
+      "token :: transfer (ctx . accounts . pool_to_user () , rest) ? ;",
+      "drop . issued_today = drop . cap_per_day ;",
+      "return Err (DropErr :: Cap . into ()) ;",
+      "}",
+      "token :: transfer (ctx . accounts . pool_to_user () , grant) ? ;",
+      "drop . issued_today = projected ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitDrop",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "drop",
+        "attribute": "# [account (init , payer = operator , space = 8 + 32 + 8 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , DropState >"
+      },
+      {
+        "name": "operator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActClaim",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "drop",
+        "attribute": "# [account (mut , has_one = operator)]",
+        "field_type": "Account < 'info , DropState >"
+      },
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "drop_pool_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "user_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DropState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "base_units",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "cap_per_day",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "issued_today",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "first_movers",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

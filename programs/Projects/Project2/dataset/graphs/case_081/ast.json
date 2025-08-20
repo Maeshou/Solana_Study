@@ -1,17 +1,73 @@
 [
   {
-    "name": "UnlockAssetCtxfjma",
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitMulti >",
+      "initial: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 初期化：管理者と記録者を登録し、履歴に最初の値を追加\"]"
+    ],
+    "body": [
+      "let rec = & mut ctx . accounts . record ;",
+      "rec . value = initial ;",
+      "rec . manager = ctx . accounts . manager . key () ;",
+      "rec . writer = ctx . accounts . writer . key () ;",
+      "rec . history = vec ! [initial] ;",
+      "emit ! (RecordCreated { by : rec . manager , value : initial }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "append_and_close",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AppendClose >",
+      "extra: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 追記＆閉鎖：記録者の署名でのみ呼び出せ、最後に残高を管理者に返却してアカウントを無効化\"]"
+    ],
+    "body": [
+      "let rec = & mut ctx . accounts . record ;",
+      "require_keys_eq ! (rec . writer , ctx . accounts . writer . key ()) ;",
+      "let new_val = rec . value . checked_add (extra) . ok_or (ErrorCode :: Overflow) ? ;",
+      "rec . value = new_val ;",
+      "rec . history . push (new_val) ;",
+      "emit ! (Appended { by : rec . writer , value : new_val }) ;",
+      "let record_ai = ctx . accounts . record . to_account_info () ;",
+      "let manager_ai = ctx . accounts . manager_lamports . to_account_info () ;",
+      "* * manager_ai . lamports . borrow_mut () += * * record_ai . lamports . borrow () ;",
+      "* * record_ai . lamports . borrow_mut () = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitMulti",
     "node_type": "struct",
     "fields": [
       {
-        "name": "bridge",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
+        "name": "record",
+        "attribute": "# [account (init , payer = payer , space = 8 + 8 + 32 + 32 + 4 + (8 * 10))]",
+        "field_type": "Account < 'info , MultiRecord >"
       },
       {
-        "name": "locker",
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "writer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
       },
       {
         "name": "system_program",
@@ -24,11 +80,69 @@
     "body": null
   },
   {
-    "name": "DataAccount",
+    "name": "AppendClose",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data",
+        "name": "record",
+        "attribute": "# [account (mut , has_one = manager , has_one = writer)]",
+        "field_type": "Account < 'info , MultiRecord >"
+      },
+      {
+        "name": "writer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "manager_lamports",
+        "attribute": "# [doc = \" CHECK: lamports を返却する先\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MultiRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "value",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "writer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "history",
+        "attribute": null,
+        "field_type": "Vec < u64 >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RecordCreated",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "by",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "value",
         "attribute": null,
         "field_type": "u64"
       }
@@ -38,19 +152,22 @@
     "body": null
   },
   {
-    "name": "unlock_asset",
-    "node_type": "function",
-    "fields": null,
-    "inputs": [
-      "ctx: Context < UnlockAssetCtxfjma >",
-      "amount: u64"
+    "name": "Appended",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "by",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "value",
+        "attribute": null,
+        "field_type": "u64"
+      }
     ],
-    "attributes": [],
-    "body": [
-      "let acct = & mut ctx . accounts . bridge ;",
-      "for _ in 0 .. amount { acct . data += 1 ; }",
-      "msg ! (\"Executed unlock_asset logic\") ;",
-      "Ok (())"
-    ]
+    "inputs": null,
+    "attributes": null,
+    "body": null
   }
 ]

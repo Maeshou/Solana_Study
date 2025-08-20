@@ -1,0 +1,174 @@
+[
+  {
+    "name": "BudgetManager",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "",
+        "attribute": null,
+        "field_type": "Vec < (u8 , u64) >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "initialize",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Initialize >"
+    ],
+    "attributes": [
+      "# [doc = \" 初期化：内部 Vec は空、bump のみ設定\"]"
+    ],
+    "body": [
+      "let b = * ctx . bumps . get (\"manager\") . unwrap () ;",
+      "ctx . accounts . manager . 0 = b ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "add_category",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Modify >",
+      "category_id: u8"
+    ],
+    "attributes": [
+      "# [doc = \" カテゴリ追加：件数制限チェック＋初期ゼロで追加\"]"
+    ],
+    "body": [
+      "let list = & mut ctx . accounts . manager . 1 ;",
+      "if list . len () >= MAX_CATEGORIES",
+      "{",
+      "return err ! (ErrorCode :: MaxCategoriesReached) ;",
+      "}",
+      "list . push ((category_id , 0)) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "record_expense",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Modify >",
+      "category_id: u8",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 支出記録：該当カテゴリを探索し、金額を加算\"]"
+    ],
+    "body": [
+      "let list = & mut ctx . accounts . manager . 1 ;",
+      "let mut found = false ;",
+      "for entry in list . iter_mut ()",
+      "{",
+      "if entry . 0 == category_id",
+      "{",
+      "entry . 1 = entry . 1 . wrapping_add (amount) ;",
+      "found = true ;",
+      "}",
+      "}",
+      "if ! found",
+      "{",
+      "return err ! (ErrorCode :: CategoryNotFound) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "purge_category",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Modify >",
+      "category_id: u8"
+    ],
+    "attributes": [
+      "# [doc = \" カテゴリ削除：該当カテゴリを一括除去\"]"
+    ],
+    "body": [
+      "let list = & mut ctx . accounts . manager . 1 ;",
+      "list . retain (| & (cid , _) | { if cid == category_id { false } else { true } }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "total_spent",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Modify >"
+    ],
+    "attributes": [
+      "# [doc = \" 総支出報告：すべての金額を合計してログ出力\"]"
+    ],
+    "body": [
+      "let list = & ctx . accounts . manager . 1 ;",
+      "let mut sum = 0u64 ;",
+      "for & (_ , spent) in list . iter ()",
+      "{",
+      "sum = sum . wrapping_add (spent) ;",
+      "}",
+      "msg ! (\"Total spent: {}\" , sum) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Initialize",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "manager",
+        "attribute": "# [account (init_zeroed , payer = authority , seeds = [b\"manager\" , authority . key () . as_ref ()] , bump , space = 8 + 1 + 4 + 16 * (1 + 8))]",
+        "field_type": "Account < 'info , BudgetManager >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Modify",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "manager",
+        "attribute": "# [account (mut , seeds = [b\"manager\" , authority . key () . as_ref ()] , bump = manager . 0 ,)]",
+        "field_type": "Account < 'info , BudgetManager >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (signer)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

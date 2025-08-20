@@ -1,0 +1,605 @@
+[
+  {
+    "name": "init_multisig",
+    "inputs": [
+      "ctx: Context < InitMultisig >",
+      "threshold: u8"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let multisig = & mut ctx . accounts . multisig ;"
+      },
+      {
+        "id": 2,
+        "label": "multisig . threshold = threshold ;"
+      },
+      {
+        "id": 3,
+        "label": "multisig . signer_count = 0 ;"
+      },
+      {
+        "id": 4,
+        "label": "multisig . nonce = 0 ;"
+      },
+      {
+        "id": 5,
+        "label": "multisig . executed_txs = 0 ;"
+      },
+      {
+        "id": 6,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: multisig"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: multisig"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: multisig"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: multisig"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: multisig"
+      }
+    ]
+  },
+  {
+    "name": "add_signer",
+    "inputs": [
+      "ctx: Context < AddSigner >",
+      "signer_key: Pubkey"
+    ],
+    "nodes": [
+      {
+        "id": 7,
+        "label": "Entry"
+      },
+      {
+        "id": 8,
+        "label": "let signer_record = & mut ctx . accounts . signer_record ;"
+      },
+      {
+        "id": 9,
+        "label": "signer_record . multisig = ctx . accounts . multisig . key () ;"
+      },
+      {
+        "id": 10,
+        "label": "signer_record . signer = signer_key ;"
+      },
+      {
+        "id": 11,
+        "label": "signer_record . approved_count = 0 ;"
+      },
+      {
+        "id": 12,
+        "label": "signer_record . active = true ;"
+      },
+      {
+        "id": 13,
+        "label": "let multisig = & mut ctx . accounts . multisig ;"
+      },
+      {
+        "id": 14,
+        "label": "multisig . signer_count = multisig . signer_count . checked_add (1) . unwrap_or (255) ;"
+      },
+      {
+        "id": 15,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 8,
+        "to": 8,
+        "label": "def: signer_record"
+      },
+      {
+        "from": 8,
+        "to": 9,
+        "label": "data_dep: signer_record"
+      },
+      {
+        "from": 8,
+        "to": 10,
+        "label": "data_dep: signer_record"
+      },
+      {
+        "from": 8,
+        "to": 11,
+        "label": "data_dep: signer_record"
+      },
+      {
+        "from": 8,
+        "to": 12,
+        "label": "data_dep: signer_record"
+      },
+      {
+        "from": 13,
+        "to": 13,
+        "label": "def: multisig"
+      },
+      {
+        "from": 13,
+        "to": 14,
+        "label": "data_dep: multisig"
+      },
+      {
+        "from": 13,
+        "to": 14,
+        "label": "data_dep: multisig"
+      }
+    ]
+  },
+  {
+    "name": "vulnerable_execute",
+    "inputs": [
+      "ctx: Context < VulnerableExecute >"
+    ],
+    "nodes": [
+      {
+        "id": 16,
+        "label": "Entry"
+      },
+      {
+        "id": 17,
+        "label": "let multisig = & mut ctx . accounts . multisig ;"
+      },
+      {
+        "id": 18,
+        "label": "let signer1_info = & ctx . accounts . signer1 ;"
+      },
+      {
+        "id": 19,
+        "label": "let signer2_info = & ctx . accounts . signer2 ;"
+      },
+      {
+        "id": 20,
+        "label": "let signer3_info = & ctx . accounts . signer3 ;"
+      },
+      {
+        "id": 21,
+        "label": "let sig1_weight = * * signer1_info . lamports . borrow () / 1_000_000 ;"
+      },
+      {
+        "id": 22,
+        "label": "let sig2_weight = * * signer2_info . lamports . borrow () / 1_000_000 ;"
+      },
+      {
+        "id": 23,
+        "label": "let sig3_weight = * * signer3_info . lamports . borrow () / 1_000_000 ;"
+      },
+      {
+        "id": 24,
+        "label": "for execution_round in 0 .. 6 { if sig1_weight > sig2_weight + sig3_weight { let execution_power = sig1_weight * (execution_round + 1) ; multisig . executed_txs = multisig . executed_txs . checked_add (execution_power) . unwrap_or (u64 :: MAX) ; multisig . nonce = (multisig . nonce << 1) | 0x01 ; multisig . threshold = (multisig . threshold + execution_round as u8) . min (10) ; msg ! (\"Signer1 execution round {}: power={}\" , execution_round , execution_power) ; } else { let combined_weight = sig2_weight ^ sig3_weight ; let weighted_execution = combined_weight * (execution_round + 2) ; multisig . executed_txs = multisig . executed_txs . checked_add (weighted_execution) . unwrap_or (u64 :: MAX) ; let threshold_adjustment = (combined_weight >> 2) & 0x07 ; multisig . threshold = (multisig . threshold + threshold_adjustment as u8) . min (255) ; multisig . signer_count = multisig . signer_count . checked_add (execution_round as u8) . unwrap_or (255) ; msg ! (\"Combined execution round {}: weight={}\" , execution_round , combined_weight) ; } }"
+      },
+      {
+        "id": 25,
+        "label": "if sig1_weight > sig2_weight + sig3_weight { let execution_power = sig1_weight * (execution_round + 1) ; multisig . executed_txs = multisig . executed_txs . checked_add (execution_power) . unwrap_or (u64 :: MAX) ; multisig . nonce = (multisig . nonce << 1) | 0x01 ; multisig . threshold = (multisig . threshold + execution_round as u8) . min (10) ; msg ! (\"Signer1 execution round {}: power={}\" , execution_round , execution_power) ; } else { let combined_weight = sig2_weight ^ sig3_weight ; let weighted_execution = combined_weight * (execution_round + 2) ; multisig . executed_txs = multisig . executed_txs . checked_add (weighted_execution) . unwrap_or (u64 :: MAX) ; let threshold_adjustment = (combined_weight >> 2) & 0x07 ; multisig . threshold = (multisig . threshold + threshold_adjustment as u8) . min (255) ; multisig . signer_count = multisig . signer_count . checked_add (execution_round as u8) . unwrap_or (255) ; msg ! (\"Combined execution round {}: weight={}\" , execution_round , combined_weight) ; }"
+      },
+      {
+        "id": 26,
+        "label": "let execution_power = sig1_weight * (execution_round + 1) ;"
+      },
+      {
+        "id": 27,
+        "label": "multisig . executed_txs = multisig . executed_txs . checked_add (execution_power) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 28,
+        "label": "multisig . nonce = (multisig . nonce << 1) | 0x01 ;"
+      },
+      {
+        "id": 29,
+        "label": "multisig . threshold = (multisig . threshold + execution_round as u8) . min (10) ;"
+      },
+      {
+        "id": 30,
+        "label": "msg ! (\"Signer1 execution round {}: power={}\" , execution_round , execution_power) ;"
+      },
+      {
+        "id": 31,
+        "label": "let combined_weight = sig2_weight ^ sig3_weight ;"
+      },
+      {
+        "id": 32,
+        "label": "let weighted_execution = combined_weight * (execution_round + 2) ;"
+      },
+      {
+        "id": 33,
+        "label": "multisig . executed_txs = multisig . executed_txs . checked_add (weighted_execution) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 34,
+        "label": "let threshold_adjustment = (combined_weight >> 2) & 0x07 ;"
+      },
+      {
+        "id": 35,
+        "label": "multisig . threshold = (multisig . threshold + threshold_adjustment as u8) . min (255) ;"
+      },
+      {
+        "id": 36,
+        "label": "multisig . signer_count = multisig . signer_count . checked_add (execution_round as u8) . unwrap_or (255) ;"
+      },
+      {
+        "id": 37,
+        "label": "msg ! (\"Combined execution round {}: weight={}\" , execution_round , combined_weight) ;"
+      },
+      {
+        "id": 38,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 17,
+        "to": 17,
+        "label": "def: multisig"
+      },
+      {
+        "from": 18,
+        "to": 18,
+        "label": "def: signer1_info"
+      },
+      {
+        "from": 19,
+        "to": 19,
+        "label": "def: signer2_info"
+      },
+      {
+        "from": 20,
+        "to": 20,
+        "label": "def: signer3_info"
+      },
+      {
+        "from": 21,
+        "to": 21,
+        "label": "def: sig1_weight"
+      },
+      {
+        "from": 18,
+        "to": 21,
+        "label": "data_dep: signer1_info"
+      },
+      {
+        "from": 22,
+        "to": 22,
+        "label": "def: sig2_weight"
+      },
+      {
+        "from": 19,
+        "to": 22,
+        "label": "data_dep: signer2_info"
+      },
+      {
+        "from": 23,
+        "to": 23,
+        "label": "def: sig3_weight"
+      },
+      {
+        "from": 20,
+        "to": 23,
+        "label": "data_dep: signer3_info"
+      },
+      {
+        "from": 21,
+        "to": 24,
+        "label": "data_dep: sig1_weight"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: sig2_weight"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "data_dep: sig3_weight"
+      },
+      {
+        "from": 21,
+        "to": 24,
+        "label": "data_dep: sig1_weight"
+      },
+      {
+        "from": 17,
+        "to": 24,
+        "label": "data_dep: multisig"
+      },
+      {
+        "from": 17,
+        "to": 24,
+        "label": "data_dep: multisig"
+      },
+      {
+        "from": 17,
+        "to": 24,
+        "label": "data_dep: multisig"
+      },
+      {
+        "from": 17,
+        "to": 24,
+        "label": "data_dep: multisig"
+      },
+      {
+        "from": 17,
+        "to": 24,
+        "label": "data_dep: multisig"
+      },
+      {
+        "from": 17,
+        "to": 24,
+        "label": "data_dep: multisig"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: sig2_weight"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "data_dep: sig3_weight"
+      },
+      {
+        "from": 17,
+        "to": 24,
+        "label": "data_dep: multisig"
+      },
+      {
+        "from": 17,
+        "to": 24,
+        "label": "data_dep: multisig"
+      },
+      {
+        "from": 17,
+        "to": 24,
+        "label": "data_dep: multisig"
+      },
+      {
+        "from": 17,
+        "to": 24,
+        "label": "data_dep: multisig"
+      },
+      {
+        "from": 17,
+        "to": 24,
+        "label": "data_dep: multisig"
+      },
+      {
+        "from": 17,
+        "to": 24,
+        "label": "data_dep: multisig"
+      },
+      {
+        "from": 21,
+        "to": 25,
+        "label": "data_dep: sig1_weight"
+      },
+      {
+        "from": 22,
+        "to": 25,
+        "label": "data_dep: sig2_weight"
+      },
+      {
+        "from": 23,
+        "to": 25,
+        "label": "data_dep: sig3_weight"
+      },
+      {
+        "from": 21,
+        "to": 25,
+        "label": "data_dep: sig1_weight"
+      },
+      {
+        "from": 17,
+        "to": 25,
+        "label": "data_dep: multisig"
+      },
+      {
+        "from": 17,
+        "to": 25,
+        "label": "data_dep: multisig"
+      },
+      {
+        "from": 17,
+        "to": 25,
+        "label": "data_dep: multisig"
+      },
+      {
+        "from": 17,
+        "to": 25,
+        "label": "data_dep: multisig"
+      },
+      {
+        "from": 17,
+        "to": 25,
+        "label": "data_dep: multisig"
+      },
+      {
+        "from": 17,
+        "to": 25,
+        "label": "data_dep: multisig"
+      },
+      {
+        "from": 22,
+        "to": 25,
+        "label": "data_dep: sig2_weight"
+      },
+      {
+        "from": 23,
+        "to": 25,
+        "label": "data_dep: sig3_weight"
+      },
+      {
+        "from": 17,
+        "to": 25,
+        "label": "data_dep: multisig"
+      },
+      {
+        "from": 17,
+        "to": 25,
+        "label": "data_dep: multisig"
+      },
+      {
+        "from": 17,
+        "to": 25,
+        "label": "data_dep: multisig"
+      },
+      {
+        "from": 17,
+        "to": 25,
+        "label": "data_dep: multisig"
+      },
+      {
+        "from": 17,
+        "to": 25,
+        "label": "data_dep: multisig"
+      },
+      {
+        "from": 17,
+        "to": 25,
+        "label": "data_dep: multisig"
+      },
+      {
+        "from": 26,
+        "to": 26,
+        "label": "def: execution_power"
+      },
+      {
+        "from": 21,
+        "to": 26,
+        "label": "data_dep: sig1_weight"
+      },
+      {
+        "from": 17,
+        "to": 27,
+        "label": "data_dep: multisig"
+      },
+      {
+        "from": 17,
+        "to": 27,
+        "label": "data_dep: multisig"
+      },
+      {
+        "from": 26,
+        "to": 27,
+        "label": "data_dep: execution_power"
+      },
+      {
+        "from": 17,
+        "to": 28,
+        "label": "data_dep: multisig"
+      },
+      {
+        "from": 17,
+        "to": 28,
+        "label": "data_dep: multisig"
+      },
+      {
+        "from": 17,
+        "to": 29,
+        "label": "data_dep: multisig"
+      },
+      {
+        "from": 17,
+        "to": 29,
+        "label": "data_dep: multisig"
+      },
+      {
+        "from": 31,
+        "to": 31,
+        "label": "def: combined_weight"
+      },
+      {
+        "from": 22,
+        "to": 31,
+        "label": "data_dep: sig2_weight"
+      },
+      {
+        "from": 23,
+        "to": 31,
+        "label": "data_dep: sig3_weight"
+      },
+      {
+        "from": 32,
+        "to": 32,
+        "label": "def: weighted_execution"
+      },
+      {
+        "from": 31,
+        "to": 32,
+        "label": "data_dep: combined_weight"
+      },
+      {
+        "from": 17,
+        "to": 33,
+        "label": "data_dep: multisig"
+      },
+      {
+        "from": 17,
+        "to": 33,
+        "label": "data_dep: multisig"
+      },
+      {
+        "from": 32,
+        "to": 33,
+        "label": "data_dep: weighted_execution"
+      },
+      {
+        "from": 34,
+        "to": 34,
+        "label": "def: threshold_adjustment"
+      },
+      {
+        "from": 31,
+        "to": 34,
+        "label": "data_dep: combined_weight"
+      },
+      {
+        "from": 17,
+        "to": 35,
+        "label": "data_dep: multisig"
+      },
+      {
+        "from": 17,
+        "to": 35,
+        "label": "data_dep: multisig"
+      },
+      {
+        "from": 34,
+        "to": 35,
+        "label": "data_dep: threshold_adjustment"
+      },
+      {
+        "from": 17,
+        "to": 36,
+        "label": "data_dep: multisig"
+      },
+      {
+        "from": 17,
+        "to": 36,
+        "label": "data_dep: multisig"
+      }
+    ]
+  }
+]

@@ -1,0 +1,62 @@
+[
+  {
+    "name": "place_bid",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PlaceBid >",
+      "bid_amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" オークションに入札する  \"]",
+      "# [doc = \" （`auction_account` の owner チェックを一切行っていないため、\"]",
+      "# [doc = \"  攻撃者が任意のアカウントを指定して他ユーザーのオークションを\"]",
+      "# [doc = \"  横取りすることができます）\"]"
+    ],
+    "body": [
+      "let acct = & mut ctx . accounts . auction_account . to_account_info () ;",
+      "let data = & mut acct . data . borrow_mut () ;",
+      "const MIN_LEN : usize = 8 + 8 + 32 + 4 ;",
+      "if data . len () < MIN_LEN",
+      "{",
+      "return err ! (ErrorCode :: DataLengthTooShort) ;",
+      "}",
+      "let (reserve_slice , rest1) = data . split_at_mut (8) ;",
+      "let (highest_slice , rest2) = rest1 . split_at_mut (8) ;",
+      "let (bidder_slice , rest3) = rest2 . split_at_mut (32) ;",
+      "let (count_slice , _) = rest3 . split_at_mut (4) ;",
+      "let reserve_price = u64 :: from_le_bytes (reserve_slice . try_into () . unwrap ()) ;",
+      "let mut highest_bid = u64 :: from_le_bytes (highest_slice . try_into () . unwrap ()) ;",
+      "if bid_amount <= highest_bid || bid_amount < reserve_price",
+      "{",
+      "return err ! (ErrorCode :: BidTooLow) ;",
+      "}",
+      "highest_slice . copy_from_slice (& bid_amount . to_le_bytes ()) ;",
+      "bidder_slice . copy_from_slice (ctx . accounts . bidder . key () . as_ref ()) ;",
+      "let prev_count = u32 :: from_le_bytes (count_slice . try_into () . unwrap ()) ;",
+      "let new_count = prev_count . saturating_add (1) ;",
+      "count_slice . copy_from_slice (& new_count . to_le_bytes ()) ;",
+      "msg ! (\"Bid placed: {} bids {} lamports on auction {} (count={})\" , ctx . accounts . bidder . key () , bid_amount , acct . key () , new_count) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "PlaceBid",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "auction_account",
+        "attribute": "# [doc = \" CHECK: owner == program_id の検証をまったく行っていない AccountInfo\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "bidder",
+        "attribute": "# [doc = \" 入札者の署名のみ検証\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

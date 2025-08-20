@@ -1,0 +1,405 @@
+[
+  {
+    "name": "init_tally",
+    "inputs": [
+      "ctx: Context < InitTally >",
+      "founding_era: u64",
+      "max_voters: u32"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let tally = & mut ctx . accounts . tally_core ;"
+      },
+      {
+        "id": 2,
+        "label": "tally . founding_era = founding_era . rotate_left (8) ;"
+      },
+      {
+        "id": 3,
+        "label": "tally . max_voters = max_voters . checked_add (100) . unwrap_or (u32 :: MAX) ;"
+      },
+      {
+        "id": 4,
+        "label": "tally . total_votes = (founding_era . checked_rem (10) . unwrap_or (0)) as u64 ;"
+      },
+      {
+        "id": 5,
+        "label": "tally . current_voters = 0 ;"
+      },
+      {
+        "id": 6,
+        "label": "tally . tally_status = TallyStatus :: Open ;"
+      },
+      {
+        "id": 7,
+        "label": "msg ! (\"Cosmic Tally established in era {} with capacity for {} voters.\" , tally . founding_era , tally . max_voters) ;"
+      },
+      {
+        "id": 8,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: tally"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: tally"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: tally"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: tally"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: tally"
+      },
+      {
+        "from": 1,
+        "to": 6,
+        "label": "data_dep: tally"
+      }
+    ]
+  },
+  {
+    "name": "init_voter",
+    "inputs": [
+      "ctx: Context < InitVoter >",
+      "voter_id: u64",
+      "starting_votes: u32"
+    ],
+    "nodes": [
+      {
+        "id": 9,
+        "label": "Entry"
+      },
+      {
+        "id": 10,
+        "label": "let voter = & mut ctx . accounts . voter_profile ;"
+      },
+      {
+        "id": 11,
+        "label": "voter . parent_tally = ctx . accounts . tally_core . key () ;"
+      },
+      {
+        "id": 12,
+        "label": "voter . voter_id = voter_id ^ 0xF0F0F0F0F0F0F0F0 ;"
+      },
+      {
+        "id": 13,
+        "label": "voter . votes_remaining = starting_votes . checked_add (10) . unwrap_or (u32 :: MAX) ;"
+      },
+      {
+        "id": 14,
+        "label": "voter . is_eligible = starting_votes > 0 ;"
+      },
+      {
+        "id": 15,
+        "label": "voter . total_votes_cast = 0 ;"
+      },
+      {
+        "id": 16,
+        "label": "msg ! (\"New voter {} registered with {} votes.\" , voter . voter_id , voter . votes_remaining) ;"
+      },
+      {
+        "id": 17,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 10,
+        "to": 10,
+        "label": "def: voter"
+      },
+      {
+        "from": 10,
+        "to": 11,
+        "label": "data_dep: voter"
+      },
+      {
+        "from": 10,
+        "to": 12,
+        "label": "data_dep: voter"
+      },
+      {
+        "from": 10,
+        "to": 13,
+        "label": "data_dep: voter"
+      },
+      {
+        "from": 10,
+        "to": 14,
+        "label": "data_dep: voter"
+      },
+      {
+        "from": 10,
+        "to": 15,
+        "label": "data_dep: voter"
+      }
+    ]
+  },
+  {
+    "name": "cast_votes",
+    "inputs": [
+      "ctx: Context < CastVotes >",
+      "votes_to_cast: u32"
+    ],
+    "nodes": [
+      {
+        "id": 18,
+        "label": "Entry"
+      },
+      {
+        "id": 19,
+        "label": "let tally = & mut ctx . accounts . tally_core ;"
+      },
+      {
+        "id": 20,
+        "label": "let voter = & mut ctx . accounts . voter_profile ;"
+      },
+      {
+        "id": 21,
+        "label": "let mut votes_left = votes_to_cast ;"
+      },
+      {
+        "id": 22,
+        "label": "while votes_left > 0 && voter . votes_remaining > 0 { let cast_vote_count = votes_left . checked_div (2) . unwrap_or (1) . min (voter . votes_remaining) ; voter . votes_remaining = voter . votes_remaining . checked_sub (cast_vote_count) . unwrap_or (0) ; voter . total_votes_cast = voter . total_votes_cast . checked_add (cast_vote_count) . unwrap_or (u32 :: MAX) ; tally . total_votes = tally . total_votes . checked_add (cast_vote_count as u64) . unwrap_or (u64 :: MAX) ; votes_left = votes_left . checked_sub (cast_vote_count) . unwrap_or (0) ; tally . current_voters = tally . current_voters . checked_add (1) . unwrap_or (u32 :: MAX) ; }"
+      },
+      {
+        "id": 23,
+        "label": "let cast_vote_count = votes_left . checked_div (2) . unwrap_or (1) . min (voter . votes_remaining) ;"
+      },
+      {
+        "id": 24,
+        "label": "voter . votes_remaining = voter . votes_remaining . checked_sub (cast_vote_count) . unwrap_or (0) ;"
+      },
+      {
+        "id": 25,
+        "label": "voter . total_votes_cast = voter . total_votes_cast . checked_add (cast_vote_count) . unwrap_or (u32 :: MAX) ;"
+      },
+      {
+        "id": 26,
+        "label": "tally . total_votes = tally . total_votes . checked_add (cast_vote_count as u64) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 27,
+        "label": "votes_left = votes_left . checked_sub (cast_vote_count) . unwrap_or (0) ;"
+      },
+      {
+        "id": 28,
+        "label": "tally . current_voters = tally . current_voters . checked_add (1) . unwrap_or (u32 :: MAX) ;"
+      },
+      {
+        "id": 29,
+        "label": "voter . is_eligible = voter . votes_remaining > 0 ;"
+      },
+      {
+        "id": 30,
+        "label": "msg ! (\"Voter {} cast a total of {} votes.\" , voter . voter_id , voter . total_votes_cast) ;"
+      },
+      {
+        "id": 31,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 19,
+        "to": 19,
+        "label": "def: tally"
+      },
+      {
+        "from": 20,
+        "to": 20,
+        "label": "def: voter"
+      },
+      {
+        "from": 21,
+        "to": 21,
+        "label": "def: votes_left"
+      },
+      {
+        "from": 21,
+        "to": 22,
+        "label": "data_dep: votes_left"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: voter"
+      },
+      {
+        "from": 21,
+        "to": 22,
+        "label": "data_dep: votes_left"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: voter"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: voter"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: voter"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: voter"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: voter"
+      },
+      {
+        "from": 19,
+        "to": 22,
+        "label": "data_dep: tally"
+      },
+      {
+        "from": 19,
+        "to": 22,
+        "label": "data_dep: tally"
+      },
+      {
+        "from": 21,
+        "to": 22,
+        "label": "data_dep: votes_left"
+      },
+      {
+        "from": 21,
+        "to": 22,
+        "label": "data_dep: votes_left"
+      },
+      {
+        "from": 19,
+        "to": 22,
+        "label": "data_dep: tally"
+      },
+      {
+        "from": 19,
+        "to": 22,
+        "label": "data_dep: tally"
+      },
+      {
+        "from": 23,
+        "to": 23,
+        "label": "def: cast_vote_count"
+      },
+      {
+        "from": 21,
+        "to": 23,
+        "label": "data_dep: votes_left"
+      },
+      {
+        "from": 20,
+        "to": 23,
+        "label": "data_dep: voter"
+      },
+      {
+        "from": 20,
+        "to": 24,
+        "label": "data_dep: voter"
+      },
+      {
+        "from": 20,
+        "to": 24,
+        "label": "data_dep: voter"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "data_dep: cast_vote_count"
+      },
+      {
+        "from": 20,
+        "to": 25,
+        "label": "data_dep: voter"
+      },
+      {
+        "from": 20,
+        "to": 25,
+        "label": "data_dep: voter"
+      },
+      {
+        "from": 23,
+        "to": 25,
+        "label": "data_dep: cast_vote_count"
+      },
+      {
+        "from": 19,
+        "to": 26,
+        "label": "data_dep: tally"
+      },
+      {
+        "from": 19,
+        "to": 26,
+        "label": "data_dep: tally"
+      },
+      {
+        "from": 23,
+        "to": 26,
+        "label": "data_dep: cast_vote_count"
+      },
+      {
+        "from": 21,
+        "to": 27,
+        "label": "data_dep: votes_left"
+      },
+      {
+        "from": 21,
+        "to": 27,
+        "label": "data_dep: votes_left"
+      },
+      {
+        "from": 23,
+        "to": 27,
+        "label": "data_dep: cast_vote_count"
+      },
+      {
+        "from": 19,
+        "to": 28,
+        "label": "data_dep: tally"
+      },
+      {
+        "from": 19,
+        "to": 28,
+        "label": "data_dep: tally"
+      },
+      {
+        "from": 20,
+        "to": 29,
+        "label": "data_dep: voter"
+      },
+      {
+        "from": 20,
+        "to": 29,
+        "label": "data_dep: voter"
+      }
+    ]
+  }
+]

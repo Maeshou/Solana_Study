@@ -1,0 +1,204 @@
+[
+  {
+    "name": "FeatureFlagManager",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "",
+        "attribute": null,
+        "field_type": "Vec < (Vec < u8 > , bool) >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "initialize",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Initialize >"
+    ],
+    "attributes": [
+      "# [doc = \" 初期化：内部 Vec は空、bump のみ設定\"]"
+    ],
+    "body": [
+      "let b = * ctx . bumps . get (\"flags\") . unwrap () ;",
+      "ctx . accounts . flags . 0 = b ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "add_flag",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Modify >",
+      "name: Vec < u8 >"
+    ],
+    "attributes": [
+      "# [doc = \" フラグ追加：件数制限チェック＋初期 false で追加\"]"
+    ],
+    "body": [
+      "let list = & mut ctx . accounts . flags . 1 ;",
+      "if list . len () >= MAX_FLAGS",
+      "{",
+      "return err ! (ErrorCode :: MaxFlagsReached) ;",
+      "}",
+      "list . push ((name , false)) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "enable_flag",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Modify >",
+      "name: Vec < u8 >"
+    ],
+    "attributes": [
+      "# [doc = \" フラグ有効化：該当フラグを検索し、enabled を true に\"]"
+    ],
+    "body": [
+      "let list = & mut ctx . accounts . flags . 1 ;",
+      "let mut found = false ;",
+      "for entry in list . iter_mut ()",
+      "{",
+      "if entry . 0 == name",
+      "{",
+      "entry . 1 = true ;",
+      "found = true ;",
+      "}",
+      "}",
+      "if found == false",
+      "{",
+      "return err ! (ErrorCode :: FlagNotFound) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "disable_flag",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Modify >",
+      "name: Vec < u8 >"
+    ],
+    "attributes": [
+      "# [doc = \" フラグ無効化：該当フラグを検索し、enabled を false に\"]"
+    ],
+    "body": [
+      "let list = & mut ctx . accounts . flags . 1 ;",
+      "let mut found = false ;",
+      "for entry in list . iter_mut ()",
+      "{",
+      "if entry . 0 == name",
+      "{",
+      "entry . 1 = false ;",
+      "found = true ;",
+      "}",
+      "}",
+      "if found == false",
+      "{",
+      "return err ! (ErrorCode :: FlagNotFound) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "purge_disabled",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Modify >"
+    ],
+    "attributes": [
+      "# [doc = \" 削除されたフラグ（常に enabled = false）を一括除去\"]"
+    ],
+    "body": [
+      "let list = & mut ctx . accounts . flags . 1 ;",
+      "list . retain (| & (_ , enabled) | { if enabled == false { false } else { true } }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "count_enabled",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Modify >"
+    ],
+    "attributes": [
+      "# [doc = \" 有効フラグ数をログ出力\"]"
+    ],
+    "body": [
+      "let list = & ctx . accounts . flags . 1 ;",
+      "let mut cnt = 0u64 ;",
+      "for & (_ , enabled) in list . iter ()",
+      "{",
+      "if enabled == true",
+      "{",
+      "cnt = cnt . wrapping_add (1) ;",
+      "}",
+      "}",
+      "msg ! (\"Enabled flags: {}\" , cnt) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Initialize",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "flags",
+        "attribute": "# [account (init_zeroed , payer = authority , seeds = [b\"flags\" , authority . key () . as_ref ()] , bump , space = 8 + 1 + 4 + 16 * (4 + 32 + 1))]",
+        "field_type": "Account < 'info , FeatureFlagManager >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Modify",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "flags",
+        "attribute": "# [account (mut , seeds = [b\"flags\" , authority . key () . as_ref ()] , bump = flags . 0 ,)]",
+        "field_type": "Account < 'info , FeatureFlagManager >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (signer)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,262 @@
+[
+  {
+    "name": "init_guild",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitGuild >",
+      "name: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let guild = & mut ctx . accounts . guild ;",
+      "guild . owner = ctx . accounts . admin . key () ;",
+      "guild . name = name ;",
+      "guild . total_posts = 0 ;",
+      "guild . flags = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_member_card",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitMemberCard >",
+      "role: MemberRole"
+    ],
+    "attributes": [],
+    "body": [
+      "let card = & mut ctx . accounts . card ;",
+      "card . guild = ctx . accounts . guild . key () ;",
+      "card . role = role ;",
+      "card . reputation = 0 ;",
+      "card . active = true ;",
+      "card . counters = [0 ; 8] ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "update_post_flow",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < UpdatePostFlow >",
+      "weight: u16",
+      "boost: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let guild = & mut ctx . accounts . guild ;",
+      "let actor = & mut ctx . accounts . actor ;",
+      "let reviewer = & mut ctx . accounts . reviewer ;",
+      "let board = & mut ctx . accounts . board ;",
+      "let mut acc : u64 = 0 ;",
+      "for i in 0 .. actor . counters . len ()",
+      "{",
+      "let rotated = actor . counters [i] . rotate_left ((i as u32) & 7) ;",
+      "let mixed = rotated ^ ((boost as u64) << (i as u32 & 15)) ;",
+      "let next = mixed . checked_add (weight as u64) . unwrap_or (u64 :: MAX) ;",
+      "actor . counters [i] = if next > 1_000_000",
+      "{",
+      "1_000_000 } else { next } ;",
+      "acc = acc . saturating_add (actor . counters [i] & 0xFFFF) ;",
+      "}",
+      "if actor . role == Leader",
+      "{",
+      "actor . reputation = actor . reputation . saturating_add ((acc % 97) as u32) ;",
+      "guild . total_posts = guild . total_posts . saturating_add (1) ;",
+      "board . last_hash = board . last_hash . wrapping_mul (1_146_295) . wrapping_add (acc as u64) ;",
+      "board . queue_len = board . queue_len . saturating_add (1) ;",
+      "msg ! (\"Leader actor updated reputation and queued a post\") ;",
+      "} else",
+      "{",
+      "reviewer . reputation = reviewer . reputation . saturating_add (((acc >> 2) % 53) as u32) ;",
+      "guild . flags = guild . flags | 0b10 ;",
+      "board . queue_len = board . queue_len . saturating_add (2) ;",
+      "board . last_hash = board . last_hash ^ (acc as u64) . rotate_right (7) ;",
+      "msg ! (\"Non-leader path: reviewer reputation adjusted and board queued\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitGuild",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": "# [account (init , payer = admin , space = 8 + Guild :: MAX_SIZE)]",
+        "field_type": "Account < 'info , Guild >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitMemberCard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Guild >"
+      },
+      {
+        "name": "card",
+        "attribute": "# [account (init , payer = user , space = 8 + MemberCard :: MAX_SIZE)]",
+        "field_type": "Account < 'info , MemberCard >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "program_id_alias",
+        "attribute": "# [doc = \" ギルドは本プログラムが所有（型＋owner二重フェンス）\"] # [account (address = crate :: ID)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "UpdatePostFlow",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": "# [account (mut , has_one = owner , owner = crate :: ID)]",
+        "field_type": "Account < 'info , Guild >"
+      },
+      {
+        "name": "board",
+        "attribute": "# [account (mut , has_one = guild , owner = crate :: ID)]",
+        "field_type": "Account < 'info , Board >"
+      },
+      {
+        "name": "actor",
+        "attribute": "# [account (mut , has_one = guild , owner = crate :: ID)]",
+        "field_type": "Account < 'info , MemberCard >"
+      },
+      {
+        "name": "reviewer",
+        "attribute": "# [account (mut , has_one = guild , owner = crate :: ID , constraint = actor . role != reviewer . role @ ErrCode :: CosplayBlocked)]",
+        "field_type": "Account < 'info , MemberCard >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Guild",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "total_posts",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "flags",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MemberCard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "role",
+        "attribute": null,
+        "field_type": "MemberRole"
+      },
+      {
+        "name": "reputation",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "active",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "counters",
+        "attribute": null,
+        "field_type": "[u64 ; 8]"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Board",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "last_hash",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "queue_len",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

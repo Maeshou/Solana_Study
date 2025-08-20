@@ -1,0 +1,222 @@
+[
+  {
+    "name": "craft_legendary_weapon",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CraftWeapon >"
+    ],
+    "attributes": [],
+    "body": [
+      "let crafting_station = & mut ctx . accounts . crafting_station ;",
+      "let player_inventory = & mut ctx . accounts . player_inventory ;",
+      "let mut material_cost_total = 0u64 ;",
+      "let required_materials = vec ! [(MaterialType :: DragonScale , 5) , (MaterialType :: MithrilOre , 10) , (MaterialType :: PhoenixFeather , 2) ,] ;",
+      "for (material_type , required_amount) in required_materials . iter ()",
+      "{",
+      "let available_amount = player_inventory . materials . get (material_type) . unwrap_or (& 0) ;",
+      "require ! (* available_amount >= * required_amount , CraftingError :: InsufficientMaterials) ;",
+      "let base_cost = match material_type",
+      "{",
+      "MaterialType :: DragonScale => 1000 , MaterialType :: MithrilOre => 500 , MaterialType :: PhoenixFeather => 2000 , } ;",
+      "material_cost_total = material_cost_total . checked_add (base_cost . checked_mul (* required_amount as u64) . unwrap ()) . unwrap () ;",
+      "player_inventory . materials . insert (* material_type , available_amount . checked_sub (* required_amount) . unwrap ()) ;",
+      "}",
+      "let mut success_rate = 70u8 ;",
+      "let crafting_level_bonus = crafting_station . crafting_level / 5 ;",
+      "success_rate = success_rate . saturating_add (crafting_level_bonus as u8) ;",
+      "let clock = Clock :: get () ? ;",
+      "let random_seed = clock . unix_timestamp as u64 ;",
+      "let craft_success = (random_seed % 100) < success_rate as u64 ;",
+      "if ! craft_success",
+      "{",
+      "for (material_type , required_amount) in required_materials . iter ()",
+      "{",
+      "let return_amount = required_amount / 2 ;",
+      "let current_amount = player_inventory . materials . get (material_type) . unwrap_or (& 0) ;",
+      "player_inventory . materials . insert (* material_type , current_amount . checked_add (return_amount) . unwrap ()) ;",
+      "} return Err (CraftingError :: CraftingFailed . into ()) ;",
+      "}",
+      "let weapon_stats = WeaponStats { attack_damage : 250 + (crafting_station . crafting_level * 5) , critical_rate : 15 + (crafting_station . crafting_level / 2) , durability : 1000 , enchantment_slots : 3 , } ;",
+      "player_inventory . weapons . push (CraftedWeapon { weapon_id : player_inventory . weapons . len () as u32 , weapon_type : WeaponType :: LegendarySword , stats : weapon_stats , crafted_at : clock . unix_timestamp , crafter : ctx . accounts . player . key () , }) ;",
+      "crafting_station . crafting_level = crafting_station . crafting_level . checked_add (1) . unwrap () ;",
+      "crafting_station . total_items_crafted = crafting_station . total_items_crafted . checked_add (1) . unwrap () ;",
+      "emit ! (WeaponCrafted { player : ctx . accounts . player . key () , weapon_type : WeaponType :: LegendarySword , success : true , }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CraftingStation",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "crafting_level",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_items_crafted",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "station_type",
+        "attribute": null,
+        "field_type": "StationType"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PlayerInventory",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "materials",
+        "attribute": null,
+        "field_type": "std :: collections :: HashMap < MaterialType , u64 >"
+      },
+      {
+        "name": "weapons",
+        "attribute": null,
+        "field_type": "Vec < CraftedWeapon >"
+      },
+      {
+        "name": "max_capacity",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CraftedWeapon",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "weapon_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "weapon_type",
+        "attribute": null,
+        "field_type": "WeaponType"
+      },
+      {
+        "name": "stats",
+        "attribute": null,
+        "field_type": "WeaponStats"
+      },
+      {
+        "name": "crafted_at",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "crafter",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "WeaponStats",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "attack_damage",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "critical_rate",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "durability",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "enchantment_slots",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CraftWeapon",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "crafting_station",
+        "attribute": "# [account (mut , has_one = owner @ CraftingError :: Unauthorized , constraint = crafting_station . station_type != StationType :: BasicForge @ CraftingError :: InsufficientStationLevel)]",
+        "field_type": "Account < 'info , CraftingStation >"
+      },
+      {
+        "name": "player_inventory",
+        "attribute": "# [account (mut , has_one = owner @ CraftingError :: Unauthorized)]",
+        "field_type": "Account < 'info , PlayerInventory >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "player",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "WeaponCrafted",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "player",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "weapon_type",
+        "attribute": null,
+        "field_type": "WeaponType"
+      },
+      {
+        "name": "success",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

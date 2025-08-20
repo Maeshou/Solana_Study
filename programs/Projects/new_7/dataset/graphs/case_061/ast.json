@@ -1,0 +1,148 @@
+[
+  {
+    "name": "prepare",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Prepare >",
+      "quota: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let r = & mut ctx . accounts . raid ;",
+      "r . owner = ctx . accounts . owner . key () ;",
+      "r . quota = quota ;",
+      "r . step = 0 ;",
+      "r . distributed = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "stream",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Stream >",
+      "waves: u8",
+      "base: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let r = & mut ctx . accounts . raid ;",
+      "let mut bonus = base ;",
+      "let mut w = 0 ;",
+      "while w < waves",
+      "{",
+      "bonus = bonus . saturating_add (5) ;",
+      "w += 1 ;",
+      "}",
+      "let amount = r . quota . saturating_mul (bonus) ;",
+      "if amount == 0",
+      "{",
+      "r . step = r . step . saturating_add (1) ;",
+      "return Ok (()) ;",
+      "}",
+      "let half = amount / 2 ;",
+      "for _ in 0 .. 2",
+      "{",
+      "let send = if r . distributed + half > amount",
+      "{",
+      "amount - r . distributed } else { half } ;",
+      "if send == 0",
+      "{",
+      "break ;",
+      "} let ix = token_ix :: transfer (& ctx . accounts . any_program . key () , & ctx . accounts . bank . key () , & ctx . accounts . hunter_vault . key () , & ctx . accounts . owner . key () , & [] , send ,) ? ;",
+      "invoke (& ix , & [ctx . accounts . any_program . to_account_info () , ctx . accounts . bank . to_account_info () , ctx . accounts . hunter_vault . to_account_info () , ctx . accounts . owner . to_account_info () ,] ,) ? ;",
+      "r . distributed = r . distributed . saturating_add (send) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Prepare",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "raid",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , Raid >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Stream",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "raid",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Raid >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "bank",
+        "attribute": "# [doc = \" CHECK:\"] # [account (mut)]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "hunter_vault",
+        "attribute": "# [doc = \" CHECK:\"] # [account (mut)]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "any_program",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Raid",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "quota",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "step",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "distributed",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

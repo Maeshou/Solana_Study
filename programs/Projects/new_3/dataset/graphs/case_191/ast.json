@@ -1,0 +1,187 @@
+[
+  {
+    "name": "Playlist",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "tracks",
+        "attribute": null,
+        "field_type": "Vec < String >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TrackRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "playlist",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "track_uri",
+        "attribute": null,
+        "field_type": "String"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreatePlaylist",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "playlist",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 4 + 64 + 4 + (4 + 128) * 50)]",
+        "field_type": "Account < 'info , Playlist >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AddTrack",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "playlist",
+        "attribute": "# [doc = \" Playlist.owner == owner.key() は検証される\"] # [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Playlist >"
+      },
+      {
+        "name": "record",
+        "attribute": "# [doc = \" TrackRecord.playlist ⇔ playlist.key() の検証がないため、\"] # [doc = \" 偽の TrackRecord を渡しても通過してしまう\"] # [account (init , payer = user , space = 8 + 32 + 32 + 4 + 128)]",
+        "field_type": "Account < 'info , TrackRecord >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RemoveTrack",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "record",
+        "attribute": "# [doc = \" TrackRecord.user == user.key() は検証される\"] # [account (mut , has_one = user)]",
+        "field_type": "Account < 'info , TrackRecord >"
+      },
+      {
+        "name": "playlist",
+        "attribute": "# [doc = \" Playlist.key() ⇔ record.playlist の検証がないため、\"] # [doc = \" 偽物の TrackRecord で別のプレイリストから曲を取り除ける\"] # [account (mut)]",
+        "field_type": "Account < 'info , Playlist >"
+      },
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "create_playlist",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreatePlaylist >",
+      "name: String"
+    ],
+    "attributes": [
+      "# [doc = \" 新しいプレイリストを作成\"]"
+    ],
+    "body": [
+      "let pl = & mut ctx . accounts . playlist ;",
+      "pl . owner = ctx . accounts . owner . key () ;",
+      "pl . name = name ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "add_track",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AddTrack >",
+      "uri: String"
+    ],
+    "attributes": [
+      "# [doc = \" 曲を追加\"]"
+    ],
+    "body": [
+      "let pl = & mut ctx . accounts . playlist ;",
+      "let r = & mut ctx . accounts . record ;",
+      "r . user = ctx . accounts . user . key () ;",
+      "r . playlist = pl . key () ;",
+      "r . track_uri = uri . clone () ;",
+      "pl . tracks . push (uri) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "remove_track",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RemoveTrack >"
+    ],
+    "attributes": [
+      "# [doc = \" 曲を取り除き\"]"
+    ],
+    "body": [
+      "let pl = & mut ctx . accounts . playlist ;",
+      "pl . tracks . pop () ;",
+      "Ok (())"
+    ]
+  }
+]

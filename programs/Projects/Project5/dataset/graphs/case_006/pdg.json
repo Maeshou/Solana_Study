@@ -1,9 +1,10 @@
 [
   {
-    "name": "unstake_tokens",
+    "name": "init_order",
     "inputs": [
-      "ctx: Context < Ctx006 >",
-      "amount: u64"
+      "ctx: Context < InitOrder >",
+      "dist: u32",
+      "base: u64"
     ],
     "nodes": [
       {
@@ -12,65 +13,123 @@
       },
       {
         "id": 1,
-        "label": "let src = & mut ctx . accounts . account_src ;"
+        "label": "ctx . accounts . order . rider = ctx . accounts . rider . key () ;"
       },
       {
         "id": 2,
-        "label": "let dst = & mut ctx . accounts . account_dst ;"
+        "label": "ctx . accounts . order . distance = dist ;"
       },
       {
         "id": 3,
-        "label": "let before = * * src . to_account_info () . try_borrow_lamports () ? ;"
+        "label": "ctx . accounts . order . fare = base ;"
       },
       {
         "id": 4,
-        "label": "* * src . to_account_info () . try_borrow_mut_lamports () ? = before . saturating_sub (amount) ;"
+        "label": "ctx . accounts . order . active = true ;"
       },
       {
         "id": 5,
-        "label": "* * dst . to_account_info () . try_borrow_mut_lamports () ? += amount ;"
+        "label": "ctx . accounts . driver . driver = ctx . accounts . captain . key () ;"
       },
       {
         "id": 6,
+        "label": "ctx . accounts . driver . rating = 5 ;"
+      },
+      {
+        "id": 7,
+        "label": "ctx . accounts . driver . trips = 0 ;"
+      },
+      {
+        "id": 8,
+        "label": "ctx . accounts . driver . on_duty = true ;"
+      },
+      {
+        "id": 9,
+        "label": "ctx . accounts . city . max_distance = 500 ;"
+      },
+      {
+        "id": 10,
+        "label": "ctx . accounts . city . surge = 1 ;"
+      },
+      {
+        "id": 11,
+        "label": "ctx . accounts . city . bump = * ctx . bumps . get (\"city\") . unwrap () ;"
+      },
+      {
+        "id": 12,
         "label": "Ok (())"
       }
     ],
-    "edges": [
+    "edges": []
+  },
+  {
+    "name": "adjust_fare",
+    "inputs": [
+      "ctx: Context < AdjustFare >",
+      "step: u32"
+    ],
+    "nodes": [
       {
-        "from": 1,
-        "to": 1,
-        "label": "def: src"
+        "id": 13,
+        "label": "Entry"
       },
       {
-        "from": 2,
-        "to": 2,
-        "label": "def: dst"
+        "id": 14,
+        "label": "require ! (ctx . accounts . driver . key () != ctx . accounts . city . key () , ProgramError :: InvalidArgument) ;"
       },
       {
-        "from": 3,
-        "to": 3,
-        "label": "def: before"
+        "id": 15,
+        "label": "for _ in 0 .. step { ctx . accounts . order . fare = ctx . accounts . order . fare . saturating_add (1) ; ctx . accounts . driver . trips = ctx . accounts . driver . trips . saturating_add (1) ; }"
       },
       {
-        "from": 1,
-        "to": 3,
-        "label": "data_dep: src"
+        "id": 16,
+        "label": "ctx . accounts . order . fare = ctx . accounts . order . fare . saturating_add (1) ;"
       },
       {
-        "from": 1,
-        "to": 4,
-        "label": "data_dep: src"
+        "id": 17,
+        "label": "ctx . accounts . driver . trips = ctx . accounts . driver . trips . saturating_add (1) ;"
       },
       {
-        "from": 3,
-        "to": 4,
-        "label": "data_dep: before"
+        "id": 18,
+        "label": "if ctx . accounts . order . distance > ctx . accounts . city . max_distance { ctx . accounts . order . active = false ; ctx . accounts . driver . on_duty = false ; ctx . accounts . city . surge = ctx . accounts . city . surge . saturating_add (1) ; msg ! (\"too far: dist={} max={}\" , ctx . accounts . order . distance , ctx . accounts . city . max_distance) ; } else { ctx . accounts . order . active = true ; ctx . accounts . driver . on_duty = true ; ctx . accounts . city . surge = ctx . accounts . city . surge . saturating_add (0) ; msg ! (\"ok: fare={} surge={}\" , ctx . accounts . order . fare , ctx . accounts . city . surge) ; }"
       },
       {
-        "from": 2,
-        "to": 5,
-        "label": "data_dep: dst"
+        "id": 19,
+        "label": "ctx . accounts . order . active = false ;"
+      },
+      {
+        "id": 20,
+        "label": "ctx . accounts . driver . on_duty = false ;"
+      },
+      {
+        "id": 21,
+        "label": "ctx . accounts . city . surge = ctx . accounts . city . surge . saturating_add (1) ;"
+      },
+      {
+        "id": 22,
+        "label": "msg ! (\"too far: dist={} max={}\" , ctx . accounts . order . distance , ctx . accounts . city . max_distance) ;"
+      },
+      {
+        "id": 23,
+        "label": "ctx . accounts . order . active = true ;"
+      },
+      {
+        "id": 24,
+        "label": "ctx . accounts . driver . on_duty = true ;"
+      },
+      {
+        "id": 25,
+        "label": "ctx . accounts . city . surge = ctx . accounts . city . surge . saturating_add (0) ;"
+      },
+      {
+        "id": 26,
+        "label": "msg ! (\"ok: fare={} surge={}\" , ctx . accounts . order . fare , ctx . accounts . city . surge) ;"
+      },
+      {
+        "id": 27,
+        "label": "Ok (())"
       }
-    ]
+    ],
+    "edges": []
   }
 ]

@@ -1,33 +1,81 @@
 [
   {
-    "name": "withdraw_collateral",
+    "name": "init_electorate",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx004 >",
-      "amount: u64"
+      "ctx: Context < InitElectorate >",
+      "threshold: u64"
     ],
     "attributes": [],
     "body": [
-      "let cpi_accounts = Transfer { from : ctx . accounts . from_token . to_account_info () , to : ctx . accounts . to_token . to_account_info () , authority : ctx . accounts . authority . to_account_info () , } ;",
-      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
-      "token :: transfer (cpi_ctx , amount) ? ;",
+      "ctx . accounts . electorate_data . total_voters = 0 ;",
+      "ctx . accounts . electorate_data . threshold = threshold ;",
+      "ctx . accounts . electorate_data . is_active = true ;",
+      "ctx . accounts . vote_data . count = 0 ;",
+      "ctx . accounts . vote_data . last_vote = 0 ;",
+      "ctx . accounts . settings . threshold = threshold as u32 ;",
+      "ctx . accounts . settings . active = true ;",
+      "ctx . accounts . settings . bump = * ctx . bumps . get (\"electorate_data\") . unwrap () ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx004",
+    "name": "tally_vote",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < TallyVote >",
+      "votes: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "require ! (ctx . accounts . electorate_data . key () != ctx . accounts . vote_data . key () , ProgramError :: InvalidArgument) ;",
+      "let mut count = ctx . accounts . vote_data . count ;",
+      "let mut sum = 0u64 ;",
+      "while sum < votes as u64",
+      "{",
+      "sum += 1 ;",
+      "}",
+      "if sum > ctx . accounts . settings . threshold as u64",
+      "{",
+      "ctx . accounts . electorate_data . total_voters += sum ;",
+      "msg ! (\"Threshold exceeded\") ;",
+      "ctx . accounts . vote_data . count = 0 ;",
+      "ctx . accounts . settings . active = false ;",
+      "} else",
+      "{",
+      "ctx . accounts . electorate_data . total_voters -= sum ;",
+      "msg ! (\"Below threshold\") ;",
+      "ctx . accounts . vote_data . count = sum as u32 ;",
+      "ctx . accounts . settings . active = true ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitElectorate",
     "node_type": "struct",
     "fields": [
       {
-        "name": "from_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "electorate_data",
+        "attribute": "# [account (init , payer = payer , space = 8 + 8 + 8 + 1)]",
+        "field_type": "Account < 'info , ElectorateData >"
       },
       {
-        "name": "to_token",
+        "name": "vote_data",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4 + 8)]",
+        "field_type": "Account < 'info , VoteCount >"
+      },
+      {
+        "name": "settings",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4 + 1 + 1)]",
+        "field_type": "Account < 'info , ElectionConfig >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "field_type": "Signer < 'info >"
       },
       {
         "name": "authority",
@@ -35,9 +83,110 @@
         "field_type": "Signer < 'info >"
       },
       {
-        "name": "token_program",
+        "name": "system_program",
         "attribute": null,
-        "field_type": "Program < 'info , Token >"
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TallyVote",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "electorate_data",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , ElectorateData >"
+      },
+      {
+        "name": "vote_data",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , VoteCount >"
+      },
+      {
+        "name": "settings",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , ElectionConfig >"
+      },
+      {
+        "name": "voter",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ElectorateData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "total_voters",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "threshold",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "is_active",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "VoteCount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "last_vote",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ElectionConfig",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "threshold",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "active",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
       }
     ],
     "inputs": null,

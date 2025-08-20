@@ -1,33 +1,66 @@
 [
   {
-    "name": "initialize_access_log",
+    "name": "init_cooldown",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Initialize088 >",
-      "param: u64"
+      "ctx: Context < InitCooldown >",
+      "actions: u8"
     ],
     "attributes": [],
     "body": [
-      "let mut data = AccessLogData :: try_from_slice (& ctx . accounts . data_account . data . borrow ()) ? ;",
-      "data . value = param ;",
-      "data . serialize (& mut * ctx . accounts . data_account . data . borrow_mut ()) ? ;",
+      "let c = & mut ctx . accounts . cooldown ;",
+      "c . actions = actions ;",
+      "c . cooldowns = 0 ;",
+      "c . cooldown_flag = false ;",
+      "let mut i = 0u8 ;",
+      "while i < actions",
+      "{",
+      "c . cooldowns = c . cooldowns . saturating_add (1) ;",
+      "i += 1 ;",
+      "}",
       "Ok (())"
     ]
   },
   {
-    "name": "Initialize088",
+    "name": "trigger_action",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < TriggerAction >"
+    ],
+    "attributes": [],
+    "body": [
+      "let c = & mut ctx . accounts . cooldown ;",
+      "if c . cooldowns < c . actions",
+      "{",
+      "c . cooldowns = c . cooldowns . saturating_add (1) ;",
+      "c . cooldown_flag = false ;",
+      "} else",
+      "{",
+      "c . cooldown_flag = true ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitCooldown",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "cooldown",
+        "attribute": "# [account (init , payer = user , space = 8 + 1 + 1 + 1)]",
+        "field_type": "Account < 'info , CooldownData >"
       },
       {
-        "name": "authority",
-        "attribute": null,
+        "name": "user",
+        "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -35,13 +68,37 @@
     "body": null
   },
   {
-    "name": "AccessLogData",
+    "name": "TriggerAction",
     "node_type": "struct",
     "fields": [
       {
-        "name": "value",
+        "name": "cooldown",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , CooldownData >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CooldownData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "actions",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "u8"
+      },
+      {
+        "name": "cooldowns",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "cooldown_flag",
+        "attribute": null,
+        "field_type": "bool"
       }
     ],
     "inputs": null,

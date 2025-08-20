@@ -1,0 +1,165 @@
+[
+  {
+    "name": "initialize_station",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeStation >",
+      "recipe: Pubkey",
+      "seed: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let station = & mut ctx . accounts . station ;",
+      "station . owner = ctx . accounts . crafter . key () ;",
+      "station . recipe = recipe ;",
+      "station . energy = seed . rotate_left (2) . wrapping_add (50) ;",
+      "station . cycles = 3 ;",
+      "let mut value = station . energy ;",
+      "let mut counter = 0u32 ;",
+      "while value > 100",
+      "{",
+      "counter = counter . saturating_add ((value % 17) as u32) ;",
+      "value = value . rotate_right (1) . wrapping_sub (13) ;",
+      "if counter > 20",
+      "{",
+      "value = value . wrapping_mul (2) . wrapping_add (counter as u64) ;",
+      "counter = counter . saturating_sub (7) ;",
+      "}",
+      "}",
+      "station . energy = value ;",
+      "station . cycles = station . cycles . saturating_add (counter) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "craft_reward",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CraftReward >",
+      "token_id: u64",
+      "lamports: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let ix = system_instruction :: transfer (& ctx . accounts . station . key () , & ctx . accounts . player . key () , lamports) ;",
+      "let bump = * ctx . bumps . get (\"station\") . ok_or (error ! (CraftErr :: MissingBump)) ? ;",
+      "let seeds : & [& [u8]] = & [b\"station\" , ctx . accounts . crafter . key . as_ref () , ctx . accounts . station . recipe . as_ref () , & [bump] ,] ;",
+      "invoke_signed (& ix , & [ctx . accounts . station . to_account_info () , ctx . accounts . player . to_account_info () , ctx . accounts . system_program . to_account_info () ,] , & [seeds] ,) ? ;",
+      "emit ! (CraftCompleted { token_id , to : ctx . accounts . player . key () , amount : lamports }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CraftCompleted",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "token_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "to",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "amount",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitializeStation",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "station",
+        "attribute": "# [account (init , payer = crafter , space = 8 + 32 + 32 + 8 + 4 , seeds = [b\"station\" , crafter . key () . as_ref () , recipe . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , StationState >"
+      },
+      {
+        "name": "crafter",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "recipe",
+        "attribute": "# [doc = \" CHECK: 実運用では Mint 検証を推奨\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CraftReward",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "station",
+        "attribute": "# [account (mut , seeds = [b\"station\" , crafter . key () . as_ref () , station . recipe . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , StationState >"
+      },
+      {
+        "name": "player",
+        "attribute": "# [account (mut)]",
+        "field_type": "SystemAccount < 'info >"
+      },
+      {
+        "name": "crafter",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "StationState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "recipe",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "energy",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "cycles",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

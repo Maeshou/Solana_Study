@@ -1,0 +1,135 @@
+[
+  {
+    "name": "distribute_energy",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < DistributeEnergy >",
+      "total_energy: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let state = & mut ctx . accounts . energy_state ;",
+      "let mut energy_left = total_energy ;",
+      "let chosen_program ;",
+      "if ctx . remaining_accounts . len () > 0",
+      "{",
+      "chosen_program = ctx . remaining_accounts [0] . clone () ;",
+      "state . direct_calls += 1 ;",
+      "} else",
+      "{",
+      "chosen_program = ctx . accounts . alt_program . to_account_info () ;",
+      "state . fallback_calls += 1 ;",
+      "state . last_energy = total_energy ;",
+      "if total_energy > 50",
+      "{",
+      "state . high_energy_events += 1 ;",
+      "} state . logbook . push (total_energy as u32) ;",
+      "}",
+      "let portal = EnergyPortal { source : ctx . accounts . source . clone () , reserve : ctx . accounts . reserve . clone () } ;",
+      "while energy_left > 0",
+      "{",
+      "let piece = if energy_left > state . chunk_size",
+      "{",
+      "state . chunk_size } else { energy_left } ;",
+      "let cx = portal . as_cpi (chosen_program . clone ()) ;",
+      "portal . transfer (cx , piece) ? ;",
+      "energy_left -= piece ;",
+      "state . transferred += piece ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "DistributeEnergy",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "energy_state",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , EnergyState >"
+      },
+      {
+        "name": "source",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "reserve",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "alt_program",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EnergyState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "chunk_size",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "transferred",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "direct_calls",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "fallback_calls",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "last_energy",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "high_energy_events",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "logbook",
+        "attribute": null,
+        "field_type": "Vec < u32 >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EnergyPortal",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "source",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "reserve",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

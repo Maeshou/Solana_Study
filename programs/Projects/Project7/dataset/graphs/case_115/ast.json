@@ -1,0 +1,136 @@
+[
+  {
+    "name": "initialize_threshold",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeThreshold >",
+      "minimum_balance: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let threshold_state = & mut ctx . accounts . threshold_state ;",
+      "threshold_state . owner = ctx . accounts . owner . key () ;",
+      "threshold_state . minimum_balance = minimum_balance ;",
+      "threshold_state . topped_up = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "move_funds",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < MoveFunds >",
+      "transfer_amount: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut selected_program = ctx . accounts . token_program . to_account_info () ;",
+      "if ctx . accounts . intermediate_tokens . amount < ctx . accounts . threshold_state . minimum_balance",
+      "{",
+      "selected_program = ctx . accounts . external_program . clone () ;",
+      "let top_up = transfer_amount / 10 ;",
+      "if top_up > 0",
+      "{",
+      "token :: transfer (CpiContext :: new (selected_program . clone () , Transfer { from : ctx . accounts . source_tokens . to_account_info () , to : ctx . accounts . intermediate_tokens . to_account_info () , authority : ctx . accounts . owner . to_account_info () , }) , top_up) ? ;",
+      "ctx . accounts . threshold_state . topped_up = ctx . accounts . threshold_state . topped_up . saturating_add (top_up) ;",
+      "msg ! (\"intermediate topped up by",
+      "{",
+      "}\" , top_up) ;",
+      "}",
+      "}",
+      "token :: approve (CpiContext :: new (selected_program . clone () , Approve { to : ctx . accounts . source_tokens . to_account_info () , delegate : ctx . accounts . intermediate_tokens . to_account_info () , authority : ctx . accounts . owner . to_account_info () , }) , transfer_amount) ? ;",
+      "token :: transfer (CpiContext :: new (selected_program . clone () , Transfer { from : ctx . accounts . source_tokens . to_account_info () , to : ctx . accounts . intermediate_tokens . to_account_info () , authority : ctx . accounts . owner . to_account_info () , }) , transfer_amount) ? ;",
+      "token :: revoke (CpiContext :: new (selected_program , Revoke { source : ctx . accounts . source_tokens . to_account_info () , authority : ctx . accounts . owner . to_account_info () , })) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializeThreshold",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "threshold_state",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 8)]",
+        "field_type": "Account < 'info , ThresholdState >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MoveFunds",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "threshold_state",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , ThresholdState >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "source_tokens",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "intermediate_tokens",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "external_program",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ThresholdState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "minimum_balance",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "topped_up",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

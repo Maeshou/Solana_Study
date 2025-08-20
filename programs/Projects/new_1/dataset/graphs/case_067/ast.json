@@ -1,0 +1,84 @@
+[
+  {
+    "name": "distribute_rewards",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < DistributeRewards >",
+      "earned: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 借り手が獲得したトークンを、事前設定された割合で\"]",
+      "# [doc = \" 貸し主と借り手に分配し、累積を更新します。\"]",
+      "# [doc = \"\"]",
+      "# [doc = \" - `earned`: 借り手がこのセッションで稼いだトークン量  \"]",
+      "# [doc = \" 署名チェックは一切行われません。\"]"
+    ],
+    "body": [
+      "let data = & mut ctx . accounts . rental_data ;",
+      "let bps = data . borrower_share_bps as u64 ;",
+      "let borrower_amt = earned . checked_mul (bps) . unwrap () . checked_div (10_000) . unwrap () ;",
+      "let lender_amt = earned . checked_sub (borrower_amt) . unwrap () ;",
+      "data . cumulative_borrower = data . cumulative_borrower . checked_add (borrower_amt) . unwrap () ;",
+      "data . cumulative_lender = data . cumulative_lender . checked_add (lender_amt) . unwrap () ;"
+    ]
+  },
+  {
+    "name": "DistributeRewards",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 貸し主アカウント（署名チェック omitted intentionally）\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "renter",
+        "attribute": "# [doc = \" 借り手アカウント（署名チェック omitted intentionally）\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "rental_data",
+        "attribute": "# [doc = \" 事前に init された RentalData PDA\"] # [account (mut , seeds = [b\"rent\" , owner . key () . as_ref () , renter . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , RentalData >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RentalData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" NFT の貸し主\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "renter",
+        "attribute": "# [doc = \" NFT の借り手\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "borrower_share_bps",
+        "attribute": "# [doc = \" 借り手に渡す割合 (basis points, 10000 = 100%)\"]",
+        "field_type": "u16"
+      },
+      {
+        "name": "cumulative_borrower",
+        "attribute": "# [doc = \" 累積借り手獲得トークン\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "cumulative_lender",
+        "attribute": "# [doc = \" 累積貸し主獲得トークン\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

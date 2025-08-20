@@ -1,0 +1,637 @@
+[
+  {
+    "name": "init_plan",
+    "inputs": [
+      "ctx: Context < InitPlan >",
+      "daily_cap_input: u64",
+      "base_point_input: u64",
+      "mult_bps_input: u16"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let plan = & mut ctx . accounts . plan ;"
+      },
+      {
+        "id": 2,
+        "label": "plan . operator = ctx . accounts . operator . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "plan . daily_cap = daily_cap_input ;"
+      },
+      {
+        "id": 4,
+        "label": "if plan . daily_cap < 20 { plan . daily_cap = 20 ; }"
+      },
+      {
+        "id": 5,
+        "label": "plan . daily_cap = 20 ;"
+      },
+      {
+        "id": 6,
+        "label": "plan . base_point = base_point_input ;"
+      },
+      {
+        "id": 7,
+        "label": "if plan . base_point < 1 { plan . base_point = 1 ; }"
+      },
+      {
+        "id": 8,
+        "label": "plan . base_point = 1 ;"
+      },
+      {
+        "id": 9,
+        "label": "plan . multiplier_bps = clamp_u16 (mult_bps_input , 0 , 3000) ;"
+      },
+      {
+        "id": 10,
+        "label": "plan . issued_today = 0 ;"
+      },
+      {
+        "id": 11,
+        "label": "plan . streak_days = 1 ;"
+      },
+      {
+        "id": 12,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: plan"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: plan"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: plan"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: plan"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: plan"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: plan"
+      },
+      {
+        "from": 1,
+        "to": 6,
+        "label": "data_dep: plan"
+      },
+      {
+        "from": 1,
+        "to": 7,
+        "label": "data_dep: plan"
+      },
+      {
+        "from": 1,
+        "to": 7,
+        "label": "data_dep: plan"
+      },
+      {
+        "from": 1,
+        "to": 8,
+        "label": "data_dep: plan"
+      },
+      {
+        "from": 1,
+        "to": 9,
+        "label": "data_dep: plan"
+      },
+      {
+        "from": 1,
+        "to": 10,
+        "label": "data_dep: plan"
+      },
+      {
+        "from": 1,
+        "to": 11,
+        "label": "data_dep: plan"
+      }
+    ]
+  },
+  {
+    "name": "act_award",
+    "inputs": [
+      "ctx: Context < ActAward >",
+      "steps: u64",
+      "streak_flag: bool"
+    ],
+    "nodes": [
+      {
+        "id": 13,
+        "label": "Entry"
+      },
+      {
+        "id": 14,
+        "label": "let plan = & mut ctx . accounts . plan ;"
+      },
+      {
+        "id": 15,
+        "label": "let mut scaled = plan . base_point ;"
+      },
+      {
+        "id": 16,
+        "label": "let mut walked = steps ;"
+      },
+      {
+        "id": 17,
+        "label": "while walked >= 1000 { scaled = scaled + 1 + (walked % 3000) / 1000 ; if walked >= 1000 { walked = walked - 1000 ; } else { walked = 0 ; } }"
+      },
+      {
+        "id": 18,
+        "label": "scaled = scaled + 1 + (walked % 3000) / 1000 ;"
+      },
+      {
+        "id": 19,
+        "label": "if walked >= 1000 { walked = walked - 1000 ; } else { walked = 0 ; }"
+      },
+      {
+        "id": 20,
+        "label": "walked = walked - 1000 ;"
+      },
+      {
+        "id": 21,
+        "label": "walked = 0 ;"
+      },
+      {
+        "id": 22,
+        "label": "let mut bps = plan . multiplier_bps as u64 ;"
+      },
+      {
+        "id": 23,
+        "label": "if streak_flag { bps = bps + 150 ; }"
+      },
+      {
+        "id": 24,
+        "label": "bps = bps + 150 ;"
+      },
+      {
+        "id": 25,
+        "label": "if plan . streak_days % 7 == 0 { bps = bps + 200 ; }"
+      },
+      {
+        "id": 26,
+        "label": "bps = bps + 200 ;"
+      },
+      {
+        "id": 27,
+        "label": "let boosted = scaled + (scaled * bps / 10_000) ;"
+      },
+      {
+        "id": 28,
+        "label": "let projected = plan . issued_today + boosted ;"
+      },
+      {
+        "id": 29,
+        "label": "if projected > plan . daily_cap { let rest = plan . daily_cap - plan . issued_today ; if rest > 0 { token :: mint_to (ctx . accounts . mint_ctx () , rest) ? ; } plan . issued_today = plan . daily_cap ; plan . streak_days = 1 ; return Err (FitErr :: DailyCap . into ()) ; }"
+      },
+      {
+        "id": 30,
+        "label": "let rest = plan . daily_cap - plan . issued_today ;"
+      },
+      {
+        "id": 31,
+        "label": "if rest > 0 { token :: mint_to (ctx . accounts . mint_ctx () , rest) ? ; }"
+      },
+      {
+        "id": 32,
+        "label": "token :: mint_to (ctx . accounts . mint_ctx () , rest) ? ;"
+      },
+      {
+        "id": 33,
+        "label": "plan . issued_today = plan . daily_cap ;"
+      },
+      {
+        "id": 34,
+        "label": "plan . streak_days = 1 ;"
+      },
+      {
+        "id": 35,
+        "label": "return Err (FitErr :: DailyCap . into ()) ;"
+      },
+      {
+        "id": 36,
+        "label": "token :: mint_to (ctx . accounts . mint_ctx () , boosted) ? ;"
+      },
+      {
+        "id": 37,
+        "label": "plan . issued_today = projected ;"
+      },
+      {
+        "id": 38,
+        "label": "plan . streak_days = plan . streak_days + 1 ;"
+      },
+      {
+        "id": 39,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 14,
+        "to": 14,
+        "label": "def: plan"
+      },
+      {
+        "from": 15,
+        "to": 15,
+        "label": "def: scaled"
+      },
+      {
+        "from": 14,
+        "to": 15,
+        "label": "data_dep: plan"
+      },
+      {
+        "from": 16,
+        "to": 16,
+        "label": "def: walked"
+      },
+      {
+        "from": 16,
+        "to": 17,
+        "label": "data_dep: walked"
+      },
+      {
+        "from": 15,
+        "to": 17,
+        "label": "data_dep: scaled"
+      },
+      {
+        "from": 15,
+        "to": 17,
+        "label": "data_dep: scaled"
+      },
+      {
+        "from": 16,
+        "to": 17,
+        "label": "data_dep: walked"
+      },
+      {
+        "from": 16,
+        "to": 17,
+        "label": "data_dep: walked"
+      },
+      {
+        "from": 16,
+        "to": 17,
+        "label": "data_dep: walked"
+      },
+      {
+        "from": 16,
+        "to": 17,
+        "label": "data_dep: walked"
+      },
+      {
+        "from": 16,
+        "to": 17,
+        "label": "data_dep: walked"
+      },
+      {
+        "from": 15,
+        "to": 18,
+        "label": "data_dep: scaled"
+      },
+      {
+        "from": 15,
+        "to": 18,
+        "label": "data_dep: scaled"
+      },
+      {
+        "from": 16,
+        "to": 18,
+        "label": "data_dep: walked"
+      },
+      {
+        "from": 16,
+        "to": 19,
+        "label": "data_dep: walked"
+      },
+      {
+        "from": 16,
+        "to": 19,
+        "label": "data_dep: walked"
+      },
+      {
+        "from": 16,
+        "to": 19,
+        "label": "data_dep: walked"
+      },
+      {
+        "from": 16,
+        "to": 19,
+        "label": "data_dep: walked"
+      },
+      {
+        "from": 16,
+        "to": 20,
+        "label": "data_dep: walked"
+      },
+      {
+        "from": 16,
+        "to": 20,
+        "label": "data_dep: walked"
+      },
+      {
+        "from": 16,
+        "to": 21,
+        "label": "data_dep: walked"
+      },
+      {
+        "from": 22,
+        "to": 22,
+        "label": "def: bps"
+      },
+      {
+        "from": 14,
+        "to": 22,
+        "label": "data_dep: plan"
+      },
+      {
+        "from": 22,
+        "to": 23,
+        "label": "data_dep: bps"
+      },
+      {
+        "from": 22,
+        "to": 23,
+        "label": "data_dep: bps"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: bps"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: bps"
+      },
+      {
+        "from": 14,
+        "to": 25,
+        "label": "data_dep: plan"
+      },
+      {
+        "from": 22,
+        "to": 25,
+        "label": "data_dep: bps"
+      },
+      {
+        "from": 22,
+        "to": 25,
+        "label": "data_dep: bps"
+      },
+      {
+        "from": 22,
+        "to": 26,
+        "label": "data_dep: bps"
+      },
+      {
+        "from": 22,
+        "to": 26,
+        "label": "data_dep: bps"
+      },
+      {
+        "from": 27,
+        "to": 27,
+        "label": "def: boosted"
+      },
+      {
+        "from": 15,
+        "to": 27,
+        "label": "data_dep: scaled"
+      },
+      {
+        "from": 15,
+        "to": 27,
+        "label": "data_dep: scaled"
+      },
+      {
+        "from": 22,
+        "to": 27,
+        "label": "data_dep: bps"
+      },
+      {
+        "from": 28,
+        "to": 28,
+        "label": "def: projected"
+      },
+      {
+        "from": 14,
+        "to": 28,
+        "label": "data_dep: plan"
+      },
+      {
+        "from": 27,
+        "to": 28,
+        "label": "data_dep: boosted"
+      },
+      {
+        "from": 28,
+        "to": 29,
+        "label": "data_dep: projected"
+      },
+      {
+        "from": 14,
+        "to": 29,
+        "label": "data_dep: plan"
+      },
+      {
+        "from": 14,
+        "to": 29,
+        "label": "data_dep: plan"
+      },
+      {
+        "from": 14,
+        "to": 29,
+        "label": "data_dep: plan"
+      },
+      {
+        "from": 14,
+        "to": 29,
+        "label": "data_dep: plan"
+      },
+      {
+        "from": 14,
+        "to": 29,
+        "label": "data_dep: plan"
+      },
+      {
+        "from": 14,
+        "to": 29,
+        "label": "data_dep: plan"
+      },
+      {
+        "from": 30,
+        "to": 30,
+        "label": "def: rest"
+      },
+      {
+        "from": 14,
+        "to": 30,
+        "label": "data_dep: plan"
+      },
+      {
+        "from": 14,
+        "to": 30,
+        "label": "data_dep: plan"
+      },
+      {
+        "from": 30,
+        "to": 31,
+        "label": "data_dep: rest"
+      },
+      {
+        "from": 30,
+        "to": 31,
+        "label": "data_dep: rest"
+      },
+      {
+        "from": 30,
+        "to": 32,
+        "label": "data_dep: rest"
+      },
+      {
+        "from": 14,
+        "to": 33,
+        "label": "data_dep: plan"
+      },
+      {
+        "from": 14,
+        "to": 33,
+        "label": "data_dep: plan"
+      },
+      {
+        "from": 14,
+        "to": 34,
+        "label": "data_dep: plan"
+      },
+      {
+        "from": 27,
+        "to": 36,
+        "label": "data_dep: boosted"
+      },
+      {
+        "from": 14,
+        "to": 37,
+        "label": "data_dep: plan"
+      },
+      {
+        "from": 28,
+        "to": 37,
+        "label": "data_dep: projected"
+      },
+      {
+        "from": 14,
+        "to": 38,
+        "label": "data_dep: plan"
+      },
+      {
+        "from": 14,
+        "to": 38,
+        "label": "data_dep: plan"
+      }
+    ]
+  },
+  {
+    "name": "clamp_u16",
+    "inputs": [
+      "v: u16",
+      "lo: u16",
+      "hi: u16"
+    ],
+    "nodes": [
+      {
+        "id": 42,
+        "label": "Entry"
+      },
+      {
+        "id": 43,
+        "label": "let mut o = v ;"
+      },
+      {
+        "id": 44,
+        "label": "if o < lo { o = lo ; }"
+      },
+      {
+        "id": 45,
+        "label": "o = lo ;"
+      },
+      {
+        "id": 46,
+        "label": "if o > hi { o = hi ; }"
+      },
+      {
+        "id": 47,
+        "label": "o = hi ;"
+      },
+      {
+        "id": 48,
+        "label": "o"
+      }
+    ],
+    "edges": [
+      {
+        "from": 43,
+        "to": 43,
+        "label": "def: o"
+      },
+      {
+        "from": 43,
+        "to": 44,
+        "label": "data_dep: o"
+      },
+      {
+        "from": 43,
+        "to": 44,
+        "label": "data_dep: o"
+      },
+      {
+        "from": 43,
+        "to": 45,
+        "label": "data_dep: o"
+      },
+      {
+        "from": 43,
+        "to": 46,
+        "label": "data_dep: o"
+      },
+      {
+        "from": 43,
+        "to": 46,
+        "label": "data_dep: o"
+      },
+      {
+        "from": 43,
+        "to": 47,
+        "label": "data_dep: o"
+      },
+      {
+        "from": 43,
+        "to": 48,
+        "label": "data_dep: o"
+      }
+    ]
+  }
+]

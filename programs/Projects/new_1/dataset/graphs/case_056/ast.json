@@ -1,0 +1,153 @@
+[
+  {
+    "name": "start_fraction",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < StartFraction >",
+      "total_pieces: u64"
+    ],
+    "attributes": [
+      "# [doc = \" NFT を複数のフラクションに分割する準備を行います。\"]",
+      "# [doc = \" - `total_pieces`: 分割後の総フラクション数  \"]",
+      "# [doc = \" すべてのアカウントは AccountInfo／Account のまま、署名チェックはありません。\"]"
+    ],
+    "body": [
+      "let info = & mut ctx . accounts . fraction_data ;",
+      "info . owner = * ctx . accounts . user . key ;",
+      "info . nft_mint = ctx . accounts . nft_mint . key () ;",
+      "info . total_pieces = total_pieces ;",
+      "info . pieces_sold = 0 ;",
+      "info . is_fractional = true ;"
+    ]
+  },
+  {
+    "name": "sell_fraction",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SellFraction >",
+      "sell_count: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 一部フラクションを販売し、販売数を累積します。\"]",
+      "# [doc = \" - `sell_count`: 今回販売するフラクション数\"]"
+    ],
+    "body": [
+      "let info = & mut ctx . accounts . fraction_data ;",
+      "info . pieces_sold = info . pieces_sold . checked_add (sell_count) . unwrap () ;"
+    ]
+  },
+  {
+    "name": "StartFraction",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "fee_payer",
+        "attribute": "# [doc = \" 手数料支払い用（署名必須）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" NFT 所有者（署名チェック omitted intentionally）\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "nft_acc",
+        "attribute": "# [doc = \" 分割対象の NFT TokenAccount（所有者チェックのみ）\"] # [account (constraint = nft_acc . owner == * user . key , constraint = nft_acc . mint == nft_mint . key ())]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "nft_mint",
+        "attribute": "# [doc = \" 対象 NFT Mint\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "fraction_data",
+        "attribute": "# [doc = \" フラクション情報を保持する PDA\"] # [account (init_if_needed , payer = fee_payer , seeds = [b\"fraction\" , user . key () . as_ref () , nft_mint . key () . as_ref ()] , bump , space = 8 + 32 + 32 + 8 + 8 + 1)]",
+        "field_type": "Account < 'info , FractionData >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "rent",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Rent >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SellFraction",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "fee_payer",
+        "attribute": "# [doc = \" 手数料支払い用（署名必須）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 購入者（署名チェック omitted intentionally）\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "fraction_data",
+        "attribute": "# [doc = \" 既存のフラクション情報 PDA\"] # [account (mut , seeds = [b\"fraction\" , owner . key () . as_ref () , nft_mint . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , FractionData >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" オリジナルの所有者検証用\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "nft_mint",
+        "attribute": "# [doc = \" 対象 NFT Mint\"]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "FractionData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" NFT 出品者の Pubkey\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "nft_mint",
+        "attribute": "# [doc = \" 対象 NFT の Mint\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "total_pieces",
+        "attribute": "# [doc = \" 分割後の総フラクション数\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "pieces_sold",
+        "attribute": "# [doc = \" これまでに販売されたフラクション数\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "is_fractional",
+        "attribute": "# [doc = \" 分割済みフラグ\"]",
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

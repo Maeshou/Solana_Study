@@ -1,15 +1,86 @@
 [
   {
-    "name": "CreateAuctionCtxxjcw",
+    "name": "create_lottery",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateLottery >",
+      "ticket_price: u64",
+      "end_time: i64"
+    ],
+    "attributes": [],
+    "body": [
+      "let lottery_account_info = ctx . accounts . lottery . to_account_info () ;",
+      "require ! (lottery_account_info . owner == ctx . program_id , ErrorCode :: InvalidLotteryOwner) ;",
+      "let lottery = & mut ctx . accounts . lottery ;",
+      "lottery . admin = ctx . accounts . admin . key () ;",
+      "lottery . ticket_price = ticket_price ;",
+      "lottery . end_time = end_time ;",
+      "lottery . total_tickets = 0 ;",
+      "lottery . is_active = true ;",
+      "lottery . winner = None ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "buy_ticket",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < BuyTicket >"
+    ],
+    "attributes": [],
+    "body": [
+      "let lottery_info = ctx . accounts . lottery . to_account_info () ;",
+      "require ! (lottery_info . owner == ctx . program_id , ErrorCode :: InvalidLotteryOwner) ;",
+      "let ticket_info = ctx . accounts . ticket . to_account_info () ;",
+      "require ! (ticket_info . owner == ctx . program_id , ErrorCode :: InvalidTicketOwner) ;",
+      "require ! (ctx . accounts . buyer_token_account . owner == & token :: ID , ErrorCode :: InvalidBuyerTokenOwner) ;",
+      "let lottery = & mut ctx . accounts . lottery ;",
+      "require ! (lottery . is_active , ErrorCode :: LotteryNotActive) ;",
+      "require ! (Clock :: get () ?. unix_timestamp < lottery . end_time , ErrorCode :: LotteryEnded) ;",
+      "let ticket = & mut ctx . accounts . ticket ;",
+      "ticket . lottery = ctx . accounts . lottery . key () ;",
+      "ticket . buyer = ctx . accounts . buyer . key () ;",
+      "ticket . ticket_number = lottery . total_tickets ;",
+      "lottery . total_tickets += 1 ;",
+      "let transfer_instruction = Transfer { from : ctx . accounts . buyer_token_account . to_account_info () , to : ctx . accounts . lottery_vault . to_account_info () , authority : ctx . accounts . buyer . to_account_info () , } ;",
+      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , transfer_instruction ,) ;",
+      "token :: transfer (cpi_ctx , lottery . ticket_price)"
+    ]
+  },
+  {
+    "name": "draw_winner",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < DrawWinner >"
+    ],
+    "attributes": [],
+    "body": [
+      "let lottery_account_info = ctx . accounts . lottery . to_account_info () ;",
+      "require ! (lottery_account_info . owner == ctx . program_id , ErrorCode :: InvalidLotteryOwner) ;",
+      "let lottery = & mut ctx . accounts . lottery ;",
+      "require ! (Clock :: get () ?. unix_timestamp >= lottery . end_time , ErrorCode :: LotteryNotEnded) ;",
+      "require ! (lottery . is_active , ErrorCode :: LotteryNotActive) ;",
+      "let clock = Clock :: get () ? ;",
+      "let winning_number = (clock . unix_timestamp as u64) % lottery . total_tickets ;",
+      "lottery . winner = Some (winning_number) ;",
+      "lottery . is_active = false ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CreateLottery",
     "node_type": "struct",
     "fields": [
       {
-        "name": "auction",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
+        "name": "lottery",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 8 + 8 + 8 + 1 + 1 + 8 , constraint = lottery . to_account_info () . owner == program_id)]",
+        "field_type": "Account < 'info , Lottery >"
       },
       {
-        "name": "authority",
+        "name": "admin",
         "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
       },
@@ -24,13 +95,43 @@
     "body": null
   },
   {
-    "name": "DataAccount",
+    "name": "BuyTicket",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data",
+        "name": "lottery",
+        "attribute": "# [account (mut , constraint = lottery . to_account_info () . owner == program_id)]",
+        "field_type": "Account < 'info , Lottery >"
+      },
+      {
+        "name": "ticket",
+        "attribute": "# [account (init , payer = buyer , space = 8 + 32 + 32 + 8 , constraint = ticket . to_account_info () . owner == program_id)]",
+        "field_type": "Account < 'info , Ticket >"
+      },
+      {
+        "name": "buyer_token_account",
+        "attribute": "# [account (mut , constraint = buyer_token_account . owner == & token :: ID)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "lottery_vault",
+        "attribute": "# [account (mut , constraint = lottery_vault . owner == & token :: ID)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "buyer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "token_program",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -38,19 +139,85 @@
     "body": null
   },
   {
-    "name": "create_auction",
-    "node_type": "function",
-    "fields": null,
-    "inputs": [
-      "ctx: Context < CreateAuctionCtxxjcw >",
-      "amount: u64"
+    "name": "DrawWinner",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "lottery",
+        "attribute": "# [account (mut , has_one = admin , constraint = lottery . to_account_info () . owner == program_id)]",
+        "field_type": "Account < 'info , Lottery >"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
     ],
-    "attributes": [],
-    "body": [
-      "let acct = & mut ctx . accounts . auction ;",
-      "for _ in 0 .. amount { acct . data += 1 ; }",
-      "msg ! (\"Executed create_auction logic\") ;",
-      "Ok (())"
-    ]
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Lottery",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "ticket_price",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "end_time",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "total_tickets",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "is_active",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "winner",
+        "attribute": null,
+        "field_type": "Option < u64 >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Ticket",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "lottery",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "buyer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "ticket_number",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
   }
 ]

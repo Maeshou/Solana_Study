@@ -1,0 +1,175 @@
+[
+  {
+    "name": "CouponLedger",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "",
+        "attribute": null,
+        "field_type": "Vec < (Pubkey , bool) >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "initialize",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Initialize >"
+    ],
+    "attributes": [
+      "# [doc = \" 台帳初期化：内部 Vec は空、bump のみ設定\"]"
+    ],
+    "body": [
+      "let bump = * ctx . bumps . get (\"ledger\") . unwrap () ;",
+      "ctx . accounts . ledger . 0 = bump ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "issue_coupon",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Modify >",
+      "user: Pubkey"
+    ],
+    "attributes": [
+      "# [doc = \" 新規クーポン発行：件数制限チェック＋未使用フラグで追加\"]"
+    ],
+    "body": [
+      "let entries = & mut ctx . accounts . ledger . 1 ;",
+      "if entries . len () >= MAX_COUPONS",
+      "{",
+      "return err ! (ErrorCode :: MaxCouponsIssued) ;",
+      "}",
+      "entries . push ((user , false)) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "redeem_coupon",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Modify >",
+      "user: Pubkey"
+    ],
+    "attributes": [
+      "# [doc = \" クーポン使用：該当ユーザーの未使用エントリを「使用済み」に更新\"]"
+    ],
+    "body": [
+      "let entries = & mut ctx . accounts . ledger . 1 ;",
+      "let mut found = false ;",
+      "for entry in entries . iter_mut ()",
+      "{",
+      "if entry . 0 == user",
+      "{",
+      "if entry . 1 == false { entry . 1 = true ;",
+      "found = true ;",
+      "} }",
+      "}",
+      "if found == false",
+      "{",
+      "return err ! (ErrorCode :: InvalidCoupon) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "purge_used",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Modify >"
+    ],
+    "attributes": [
+      "# [doc = \" 既使用クーポンの一括削除\"]"
+    ],
+    "body": [
+      "let entries = & mut ctx . accounts . ledger . 1 ;",
+      "entries . retain (| & (_ , used) | { if used == false { true } else { false } }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "count_available",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Modify >"
+    ],
+    "attributes": [
+      "# [doc = \" 未使用クーポン数をログ出力\"]"
+    ],
+    "body": [
+      "let entries = & ctx . accounts . ledger . 1 ;",
+      "let mut cnt = 0u64 ;",
+      "for & (_ , used) in entries . iter ()",
+      "{",
+      "if used == false",
+      "{",
+      "cnt = cnt . wrapping_add (1) ;",
+      "}",
+      "}",
+      "msg ! (\"Available coupons: {}\" , cnt) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Initialize",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ledger",
+        "attribute": "# [account (init_zeroed , payer = authority , seeds = [b\"ledger\" , authority . key () . as_ref ()] , bump , space = 8 + 1 + 4 + 100 * (32 + 1))]",
+        "field_type": "Account < 'info , CouponLedger >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Modify",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ledger",
+        "attribute": "# [account (mut , seeds = [b\"ledger\" , authority . key () . as_ref ()] , bump = ledger . 0)]",
+        "field_type": "Account < 'info , CouponLedger >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (signer)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

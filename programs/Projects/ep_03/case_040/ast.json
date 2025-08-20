@@ -1,0 +1,86 @@
+[
+  {
+    "name": "repair_item",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RepairItem >",
+      "restore_amount: u8"
+    ],
+    "attributes": [
+      "# [doc = \" 耐久度を回復し、費用を徴収するが、\"]",
+      "# [doc = \" item_account.owner と ctx.accounts.user.key() の照合チェックがない\"]"
+    ],
+    "body": [
+      "let item = & mut ctx . accounts . item_account ;",
+      "let cfg = & ctx . accounts . config ;",
+      "item . durability = item . durability . checked_add (restore_amount as u64) . unwrap () ;",
+      "let cost = (restore_amount as u64) . checked_mul (cfg . cost_per_point) . unwrap () ;",
+      "* * ctx . accounts . user . to_account_info () . lamports . borrow_mut () -= cost ;",
+      "* * ctx . accounts . treasury . to_account_info () . lamports . borrow_mut () += cost ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "RepairItem",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "item_account",
+        "attribute": "# [account (mut)] # [doc = \" 本来は #[account(has_one = owner)] を指定して照合チェックを入れるべき\"]",
+        "field_type": "Account < 'info , ItemAccount >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 回復を実行するユーザー（署名者）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "treasury",
+        "attribute": "# [doc = \" 徴収した費用を受け取る口座\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "config",
+        "attribute": "# [doc = \" 回復コスト設定アカウント\"]",
+        "field_type": "Account < 'info , RepairConfig >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ItemAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 本来このアイテムを所有するユーザーの Pubkey\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "durability",
+        "attribute": "# [doc = \" 現在の耐久度\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RepairConfig",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "cost_per_point",
+        "attribute": "# [doc = \" 回復 1 ポイントあたりのコスト（Lamports）\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

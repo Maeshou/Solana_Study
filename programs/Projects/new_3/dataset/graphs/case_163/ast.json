@@ -1,0 +1,187 @@
+[
+  {
+    "name": "Challenge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "creator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "reward_pool",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ChallengeRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "participant",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "challenge",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "completed",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "rewarded",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreateChallenge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "challenge",
+        "attribute": "# [account (init , payer = creator , space = 8 + 32 + 8)]",
+        "field_type": "Account < 'info , Challenge >"
+      },
+      {
+        "name": "creator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "JoinChallenge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "challenge",
+        "attribute": "# [doc = \" Challenge.creator == creator.key() は不要\"] # [account (mut)]",
+        "field_type": "Account < 'info , Challenge >"
+      },
+      {
+        "name": "record",
+        "attribute": "# [account (init , payer = participant , space = 8 + 32 + 32 + 1 + 1)]",
+        "field_type": "Account < 'info , ChallengeRecord >"
+      },
+      {
+        "name": "participant",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CompleteChallenge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "record",
+        "attribute": "# [doc = \" ChallengeRecord.participant == participant.key() は検証される\"] # [account (mut , has_one = participant)]",
+        "field_type": "Account < 'info , ChallengeRecord >"
+      },
+      {
+        "name": "challenge",
+        "attribute": "# [doc = \" Challenge.key() と record.challenge の検証がないため、\"] # [doc = \" 別のチャレンジのレコードを渡されても通ってしまう\"] # [account (mut)]",
+        "field_type": "Account < 'info , Challenge >"
+      },
+      {
+        "name": "participant",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "create_challenge",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateChallenge >",
+      "pool: u64"
+    ],
+    "attributes": [
+      "# [doc = \" チャレンジを作成\"]"
+    ],
+    "body": [
+      "let c = & mut ctx . accounts . challenge ;",
+      "c . creator = ctx . accounts . creator . key () ;",
+      "c . reward_pool = pool ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "join_challenge",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < JoinChallenge >"
+    ],
+    "attributes": [
+      "# [doc = \" チャレンジに参加（完了前レコード作成）\"]"
+    ],
+    "body": [
+      "let rec = & mut ctx . accounts . record ;",
+      "rec . participant = ctx . accounts . participant . key () ;",
+      "rec . challenge = ctx . accounts . challenge . key () ;",
+      "rec . completed = false ;",
+      "rec . rewarded = false ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "complete",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CompleteChallenge >",
+      "reward: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 完了＆報酬付与\"]"
+    ],
+    "body": [
+      "let rec = & mut ctx . accounts . record ;",
+      "let ch = & mut ctx . accounts . challenge ;",
+      "rec . completed = true ;",
+      "if ! rec . rewarded",
+      "{",
+      "ch . reward_pool = ch . reward_pool . saturating_sub (reward) ;",
+      "rec . rewarded = true ;",
+      "}",
+      "Ok (())"
+    ]
+  }
+]

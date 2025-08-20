@@ -1,0 +1,251 @@
+[
+  {
+    "name": "init_station",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitStation >",
+      "max_energy: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let st = & mut ctx . accounts . station ;",
+      "st . owner = ctx . accounts . admin . key () ;",
+      "st . max_energy = max_energy ;",
+      "st . energy = max_energy / 2 ;",
+      "st . calib = [0 ; 16] ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_tool",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitTool >",
+      "kind: ToolKind"
+    ],
+    "attributes": [],
+    "body": [
+      "let t = & mut ctx . accounts . tool ;",
+      "t . station = ctx . accounts . station . key () ;",
+      "t . kind = kind ;",
+      "t . durability = 1000 ;",
+      "t . usage_ring = [0 ; 12] ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "process_cycle",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ProcessCycle >",
+      "cycles: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let st = & mut ctx . accounts . station ;",
+      "let a = & mut ctx . accounts . actor_tool ;",
+      "let b = & mut ctx . accounts . counter_tool ;",
+      "let log = & mut ctx . accounts . meter ;",
+      "let mut x = (st . energy as u64) . max (1) ;",
+      "let n = x ;",
+      "for _ in 0 .. 6",
+      "{",
+      "x = (x + n / x) >> 1 ;",
+      "}",
+      "let sqrt_e = (x as u32) . min (st . max_energy) ;",
+      "if a . kind == Hammer",
+      "{",
+      "a . durability = a . durability . saturating_sub ((cycles as u32) + (sqrt_e & 0xFF)) ;",
+      "st . energy = st . energy . saturating_add ((cycles as u32) . min (50)) ;",
+      "log . pulses = log . pulses . saturating_add ((sqrt_e / 3) as u64) ;",
+      "log . flags = log . flags | 0b01 ;",
+      "msg ! (\"Hammer path: durability down, energy up, meter flags set\") ;",
+      "} else",
+      "{",
+      "b . durability = b . durability . saturating_sub ((cycles as u32) . saturating_mul (2)) ;",
+      "st . energy = st . energy . saturating_sub ((cycles as u32) . min (st . energy)) ;",
+      "log . pulses = log . pulses ^ ((sqrt_e as u64) . rotate_left (5)) ;",
+      "log . flags = log . flags | 0b10 ;",
+      "msg ! (\"Non-Hammer path: counter tool used and energy consumed\") ;",
+      "}",
+      "for i in 0 .. st . calib . len ()",
+      "{",
+      "let inc = ((i as u32) ^ (cycles as u32)) . count_ones () as u32 ;",
+      "st . calib [i] = st . calib [i] . saturating_add (inc & 0xF) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitStation",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "station",
+        "attribute": "# [account (init , payer = admin , space = 8 + Station :: MAX)]",
+        "field_type": "Account < 'info , Station >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitTool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "station",
+        "attribute": "# [account (mut , has_one = owner , owner = crate :: ID)]",
+        "field_type": "Account < 'info , Station >"
+      },
+      {
+        "name": "tool",
+        "attribute": "# [account (init , payer = user , space = 8 + Tool :: MAX)]",
+        "field_type": "Account < 'info , Tool >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ProcessCycle",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "station",
+        "attribute": "# [account (mut , has_one = owner , owner = crate :: ID)]",
+        "field_type": "Account < 'info , Station >"
+      },
+      {
+        "name": "actor_tool",
+        "attribute": "# [account (mut , has_one = station , owner = crate :: ID)]",
+        "field_type": "Account < 'info , Tool >"
+      },
+      {
+        "name": "counter_tool",
+        "attribute": "# [account (mut , has_one = station , owner = crate :: ID , constraint = actor_tool . kind != counter_tool . kind @ ErrCode :: CosplayBlocked)]",
+        "field_type": "Account < 'info , Tool >"
+      },
+      {
+        "name": "meter",
+        "attribute": "# [account (mut , has_one = station , owner = crate :: ID)]",
+        "field_type": "Account < 'info , Meter >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Station",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "max_energy",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "energy",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "calib",
+        "attribute": null,
+        "field_type": "[u32 ; 16]"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Tool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "station",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "kind",
+        "attribute": null,
+        "field_type": "ToolKind"
+      },
+      {
+        "name": "durability",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "usage_ring",
+        "attribute": null,
+        "field_type": "[u32 ; 12]"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Meter",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "station",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "pulses",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "flags",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

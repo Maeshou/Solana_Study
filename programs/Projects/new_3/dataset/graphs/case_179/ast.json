@@ -1,0 +1,180 @@
+[
+  {
+    "name": "ChatGroup",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "title",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "message_count",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MessageRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "sender",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "group",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "content",
+        "attribute": null,
+        "field_type": "String"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreateGroup",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "group",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 4 + 64 + 8)]",
+        "field_type": "Account < 'info , ChatGroup >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SendMessage",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "record",
+        "attribute": "# [doc = \" MessageRecord.sender == sender.key() は検証される\"] # [account (mut , has_one = sender)]",
+        "field_type": "Account < 'info , MessageRecord >"
+      },
+      {
+        "name": "group",
+        "attribute": "# [doc = \" ChatGroup.owner == owner.key() は不要だが、\"] # [doc = \" MessageRecord.group ⇔ group.key() の検証がないまま参照\"] # [account (mut)]",
+        "field_type": "Account < 'info , ChatGroup >"
+      },
+      {
+        "name": "sender",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PostMessage",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "group",
+        "attribute": "# [doc = \" ChatGroup.owner == owner.key() は検証される\"] # [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , ChatGroup >"
+      },
+      {
+        "name": "record",
+        "attribute": "# [doc = \" MessageRecord.group ⇔ group.key() の検証がない\"] # [account (mut)]",
+        "field_type": "Account < 'info , MessageRecord >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "create_group",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateGroup >",
+      "title: String"
+    ],
+    "attributes": [
+      "# [doc = \" グループを作成\"]"
+    ],
+    "body": [
+      "let g = & mut ctx . accounts . group ;",
+      "g . owner = ctx . accounts . owner . key () ;",
+      "g . title = title ;",
+      "g . message_count = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "send_message",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SendMessage >",
+      "text: String"
+    ],
+    "attributes": [
+      "# [doc = \" メッセージを送信（記録に内容を書き込む）\"]"
+    ],
+    "body": [
+      "let rec = & mut ctx . accounts . record ;",
+      "let grp = & mut ctx . accounts . group ;",
+      "rec . sender = ctx . accounts . sender . key () ;",
+      "rec . group = grp . key () ;",
+      "rec . content = text . clone () ;",
+      "grp . message_count = grp . message_count + 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "post_message",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PostMessage >",
+      "new_text: String"
+    ],
+    "attributes": [
+      "# [doc = \" グループ所有者がメッセージを更新\"]"
+    ],
+    "body": [
+      "let rec = & mut ctx . accounts . record ;",
+      "let grp = & ctx . accounts . group ;",
+      "rec . content = new_text ;",
+      "Ok (())"
+    ]
+  }
+]

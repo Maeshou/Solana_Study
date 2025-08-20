@@ -1,0 +1,239 @@
+[
+  {
+    "name": "init_archive",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitArchive >"
+    ],
+    "attributes": [],
+    "body": [
+      "let a = & mut ctx . accounts . archive ;",
+      "a . owner = ctx . accounts . curator . key () ;",
+      "a . rev = 0 ;",
+      "a . mask = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_permit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitPermit >",
+      "permit: Permit"
+    ],
+    "attributes": [],
+    "body": [
+      "let p = & mut ctx . accounts . permit ;",
+      "p . archive = ctx . accounts . archive . key () ;",
+      "p . permit = permit ;",
+      "p . power = 0 ;",
+      "p . memo = [0 ; 7] ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "edit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Edit >",
+      "salt: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let a = & mut ctx . accounts . archive ;",
+      "let e = & mut ctx . accounts . editor ;",
+      "let r = & mut ctx . accounts . reviewer ;",
+      "let l = & mut ctx . accounts . log ;",
+      "let mut s = salt ^ a . mask as u64 ;",
+      "for i in 0 .. 7",
+      "{",
+      "s = s . rotate_left (7) ^ 0xC3A5C85C97CB3127u64 ;",
+      "e . memo [i] = e . memo [i] . saturating_add (((s >> (i * 8)) & 0xFF) as u32) ;",
+      "}",
+      "if e . permit == Write",
+      "{",
+      "e . power = e . power . saturating_add (((s & 0xFFFF) as u32) + 9) ;",
+      "a . rev = a . rev . saturating_add (1) ;",
+      "a . mask = a . mask ^ ((s as u32) & 0xFFFF) ;",
+      "l . lines = l . lines . saturating_add (1) ;",
+      "msg ! (\"Write path applied\") ;",
+      "} else",
+      "{",
+      "r . power = r . power . saturating_add ((((s >> 4) & 0x7FFF) as u32) + 4) ;",
+      "a . rev = a . rev . saturating_add (1) ;",
+      "a . mask = a . mask . rotate_right (3) ^ ((s as u32) & 0xFFFF) ;",
+      "l . lines = l . lines . saturating_add (2) ;",
+      "msg ! (\"Non-write path applied\") ;",
+      "}",
+      "l . seed = l . seed . wrapping_add (s) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitArchive",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "archive",
+        "attribute": "# [account (init , payer = curator , space = 8 + Archive :: MAX)]",
+        "field_type": "Account < 'info , Archive >"
+      },
+      {
+        "name": "curator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitPermit",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "archive",
+        "attribute": "# [account (mut , has_one = owner , owner = crate :: ID)]",
+        "field_type": "Account < 'info , Archive >"
+      },
+      {
+        "name": "permit",
+        "attribute": "# [account (init , payer = user , space = 8 + PermitCard :: MAX)]",
+        "field_type": "Account < 'info , PermitCard >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Edit",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "archive",
+        "attribute": "# [account (mut , has_one = owner , owner = crate :: ID)]",
+        "field_type": "Account < 'info , Archive >"
+      },
+      {
+        "name": "log",
+        "attribute": "# [account (mut , has_one = archive , owner = crate :: ID)]",
+        "field_type": "Account < 'info , EditLog >"
+      },
+      {
+        "name": "editor",
+        "attribute": "# [account (mut , has_one = archive , owner = crate :: ID)]",
+        "field_type": "Account < 'info , PermitCard >"
+      },
+      {
+        "name": "reviewer",
+        "attribute": "# [account (mut , has_one = archive , owner = crate :: ID , constraint = editor . permit != reviewer . permit @ ErrCode :: CosplayBlocked)]",
+        "field_type": "Account < 'info , PermitCard >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Archive",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "rev",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "mask",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PermitCard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "archive",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "permit",
+        "attribute": null,
+        "field_type": "Permit"
+      },
+      {
+        "name": "power",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "memo",
+        "attribute": null,
+        "field_type": "[u32 ; 7]"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EditLog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "archive",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "seed",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "lines",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

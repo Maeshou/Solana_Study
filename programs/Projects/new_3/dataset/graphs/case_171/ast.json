@@ -1,0 +1,180 @@
+[
+  {
+    "name": "ReadingList",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "books",
+        "attribute": null,
+        "field_type": "Vec < Pubkey >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ReadingRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "list",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "action",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "book_id",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreateList",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "list",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 4 + 32 * 10)]",
+        "field_type": "Account < 'info , ReadingList >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AddBook",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "list",
+        "attribute": "# [doc = \" ReadingList.owner == owner.key() は検証される\"] # [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , ReadingList >"
+      },
+      {
+        "name": "record",
+        "attribute": "# [doc = \" ReadingRecord.list ⇔ list.key() の検証がないため、\"] # [doc = \" 任意の Recording を渡しても通ってしまう\"] # [account (init , payer = owner , space = 8 + 32 + 32 + 4 + 32 + 4 + 64)]",
+        "field_type": "Account < 'info , ReadingRecord >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RemoveBook",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "list",
+        "attribute": "# [doc = \" ReadingList.owner == owner.key() は検証される\"] # [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , ReadingList >"
+      },
+      {
+        "name": "record",
+        "attribute": "# [doc = \" ReadingRecord.list と list.key() の一致チェックがない\"] # [account (mut)]",
+        "field_type": "Account < 'info , ReadingRecord >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "create_list",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateList >"
+    ],
+    "attributes": [],
+    "body": [
+      "let rl = & mut ctx . accounts . list ;",
+      "rl . owner = ctx . accounts . owner . key () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "add_book",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AddBook >",
+      "book_id: Pubkey"
+    ],
+    "attributes": [],
+    "body": [
+      "let rl = & mut ctx . accounts . list ;",
+      "let rec = & mut ctx . accounts . record ;",
+      "rec . user = ctx . accounts . owner . key () ;",
+      "rec . list = rl . key () ;",
+      "rec . action = String :: from (\"added\") ;",
+      "rec . book_id = book_id ;",
+      "rl . books . push (book_id) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "remove_book",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RemoveBook >",
+      "book_id: Pubkey"
+    ],
+    "attributes": [],
+    "body": [
+      "let rl = & mut ctx . accounts . list ;",
+      "let rec = & mut ctx . accounts . record ;",
+      "rl . books = rl . books . iter () . copied () . filter (| id | id != & book_id) . collect () ;",
+      "rec . user = ctx . accounts . owner . key () ;",
+      "rec . action = String :: from (\"removed\") ;",
+      "rec . book_id = book_id ;",
+      "Ok (())"
+    ]
+  }
+]

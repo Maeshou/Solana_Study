@@ -1,0 +1,192 @@
+[
+  {
+    "name": "init_list",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitList >"
+    ],
+    "attributes": [
+      "# [doc = \" 新しいウィッシュリストを作成\"]"
+    ],
+    "body": [
+      "let list = & mut ctx . accounts . wishlist ;",
+      "list . owner = ctx . accounts . user . key () ;",
+      "list . entries = Vec :: new () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "add_entry",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyList >",
+      "description: String"
+    ],
+    "attributes": [
+      "# [doc = \" アイテムを追加\"]"
+    ],
+    "body": [
+      "let list = & mut ctx . accounts . wishlist ;",
+      "let now = ctx . accounts . clock . unix_timestamp ;",
+      "require ! (list . owner == ctx . accounts . user . key () , ErrorCode :: Unauthorized) ;",
+      "require ! (list . entries . len () < MAX_ITEMS , ErrorCode :: ListFull) ;",
+      "require ! (description . len () <= 64 , ErrorCode :: TooLong) ;",
+      "for e in list . entries . iter ()",
+      "{",
+      "if e . description == description",
+      "{",
+      "return Err (ErrorCode :: Duplicate . into ()) ;",
+      "}",
+      "}",
+      "list . entries . push (WishEntry { description , added_at : now , purchased : false , purchased_at : 0 }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "purchase",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyList >",
+      "index: u32"
+    ],
+    "attributes": [
+      "# [doc = \" アイテムを購入済みにマーク\"]"
+    ],
+    "body": [
+      "let list = & mut ctx . accounts . wishlist ;",
+      "let idx = index as usize ;",
+      "let now = ctx . accounts . clock . unix_timestamp ;",
+      "require ! (list . owner == ctx . accounts . user . key () , ErrorCode :: Unauthorized) ;",
+      "require ! (idx < list . entries . len () , ErrorCode :: IndexOutOfBounds) ;",
+      "require ! (! list . entries [idx] . purchased , ErrorCode :: AlreadyPurchased) ;",
+      "let entry = & mut list . entries [idx] ;",
+      "entry . purchased = true ;",
+      "entry . purchased_at = now ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "remove_entry",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyList >",
+      "index: u32"
+    ],
+    "attributes": [
+      "# [doc = \" アイテムをリストから削除\"]"
+    ],
+    "body": [
+      "let list = & mut ctx . accounts . wishlist ;",
+      "let idx = index as usize ;",
+      "require ! (list . owner == ctx . accounts . user . key () , ErrorCode :: Unauthorized) ;",
+      "require ! (idx < list . entries . len () , ErrorCode :: IndexOutOfBounds) ;",
+      "list . entries . remove (idx) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitList",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "wishlist",
+        "attribute": "# [account (init , payer = user , space = 8 + 32 + 4 + (MAX_ITEMS * (4 + 64 + 8 + 1 + 8)))]",
+        "field_type": "Account < 'info , Wishlist >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ModifyList",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "wishlist",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Wishlist >"
+      },
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Clock >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Wishlist",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "entries",
+        "attribute": null,
+        "field_type": "Vec < WishEntry >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "WishEntry",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "description",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "added_at",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "purchased",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "purchased_at",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

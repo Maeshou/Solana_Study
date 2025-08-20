@@ -1,0 +1,187 @@
+[
+  {
+    "name": "Auction",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "seller",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "highest_bid",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "winner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Bid",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "bidder",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "auction",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "amount",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreateAuction",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "auction",
+        "attribute": "# [account (init , payer = seller , space = 8 + 32 + 8 + 32)]",
+        "field_type": "Account < 'info , Auction >"
+      },
+      {
+        "name": "seller",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PlaceBid",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "auction",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Auction >"
+      },
+      {
+        "name": "bid",
+        "attribute": "# [account (init , payer = bidder , space = 8 + 32 + 32 + 8)]",
+        "field_type": "Account < 'info , Bid >"
+      },
+      {
+        "name": "bidder",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "FinalizeAuction",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "auction",
+        "attribute": "# [doc = \" Auction.seller == seller.key() は検証される\"] # [account (mut , has_one = seller)]",
+        "field_type": "Account < 'info , Auction >"
+      },
+      {
+        "name": "bid",
+        "attribute": "# [doc = \" Bid.auction と auction.key() の検証がない\"] # [account (mut)]",
+        "field_type": "Account < 'info , Bid >"
+      },
+      {
+        "name": "seller",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "create_auction",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateAuction >"
+    ],
+    "attributes": [
+      "# [doc = \" オークションを開始\"]"
+    ],
+    "body": [
+      "let a = & mut ctx . accounts . auction ;",
+      "a . seller = ctx . accounts . seller . key () ;",
+      "a . highest_bid = 0 ;",
+      "a . winner = Pubkey :: default () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "place_bid",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PlaceBid >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 入札を行う\"]"
+    ],
+    "body": [
+      "let a = & mut ctx . accounts . auction ;",
+      "let b = & mut ctx . accounts . bid ;",
+      "b . bidder = ctx . accounts . bidder . key () ;",
+      "b . auction = a . key () ;",
+      "b . amount = amount ;",
+      "if b . amount > a . highest_bid",
+      "{",
+      "a . highest_bid = b . amount ;",
+      "a . winner = b . bidder ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "finalize",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < FinalizeAuction >"
+    ],
+    "attributes": [
+      "# [doc = \" オークションを確定（出品者のみ実行可能）\"]"
+    ],
+    "body": [
+      "let a = & mut ctx . accounts . auction ;",
+      "let b = & ctx . accounts . bid ;",
+      "a . winner = b . bidder ;",
+      "Ok (())"
+    ]
+  }
+]

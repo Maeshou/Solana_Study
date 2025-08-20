@@ -1,0 +1,582 @@
+[
+  {
+    "name": "init_competition",
+    "inputs": [
+      "ctx: Context < InitCompetition >",
+      "comp_id: u32",
+      "comp_name: String"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let competition = & mut ctx . accounts . competition ;"
+      },
+      {
+        "id": 2,
+        "label": "competition . organizer = ctx . accounts . organizer . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "competition . comp_id = comp_id ;"
+      },
+      {
+        "id": 4,
+        "label": "competition . comp_name = comp_name ;"
+      },
+      {
+        "id": 5,
+        "label": "competition . entry_count = 0 ;"
+      },
+      {
+        "id": 6,
+        "label": "competition . is_open = true ;"
+      },
+      {
+        "id": 7,
+        "label": "msg ! (\"Competition '{}' initialized.\" , competition . comp_name) ;"
+      },
+      {
+        "id": 8,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: competition"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: competition"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: competition"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: competition"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: competition"
+      },
+      {
+        "from": 1,
+        "to": 6,
+        "label": "data_dep: competition"
+      }
+    ]
+  },
+  {
+    "name": "init_entry",
+    "inputs": [
+      "ctx: Context < InitEntry >",
+      "entry_id: u64",
+      "initial_score: u32"
+    ],
+    "nodes": [
+      {
+        "id": 9,
+        "label": "Entry"
+      },
+      {
+        "id": 10,
+        "label": "let entry = & mut ctx . accounts . entry ;"
+      },
+      {
+        "id": 11,
+        "label": "let competition = & mut ctx . accounts . competition ;"
+      },
+      {
+        "id": 12,
+        "label": "entry . competition = competition . key () ;"
+      },
+      {
+        "id": 13,
+        "label": "entry . entry_id = entry_id ;"
+      },
+      {
+        "id": 14,
+        "label": "entry . player = ctx . accounts . player . key () ;"
+      },
+      {
+        "id": 15,
+        "label": "entry . score = initial_score ;"
+      },
+      {
+        "id": 16,
+        "label": "entry . is_final = false ;"
+      },
+      {
+        "id": 17,
+        "label": "competition . entry_count = competition . entry_count . saturating_add (1) ;"
+      },
+      {
+        "id": 18,
+        "label": "msg ! (\"Entry {} created for competition {}.\" , entry . entry_id , competition . comp_name) ;"
+      },
+      {
+        "id": 19,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 10,
+        "to": 10,
+        "label": "def: entry"
+      },
+      {
+        "from": 11,
+        "to": 11,
+        "label": "def: competition"
+      },
+      {
+        "from": 10,
+        "to": 12,
+        "label": "data_dep: entry"
+      },
+      {
+        "from": 11,
+        "to": 12,
+        "label": "data_dep: competition"
+      },
+      {
+        "from": 10,
+        "to": 13,
+        "label": "data_dep: entry"
+      },
+      {
+        "from": 10,
+        "to": 14,
+        "label": "data_dep: entry"
+      },
+      {
+        "from": 10,
+        "to": 15,
+        "label": "data_dep: entry"
+      },
+      {
+        "from": 10,
+        "to": 16,
+        "label": "data_dep: entry"
+      },
+      {
+        "from": 11,
+        "to": 17,
+        "label": "data_dep: competition"
+      },
+      {
+        "from": 11,
+        "to": 17,
+        "label": "data_dep: competition"
+      }
+    ]
+  },
+  {
+    "name": "process_entries",
+    "inputs": [
+      "ctx: Context < ProcessEntries >",
+      "bonuses: Vec < u32 >"
+    ],
+    "nodes": [
+      {
+        "id": 20,
+        "label": "Entry"
+      },
+      {
+        "id": 21,
+        "label": "let entry_a = & mut ctx . accounts . entry_a ;"
+      },
+      {
+        "id": 22,
+        "label": "let entry_b = & mut ctx . accounts . entry_b ;"
+      },
+      {
+        "id": 23,
+        "label": "let mut a_bonuses_sum : u64 = 0 ;"
+      },
+      {
+        "id": 24,
+        "label": "let mut b_bonuses_sum : u64 = 0 ;"
+      },
+      {
+        "id": 25,
+        "label": "let mut loops_run = 0 ;"
+      },
+      {
+        "id": 26,
+        "label": "while loops_run < bonuses . len () { let bonus = bonuses [loops_run] as u64 ; if entry_a . score > entry_b . score { entry_a . score = entry_a . score . saturating_add ((bonus * 2) as u32) ; entry_b . score = entry_b . score . checked_sub ((bonus / 2) as u32) . unwrap_or (0) ; a_bonuses_sum = a_bonuses_sum . saturating_add (bonus * 2) ; b_bonuses_sum = b_bonuses_sum . saturating_sub (bonus / 2) ; msg ! (\"A had higher score, applying bonus to A and penalty to B.\") ; } else { entry_b . score = entry_b . score . saturating_add ((bonus * 2) as u32) ; entry_a . score = entry_a . score . checked_sub ((bonus / 2) as u32) . unwrap_or (0) ; b_bonuses_sum = b_bonuses_sum . saturating_add (bonus * 2) ; a_bonuses_sum = a_bonuses_sum . saturating_sub (bonus / 2) ; msg ! (\"B had higher or equal score, applying bonus to B and penalty to A.\") ; } loops_run += 1 ; }"
+      },
+      {
+        "id": 27,
+        "label": "let bonus = bonuses [loops_run] as u64 ;"
+      },
+      {
+        "id": 28,
+        "label": "if entry_a . score > entry_b . score { entry_a . score = entry_a . score . saturating_add ((bonus * 2) as u32) ; entry_b . score = entry_b . score . checked_sub ((bonus / 2) as u32) . unwrap_or (0) ; a_bonuses_sum = a_bonuses_sum . saturating_add (bonus * 2) ; b_bonuses_sum = b_bonuses_sum . saturating_sub (bonus / 2) ; msg ! (\"A had higher score, applying bonus to A and penalty to B.\") ; } else { entry_b . score = entry_b . score . saturating_add ((bonus * 2) as u32) ; entry_a . score = entry_a . score . checked_sub ((bonus / 2) as u32) . unwrap_or (0) ; b_bonuses_sum = b_bonuses_sum . saturating_add (bonus * 2) ; a_bonuses_sum = a_bonuses_sum . saturating_sub (bonus / 2) ; msg ! (\"B had higher or equal score, applying bonus to B and penalty to A.\") ; }"
+      },
+      {
+        "id": 29,
+        "label": "entry_a . score = entry_a . score . saturating_add ((bonus * 2) as u32) ;"
+      },
+      {
+        "id": 30,
+        "label": "entry_b . score = entry_b . score . checked_sub ((bonus / 2) as u32) . unwrap_or (0) ;"
+      },
+      {
+        "id": 31,
+        "label": "a_bonuses_sum = a_bonuses_sum . saturating_add (bonus * 2) ;"
+      },
+      {
+        "id": 32,
+        "label": "b_bonuses_sum = b_bonuses_sum . saturating_sub (bonus / 2) ;"
+      },
+      {
+        "id": 33,
+        "label": "msg ! (\"A had higher score, applying bonus to A and penalty to B.\") ;"
+      },
+      {
+        "id": 34,
+        "label": "entry_b . score = entry_b . score . saturating_add ((bonus * 2) as u32) ;"
+      },
+      {
+        "id": 35,
+        "label": "entry_a . score = entry_a . score . checked_sub ((bonus / 2) as u32) . unwrap_or (0) ;"
+      },
+      {
+        "id": 36,
+        "label": "b_bonuses_sum = b_bonuses_sum . saturating_add (bonus * 2) ;"
+      },
+      {
+        "id": 37,
+        "label": "a_bonuses_sum = a_bonuses_sum . saturating_sub (bonus / 2) ;"
+      },
+      {
+        "id": 38,
+        "label": "msg ! (\"B had higher or equal score, applying bonus to B and penalty to A.\") ;"
+      },
+      {
+        "id": 39,
+        "label": "loops_run += 1 ;"
+      },
+      {
+        "id": 40,
+        "label": "if a_bonuses_sum > b_bonuses_sum { entry_a . is_final = true ; } else { entry_b . is_final = true ; }"
+      },
+      {
+        "id": 41,
+        "label": "entry_a . is_final = true ;"
+      },
+      {
+        "id": 42,
+        "label": "entry_b . is_final = true ;"
+      },
+      {
+        "id": 43,
+        "label": "msg ! (\"Processed {} bonuses. A's score change: {}, B's score change: {}.\" , loops_run , a_bonuses_sum , b_bonuses_sum) ;"
+      },
+      {
+        "id": 44,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 21,
+        "to": 21,
+        "label": "def: entry_a"
+      },
+      {
+        "from": 22,
+        "to": 22,
+        "label": "def: entry_b"
+      },
+      {
+        "from": 25,
+        "to": 25,
+        "label": "def: loops_run"
+      },
+      {
+        "from": 25,
+        "to": 26,
+        "label": "data_dep: loops_run"
+      },
+      {
+        "from": 25,
+        "to": 26,
+        "label": "data_dep: loops_run"
+      },
+      {
+        "from": 21,
+        "to": 26,
+        "label": "data_dep: entry_a"
+      },
+      {
+        "from": 22,
+        "to": 26,
+        "label": "data_dep: entry_b"
+      },
+      {
+        "from": 21,
+        "to": 26,
+        "label": "data_dep: entry_a"
+      },
+      {
+        "from": 21,
+        "to": 26,
+        "label": "data_dep: entry_a"
+      },
+      {
+        "from": 22,
+        "to": 26,
+        "label": "data_dep: entry_b"
+      },
+      {
+        "from": 22,
+        "to": 26,
+        "label": "data_dep: entry_b"
+      },
+      {
+        "from": 22,
+        "to": 26,
+        "label": "data_dep: entry_b"
+      },
+      {
+        "from": 22,
+        "to": 26,
+        "label": "data_dep: entry_b"
+      },
+      {
+        "from": 21,
+        "to": 26,
+        "label": "data_dep: entry_a"
+      },
+      {
+        "from": 21,
+        "to": 26,
+        "label": "data_dep: entry_a"
+      },
+      {
+        "from": 25,
+        "to": 26,
+        "label": "data_dep: loops_run"
+      },
+      {
+        "from": 27,
+        "to": 27,
+        "label": "def: bonus"
+      },
+      {
+        "from": 25,
+        "to": 27,
+        "label": "data_dep: loops_run"
+      },
+      {
+        "from": 21,
+        "to": 28,
+        "label": "data_dep: entry_a"
+      },
+      {
+        "from": 22,
+        "to": 28,
+        "label": "data_dep: entry_b"
+      },
+      {
+        "from": 21,
+        "to": 28,
+        "label": "data_dep: entry_a"
+      },
+      {
+        "from": 21,
+        "to": 28,
+        "label": "data_dep: entry_a"
+      },
+      {
+        "from": 27,
+        "to": 28,
+        "label": "data_dep: bonus"
+      },
+      {
+        "from": 22,
+        "to": 28,
+        "label": "data_dep: entry_b"
+      },
+      {
+        "from": 22,
+        "to": 28,
+        "label": "data_dep: entry_b"
+      },
+      {
+        "from": 27,
+        "to": 28,
+        "label": "data_dep: bonus"
+      },
+      {
+        "from": 27,
+        "to": 28,
+        "label": "data_dep: bonus"
+      },
+      {
+        "from": 27,
+        "to": 28,
+        "label": "data_dep: bonus"
+      },
+      {
+        "from": 22,
+        "to": 28,
+        "label": "data_dep: entry_b"
+      },
+      {
+        "from": 22,
+        "to": 28,
+        "label": "data_dep: entry_b"
+      },
+      {
+        "from": 27,
+        "to": 28,
+        "label": "data_dep: bonus"
+      },
+      {
+        "from": 21,
+        "to": 28,
+        "label": "data_dep: entry_a"
+      },
+      {
+        "from": 21,
+        "to": 28,
+        "label": "data_dep: entry_a"
+      },
+      {
+        "from": 27,
+        "to": 28,
+        "label": "data_dep: bonus"
+      },
+      {
+        "from": 27,
+        "to": 28,
+        "label": "data_dep: bonus"
+      },
+      {
+        "from": 27,
+        "to": 28,
+        "label": "data_dep: bonus"
+      },
+      {
+        "from": 21,
+        "to": 29,
+        "label": "data_dep: entry_a"
+      },
+      {
+        "from": 21,
+        "to": 29,
+        "label": "data_dep: entry_a"
+      },
+      {
+        "from": 27,
+        "to": 29,
+        "label": "data_dep: bonus"
+      },
+      {
+        "from": 22,
+        "to": 30,
+        "label": "data_dep: entry_b"
+      },
+      {
+        "from": 22,
+        "to": 30,
+        "label": "data_dep: entry_b"
+      },
+      {
+        "from": 27,
+        "to": 30,
+        "label": "data_dep: bonus"
+      },
+      {
+        "from": 27,
+        "to": 31,
+        "label": "data_dep: bonus"
+      },
+      {
+        "from": 27,
+        "to": 32,
+        "label": "data_dep: bonus"
+      },
+      {
+        "from": 22,
+        "to": 34,
+        "label": "data_dep: entry_b"
+      },
+      {
+        "from": 22,
+        "to": 34,
+        "label": "data_dep: entry_b"
+      },
+      {
+        "from": 27,
+        "to": 34,
+        "label": "data_dep: bonus"
+      },
+      {
+        "from": 21,
+        "to": 35,
+        "label": "data_dep: entry_a"
+      },
+      {
+        "from": 21,
+        "to": 35,
+        "label": "data_dep: entry_a"
+      },
+      {
+        "from": 27,
+        "to": 35,
+        "label": "data_dep: bonus"
+      },
+      {
+        "from": 27,
+        "to": 36,
+        "label": "data_dep: bonus"
+      },
+      {
+        "from": 27,
+        "to": 37,
+        "label": "data_dep: bonus"
+      },
+      {
+        "from": 25,
+        "to": 39,
+        "label": "data_dep: loops_run"
+      },
+      {
+        "from": 21,
+        "to": 40,
+        "label": "data_dep: entry_a"
+      },
+      {
+        "from": 22,
+        "to": 40,
+        "label": "data_dep: entry_b"
+      },
+      {
+        "from": 21,
+        "to": 41,
+        "label": "data_dep: entry_a"
+      },
+      {
+        "from": 22,
+        "to": 42,
+        "label": "data_dep: entry_b"
+      }
+    ]
+  }
+]

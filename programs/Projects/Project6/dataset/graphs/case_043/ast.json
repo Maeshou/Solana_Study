@@ -1,0 +1,307 @@
+[
+  {
+    "name": "init_guild",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitGuild >",
+      "guild_name: String",
+      "max_members: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let guild = & mut ctx . accounts . guild ;",
+      "guild . owner = ctx . accounts . owner . key () ;",
+      "guild . guild_name = guild_name ;",
+      "guild . max_members = max_members ;",
+      "guild . member_count = 0 ;",
+      "guild . total_raids = 0 ;",
+      "guild . is_recruiting = true ;",
+      "guild . creation_timestamp = Clock :: get () ? . unix_timestamp ;",
+      "msg ! (\"Guild initialized: {}\" , guild . guild_name) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_member",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitMember >",
+      "member_name: String",
+      "member_tier: MemberTier"
+    ],
+    "attributes": [],
+    "body": [
+      "let member = & mut ctx . accounts . member ;",
+      "member . guild = ctx . accounts . guild . key () ;",
+      "member . member_name = member_name ;",
+      "member . tier = member_tier ;",
+      "member . experience_points = 0 ;",
+      "member . join_timestamp = Clock :: get () ? . unix_timestamp ;",
+      "member . raids_completed = 0 ;",
+      "member . is_active = true ;",
+      "msg ! (\"Member {} joined with tier {:?}\" , member . member_name , member . tier) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "process_raid_activities",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ProcessRaidActivities >",
+      "raid_difficulty: u8",
+      "bonus_multiplier: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let guild = & mut ctx . accounts . guild ;",
+      "let member_a = & mut ctx . accounts . member_a ;",
+      "let member_b = & mut ctx . accounts . member_b ;",
+      "let raid_log = & mut ctx . accounts . raid_log ;",
+      "for round in 0 .. raid_difficulty",
+      "{",
+      "if member_a . tier == MemberTier :: Leader",
+      "{",
+      "member_a . experience_points = member_a . experience_points . checked_add ((round as u64) * 150) . unwrap_or (u64 :: MAX) ;",
+      "member_a . raids_completed = member_a . raids_completed . checked_add (2) . unwrap_or (u32 :: MAX) ;",
+      "guild . total_raids = guild . total_raids . checked_add (1) . unwrap_or (u64 :: MAX) ;",
+      "msg ! (\"Leader",
+      "{",
+      "} gained double experience\" , member_a . member_name) ;",
+      "} else",
+      "{",
+      "member_a . experience_points = member_a . experience_points . checked_add ((round as u64) * 75) . unwrap_or (u64 :: MAX) ;",
+      "member_a . raids_completed = member_a . raids_completed . checked_add (1) . unwrap_or (u32 :: MAX) ;",
+      "guild . total_raids = guild . total_raids . checked_add (1) . unwrap_or (u64 :: MAX) ;",
+      "msg ! (\"Member",
+      "{",
+      "} gained standard experience\" , member_a . member_name) ;",
+      "}",
+      "}",
+      "let mut b_multiplier = 1 ;",
+      "while b_multiplier <= bonus_multiplier",
+      "{",
+      "member_b . experience_points = member_b . experience_points . checked_add (b_multiplier as u64 * 25) . unwrap_or (u64 :: MAX) ;",
+      "let bit_bonus = (b_multiplier ^ 0x3) << 2 ;",
+      "member_b . raids_completed = member_b . raids_completed . checked_add (bit_bonus) . unwrap_or (u32 :: MAX) ;",
+      "b_multiplier = b_multiplier . wrapping_mul (2) ;",
+      "}",
+      "raid_log . raid_count = raid_log . raid_count . checked_add (1) . unwrap_or (u64 :: MAX) ;",
+      "raid_log . last_raid_timestamp = Clock :: get () ? . unix_timestamp ;",
+      "raid_log . difficulty_sum = raid_log . difficulty_sum . checked_add (raid_difficulty as u32) . unwrap_or (u32 :: MAX) ;",
+      "msg ! (\"Raid activities processed for {} rounds\" , raid_difficulty) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitGuild",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 64 + 4 + 4 + 8 + 1 + 8)]",
+        "field_type": "Account < 'info , Guild >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitMember",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Guild >"
+      },
+      {
+        "name": "member",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 64 + 1 + 8 + 8 + 4 + 1)]",
+        "field_type": "Account < 'info , GuildMember >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ProcessRaidActivities",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Guild >"
+      },
+      {
+        "name": "member_a",
+        "attribute": "# [account (mut , has_one = guild , owner = crate :: ID , constraint = member_a . tier != member_b . tier @ GuildErrorCode :: CosplayBlocked)]",
+        "field_type": "Account < 'info , GuildMember >"
+      },
+      {
+        "name": "member_b",
+        "attribute": "# [account (mut , has_one = guild , owner = crate :: ID , constraint = member_a . member_name != member_b . member_name @ GuildErrorCode :: CosplayBlocked)]",
+        "field_type": "Account < 'info , GuildMember >"
+      },
+      {
+        "name": "raid_log",
+        "attribute": "# [account (init_if_needed , payer = owner , space = 8 + 32 + 8 + 8 + 4 , seeds = [b\"raid_log\" , guild . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , RaidLog >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Guild",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "guild_name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "max_members",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "member_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "total_raids",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "is_recruiting",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "creation_timestamp",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GuildMember",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "member_name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "tier",
+        "attribute": null,
+        "field_type": "MemberTier"
+      },
+      {
+        "name": "experience_points",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "join_timestamp",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "raids_completed",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "is_active",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RaidLog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "raid_count",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "last_raid_timestamp",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "difficulty_sum",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

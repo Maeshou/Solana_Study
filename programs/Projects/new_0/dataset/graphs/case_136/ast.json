@@ -1,0 +1,172 @@
+[
+  {
+    "name": "add_book",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AddBook >",
+      "title: String",
+      "copies: u32"
+    ],
+    "attributes": [
+      "# [doc = \" 新しい書籍を登録\"]"
+    ],
+    "body": [
+      "if title . len () > 64",
+      "{",
+      "return Err (ErrorCode :: TitleTooLong . into ()) ;",
+      "}",
+      "if copies == 0",
+      "{",
+      "return Err (ErrorCode :: InvalidCopies . into ()) ;",
+      "}",
+      "let book = & mut ctx . accounts . book ;",
+      "book . owner = ctx . accounts . user . key () ;",
+      "book . title = title ;",
+      "book . available = copies ;",
+      "book . borrowers = Vec :: new () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "borrow_book",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyBook >"
+    ],
+    "attributes": [
+      "# [doc = \" 書籍を借りる\"]"
+    ],
+    "body": [
+      "let book = & mut ctx . accounts . book ;",
+      "let user = ctx . accounts . user . key () ;",
+      "if book . owner == user",
+      "{",
+      "return Err (ErrorCode :: CannotBorrowOwn . into ()) ;",
+      "}",
+      "if book . available == 0",
+      "{",
+      "return Err (ErrorCode :: NoCopiesLeft . into ()) ;",
+      "}",
+      "for & b in book . borrowers . iter ()",
+      "{",
+      "if b == user",
+      "{",
+      "return Err (ErrorCode :: AlreadyBorrowed . into ()) ;",
+      "}",
+      "}",
+      "book . available = book . available . checked_sub (1) . ok_or (ErrorCode :: Underflow) ? ;",
+      "book . borrowers . push (user) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "return_book",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyBook >"
+    ],
+    "attributes": [
+      "# [doc = \" 書籍を返却する\"]"
+    ],
+    "body": [
+      "let book = & mut ctx . accounts . book ;",
+      "let user = ctx . accounts . user . key () ;",
+      "let mut idx : Option < usize > = None ;",
+      "if book . owner == user",
+      "{",
+      "return Err (ErrorCode :: CannotReturnOwn . into ()) ;",
+      "}",
+      "for (i , & b) in book . borrowers . iter () . enumerate ()",
+      "{",
+      "if b == user",
+      "{",
+      "idx = Some (i) ;",
+      "break ;",
+      "}",
+      "}",
+      "if let Some (i) = idx",
+      "{",
+      "book . borrowers . remove (i) ;",
+      "book . available = book . available . checked_add (1) . ok_or (ErrorCode :: Overflow) ? ;",
+      "Ok (()) } else",
+      "{",
+      "Err (ErrorCode :: NotBorrowed . into ())",
+      "}"
+    ]
+  },
+  {
+    "name": "AddBook",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "book",
+        "attribute": "# [doc = \" Reinit Attack 防止\"] # [account (init , payer = user , space = 8 + 32 + 4 + 64 + 4 + 4 + (MAX_BORROWERS * 32))]",
+        "field_type": "Account < 'info , BookAccount >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 登録者（署名必須）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ModifyBook",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "book",
+        "attribute": "# [doc = \" 型チェック＆Owner Check\"] # [account (mut)]",
+        "field_type": "Account < 'info , BookAccount >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 借り手／返却者（署名必須）\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BookAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 管理者としての所有者\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "title",
+        "attribute": "# [doc = \" 書籍タイトル（最大64文字）\"]",
+        "field_type": "String"
+      },
+      {
+        "name": "available",
+        "attribute": "# [doc = \" 利用可能な在庫数\"]",
+        "field_type": "u32"
+      },
+      {
+        "name": "borrowers",
+        "attribute": "# [doc = \" 借り手リスト（最大100名）\"]",
+        "field_type": "Vec < Pubkey >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

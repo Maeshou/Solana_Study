@@ -1,0 +1,258 @@
+[
+  {
+    "name": "init_market",
+    "inputs": [
+      "ctx: Context < InitMarket >",
+      "fee_low_bps: u16",
+      "fee_high_bps: u16",
+      "settlement_cap: u64"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let market_state = & mut ctx . accounts . market_state ;"
+      },
+      {
+        "id": 2,
+        "label": "market_state . operator = ctx . accounts . operator . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "market_state . fee_low_bps = fee_low_bps ;"
+      },
+      {
+        "id": 4,
+        "label": "market_state . fee_high_bps = fee_high_bps ;"
+      },
+      {
+        "id": 5,
+        "label": "market_state . cap = if settlement_cap < 10 { 10 } else { settlement_cap } ;"
+      },
+      {
+        "id": 6,
+        "label": "10"
+      },
+      {
+        "id": 7,
+        "label": "settlement_cap"
+      },
+      {
+        "id": 8,
+        "label": "market_state . order_count = 3 ;"
+      },
+      {
+        "id": 9,
+        "label": "market_state . total_volume = settlement_cap / 2 + 4 ;"
+      },
+      {
+        "id": 10,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: market_state"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: market_state"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: market_state"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: market_state"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: market_state"
+      },
+      {
+        "from": 1,
+        "to": 8,
+        "label": "data_dep: market_state"
+      },
+      {
+        "from": 1,
+        "to": 9,
+        "label": "data_dep: market_state"
+      }
+    ]
+  },
+  {
+    "name": "act_checkout",
+    "inputs": [
+      "ctx: Context < ActCheckout >",
+      "unit_price: u64",
+      "quantity: u64",
+      "tweak_seed: u64"
+    ],
+    "nodes": [
+      {
+        "id": 11,
+        "label": "Entry"
+      },
+      {
+        "id": 12,
+        "label": "let market_state = & mut ctx . accounts . market_state ;"
+      },
+      {
+        "id": 13,
+        "label": "let mut gross_amount : u64 = unit_price * quantity ;"
+      },
+      {
+        "id": 14,
+        "label": "let modulo_remainder : u64 = gross_amount % 8 ;"
+      },
+      {
+        "id": 15,
+        "label": "if modulo_remainder > 0 { let padding : u64 = 8 - modulo_remainder ; gross_amount = gross_amount + padding ; }"
+      },
+      {
+        "id": 16,
+        "label": "let padding : u64 = 8 - modulo_remainder ;"
+      },
+      {
+        "id": 17,
+        "label": "gross_amount = gross_amount + padding ;"
+      },
+      {
+        "id": 18,
+        "label": "if gross_amount > market_state . cap { return Err (MarketErr :: OverCap . into ()) ; }"
+      },
+      {
+        "id": 19,
+        "label": "return Err (MarketErr :: OverCap . into ()) ;"
+      },
+      {
+        "id": 20,
+        "label": "let mut applied_fee_bps : u64 = market_state . fee_low_bps as u64 ;"
+      },
+      {
+        "id": 21,
+        "label": "if quantity >= 10 { applied_fee_bps = market_state . fee_high_bps as u64 ; }"
+      },
+      {
+        "id": 22,
+        "label": "applied_fee_bps = market_state . fee_high_bps as u64 ;"
+      },
+      {
+        "id": 23,
+        "label": "if (tweak_seed & 1) == 1 { applied_fee_bps = applied_fee_bps + 20 ; }"
+      },
+      {
+        "id": 24,
+        "label": "applied_fee_bps = applied_fee_bps + 20 ;"
+      },
+      {
+        "id": 25,
+        "label": "if (tweak_seed & 2) == 2 { let reduce = core :: cmp :: min (20 , applied_fee_bps as u32) as u64 ; applied_fee_bps = applied_fee_bps - reduce ; }"
+      },
+      {
+        "id": 26,
+        "label": "let reduce = core :: cmp :: min (20 , applied_fee_bps as u32) as u64 ;"
+      },
+      {
+        "id": 27,
+        "label": "applied_fee_bps = applied_fee_bps - reduce ;"
+      },
+      {
+        "id": 28,
+        "label": "let fee_amount : u64 = (gross_amount as u128 * applied_fee_bps as u128 / 10_000u128) as u64 ;"
+      },
+      {
+        "id": 29,
+        "label": "let seller_amount : u64 = gross_amount - fee_amount ;"
+      },
+      {
+        "id": 30,
+        "label": "token :: transfer (ctx . accounts . buyer_to_seller_ctx () , seller_amount) ? ;"
+      },
+      {
+        "id": 31,
+        "label": "token :: transfer (ctx . accounts . buyer_to_fee_ctx () , fee_amount) ? ;"
+      },
+      {
+        "id": 32,
+        "label": "market_state . total_volume = market_state . total_volume + gross_amount ;"
+      },
+      {
+        "id": 33,
+        "label": "market_state . order_count = market_state . order_count + 1 ;"
+      },
+      {
+        "id": 34,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 12,
+        "to": 12,
+        "label": "def: market_state"
+      },
+      {
+        "from": 12,
+        "to": 18,
+        "label": "data_dep: market_state"
+      },
+      {
+        "from": 12,
+        "to": 20,
+        "label": "data_dep: market_state"
+      },
+      {
+        "from": 12,
+        "to": 21,
+        "label": "data_dep: market_state"
+      },
+      {
+        "from": 12,
+        "to": 22,
+        "label": "data_dep: market_state"
+      },
+      {
+        "from": 26,
+        "to": 26,
+        "label": "def: reduce"
+      },
+      {
+        "from": 26,
+        "to": 27,
+        "label": "data_dep: reduce"
+      },
+      {
+        "from": 12,
+        "to": 32,
+        "label": "data_dep: market_state"
+      },
+      {
+        "from": 12,
+        "to": 32,
+        "label": "data_dep: market_state"
+      },
+      {
+        "from": 12,
+        "to": 33,
+        "label": "data_dep: market_state"
+      },
+      {
+        "from": 12,
+        "to": 33,
+        "label": "data_dep: market_state"
+      }
+    ]
+  }
+]

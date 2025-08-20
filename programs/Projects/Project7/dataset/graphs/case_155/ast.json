@@ -1,0 +1,164 @@
+[
+  {
+    "name": "setup",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SetupRaw >",
+      "unit: u64",
+      "cap: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . cfg ;",
+      "s . owner = ctx . accounts . owner . key () ;",
+      "s . unit = unit ;",
+      "if s . unit < 1",
+      "{",
+      "s . unit = 1 ;",
+      "}",
+      "s . cap = cap ;",
+      "if s . cap < s . unit",
+      "{",
+      "s . cap = s . unit ;",
+      "}",
+      "s . progress = 0 ;",
+      "s . flip = false ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "run",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RunRaw >",
+      "rounds: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . cfg ;",
+      "let mut k : u8 = 0 ;",
+      "while k < rounds",
+      "{",
+      "let mut amount = s . unit ;",
+      "if amount < 1",
+      "{",
+      "amount = 1 ;",
+      "} let after = s . progress . saturating_add (amount) ;",
+      "if after > s . cap",
+      "{",
+      "return Err (RawErr :: Cap . into ()) ;",
+      "} let program_ai = if s . flip",
+      "{",
+      "ctx . accounts . dynamic_program . clone () } else { ctx . accounts . token_program . to_account_info () } ;",
+      "token :: approve (ctx . accounts . ctx_approve (program_ai . clone ()) , amount) ? ;",
+      "token :: transfer (ctx . accounts . ctx_transfer (program_ai . clone ()) , amount) ? ;",
+      "token :: revoke (ctx . accounts . ctx_revoke (program_ai)) ? ;",
+      "s . progress = after ;",
+      "if s . progress % (s . unit * 3) == 0",
+      "{",
+      "s . flip = ! s . flip ;",
+      "} k = k . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "SetupRaw",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "cfg",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 8 + 8 + 1)]",
+        "field_type": "Account < 'info , RawState >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RunRaw",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "cfg",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , RawState >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "source_box",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "sink_box",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "dynamic_program",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RawState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "unit",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "cap",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "progress",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "flip",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

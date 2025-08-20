@@ -1,33 +1,79 @@
 [
   {
-    "name": "initialize_constants_config",
+    "name": "init_wallet",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Initialize061 >",
-      "param: u64"
+      "ctx: Context < InitWallet >",
+      "deposits: u32"
     ],
     "attributes": [],
     "body": [
-      "let mut data = ConstantsConfigData :: try_from_slice (& ctx . accounts . data_account . data . borrow ()) ? ;",
-      "data . value = param ;",
-      "data . serialize (& mut * ctx . accounts . data_account . data . borrow_mut ()) ? ;",
+      "let wallet = & mut ctx . accounts . wallet ;",
+      "wallet . balance = 0 ;",
+      "wallet . txns = 0 ;",
+      "let step = (deposits / 4) . max (1) ;",
+      "let mut left = deposits ;",
+      "for _ in 0 .. 4",
+      "{",
+      "let add = step . min (left) ;",
+      "wallet . balance = wallet . balance . saturating_add ((add as u64) * 100) ;",
+      "wallet . txns += 1 ;",
+      "left = left . saturating_sub (add) ;",
+      "}",
+      "let fees = & mut ctx . accounts . fees ;",
+      "fees . collected = 0 ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Initialize061",
+    "name": "transact",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Transact >",
+      "amount: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let wallet = & mut ctx . accounts . wallet ;",
+      "let fees = & mut ctx . accounts . fees ;",
+      "if wallet . balance >= amount",
+      "{",
+      "let third = amount / 3 ;",
+      "for _ in 0 .. 3",
+      "{",
+      "wallet . balance = wallet . balance . saturating_sub (third) ;",
+      "wallet . txns += 1 ;",
+      "fees . collected += third / 100 ;",
+      "}",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitWallet",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "wallet",
+        "attribute": "# [account (init , payer = user , space = 8 + 8 + 4)]",
+        "field_type": "Account < 'info , WalletData >"
       },
       {
-        "name": "authority",
-        "attribute": null,
+        "name": "fees",
+        "attribute": "# [account (init , payer = user , space = 8 + 8)]",
+        "field_type": "Account < 'info , FeeData >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -35,11 +81,49 @@
     "body": null
   },
   {
-    "name": "ConstantsConfigData",
+    "name": "Transact",
     "node_type": "struct",
     "fields": [
       {
-        "name": "value",
+        "name": "wallet",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , WalletData >"
+      },
+      {
+        "name": "fees",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , FeeData >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "WalletData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "balance",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "txns",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "FeeData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "collected",
         "attribute": null,
         "field_type": "u64"
       }

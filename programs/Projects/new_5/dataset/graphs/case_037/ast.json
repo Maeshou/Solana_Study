@@ -1,0 +1,236 @@
+[
+  {
+    "name": "init_event",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitEvent >",
+      "event_id: u32",
+      "name: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let event = & mut ctx . accounts . event ;",
+      "event . host = ctx . accounts . host . key () ;",
+      "event . event_id = event_id ;",
+      "event . name = name ;",
+      "event . participant_count = 0 ;",
+      "event . is_open = true ;",
+      "msg ! (\"Event '{}' initialized.\" , event . name) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_participation",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitParticipation >",
+      "participation_id: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let participation = & mut ctx . accounts . participation ;",
+      "let event = & mut ctx . accounts . event ;",
+      "participation . event = event . key () ;",
+      "participation . participant = ctx . accounts . participant . key () ;",
+      "participation . participation_id = participation_id ;",
+      "participation . has_attended = false ;",
+      "event . participant_count = event . participant_count . saturating_add (1) ;",
+      "msg ! (\"Participation {} created for event {}.\" , participation . participation_id , event . name) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "update_participation_records",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < UpdateParticipationRecords >",
+      "update_values: Vec < u8 >"
+    ],
+    "attributes": [],
+    "body": [
+      "let record_a = & mut ctx . accounts . record_a ;",
+      "let record_b = & mut ctx . accounts . record_b ;",
+      "if ! ctx . accounts . event . is_open",
+      "{",
+      "return Err (ErrorCode :: EventClosed . into ()) ;",
+      "}",
+      "let mut a_update_count = 0 ;",
+      "let mut b_update_count = 0 ;",
+      "for value in update_values . iter ()",
+      "{",
+      "if * value > 5",
+      "{",
+      "record_a . has_attended = true ;",
+      "record_b . has_attended = false ;",
+      "a_update_count += 1 ;",
+      "msg ! (\"Value > 5, updating A and B differently.\") ;",
+      "} else",
+      "{",
+      "record_a . has_attended = false ;",
+      "record_b . has_attended = true ;",
+      "b_update_count += 1 ;",
+      "msg ! (\"Value <= 5, updating B and A differently.\") ;",
+      "}",
+      "}",
+      "if record_a . has_attended",
+      "{",
+      "msg ! (\"Record A is set to true.\") ;",
+      "} else",
+      "{",
+      "msg ! (\"Record A is set to false.\") ;",
+      "}",
+      "if record_b . has_attended",
+      "{",
+      "msg ! (\"Record B is set to true.\") ;",
+      "} else",
+      "{",
+      "msg ! (\"Record B is set to false.\") ;",
+      "}",
+      "msg ! (\"Processed {} updates. A updates: {}, B updates: {}.\" , update_values . len () , a_update_count , b_update_count) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitEvent",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "event",
+        "attribute": "# [account (init , payer = host , space = 8 + 32 + 4 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Event >"
+      },
+      {
+        "name": "host",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitParticipation",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "event",
+        "attribute": "# [account (mut , has_one = event)]",
+        "field_type": "Account < 'info , Event >"
+      },
+      {
+        "name": "participation",
+        "attribute": "# [account (init , payer = participant , space = 8 + 32 + 32 + 8 + 1)]",
+        "field_type": "Account < 'info , EventParticipation >"
+      },
+      {
+        "name": "participant",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "UpdateParticipationRecords",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "event",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Event >"
+      },
+      {
+        "name": "record_a",
+        "attribute": "# [account (mut , has_one = event)]",
+        "field_type": "Account < 'info , EventParticipation >"
+      },
+      {
+        "name": "record_b",
+        "attribute": "# [account (mut , has_one = event)]",
+        "field_type": "Account < 'info , EventParticipation >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Event",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "host",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "event_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "participant_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "is_open",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EventParticipation",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "event",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "participant",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "participation_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "has_attended",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

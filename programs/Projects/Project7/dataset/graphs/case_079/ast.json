@@ -1,0 +1,177 @@
+[
+  {
+    "name": "init_policy",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitPolicy >",
+      "deductible_bps_input: u16",
+      "max_payout_input: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let p = & mut ctx . accounts . policy ;",
+      "p . carrier = ctx . accounts . carrier . key () ;",
+      "p . deductible_bps = clamp_u16 (deductible_bps_input , 0 , 3000) ;",
+      "p . max_payout = max_payout_input ;",
+      "if p . max_payout < 10",
+      "{",
+      "p . max_payout = 10 ;",
+      "}",
+      "p . claim_count = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_claim",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActClaim >",
+      "claim_amount: u64",
+      "severity_level: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let p = & mut ctx . accounts . policy ;",
+      "let deductible = claim_amount * p . deductible_bps as u64 / 10_000 ;",
+      "let base_after_deduct = if claim_amount > deductible { claim_amount - deductible } else { 0 } ;",
+      "let mut multiplier_percent : u64 = 100 ;",
+      "let mut step : u8 = 0 ;",
+      "while step < severity_level",
+      "{",
+      "multiplier_percent = multiplier_percent + 5 ;",
+      "step = step + 1 ;",
+      "}",
+      "let mut payout = (base_after_deduct as u128 * multiplier_percent as u128 / 100u128) as u64 ;",
+      "if payout > p . max_payout",
+      "{",
+      "payout = p . max_payout ;",
+      "}",
+      "if payout < 1",
+      "{",
+      "payout = 1 ;",
+      "}",
+      "let fee_units = claim_amount / 100 + 1 ;",
+      "token :: transfer (ctx . accounts . pool_to_claimant () , payout) ? ;",
+      "token :: transfer (ctx . accounts . pool_to_admin_fee () , fee_units) ? ;",
+      "p . claim_count = p . claim_count + 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitPolicy",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "policy",
+        "attribute": "# [account (init , payer = carrier , space = 8 + 32 + 2 + 8 + 8)]",
+        "field_type": "Account < 'info , PolicyState >"
+      },
+      {
+        "name": "carrier",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActClaim",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "policy",
+        "attribute": "# [account (mut , has_one = carrier)]",
+        "field_type": "Account < 'info , PolicyState >"
+      },
+      {
+        "name": "carrier",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "claim_pool_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "claimant_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "admin_fee_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PolicyState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "carrier",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "deductible_bps",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "max_payout",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "claim_count",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "clamp_u16",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "v: u16",
+      "lo: u16",
+      "hi: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut o = v ;",
+      "if o < lo",
+      "{",
+      "o = lo ;",
+      "}",
+      "if o > hi",
+      "{",
+      "o = hi ;",
+      "}",
+      "o"
+    ]
+  }
+]

@@ -1,0 +1,779 @@
+[
+  {
+    "name": "init_vault",
+    "inputs": [
+      "ctx: Context < InitVault >",
+      "series: u64"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let v = & mut ctx . accounts . vault ;"
+      },
+      {
+        "id": 2,
+        "label": "v . owner = ctx . accounts . owner . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "v . series = series . rotate_left (1) . wrapping_add (31) ;"
+      },
+      {
+        "id": 4,
+        "label": "v . meter = 3 ;"
+      },
+      {
+        "id": 5,
+        "label": "let mut i = 0u8 ;"
+      },
+      {
+        "id": 6,
+        "label": "let mut probe = v . series . rotate_right (2) . wrapping_add (17) ;"
+      },
+      {
+        "id": 7,
+        "label": "while i < 6 { probe = probe . rotate_left (1) . wrapping_mul (3) . wrapping_add (7) ; v . meter = v . meter . saturating_add (((probe % 23) as u32) + 1) ; i = i . saturating_add (1) ; }"
+      },
+      {
+        "id": 8,
+        "label": "probe = probe . rotate_left (1) . wrapping_mul (3) . wrapping_add (7) ;"
+      },
+      {
+        "id": 9,
+        "label": "v . meter = v . meter . saturating_add (((probe % 23) as u32) + 1) ;"
+      },
+      {
+        "id": 10,
+        "label": "i = i . saturating_add (1) ;"
+      },
+      {
+        "id": 11,
+        "label": "require ! (v . meter > 10 , E :: Meter) ;"
+      },
+      {
+        "id": 12,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: v"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: v"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: v"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: v"
+      },
+      {
+        "from": 5,
+        "to": 5,
+        "label": "def: i"
+      },
+      {
+        "from": 6,
+        "to": 6,
+        "label": "def: probe"
+      },
+      {
+        "from": 1,
+        "to": 6,
+        "label": "data_dep: v"
+      },
+      {
+        "from": 5,
+        "to": 7,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 6,
+        "to": 7,
+        "label": "data_dep: probe"
+      },
+      {
+        "from": 6,
+        "to": 7,
+        "label": "data_dep: probe"
+      },
+      {
+        "from": 1,
+        "to": 7,
+        "label": "data_dep: v"
+      },
+      {
+        "from": 1,
+        "to": 7,
+        "label": "data_dep: v"
+      },
+      {
+        "from": 6,
+        "to": 7,
+        "label": "data_dep: probe"
+      },
+      {
+        "from": 5,
+        "to": 7,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 5,
+        "to": 7,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 6,
+        "to": 8,
+        "label": "data_dep: probe"
+      },
+      {
+        "from": 6,
+        "to": 8,
+        "label": "data_dep: probe"
+      },
+      {
+        "from": 1,
+        "to": 9,
+        "label": "data_dep: v"
+      },
+      {
+        "from": 1,
+        "to": 9,
+        "label": "data_dep: v"
+      },
+      {
+        "from": 6,
+        "to": 9,
+        "label": "data_dep: probe"
+      },
+      {
+        "from": 5,
+        "to": 10,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 5,
+        "to": 10,
+        "label": "data_dep: i"
+      }
+    ]
+  },
+  {
+    "name": "offset_and_release",
+    "inputs": [
+      "ctx: Context < OffsetAndRelease >",
+      "burn_amount: u64",
+      "reward: u64"
+    ],
+    "nodes": [
+      {
+        "id": 13,
+        "label": "Entry"
+      },
+      {
+        "id": 14,
+        "label": "let bump = * ctx . bumps . get (\"vault\") . ok_or (error ! (E :: MissingBump)) ? ;"
+      },
+      {
+        "id": 15,
+        "label": "let seeds : & [& [u8]] = & [b\"vault\" , ctx . accounts . owner . key . as_ref () , & ctx . accounts . vault . series . to_le_bytes () , & [bump]] ;"
+      },
+      {
+        "id": 16,
+        "label": "let mut left_burn = burn_amount ;"
+      },
+      {
+        "id": 17,
+        "label": "let mut burn_step = (burn_amount / 4) . max (1) ;"
+      },
+      {
+        "id": 18,
+        "label": "let mut burn_crc = 0u64 ;"
+      },
+      {
+        "id": 19,
+        "label": "while left_burn > 0 { let now = left_burn . min (burn_step) ; let burn_ctx = CpiContext :: new_with_signer (ctx . accounts . token_program . to_account_info () , Burn { mint : ctx . accounts . credit_mint . to_account_info () , from : ctx . accounts . vault_token . to_account_info () , authority : ctx . accounts . vault . to_account_info () , } , & [seeds] ,) ; token :: burn (burn_ctx , now) ? ; left_burn = left_burn . saturating_sub (now) ; burn_crc = burn_crc . rotate_left (3) ^ now . wrapping_mul (113) ; if burn_step & 1 > 0 { burn_step = burn_step . rotate_left (1) . wrapping_add (2) ; } else { burn_step = burn_step . rotate_right (1) . wrapping_add (1) ; } if burn_step > left_burn && left_burn > 5 { burn_step = left_burn - 3 ; } }"
+      },
+      {
+        "id": 20,
+        "label": "let now = left_burn . min (burn_step) ;"
+      },
+      {
+        "id": 21,
+        "label": "let burn_ctx = CpiContext :: new_with_signer (ctx . accounts . token_program . to_account_info () , Burn { mint : ctx . accounts . credit_mint . to_account_info () , from : ctx . accounts . vault_token . to_account_info () , authority : ctx . accounts . vault . to_account_info () , } , & [seeds] ,) ;"
+      },
+      {
+        "id": 22,
+        "label": "token :: burn (burn_ctx , now) ? ;"
+      },
+      {
+        "id": 23,
+        "label": "left_burn = left_burn . saturating_sub (now) ;"
+      },
+      {
+        "id": 24,
+        "label": "burn_crc = burn_crc . rotate_left (3) ^ now . wrapping_mul (113) ;"
+      },
+      {
+        "id": 25,
+        "label": "if burn_step & 1 > 0 { burn_step = burn_step . rotate_left (1) . wrapping_add (2) ; } else { burn_step = burn_step . rotate_right (1) . wrapping_add (1) ; }"
+      },
+      {
+        "id": 26,
+        "label": "burn_step = burn_step . rotate_left (1) . wrapping_add (2) ;"
+      },
+      {
+        "id": 27,
+        "label": "burn_step = burn_step . rotate_right (1) . wrapping_add (1) ;"
+      },
+      {
+        "id": 28,
+        "label": "if burn_step > left_burn && left_burn > 5 { burn_step = left_burn - 3 ; }"
+      },
+      {
+        "id": 29,
+        "label": "burn_step = left_burn - 3 ;"
+      },
+      {
+        "id": 30,
+        "label": "require ! (burn_crc != 0 , E :: Crc) ;"
+      },
+      {
+        "id": 31,
+        "label": "let mut left_reward = reward ;"
+      },
+      {
+        "id": 32,
+        "label": "let mut step = (reward / 3) . max (1) ;"
+      },
+      {
+        "id": 33,
+        "label": "let mut rounds = 3u8 ;"
+      },
+      {
+        "id": 34,
+        "label": "while left_reward > 0 && rounds > 0 { let give = left_reward . min (step) ; let xfer_ctx = CpiContext :: new_with_signer (ctx . accounts . token_program . to_account_info () , Transfer { from : ctx . accounts . vault_token . to_account_info () , to : ctx . accounts . user_token . to_account_info () , authority : ctx . accounts . vault . to_account_info () , } , & [seeds] ,) ; token :: transfer (xfer_ctx , give) ? ; left_reward = left_reward . saturating_sub (give) ; step = step . rotate_right (1) . wrapping_add (2) ; if step > left_reward && left_reward > 4 { step = left_reward - 2 ; } rounds = rounds . saturating_sub (1) ; }"
+      },
+      {
+        "id": 35,
+        "label": "let give = left_reward . min (step) ;"
+      },
+      {
+        "id": 36,
+        "label": "let xfer_ctx = CpiContext :: new_with_signer (ctx . accounts . token_program . to_account_info () , Transfer { from : ctx . accounts . vault_token . to_account_info () , to : ctx . accounts . user_token . to_account_info () , authority : ctx . accounts . vault . to_account_info () , } , & [seeds] ,) ;"
+      },
+      {
+        "id": 37,
+        "label": "token :: transfer (xfer_ctx , give) ? ;"
+      },
+      {
+        "id": 38,
+        "label": "left_reward = left_reward . saturating_sub (give) ;"
+      },
+      {
+        "id": 39,
+        "label": "step = step . rotate_right (1) . wrapping_add (2) ;"
+      },
+      {
+        "id": 40,
+        "label": "if step > left_reward && left_reward > 4 { step = left_reward - 2 ; }"
+      },
+      {
+        "id": 41,
+        "label": "step = left_reward - 2 ;"
+      },
+      {
+        "id": 42,
+        "label": "rounds = rounds . saturating_sub (1) ;"
+      },
+      {
+        "id": 43,
+        "label": "let v = & mut ctx . accounts . vault ;"
+      },
+      {
+        "id": 44,
+        "label": "v . meter = v . meter . saturating_add (((burn_crc % 17) as u32) + 1) ;"
+      },
+      {
+        "id": 45,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 14,
+        "to": 14,
+        "label": "def: bump"
+      },
+      {
+        "from": 14,
+        "to": 15,
+        "label": "data_dep: bump"
+      },
+      {
+        "from": 16,
+        "to": 16,
+        "label": "def: left_burn"
+      },
+      {
+        "from": 17,
+        "to": 17,
+        "label": "def: burn_step"
+      },
+      {
+        "from": 18,
+        "to": 18,
+        "label": "def: burn_crc"
+      },
+      {
+        "from": 16,
+        "to": 19,
+        "label": "data_dep: left_burn"
+      },
+      {
+        "from": 16,
+        "to": 19,
+        "label": "data_dep: left_burn"
+      },
+      {
+        "from": 17,
+        "to": 19,
+        "label": "data_dep: burn_step"
+      },
+      {
+        "from": 16,
+        "to": 19,
+        "label": "data_dep: left_burn"
+      },
+      {
+        "from": 16,
+        "to": 19,
+        "label": "data_dep: left_burn"
+      },
+      {
+        "from": 18,
+        "to": 19,
+        "label": "data_dep: burn_crc"
+      },
+      {
+        "from": 18,
+        "to": 19,
+        "label": "data_dep: burn_crc"
+      },
+      {
+        "from": 17,
+        "to": 19,
+        "label": "data_dep: burn_step"
+      },
+      {
+        "from": 17,
+        "to": 19,
+        "label": "data_dep: burn_step"
+      },
+      {
+        "from": 17,
+        "to": 19,
+        "label": "data_dep: burn_step"
+      },
+      {
+        "from": 17,
+        "to": 19,
+        "label": "data_dep: burn_step"
+      },
+      {
+        "from": 17,
+        "to": 19,
+        "label": "data_dep: burn_step"
+      },
+      {
+        "from": 17,
+        "to": 19,
+        "label": "data_dep: burn_step"
+      },
+      {
+        "from": 16,
+        "to": 19,
+        "label": "data_dep: left_burn"
+      },
+      {
+        "from": 16,
+        "to": 19,
+        "label": "data_dep: left_burn"
+      },
+      {
+        "from": 17,
+        "to": 19,
+        "label": "data_dep: burn_step"
+      },
+      {
+        "from": 16,
+        "to": 19,
+        "label": "data_dep: left_burn"
+      },
+      {
+        "from": 20,
+        "to": 20,
+        "label": "def: now"
+      },
+      {
+        "from": 16,
+        "to": 20,
+        "label": "data_dep: left_burn"
+      },
+      {
+        "from": 17,
+        "to": 20,
+        "label": "data_dep: burn_step"
+      },
+      {
+        "from": 21,
+        "to": 21,
+        "label": "def: burn_ctx"
+      },
+      {
+        "from": 21,
+        "to": 22,
+        "label": "data_dep: burn_ctx"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: now"
+      },
+      {
+        "from": 16,
+        "to": 23,
+        "label": "data_dep: left_burn"
+      },
+      {
+        "from": 16,
+        "to": 23,
+        "label": "data_dep: left_burn"
+      },
+      {
+        "from": 20,
+        "to": 23,
+        "label": "data_dep: now"
+      },
+      {
+        "from": 18,
+        "to": 24,
+        "label": "data_dep: burn_crc"
+      },
+      {
+        "from": 18,
+        "to": 24,
+        "label": "data_dep: burn_crc"
+      },
+      {
+        "from": 20,
+        "to": 24,
+        "label": "data_dep: now"
+      },
+      {
+        "from": 17,
+        "to": 25,
+        "label": "data_dep: burn_step"
+      },
+      {
+        "from": 17,
+        "to": 25,
+        "label": "data_dep: burn_step"
+      },
+      {
+        "from": 17,
+        "to": 25,
+        "label": "data_dep: burn_step"
+      },
+      {
+        "from": 17,
+        "to": 25,
+        "label": "data_dep: burn_step"
+      },
+      {
+        "from": 17,
+        "to": 25,
+        "label": "data_dep: burn_step"
+      },
+      {
+        "from": 17,
+        "to": 26,
+        "label": "data_dep: burn_step"
+      },
+      {
+        "from": 17,
+        "to": 26,
+        "label": "data_dep: burn_step"
+      },
+      {
+        "from": 17,
+        "to": 27,
+        "label": "data_dep: burn_step"
+      },
+      {
+        "from": 17,
+        "to": 27,
+        "label": "data_dep: burn_step"
+      },
+      {
+        "from": 17,
+        "to": 28,
+        "label": "data_dep: burn_step"
+      },
+      {
+        "from": 16,
+        "to": 28,
+        "label": "data_dep: left_burn"
+      },
+      {
+        "from": 16,
+        "to": 28,
+        "label": "data_dep: left_burn"
+      },
+      {
+        "from": 17,
+        "to": 28,
+        "label": "data_dep: burn_step"
+      },
+      {
+        "from": 16,
+        "to": 28,
+        "label": "data_dep: left_burn"
+      },
+      {
+        "from": 17,
+        "to": 29,
+        "label": "data_dep: burn_step"
+      },
+      {
+        "from": 16,
+        "to": 29,
+        "label": "data_dep: left_burn"
+      },
+      {
+        "from": 31,
+        "to": 31,
+        "label": "def: left_reward"
+      },
+      {
+        "from": 32,
+        "to": 32,
+        "label": "def: step"
+      },
+      {
+        "from": 33,
+        "to": 33,
+        "label": "def: rounds"
+      },
+      {
+        "from": 31,
+        "to": 34,
+        "label": "data_dep: left_reward"
+      },
+      {
+        "from": 33,
+        "to": 34,
+        "label": "data_dep: rounds"
+      },
+      {
+        "from": 31,
+        "to": 34,
+        "label": "data_dep: left_reward"
+      },
+      {
+        "from": 32,
+        "to": 34,
+        "label": "data_dep: step"
+      },
+      {
+        "from": 31,
+        "to": 34,
+        "label": "data_dep: left_reward"
+      },
+      {
+        "from": 31,
+        "to": 34,
+        "label": "data_dep: left_reward"
+      },
+      {
+        "from": 32,
+        "to": 34,
+        "label": "data_dep: step"
+      },
+      {
+        "from": 32,
+        "to": 34,
+        "label": "data_dep: step"
+      },
+      {
+        "from": 32,
+        "to": 34,
+        "label": "data_dep: step"
+      },
+      {
+        "from": 31,
+        "to": 34,
+        "label": "data_dep: left_reward"
+      },
+      {
+        "from": 31,
+        "to": 34,
+        "label": "data_dep: left_reward"
+      },
+      {
+        "from": 32,
+        "to": 34,
+        "label": "data_dep: step"
+      },
+      {
+        "from": 31,
+        "to": 34,
+        "label": "data_dep: left_reward"
+      },
+      {
+        "from": 33,
+        "to": 34,
+        "label": "data_dep: rounds"
+      },
+      {
+        "from": 33,
+        "to": 34,
+        "label": "data_dep: rounds"
+      },
+      {
+        "from": 35,
+        "to": 35,
+        "label": "def: give"
+      },
+      {
+        "from": 31,
+        "to": 35,
+        "label": "data_dep: left_reward"
+      },
+      {
+        "from": 32,
+        "to": 35,
+        "label": "data_dep: step"
+      },
+      {
+        "from": 36,
+        "to": 36,
+        "label": "def: xfer_ctx"
+      },
+      {
+        "from": 36,
+        "to": 37,
+        "label": "data_dep: xfer_ctx"
+      },
+      {
+        "from": 35,
+        "to": 37,
+        "label": "data_dep: give"
+      },
+      {
+        "from": 31,
+        "to": 38,
+        "label": "data_dep: left_reward"
+      },
+      {
+        "from": 31,
+        "to": 38,
+        "label": "data_dep: left_reward"
+      },
+      {
+        "from": 35,
+        "to": 38,
+        "label": "data_dep: give"
+      },
+      {
+        "from": 32,
+        "to": 39,
+        "label": "data_dep: step"
+      },
+      {
+        "from": 32,
+        "to": 39,
+        "label": "data_dep: step"
+      },
+      {
+        "from": 32,
+        "to": 40,
+        "label": "data_dep: step"
+      },
+      {
+        "from": 31,
+        "to": 40,
+        "label": "data_dep: left_reward"
+      },
+      {
+        "from": 31,
+        "to": 40,
+        "label": "data_dep: left_reward"
+      },
+      {
+        "from": 32,
+        "to": 40,
+        "label": "data_dep: step"
+      },
+      {
+        "from": 31,
+        "to": 40,
+        "label": "data_dep: left_reward"
+      },
+      {
+        "from": 32,
+        "to": 41,
+        "label": "data_dep: step"
+      },
+      {
+        "from": 31,
+        "to": 41,
+        "label": "data_dep: left_reward"
+      },
+      {
+        "from": 33,
+        "to": 42,
+        "label": "data_dep: rounds"
+      },
+      {
+        "from": 33,
+        "to": 42,
+        "label": "data_dep: rounds"
+      },
+      {
+        "from": 43,
+        "to": 43,
+        "label": "def: v"
+      },
+      {
+        "from": 43,
+        "to": 44,
+        "label": "data_dep: v"
+      },
+      {
+        "from": 43,
+        "to": 44,
+        "label": "data_dep: v"
+      },
+      {
+        "from": 18,
+        "to": 44,
+        "label": "data_dep: burn_crc"
+      }
+    ]
+  }
+]

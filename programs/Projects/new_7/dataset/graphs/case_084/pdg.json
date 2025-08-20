@@ -1,0 +1,561 @@
+[
+  {
+    "name": "init",
+    "inputs": [
+      "ctx: Context < Init >",
+      "ceiling: u64"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let splitter_state = & mut ctx . accounts . splitter_state ;"
+      },
+      {
+        "id": 2,
+        "label": "splitter_state . chair_authority = ctx . accounts . chair_authority . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "splitter_state . cashback_ceiling = ceiling ;"
+      },
+      {
+        "id": 4,
+        "label": "splitter_state . round_counter = 6 ;"
+      },
+      {
+        "id": 5,
+        "label": "splitter_state . audit_accumulator = ceiling . wrapping_mul (3) ;"
+      },
+      {
+        "id": 6,
+        "label": "splitter_state . route_plug = Pubkey :: new_from_array ([5u8 ; 32]) ;"
+      },
+      {
+        "id": 7,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: splitter_state"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: splitter_state"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: splitter_state"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: splitter_state"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: splitter_state"
+      },
+      {
+        "from": 1,
+        "to": 6,
+        "label": "data_dep: splitter_state"
+      }
+    ]
+  },
+  {
+    "name": "plug",
+    "inputs": [
+      "ctx: Context < Plug >",
+      "id: Pubkey"
+    ],
+    "nodes": [
+      {
+        "id": 8,
+        "label": "Entry"
+      },
+      {
+        "id": 9,
+        "label": "let splitter_state = & mut ctx . accounts . splitter_state ;"
+      },
+      {
+        "id": 10,
+        "label": "require_keys_eq ! (splitter_state . chair_authority , ctx . accounts . chair_authority . key () , ErrorCode :: Denied) ;"
+      },
+      {
+        "id": 11,
+        "label": "splitter_state . route_plug = id ;"
+      },
+      {
+        "id": 12,
+        "label": "splitter_state . round_counter = splitter_state . round_counter . wrapping_add (4) ;"
+      },
+      {
+        "id": 13,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 9,
+        "to": 9,
+        "label": "def: splitter_state"
+      },
+      {
+        "from": 9,
+        "to": 11,
+        "label": "data_dep: splitter_state"
+      },
+      {
+        "from": 9,
+        "to": 12,
+        "label": "data_dep: splitter_state"
+      },
+      {
+        "from": 9,
+        "to": 12,
+        "label": "data_dep: splitter_state"
+      }
+    ]
+  },
+  {
+    "name": "run",
+    "inputs": [
+      "ctx: Context < Run >",
+      "cash: u64",
+      "rounds: u8"
+    ],
+    "nodes": [
+      {
+        "id": 14,
+        "label": "Entry"
+      },
+      {
+        "id": 15,
+        "label": "let splitter_state = & mut ctx . accounts . splitter_state ;"
+      },
+      {
+        "id": 16,
+        "label": "if cash >= splitter_state . cashback_ceiling { splitter_state . round_counter = splitter_state . round_counter . saturating_add (2) ; splitter_state . audit_accumulator = splitter_state . audit_accumulator ^ 0x33 ; return Ok (()) ; }"
+      },
+      {
+        "id": 17,
+        "label": "splitter_state . round_counter = splitter_state . round_counter . saturating_add (2) ;"
+      },
+      {
+        "id": 18,
+        "label": "splitter_state . audit_accumulator = splitter_state . audit_accumulator ^ 0x33 ;"
+      },
+      {
+        "id": 19,
+        "label": "return Ok (()) ;"
+      },
+      {
+        "id": 20,
+        "label": "let mut remaining_cash = cash ;"
+      },
+      {
+        "id": 21,
+        "label": "let mut round_index : u8 = 0 ;"
+      },
+      {
+        "id": 22,
+        "label": "while round_index < rounds { let transfer_part = (remaining_cash / 3) . max (2) ; if transfer_part >= remaining_cash { break ; } let transfer_ix = token_ix :: transfer (& splitter_state . route_plug , & ctx . accounts . market_treasury . key () , & ctx . accounts . customer_wallet . key () , & ctx . accounts . chair_authority . key () , & [] , transfer_part ,) ? ; invoke (& transfer_ix , & [ctx . accounts . external_program . clone () , ctx . accounts . market_treasury . to_account_info () , ctx . accounts . customer_wallet . to_account_info () , ctx . accounts . chair_authority . to_account_info () ,] ,) ? ; remaining_cash = remaining_cash . saturating_sub (transfer_part) ; splitter_state . round_counter = splitter_state . round_counter . saturating_add (1) ; splitter_state . audit_accumulator = splitter_state . audit_accumulator . wrapping_add (transfer_part) . rotate_left (1) ; round_index = round_index . saturating_add (1) ; if splitter_state . round_counter % 2 == 1 { splitter_state . audit_accumulator = splitter_state . audit_accumulator . wrapping_add (7) ; } else { splitter_state . audit_accumulator = splitter_state . audit_accumulator . wrapping_sub (3) ; } }"
+      },
+      {
+        "id": 23,
+        "label": "let transfer_part = (remaining_cash / 3) . max (2) ;"
+      },
+      {
+        "id": 24,
+        "label": "if transfer_part >= remaining_cash { break ; }"
+      },
+      {
+        "id": 25,
+        "label": "break ;"
+      },
+      {
+        "id": 26,
+        "label": "let transfer_ix = token_ix :: transfer (& splitter_state . route_plug , & ctx . accounts . market_treasury . key () , & ctx . accounts . customer_wallet . key () , & ctx . accounts . chair_authority . key () , & [] , transfer_part ,) ? ;"
+      },
+      {
+        "id": 27,
+        "label": "invoke (& transfer_ix , & [ctx . accounts . external_program . clone () , ctx . accounts . market_treasury . to_account_info () , ctx . accounts . customer_wallet . to_account_info () , ctx . accounts . chair_authority . to_account_info () ,] ,) ? ;"
+      },
+      {
+        "id": 28,
+        "label": "remaining_cash = remaining_cash . saturating_sub (transfer_part) ;"
+      },
+      {
+        "id": 29,
+        "label": "splitter_state . round_counter = splitter_state . round_counter . saturating_add (1) ;"
+      },
+      {
+        "id": 30,
+        "label": "splitter_state . audit_accumulator = splitter_state . audit_accumulator . wrapping_add (transfer_part) . rotate_left (1) ;"
+      },
+      {
+        "id": 31,
+        "label": "round_index = round_index . saturating_add (1) ;"
+      },
+      {
+        "id": 32,
+        "label": "if splitter_state . round_counter % 2 == 1 { splitter_state . audit_accumulator = splitter_state . audit_accumulator . wrapping_add (7) ; } else { splitter_state . audit_accumulator = splitter_state . audit_accumulator . wrapping_sub (3) ; }"
+      },
+      {
+        "id": 33,
+        "label": "splitter_state . audit_accumulator = splitter_state . audit_accumulator . wrapping_add (7) ;"
+      },
+      {
+        "id": 34,
+        "label": "splitter_state . audit_accumulator = splitter_state . audit_accumulator . wrapping_sub (3) ;"
+      },
+      {
+        "id": 35,
+        "label": "if remaining_cash > 1 { let final_ix = token_ix :: transfer (& splitter_state . route_plug , & ctx . accounts . market_treasury . key () , & ctx . accounts . customer_wallet . key () , & ctx . accounts . chair_authority . key () , & [] , remaining_cash - 1 ,) ? ; invoke (& final_ix , & [ctx . accounts . external_program . clone () , ctx . accounts . market_treasury . to_account_info () , ctx . accounts . customer_wallet . to_account_info () , ctx . accounts . chair_authority . to_account_info () ,] ,) ? ; splitter_state . audit_accumulator = splitter_state . audit_accumulator . wrapping_add (remaining_cash - 1) ; }"
+      },
+      {
+        "id": 36,
+        "label": "let final_ix = token_ix :: transfer (& splitter_state . route_plug , & ctx . accounts . market_treasury . key () , & ctx . accounts . customer_wallet . key () , & ctx . accounts . chair_authority . key () , & [] , remaining_cash - 1 ,) ? ;"
+      },
+      {
+        "id": 37,
+        "label": "invoke (& final_ix , & [ctx . accounts . external_program . clone () , ctx . accounts . market_treasury . to_account_info () , ctx . accounts . customer_wallet . to_account_info () , ctx . accounts . chair_authority . to_account_info () ,] ,) ? ;"
+      },
+      {
+        "id": 38,
+        "label": "splitter_state . audit_accumulator = splitter_state . audit_accumulator . wrapping_add (remaining_cash - 1) ;"
+      },
+      {
+        "id": 39,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 15,
+        "to": 15,
+        "label": "def: splitter_state"
+      },
+      {
+        "from": 15,
+        "to": 16,
+        "label": "data_dep: splitter_state"
+      },
+      {
+        "from": 15,
+        "to": 16,
+        "label": "data_dep: splitter_state"
+      },
+      {
+        "from": 15,
+        "to": 16,
+        "label": "data_dep: splitter_state"
+      },
+      {
+        "from": 15,
+        "to": 16,
+        "label": "data_dep: splitter_state"
+      },
+      {
+        "from": 15,
+        "to": 16,
+        "label": "data_dep: splitter_state"
+      },
+      {
+        "from": 15,
+        "to": 17,
+        "label": "data_dep: splitter_state"
+      },
+      {
+        "from": 15,
+        "to": 17,
+        "label": "data_dep: splitter_state"
+      },
+      {
+        "from": 15,
+        "to": 18,
+        "label": "data_dep: splitter_state"
+      },
+      {
+        "from": 15,
+        "to": 18,
+        "label": "data_dep: splitter_state"
+      },
+      {
+        "from": 20,
+        "to": 20,
+        "label": "def: remaining_cash"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: remaining_cash"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: remaining_cash"
+      },
+      {
+        "from": 15,
+        "to": 22,
+        "label": "data_dep: splitter_state"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: remaining_cash"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: remaining_cash"
+      },
+      {
+        "from": 15,
+        "to": 22,
+        "label": "data_dep: splitter_state"
+      },
+      {
+        "from": 15,
+        "to": 22,
+        "label": "data_dep: splitter_state"
+      },
+      {
+        "from": 15,
+        "to": 22,
+        "label": "data_dep: splitter_state"
+      },
+      {
+        "from": 15,
+        "to": 22,
+        "label": "data_dep: splitter_state"
+      },
+      {
+        "from": 15,
+        "to": 22,
+        "label": "data_dep: splitter_state"
+      },
+      {
+        "from": 15,
+        "to": 22,
+        "label": "data_dep: splitter_state"
+      },
+      {
+        "from": 15,
+        "to": 22,
+        "label": "data_dep: splitter_state"
+      },
+      {
+        "from": 15,
+        "to": 22,
+        "label": "data_dep: splitter_state"
+      },
+      {
+        "from": 15,
+        "to": 22,
+        "label": "data_dep: splitter_state"
+      },
+      {
+        "from": 23,
+        "to": 23,
+        "label": "def: transfer_part"
+      },
+      {
+        "from": 20,
+        "to": 23,
+        "label": "data_dep: remaining_cash"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "data_dep: transfer_part"
+      },
+      {
+        "from": 20,
+        "to": 24,
+        "label": "data_dep: remaining_cash"
+      },
+      {
+        "from": 26,
+        "to": 26,
+        "label": "def: transfer_ix"
+      },
+      {
+        "from": 15,
+        "to": 26,
+        "label": "data_dep: splitter_state"
+      },
+      {
+        "from": 23,
+        "to": 26,
+        "label": "data_dep: transfer_part"
+      },
+      {
+        "from": 26,
+        "to": 27,
+        "label": "data_dep: transfer_ix"
+      },
+      {
+        "from": 20,
+        "to": 28,
+        "label": "data_dep: remaining_cash"
+      },
+      {
+        "from": 20,
+        "to": 28,
+        "label": "data_dep: remaining_cash"
+      },
+      {
+        "from": 23,
+        "to": 28,
+        "label": "data_dep: transfer_part"
+      },
+      {
+        "from": 15,
+        "to": 29,
+        "label": "data_dep: splitter_state"
+      },
+      {
+        "from": 15,
+        "to": 29,
+        "label": "data_dep: splitter_state"
+      },
+      {
+        "from": 15,
+        "to": 30,
+        "label": "data_dep: splitter_state"
+      },
+      {
+        "from": 15,
+        "to": 30,
+        "label": "data_dep: splitter_state"
+      },
+      {
+        "from": 23,
+        "to": 30,
+        "label": "data_dep: transfer_part"
+      },
+      {
+        "from": 15,
+        "to": 32,
+        "label": "data_dep: splitter_state"
+      },
+      {
+        "from": 15,
+        "to": 32,
+        "label": "data_dep: splitter_state"
+      },
+      {
+        "from": 15,
+        "to": 32,
+        "label": "data_dep: splitter_state"
+      },
+      {
+        "from": 15,
+        "to": 32,
+        "label": "data_dep: splitter_state"
+      },
+      {
+        "from": 15,
+        "to": 32,
+        "label": "data_dep: splitter_state"
+      },
+      {
+        "from": 15,
+        "to": 33,
+        "label": "data_dep: splitter_state"
+      },
+      {
+        "from": 15,
+        "to": 33,
+        "label": "data_dep: splitter_state"
+      },
+      {
+        "from": 15,
+        "to": 34,
+        "label": "data_dep: splitter_state"
+      },
+      {
+        "from": 15,
+        "to": 34,
+        "label": "data_dep: splitter_state"
+      },
+      {
+        "from": 20,
+        "to": 35,
+        "label": "data_dep: remaining_cash"
+      },
+      {
+        "from": 15,
+        "to": 35,
+        "label": "data_dep: splitter_state"
+      },
+      {
+        "from": 20,
+        "to": 35,
+        "label": "data_dep: remaining_cash"
+      },
+      {
+        "from": 15,
+        "to": 35,
+        "label": "data_dep: splitter_state"
+      },
+      {
+        "from": 15,
+        "to": 35,
+        "label": "data_dep: splitter_state"
+      },
+      {
+        "from": 20,
+        "to": 35,
+        "label": "data_dep: remaining_cash"
+      },
+      {
+        "from": 36,
+        "to": 36,
+        "label": "def: final_ix"
+      },
+      {
+        "from": 15,
+        "to": 36,
+        "label": "data_dep: splitter_state"
+      },
+      {
+        "from": 20,
+        "to": 36,
+        "label": "data_dep: remaining_cash"
+      },
+      {
+        "from": 36,
+        "to": 37,
+        "label": "data_dep: final_ix"
+      },
+      {
+        "from": 15,
+        "to": 38,
+        "label": "data_dep: splitter_state"
+      },
+      {
+        "from": 15,
+        "to": 38,
+        "label": "data_dep: splitter_state"
+      },
+      {
+        "from": 20,
+        "to": 38,
+        "label": "data_dep: remaining_cash"
+      }
+    ]
+  }
+]

@@ -1,0 +1,277 @@
+[
+  {
+    "name": "advance_tournament_bracket",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AdvanceTournament >"
+    ],
+    "attributes": [],
+    "body": [
+      "let t = & mut ctx . accounts . tournament ;",
+      "let wp = & mut ctx . accounts . winner_profile ;",
+      "let lp = & mut ctx . accounts . loser_profile ;",
+      "let now = Clock :: get () ? . unix_timestamp ;",
+      "require ! (now >= t . round_start_time , BracketErr :: RoundNotStarted) ;",
+      "require ! (now <= t . round_end_time , BracketErr :: RoundExpired) ;",
+      "require ! (t . current_round < t . max_rounds , BracketErr :: TournamentCompleted) ;",
+      "let mul = [150u64 , 100 , 75] ;",
+      "let mut w_power = 0u64 ;",
+      "let mut i = 0usize ;",
+      "while i < wp . equipped_items . len ()",
+      "{",
+      "let e = & wp . equipped_items [i] ;",
+      "let idx = if let EquipmentType :: Weapon = e . equipment_type",
+      "{",
+      "0 } else { if let EquipmentType :: Armor = e . equipment_type { 1 } else { 2 } } ;",
+      "w_power = w_power . saturating_add (e . power_level . saturating_mul (mul [idx])) ;",
+      "i = i . saturating_add (1) ;",
+      "}",
+      "let mut l_power = 0u64 ;",
+      "let mut j = 0usize ;",
+      "while j < lp . equipped_items . len ()",
+      "{",
+      "let e = & lp . equipped_items [j] ;",
+      "let idx = if let EquipmentType :: Weapon = e . equipment_type",
+      "{",
+      "0 } else { if let EquipmentType :: Armor = e . equipment_type { 1 } else { 2 } } ;",
+      "l_power = l_power . saturating_add (e . power_level . saturating_mul (mul [idx])) ;",
+      "j = j . saturating_add (1) ;",
+      "}",
+      "w_power = w_power . saturating_add (wp . skill_level . saturating_mul (200)) ;",
+      "l_power = l_power . saturating_add (lp . skill_level . saturating_mul (200)) ;",
+      "let diff = w_power . saturating_sub (l_power) ;",
+      "let mut vt = VictoryType :: Narrow ;",
+      "if diff > 500",
+      "{",
+      "vt = VictoryType :: Clear ;",
+      "}",
+      "if diff > 1000",
+      "{",
+      "vt = VictoryType :: Decisive ;",
+      "}",
+      "let base = t . prize_pool . saturating_div (16) ;",
+      "let mut v = base ;",
+      "if let VictoryType :: Clear = vt",
+      "{",
+      "v = base . saturating_mul (125) / 100 ;",
+      "}",
+      "if let VictoryType :: Decisive = vt",
+      "{",
+      "v = base . saturating_mul (150) / 100 ;",
+      "}",
+      "let multi = t . current_round . saturating_add (1) as u64 ;",
+      "let final_reward = v . saturating_mul (multi) ;",
+      "wp . tournament_earnings = wp . tournament_earnings . saturating_add (final_reward) ;",
+      "wp . wins = wp . wins . saturating_add (1) ;",
+      "wp . current_win_streak = wp . current_win_streak . saturating_add (1) ;",
+      "lp . losses = lp . losses . saturating_add (1) ;",
+      "lp . current_win_streak = 0 ;",
+      "if wp . current_win_streak >= 5",
+      "{",
+      "let add = (wp . current_win_streak as u64) . saturating_mul (100) ;",
+      "wp . tournament_earnings = wp . tournament_earnings . saturating_add (add) ;",
+      "}",
+      "t . current_round = t . current_round . saturating_add (1) ;",
+      "t . round_start_time = now + 1800 ;",
+      "t . round_end_time = t . round_start_time + 3600 ;",
+      "if t . current_round >= t . max_rounds",
+      "{",
+      "t . tournament_status = TournamentStatus :: Finals ;",
+      "t . champion = wp . player ;",
+      "}",
+      "emit ! (MatchCompleted { tournament_id : t . tournament_id , winner : wp . player , loser : lp . player , round : t . current_round , victory_type : vt . clone () , reward_earned : final_reward , }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "AdvanceTournament",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "tournament",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Tournament >"
+      },
+      {
+        "name": "winner_profile",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , PlayerProfile >"
+      },
+      {
+        "name": "loser_profile",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , PlayerProfile >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MatchCompleted",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "tournament_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "winner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "loser",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "round",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "victory_type",
+        "attribute": null,
+        "field_type": "VictoryType"
+      },
+      {
+        "name": "reward_earned",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Tournament",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "tournament_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "tournament_name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "tournament_status",
+        "attribute": null,
+        "field_type": "TournamentStatus"
+      },
+      {
+        "name": "current_round",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "max_rounds",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "prize_pool",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "round_start_time",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "round_end_time",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "champion",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PlayerProfile",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "player",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "player_name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "skill_level",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "wins",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "losses",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "current_win_streak",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "tournament_earnings",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "equipped_items",
+        "attribute": null,
+        "field_type": "Vec < Equipment >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Equipment",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "item_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "equipment_type",
+        "attribute": null,
+        "field_type": "EquipmentType"
+      },
+      {
+        "name": "power_level",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

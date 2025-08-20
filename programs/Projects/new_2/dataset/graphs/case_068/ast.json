@@ -1,0 +1,177 @@
+[
+  {
+    "name": "deposit_require",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RequireCtx >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" パターン1：require! マクロでオーナーのみ検証して入金\"]"
+    ],
+    "body": [
+      "let vault = & mut ctx . accounts . vault_account ;",
+      "require ! (vault . owner == ctx . accounts . authority . key () , ErrorCode :: Unauthorized) ;",
+      "* * vault . to_account_info () . try_borrow_mut_lamports () ? += amount ;",
+      "msg ! (\"deposit_require 完了\") ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "deposit_warn",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < WarnCtx >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" パターン2：WARN メッセージだけ出して、所有権チェックなしで入金\"]"
+    ],
+    "body": [
+      "msg ! (\"Warning: owner check skipped\") ;",
+      "* * ctx . accounts . raw_vault . try_borrow_mut_lamports () ? += amount ;",
+      "msg ! (\"deposit_warn 完了\") ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "deposit_partition",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PartitionCtx >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" パターン3：remaining_accounts の偶数番アカウントにだけ入金（owner 未検証）\"]"
+    ],
+    "body": [
+      "for (idx , acct) in ctx . remaining_accounts . iter () . enumerate ()",
+      "{",
+      "if idx % 2 == 0",
+      "{",
+      "* * acct . try_borrow_mut_lamports () ? += amount ;",
+      "}",
+      "}",
+      "msg ! (\"deposit_partition 完了\") ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "deposit_all",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AllCtx >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" パターン4：remaining_accounts 全件に一括入金（完全未検証）\"]"
+    ],
+    "body": [
+      "for acct in & ctx . remaining_accounts",
+      "{",
+      "* * acct . try_borrow_mut_lamports () ? += amount ;",
+      "}",
+      "msg ! (\"deposit_all 完了\") ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "RequireCtx",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault_account",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "WarnCtx",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "raw_vault",
+        "attribute": "# [doc = \" CHECK: owning program 未検証\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PartitionCtx",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AllCtx",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Vault",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 正当なオーナーの Pubkey\"]",
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

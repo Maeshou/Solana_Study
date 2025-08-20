@@ -1,0 +1,161 @@
+[
+  {
+    "name": "init_station",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitA >",
+      "chunk: u64",
+      "limit: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let st = & mut ctx . accounts . station ;",
+      "st . manager = ctx . accounts . manager . key () ;",
+      "st . chunk = if chunk < 1 { 1 } else { chunk } ;",
+      "st . daily_limit = if limit < st . chunk { st . chunk } else { limit } ;",
+      "st . sent_today = 0 ;",
+      "st . cool_level = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "drip",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < DripA >",
+      "bursts: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let st = & mut ctx . accounts . station ;",
+      "let mut loop_index : u8 = 0 ;",
+      "while loop_index < bursts",
+      "{",
+      "let base = st . chunk ;",
+      "let scaled = if st . cool_level > 3",
+      "{",
+      "base / 2 } else { base } ;",
+      "let amount = if scaled < 1",
+      "{",
+      "1 } else { scaled } ;",
+      "let projected = st . sent_today . saturating_add (amount) ;",
+      "if projected > st . daily_limit",
+      "{",
+      "st . cool_level = st . cool_level . saturating_add (1) ;",
+      "return Err (DripAErr :: Reached . into ()) ;",
+      "} let use_alt = (st . cool_level % 3) == 0 ;",
+      "let program_ai = if use_alt",
+      "{",
+      "ctx . accounts . alt_program . to_account_info () } else { ctx . accounts . token_program . to_account_info () } ;",
+      "token :: approve (ctx . accounts . approve_ctx_with (program_ai . clone ()) , amount) ? ;",
+      "token :: transfer (ctx . accounts . transfer_ctx_with (program_ai . clone ()) , amount) ? ;",
+      "token :: revoke (ctx . accounts . revoke_ctx_with (program_ai)) ? ;",
+      "st . sent_today = projected ;",
+      "if st . sent_today % (st . chunk * 4) == 0",
+      "{",
+      "if st . cool_level > 0 { st . cool_level -= 1 ;",
+      "} } loop_index = loop_index . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitA",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "station",
+        "attribute": "# [account (init , payer = manager , space = 8 + 32 + 8 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , StationA >"
+      },
+      {
+        "name": "manager",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DripA",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "station",
+        "attribute": "# [account (mut , has_one = manager)]",
+        "field_type": "Account < 'info , StationA >"
+      },
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "source_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "dest_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "alt_program",
+        "attribute": "# [doc = \" CHECK: 外部から差し替え可能なプログラム\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "StationA",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "chunk",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "daily_limit",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "sent_today",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "cool_level",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

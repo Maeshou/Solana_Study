@@ -1,0 +1,256 @@
+[
+  {
+    "name": "init_raid_room",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitRaidRoom >",
+      "raid_name: String",
+      "max_participants: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let room = & mut ctx . accounts . room ;",
+      "room . leader = ctx . accounts . leader . key () ;",
+      "room . name = raid_name ;",
+      "room . max_participants = max_participants ;",
+      "room . current_participants = 0 ;",
+      "room . total_damage = 0 ;",
+      "room . status = Preparing ;",
+      "room . completion_bonus = 1000 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_participant",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitParticipant >",
+      "player_level: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let participant = & mut ctx . accounts . participant ;",
+      "participant . room = ctx . accounts . room . key () ;",
+      "participant . player = ctx . accounts . player . key () ;",
+      "participant . level = player_level ;",
+      "participant . damage_dealt = 0 ;",
+      "participant . is_ready = false ;",
+      "participant . reward_claimed = false ;",
+      "participant . participant_slot = ctx . accounts . room . current_participants ;",
+      "let room = & mut ctx . accounts . room ;",
+      "room . current_participants = room . current_participants . checked_add (1) . unwrap_or (u8 :: MAX) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "process_raid_battle",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ProcessRaidBattle >",
+      "damage_amount: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let room = & mut ctx . accounts . room ;",
+      "let attacker_data = ctx . accounts . attacker . try_borrow_mut_data () ? ;",
+      "let defender_data = ctx . accounts . defender . try_borrow_data () ? ;",
+      "room . total_damage = room . total_damage . checked_add (damage_amount) . unwrap_or (u64 :: MAX) ;",
+      "for round in 0 .. 5",
+      "{",
+      "let round_damage = damage_amount / 5 ;",
+      "let bonus_multiplier = round + 1 ;",
+      "if round % 2 == 0",
+      "{",
+      "room . total_damage = room . total_damage . checked_add (round_damage * bonus_multiplier as u64) . unwrap_or (u64 :: MAX) ;",
+      "room . completion_bonus = room . completion_bonus ^ (round as u64 * 10) ;",
+      "room . completion_bonus = room . completion_bonus << (round % 3) ;",
+      "msg ! (\"Attacker round",
+      "{",
+      "} damage: {}\" , round , round_damage) ;",
+      "} else",
+      "{",
+      "room . completion_bonus = room . completion_bonus . saturating_sub (round_damage / 10) ;",
+      "room . total_damage = room . total_damage + (round as u64 * 50) ;",
+      "room . current_participants = room . current_participants . wrapping_add (1) ;",
+      "msg ! (\"Defender round",
+      "{",
+      "} processed\" , round) ;",
+      "}",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitRaidRoom",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "room",
+        "attribute": "# [account (init , payer = leader , space = 8 + 32 + 64 + 1 + 1 + 8 + 1 + 8)]",
+        "field_type": "Account < 'info , RaidRoom >"
+      },
+      {
+        "name": "leader",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitParticipant",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "participant",
+        "attribute": "# [account (init , payer = player , space = 8 + 32 + 32 + 4 + 8 + 1 + 1 + 1)]",
+        "field_type": "Account < 'info , Participant >"
+      },
+      {
+        "name": "room",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , RaidRoom >"
+      },
+      {
+        "name": "player",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ProcessRaidBattle",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "room",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , RaidRoom >"
+      },
+      {
+        "name": "attacker",
+        "attribute": "# [doc = \" CHECK: 脆弱 - 同じプレイヤーが両方の役割を担える\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "defender",
+        "attribute": "# [doc = \" CHECK: 脆弱 - 参加者検証なし\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RaidRoom",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "leader",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "max_participants",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "current_participants",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "total_damage",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "status",
+        "attribute": null,
+        "field_type": "RaidStatus"
+      },
+      {
+        "name": "completion_bonus",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Participant",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "room",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "player",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "level",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "damage_dealt",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "is_ready",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "reward_claimed",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "participant_slot",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

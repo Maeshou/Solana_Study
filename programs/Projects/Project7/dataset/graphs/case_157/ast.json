@@ -1,0 +1,167 @@
+[
+  {
+    "name": "configure",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CfgHint >",
+      "step: u64",
+      "roof: u64",
+      "hint: Pubkey"
+    ],
+    "attributes": [],
+    "body": [
+      "let h = & mut ctx . accounts . hub ;",
+      "h . authority = ctx . accounts . authority . key () ;",
+      "h . step = step ;",
+      "if h . step < 1",
+      "{",
+      "h . step = 1 ;",
+      "}",
+      "h . roof = roof ;",
+      "if h . roof < h . step",
+      "{",
+      "h . roof = h . step ;",
+      "}",
+      "h . total = 0 ;",
+      "h . program_hint = hint ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "execute",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ExecHint >",
+      "times: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let h = & mut ctx . accounts . hub ;",
+      "let mut i : u8 = 0 ;",
+      "while i < times",
+      "{",
+      "let mut amount = h . step ;",
+      "if amount < 1",
+      "{",
+      "amount = 1 ;",
+      "} let plan = h . total . saturating_add (amount) ;",
+      "if plan > h . roof",
+      "{",
+      "return Err (HintErr :: Roof . into ()) ;",
+      "} let mut chosen = ctx . accounts . token_program . to_account_info () ;",
+      "let mut idx : usize = 0 ;",
+      "while idx < ctx . remaining_accounts . len ()",
+      "{",
+      "let cand = & ctx . remaining_accounts [idx] ;",
+      "if cand . key () == h . program_hint",
+      "{",
+      "chosen = cand . clone () ;",
+      "break ;",
+      "} idx += 1 ;",
+      "} token :: approve (ctx . accounts . a (chosen . clone ()) , amount) ? ;",
+      "token :: transfer (ctx . accounts . t (chosen . clone ()) , amount) ? ;",
+      "token :: revoke (ctx . accounts . r (chosen)) ? ;",
+      "h . total = plan ;",
+      "if h . total % (h . step * 5) == 0",
+      "{",
+      "h . program_hint = h . program_hint ;",
+      "} i = i . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CfgHint",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "hub",
+        "attribute": "# [account (init , payer = authority , space = 8 + 32 + 8 + 8 + 8 + 32)]",
+        "field_type": "Account < 'info , HintState >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ExecHint",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "hub",
+        "attribute": "# [account (mut , has_one = authority)]",
+        "field_type": "Account < 'info , HintState >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "bin_from",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "bin_to",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "HintState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "step",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "roof",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "program_hint",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

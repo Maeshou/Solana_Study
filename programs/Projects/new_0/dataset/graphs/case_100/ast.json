@@ -1,0 +1,112 @@
+[
+  {
+    "name": "init_fund",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitFund >"
+    ],
+    "attributes": [
+      "# [doc = \" 募金用アカウントを初期化します（管理者のみ実行可）\"]"
+    ],
+    "body": [
+      "let fund = & mut ctx . accounts . fund ;",
+      "fund . admin = ctx . accounts . admin . key () ;",
+      "fund . total_donations = 0 ;",
+      "msg ! (\"Fund initialized by {}\" , fund . admin) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "donate",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Donate >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 任意のユーザーが募金（Lamports転送）できる\"]"
+    ],
+    "body": [
+      "* * ctx . accounts . donor . to_account_info () . try_borrow_mut_lamports () ? -= amount ;",
+      "* * ctx . accounts . fund . to_account_info () . try_borrow_mut_lamports () ? += amount ;",
+      "let fund = & mut ctx . accounts . fund ;",
+      "fund . total_donations = fund . total_donations . checked_add (amount) . unwrap () ;",
+      "msg ! (\"{} donated {} lamports (total: {})\" , ctx . accounts . donor . key () , amount , fund . total_donations) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Fund",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "total_donations",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitFund",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "fund",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 8 + 1 , seeds = [b\"fund\" , admin . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Fund >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut , signer)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Donate",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "fund",
+        "attribute": "# [account (mut , seeds = [b\"fund\" , fund . admin . as_ref ()] , bump = fund . bump , has_one = admin @ ErrorCode :: Unauthorized)]",
+        "field_type": "Account < 'info , Fund >"
+      },
+      {
+        "name": "donor",
+        "attribute": "# [doc = \" 誰でも募金できるので署名のみチェック\"] # [account (mut , signer)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [doc = \" Fund の所有者（管理者）は募金から除外していないが、参照用\"]",
+        "field_type": "SystemAccount < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

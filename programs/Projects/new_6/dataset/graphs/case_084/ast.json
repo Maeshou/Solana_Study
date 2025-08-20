@@ -1,0 +1,290 @@
+[
+  {
+    "name": "init_campaign",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitCampaign >",
+      "cap: u64",
+      "wave_span: i64"
+    ],
+    "attributes": [],
+    "body": [
+      "let c = & mut ctx . accounts . campaign ;",
+      "c . owner = ctx . accounts . distributor . key () ;",
+      "c . cap = cap ;",
+      "c . claimed = 0 ;",
+      "c . created_at = Clock :: get () ? . unix_timestamp ;",
+      "c . wave_span = wave_span ;",
+      "c . paused = false ;",
+      "c . manual_bonus = 0 ;",
+      "let mut base = cap . rotate_left (5) ;",
+      "for step in 1 .. 4",
+      "{",
+      "base = base . wrapping_add ((step as u64) . pow (2)) . rotate_right (1) ;",
+      "}",
+      "c . health_score = (base % 10_000) as u16 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "register_participant",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RegisterParticipant >",
+      "profile_note: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let c = & mut ctx . accounts . campaign ;",
+      "let p = & mut ctx . accounts . participant ;",
+      "let who = & ctx . accounts . user ;",
+      "p . user = who . key () ;",
+      "p . note = profile_note ;",
+      "p . joined_at = Clock :: get () ? . unix_timestamp ;",
+      "p . claimed_amount = 0 ;",
+      "p . recent_hash = p . user . to_bytes () [0] as u64 + (p . joined_at as u64) ;",
+      "let calc = (p . recent_hash ^ c . cap) . rotate_left (2) ;",
+      "if calc % 3 > 0",
+      "{",
+      "p . priority = (calc % 100) as u8 ;",
+      "} else",
+      "{",
+      "p . priority = ((calc % 50) as u8) . saturating_add (5) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "execute_airdrop",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ExecuteAirdrop >",
+      "amount: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let c = & mut ctx . accounts . campaign ;",
+      "let p = & mut ctx . accounts . participant ;",
+      "let exec = & ctx . accounts . distributor ;",
+      "let now = Clock :: get () ? . unix_timestamp ;",
+      "let age = now . saturating_sub (c . created_at) ;",
+      "let mut quota = amount ;",
+      "let mut waves = 1i64 ;",
+      "if c . wave_span > 0",
+      "{",
+      "waves = age / c . wave_span + 1 ;",
+      "}",
+      "let mut i = 0i64 ;",
+      "while i < waves",
+      "{",
+      "quota = quota . saturating_add ((i as u64) . wrapping_mul (7)) ;",
+      "if i % 2 == 1",
+      "{",
+      "c . manual_bonus = c . manual_bonus . saturating_add (1) ;",
+      "} i = i . saturating_add (1) ;",
+      "}",
+      "if c . claimed . saturating_add (quota) > c . cap",
+      "{",
+      "let remain = c . cap . saturating_sub (c . claimed) ;",
+      "quota = remain ;",
+      "}",
+      "p . claimed_amount = p . claimed_amount . saturating_add (quota) ;",
+      "c . claimed = c . claimed . saturating_add (quota) ;",
+      "c . last_executor = exec . key () ;",
+      "let mix = (quota ^ (p . recent_hash | c . cap)) . rotate_right (3) ;",
+      "c . health_score = c . health_score . saturating_add ((mix % 37) as u16) ;",
+      "if quota > 0 && mix % 5 == 0",
+      "{",
+      "c . paused = true ;",
+      "} else",
+      "{",
+      "if c . paused { c . paused = false ;",
+      "}",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitCampaign",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "campaign",
+        "attribute": "# [account (init , payer = payer , space = 8 + 256)]",
+        "field_type": "Account < 'info , Campaign >"
+      },
+      {
+        "name": "distributor",
+        "attribute": "# [doc = \" CHECK: Distributor 役割が固定されていない\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RegisterParticipant",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "campaign",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Campaign >"
+      },
+      {
+        "name": "participant",
+        "attribute": "# [account (init , payer = payer , space = 8 + 256)]",
+        "field_type": "Account < 'info , Participant >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" CHECK: 誰でも参加者を自称できる\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ExecuteAirdrop",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "campaign",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Campaign >"
+      },
+      {
+        "name": "participant",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Participant >"
+      },
+      {
+        "name": "distributor",
+        "attribute": "# [doc = \" CHECK: “配布者のフリ”が可能\"]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Campaign",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "cap",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "claimed",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "created_at",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "wave_span",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "paused",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "manual_bonus",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "last_executor",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "health_score",
+        "attribute": null,
+        "field_type": "u16"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Participant",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "note",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "joined_at",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "claimed_amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "recent_hash",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "priority",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

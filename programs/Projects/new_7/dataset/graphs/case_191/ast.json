@@ -1,0 +1,188 @@
+[
+  {
+    "name": "Milestone",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "slot",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "level",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "tag",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "fold_bits",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "v: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let a = v . rotate_left (3) ^ v . rotate_right (5) ;",
+      "let b = a . wrapping_mul (911) ;",
+      "b ^ (b >> 7)"
+    ]
+  },
+  {
+    "name": "run",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Run >",
+      "mark: u64",
+      "tip: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let now = Clock :: get () ? . slot ;",
+      "let f1 = fold_bits (mark) ;",
+      "let f2 = fold_bits (now) ;",
+      "let meter = f1 . wrapping_add (f2) ;",
+      "if meter & 1 == 1",
+      "{",
+      "ctx . accounts . state . odd = ctx . accounts . state . odd . saturating_add (1) ;",
+      "}",
+      "if meter & 2 == 2",
+      "{",
+      "ctx . accounts . state . bump = ctx . accounts . state . bump . wrapping_add (2) ;",
+      "}",
+      "let mut msg = mark . to_string () ;",
+      "msg . push ('-') ;",
+      "msg . push_str (& now . to_string ()) ;",
+      "let mut x = 0u8 ;",
+      "for b in msg . as_bytes ()",
+      "{",
+      "x ^= * b ;",
+      "}",
+      "let mut data = msg . into_bytes () ;",
+      "data . push (x) ;",
+      "let metas = vec ! [AccountMeta :: new (ctx . accounts . log_cell . key () , false) , AccountMeta :: new_readonly (ctx . accounts . user . key () , false) ,] ;",
+      "invoke (& Instruction { program_id : FIXED_LOG_ID , accounts : metas , data } , & [ctx . accounts . log_hint . to_account_info () , ctx . accounts . log_cell . to_account_info () , ctx . accounts . user . to_account_info () ,]) ? ;",
+      "let mut p = ctx . accounts . dynamic_hint . to_account_info () ;",
+      "if ! ctx . remaining_accounts . is_empty ()",
+      "{",
+      "p = ctx . remaining_accounts [0] . clone () ;",
+      "ctx . accounts . state . paths = ctx . accounts . state . paths . saturating_add (3) ;",
+      "}",
+      "let mut arr = [tip , tip . rotate_left (9) , tip ^ 777] ;",
+      "let mut i = 0 ;",
+      "while i < 3",
+      "{",
+      "let mut j = 1 ;",
+      "while j < 3",
+      "{",
+      "if arr [j - 1] < arr [j] { let t = arr [j - 1] ;",
+      "arr [j - 1] = arr [j] ;",
+      "arr [j] = t ;",
+      "} j += 1 ;",
+      "} i += 1 ;",
+      "}",
+      "let mut dynbytes = Vec :: new () ;",
+      "for v in arr",
+      "{",
+      "dynbytes . extend_from_slice (& v . to_le_bytes ()) ;",
+      "}",
+      "invoke (& Instruction { program_id : * p . key , accounts : vec ! [AccountMeta :: new (ctx . accounts . dynamic_board . key () , false) , AccountMeta :: new_readonly (ctx . accounts . user . key () , false) ,] , data : dynbytes , } , & [p , ctx . accounts . dynamic_board . to_account_info () , ctx . accounts . user . to_account_info () ,]) ? ;",
+      "emit ! (Milestone { slot : now , level : meter & 15 , tag : mark . rotate_right (3) }) ;",
+      "token :: transfer (CpiContext :: new (ctx . accounts . token_program . to_account_info () , Transfer { from : ctx . accounts . bank . to_account_info () , to : ctx . accounts . user_token . to_account_info () , authority : ctx . accounts . bank_auth . to_account_info () , }) , tip ,) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Run",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "state",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Meter >"
+      },
+      {
+        "name": "log_cell",
+        "attribute": "# [doc = \" CHECK: \"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "log_hint",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "dynamic_board",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "dynamic_hint",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "bank",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "user_token",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "bank_auth",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Meter",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "odd",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "paths",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

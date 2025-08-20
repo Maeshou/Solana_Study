@@ -1,0 +1,176 @@
+[
+  {
+    "name": "Book",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "librarian",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "total_loans",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "LoanRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "borrower",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "book",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "due_timestamp",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AddBook",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "book",
+        "attribute": "# [account (init , payer = librarian , space = 8 + 32 + 8)]",
+        "field_type": "Account < 'info , Book >"
+      },
+      {
+        "name": "librarian",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "LoanBook",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "book",
+        "attribute": "# [doc = \" Book.librarian == librarian.key() は検証される\"] # [account (mut , has_one = librarian)]",
+        "field_type": "Account < 'info , Book >"
+      },
+      {
+        "name": "record",
+        "attribute": "# [doc = \" LoanRecord.book ⇔ Book.key() の照合がないまま初期化\"] # [account (init , payer = borrower , space = 8 + 32 + 32 + 8)]",
+        "field_type": "Account < 'info , LoanRecord >"
+      },
+      {
+        "name": "borrower",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ReturnBook",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "record",
+        "attribute": "# [doc = \" LoanRecord.borrower == borrower.key() は検証される\"] # [account (mut , has_one = borrower)]",
+        "field_type": "Account < 'info , LoanRecord >"
+      },
+      {
+        "name": "book",
+        "attribute": "# [doc = \" Book.librarian == librarian.key() は検証される\"] # [account (mut , has_one = librarian)]",
+        "field_type": "Account < 'info , Book >"
+      },
+      {
+        "name": "librarian",
+        "attribute": "# [doc = \" LoanRecord.book ⇔ Book.key() の一致検証がないため、\"] # [doc = \" 別の LoanRecord を渡されても通ってしまう\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "add_book",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AddBook >"
+    ],
+    "attributes": [
+      "# [doc = \" 新しい本を登録\"]"
+    ],
+    "body": [
+      "let b = & mut ctx . accounts . book ;",
+      "b . librarian = ctx . accounts . librarian . key () ;",
+      "b . total_loans = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "loan_book",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < LoanBook >",
+      "due_ts: i64"
+    ],
+    "attributes": [
+      "# [doc = \" 本を貸し出し\"]"
+    ],
+    "body": [
+      "let b = & mut ctx . accounts . book ;",
+      "let r = & mut ctx . accounts . record ;",
+      "r . borrower = ctx . accounts . borrower . key () ;",
+      "r . book = b . key () ;",
+      "r . due_timestamp = due_ts ;",
+      "b . total_loans = b . total_loans . checked_add (1) . unwrap_or (b . total_loans) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "return_book",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ReturnBook >"
+    ],
+    "attributes": [
+      "# [doc = \" 本を返却\"]"
+    ],
+    "body": [
+      "let b = & mut ctx . accounts . book ;",
+      "b . total_loans = b . total_loans . checked_sub (1) . unwrap_or (b . total_loans) ;",
+      "Ok (())"
+    ]
+  }
+]

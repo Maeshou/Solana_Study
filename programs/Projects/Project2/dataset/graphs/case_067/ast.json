@@ -1,15 +1,89 @@
 [
   {
-    "name": "Bid2Ctxnrnr",
+    "name": "initialize_dao",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeDAO >",
+      "voting_period: i64",
+      "min_tokens: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let dao = & mut ctx . accounts . dao ;",
+      "dao . governance_token = ctx . accounts . governance_token . key () ;",
+      "dao . voting_period = voting_period ;",
+      "dao . min_tokens_to_propose = min_tokens ;",
+      "dao . proposal_count = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "create_proposal",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateProposal >",
+      "title: String",
+      "description: String"
+    ],
+    "attributes": [],
+    "body": [
+      "require ! (ctx . accounts . proposer_token_account . amount >= ctx . accounts . dao . min_tokens_to_propose , DAOError :: InsufficientTokens) ;",
+      "let dao = & mut ctx . accounts . dao ;",
+      "let proposal = & mut ctx . accounts . proposal ;",
+      "proposal . dao = dao . key () ;",
+      "proposal . proposer = ctx . accounts . proposer . key () ;",
+      "proposal . title = title ;",
+      "proposal . description = description ;",
+      "proposal . yes_votes = 0 ;",
+      "proposal . no_votes = 0 ;",
+      "proposal . end_time = Clock :: get () ? . unix_timestamp + dao . voting_period ;",
+      "proposal . executed = false ;",
+      "dao . proposal_count += 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "vote_on_proposal",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < VoteOnProposal >",
+      "vote: bool",
+      "voting_power: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let proposal = & mut ctx . accounts . proposal ;",
+      "require ! (Clock :: get () ?. unix_timestamp < proposal . end_time , DAOError :: VotingPeriodEnded) ;",
+      "require ! (ctx . accounts . voter_token_account . amount >= voting_power , DAOError :: InsufficientVotingPower) ;",
+      "if vote",
+      "{",
+      "proposal . yes_votes += voting_power ;",
+      "} else",
+      "{",
+      "proposal . no_votes += voting_power ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializeDAO",
     "node_type": "struct",
     "fields": [
       {
-        "name": "auction2",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
+        "name": "dao",
+        "attribute": "# [account (init , payer = authority , space = 8 + 200)]",
+        "field_type": "Account < 'info , DAO >"
       },
       {
-        "name": "bidder",
+        "name": "governance_token",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "authority",
         "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
       },
@@ -24,11 +98,89 @@
     "body": null
   },
   {
-    "name": "DataAccount",
+    "name": "CreateProposal",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data",
+        "name": "dao",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , DAO >"
+      },
+      {
+        "name": "proposal",
+        "attribute": "# [account (init , payer = proposer , space = 8 + 1000 , seeds = [b\"proposal\" , dao . key () . as_ref () , & dao . proposal_count . to_le_bytes ()] , bump)]",
+        "field_type": "Account < 'info , Proposal >"
+      },
+      {
+        "name": "proposer_token_account",
+        "attribute": "# [account (constraint = proposer_token_account . mint == dao . governance_token)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "proposer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "VoteOnProposal",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "proposal",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Proposal >"
+      },
+      {
+        "name": "voter_token_account",
+        "attribute": "# [account (constraint = voter_token_account . mint == dao . governance_token)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "dao",
+        "attribute": null,
+        "field_type": "Account < 'info , DAO >"
+      },
+      {
+        "name": "voter",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DAO",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "governance_token",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "voting_period",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "min_tokens_to_propose",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "proposal_count",
         "attribute": null,
         "field_type": "u64"
       }
@@ -38,19 +190,52 @@
     "body": null
   },
   {
-    "name": "bid2",
-    "node_type": "function",
-    "fields": null,
-    "inputs": [
-      "ctx: Context < Bid2Ctxnrnr >",
-      "amount: u64"
+    "name": "Proposal",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "dao",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "proposer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "title",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "description",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "yes_votes",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "no_votes",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "end_time",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "executed",
+        "attribute": null,
+        "field_type": "bool"
+      }
     ],
-    "attributes": [],
-    "body": [
-      "let acct = & mut ctx . accounts . auction2 ;",
-      "for _ in 0 .. amount { acct . data += 1 ; }",
-      "msg ! (\"Executed bid2 logic\") ;",
-      "Ok (())"
-    ]
+    "inputs": null,
+    "attributes": null,
+    "body": null
   }
 ]

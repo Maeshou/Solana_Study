@@ -1,9 +1,9 @@
 [
   {
-    "name": "register_user",
+    "name": "init_orch",
     "inputs": [
-      "ctx: Context < Ctx039 >",
-      "amount: u64"
+      "ctx: Context < InitOrch >",
+      "bound: u32"
     ],
     "nodes": [
       {
@@ -12,26 +12,22 @@
       },
       {
         "id": 1,
-        "label": "let src = & mut ctx . accounts . account_src ;"
+        "label": "let x = & mut ctx . accounts ;"
       },
       {
         "id": 2,
-        "label": "let dst = & mut ctx . accounts . account_dst ;"
+        "label": "x . stage . conductor = x . conductor . key () ;"
       },
       {
         "id": 3,
-        "label": "let before = * * src . to_account_info () . try_borrow_lamports () ? ;"
+        "label": "x . stage . bound = bound ;"
       },
       {
         "id": 4,
-        "label": "* * src . to_account_info () . try_borrow_mut_lamports () ? = before . saturating_sub (amount) ;"
+        "label": "x . stage . state = SessionState :: Warmup ;"
       },
       {
         "id": 5,
-        "label": "* * dst . to_account_info () . try_borrow_mut_lamports () ? += amount ;"
-      },
-      {
-        "id": 6,
         "label": "Ok (())"
       }
     ],
@@ -39,37 +35,426 @@
       {
         "from": 1,
         "to": 1,
-        "label": "def: src"
+        "label": "def: x"
       },
       {
-        "from": 2,
+        "from": 1,
         "to": 2,
-        "label": "def: dst"
+        "label": "data_dep: x"
       },
       {
-        "from": 3,
-        "to": 3,
-        "label": "def: before"
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: x"
       },
       {
         "from": 1,
         "to": 3,
-        "label": "data_dep: src"
+        "label": "data_dep: x"
       },
       {
         "from": 1,
         "to": 4,
-        "label": "data_dep: src"
+        "label": "data_dep: x"
+      }
+    ]
+  },
+  {
+    "name": "perform",
+    "inputs": [
+      "ctx: Context < Perform >",
+      "notes: u32"
+    ],
+    "nodes": [
+      {
+        "id": 6,
+        "label": "Entry"
       },
       {
-        "from": 3,
-        "to": 4,
-        "label": "data_dep: before"
+        "id": 7,
+        "label": "let x = & mut ctx . accounts ;"
       },
       {
-        "from": 2,
-        "to": 5,
-        "label": "data_dep: dst"
+        "id": 8,
+        "label": "for k in 0 .. notes { x . stats . count = x . stats . count . wrapping_add (1) ; let count = x . stats . count . max (1) ; let sample = (x . section . energy as u64) + (k as u64 * 7) ; let delta = sample as i128 - x . stats . mean as i128 ; x . stats . mean = (x . stats . mean as i128 + delta / count as i128) as u64 ; let delta2 = sample as i128 - x . stats . mean as i128 ; x . stats . m2 = (x . stats . m2 as i128 + (delta * delta2) / count as i128) . max (0) as u64 ; let e = (u128 :: from (x . section . energy) * 3) / 2 + 5 ; x . section . energy = (e . min (u128 :: from (u32 :: MAX))) as u32 ; }"
+      },
+      {
+        "id": 9,
+        "label": "x . stats . count = x . stats . count . wrapping_add (1) ;"
+      },
+      {
+        "id": 10,
+        "label": "let count = x . stats . count . max (1) ;"
+      },
+      {
+        "id": 11,
+        "label": "let sample = (x . section . energy as u64) + (k as u64 * 7) ;"
+      },
+      {
+        "id": 12,
+        "label": "let delta = sample as i128 - x . stats . mean as i128 ;"
+      },
+      {
+        "id": 13,
+        "label": "x . stats . mean = (x . stats . mean as i128 + delta / count as i128) as u64 ;"
+      },
+      {
+        "id": 14,
+        "label": "let delta2 = sample as i128 - x . stats . mean as i128 ;"
+      },
+      {
+        "id": 15,
+        "label": "x . stats . m2 = (x . stats . m2 as i128 + (delta * delta2) / count as i128) . max (0) as u64 ;"
+      },
+      {
+        "id": 16,
+        "label": "let e = (u128 :: from (x . section . energy) * 3) / 2 + 5 ;"
+      },
+      {
+        "id": 17,
+        "label": "x . section . energy = (e . min (u128 :: from (u32 :: MAX))) as u32 ;"
+      },
+      {
+        "id": 18,
+        "label": "if x . stats . mean > x . stage . bound as u64 { x . stage . state = SessionState :: Finale ; x . section . momentum = x . section . momentum . wrapping_add (3) ; x . stats . flags = x . stats . flags . wrapping_add (1) ; msg ! (\"finale: momentum+3 flags+1\") ; } else { x . stage . state = SessionState :: Playing ; x . section . energy = x . section . energy / 2 + 9 ; x . stats . count = x . stats . count . wrapping_add (2) ; msg ! (\"playing: energy/2+9, count+2\") ; }"
+      },
+      {
+        "id": 19,
+        "label": "x . stage . state = SessionState :: Finale ;"
+      },
+      {
+        "id": 20,
+        "label": "x . section . momentum = x . section . momentum . wrapping_add (3) ;"
+      },
+      {
+        "id": 21,
+        "label": "x . stats . flags = x . stats . flags . wrapping_add (1) ;"
+      },
+      {
+        "id": 22,
+        "label": "msg ! (\"finale: momentum+3 flags+1\") ;"
+      },
+      {
+        "id": 23,
+        "label": "x . stage . state = SessionState :: Playing ;"
+      },
+      {
+        "id": 24,
+        "label": "x . section . energy = x . section . energy / 2 + 9 ;"
+      },
+      {
+        "id": 25,
+        "label": "x . stats . count = x . stats . count . wrapping_add (2) ;"
+      },
+      {
+        "id": 26,
+        "label": "msg ! (\"playing: energy/2+9, count+2\") ;"
+      },
+      {
+        "id": 27,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 7,
+        "to": 7,
+        "label": "def: x"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 7,
+        "to": 9,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 7,
+        "to": 9,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 10,
+        "to": 10,
+        "label": "def: count"
+      },
+      {
+        "from": 7,
+        "to": 10,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 11,
+        "to": 11,
+        "label": "def: sample"
+      },
+      {
+        "from": 7,
+        "to": 11,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 12,
+        "to": 12,
+        "label": "def: delta"
+      },
+      {
+        "from": 11,
+        "to": 12,
+        "label": "data_dep: sample"
+      },
+      {
+        "from": 7,
+        "to": 12,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 7,
+        "to": 13,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 7,
+        "to": 13,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 12,
+        "to": 13,
+        "label": "data_dep: delta"
+      },
+      {
+        "from": 10,
+        "to": 13,
+        "label": "data_dep: count"
+      },
+      {
+        "from": 14,
+        "to": 14,
+        "label": "def: delta2"
+      },
+      {
+        "from": 11,
+        "to": 14,
+        "label": "data_dep: sample"
+      },
+      {
+        "from": 7,
+        "to": 14,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 7,
+        "to": 15,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 7,
+        "to": 15,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 12,
+        "to": 15,
+        "label": "data_dep: delta"
+      },
+      {
+        "from": 14,
+        "to": 15,
+        "label": "data_dep: delta2"
+      },
+      {
+        "from": 10,
+        "to": 15,
+        "label": "data_dep: count"
+      },
+      {
+        "from": 16,
+        "to": 16,
+        "label": "def: e"
+      },
+      {
+        "from": 7,
+        "to": 16,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 16,
+        "to": 17,
+        "label": "data_dep: e"
+      },
+      {
+        "from": 7,
+        "to": 18,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 7,
+        "to": 18,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 7,
+        "to": 18,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 7,
+        "to": 18,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 7,
+        "to": 18,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 7,
+        "to": 18,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 7,
+        "to": 18,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 7,
+        "to": 18,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 7,
+        "to": 18,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 7,
+        "to": 18,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 7,
+        "to": 18,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 7,
+        "to": 18,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 7,
+        "to": 19,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 7,
+        "to": 20,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 7,
+        "to": 20,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 7,
+        "to": 21,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 7,
+        "to": 21,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 7,
+        "to": 23,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 7,
+        "to": 24,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 7,
+        "to": 24,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 7,
+        "to": 25,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 7,
+        "to": 25,
+        "label": "data_dep: x"
       }
     ]
   }

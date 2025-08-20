@@ -1,0 +1,259 @@
+[
+  {
+    "name": "create_pet_world",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreatePetWorld >",
+      "world_id: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let pet_world = & mut ctx . accounts . pet_world ;",
+      "pet_world . admin = ctx . accounts . admin . key () ;",
+      "pet_world . world_id = world_id ;",
+      "pet_world . total_pets = 0 ;",
+      "pet_world . is_active = PetWorldStatus :: Active ;",
+      "msg ! (\"Pet world {} created and is now active.\" , pet_world . world_id) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "hatch_pet",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < HatchPet >",
+      "pet_id: u32",
+      "initial_energy: u8",
+      "species_code: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let pet = & mut ctx . accounts . pet ;",
+      "let world = & mut ctx . accounts . pet_world ;",
+      "if matches ! (world . is_active , PetWorldStatus :: Active)",
+      "{",
+      "pet . is_happy = true ;",
+      "if species_code == 1",
+      "{",
+      "pet . species = PetSpecies :: Dragon ;",
+      "} else",
+      "{",
+      "pet . species = PetSpecies :: Rabbit ;",
+      "} } else",
+      "{",
+      "pet . is_happy = false ;",
+      "pet . species = PetSpecies :: Rabbit ;",
+      "msg ! (\"World is not active, pet starts unhappy.\") ;",
+      "}",
+      "pet . world = world . key () ;",
+      "pet . owner = ctx . accounts . owner . key () ;",
+      "pet . pet_id = pet_id ;",
+      "pet . energy = initial_energy ;",
+      "pet . generation = 0 ;",
+      "world . total_pets = world . total_pets . saturating_add (1) ;",
+      "msg ! (\"Pet {} hatched with {} energy.\" , pet . pet_id , pet . energy) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "breed_pets",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < BreedPets >"
+    ],
+    "attributes": [],
+    "body": [
+      "let parent1 = & mut ctx . accounts . parent1 ;",
+      "let parent2 = & mut ctx . accounts . parent2 ;",
+      "if parent1 . energy > 50 && parent2 . energy > 50",
+      "{",
+      "parent1 . energy = parent1 . energy . saturating_sub (50) ;",
+      "parent2 . energy = parent2 . energy . saturating_sub (50) ;",
+      "let new_generation = parent1 . generation . max (parent2 . generation) . saturating_add (1) ;",
+      "ctx . accounts . new_pet . energy = 100 ;",
+      "ctx . accounts . new_pet . generation = new_generation ;",
+      "ctx . accounts . new_pet . is_happy = true ;",
+      "ctx . accounts . new_pet . species = PetSpecies :: Rabbit ;",
+      "ctx . accounts . new_pet . world = ctx . accounts . pet_world . key () ;",
+      "ctx . accounts . new_pet . owner = ctx . accounts . owner . key () ;",
+      "ctx . accounts . new_pet . pet_id = 999 ;",
+      "ctx . accounts . pet_world . total_pets = ctx . accounts . pet_world . total_pets . saturating_add (1) ;",
+      "msg ! (\"New pet hatched from breeding. Generation:",
+      "{",
+      "}\" , new_generation) ;",
+      "} else",
+      "{",
+      "msg ! (\"Not enough energy to breed.\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CreatePetWorld",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pet_world",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 8 + 4 + 1)]",
+        "field_type": "Account < 'info , PetWorld >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "HatchPet",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pet_world",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , PetWorld >"
+      },
+      {
+        "name": "pet",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 4 + 32 + 1 + 1 + 1 + 1)]",
+        "field_type": "Account < 'info , Pet >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BreedPets",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pet_world",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , PetWorld >"
+      },
+      {
+        "name": "parent1",
+        "attribute": "# [account (mut , has_one = world)]",
+        "field_type": "Account < 'info , Pet >"
+      },
+      {
+        "name": "parent2",
+        "attribute": "# [account (mut , has_one = world)]",
+        "field_type": "Account < 'info , Pet >"
+      },
+      {
+        "name": "new_pet",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 4 + 32 + 1 + 1 + 1 + 1)]",
+        "field_type": "Account < 'info , Pet >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PetWorld",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "world_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_pets",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "is_active",
+        "attribute": null,
+        "field_type": "PetWorldStatus"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Pet",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "world",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "pet_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "energy",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "generation",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "is_happy",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "species",
+        "attribute": null,
+        "field_type": "PetSpecies"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,96 @@
+[
+  {
+    "name": "record_craft",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RecordCraft >",
+      "recipe: [u8 ; 12]",
+      "energy: u32",
+      "bump: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut rec = recipe ;",
+      "let mut cost : u32 = 0 ;",
+      "for i in 0 .. rec . len ()",
+      "{",
+      "let v = rec [i] ;",
+      "if ! (v . is_ascii_alphanumeric ())",
+      "{",
+      "rec [i] = b'*' ;",
+      "} cost = cost . wrapping_add ((v as u32) * (i as u32 + 7)) ;",
+      "}",
+      "let mut e = energy ;",
+      "if e > cost",
+      "{",
+      "e = cost ;",
+      "}",
+      "let seeds = [& ctx . accounts . crafter . key () . to_bytes () [..] , & rec [..]] ;",
+      "let addr = Pubkey :: create_program_address (& seeds , & ctx . program_id , & [bump]) . map_err (| _ | error ! (CraftErr :: Cell)) ? ;",
+      "if addr != ctx . accounts . craft_cell . key ()",
+      "{",
+      "return Err (error ! (CraftErr :: Cell)) ;",
+      "}",
+      "let log = & mut ctx . accounts . log ;",
+      "log . crafter = ctx . accounts . crafter . key () ;",
+      "log . recipe = rec ;",
+      "log . energy_used = log . energy_used . saturating_add (e) ;",
+      "log . cost_accum = log . cost_accum . wrapping_add (cost) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "RecordCraft",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "log",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , CraftLog >"
+      },
+      {
+        "name": "craft_cell",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "crafter",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CraftLog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "crafter",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "recipe",
+        "attribute": null,
+        "field_type": "[u8 ; 12]"
+      },
+      {
+        "name": "energy_used",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "cost_accum",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

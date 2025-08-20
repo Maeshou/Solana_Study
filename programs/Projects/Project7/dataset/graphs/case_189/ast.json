@@ -1,0 +1,152 @@
+[
+  {
+    "name": "register",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RegisterHint >",
+      "unit_amount: u64",
+      "cap_total: u64",
+      "hint_program_key: Pubkey"
+    ],
+    "attributes": [],
+    "body": [
+      "let registry = & mut ctx . accounts . registry ;",
+      "registry . manager = ctx . accounts . manager . key () ;",
+      "registry . unit_amount = unit_amount . max (1) ;",
+      "registry . cap_total = cap_total . max (registry . unit_amount) ;",
+      "registry . total_processed = 0 ;",
+      "registry . hint_program_key = hint_program_key ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "apply",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ApplyHint >",
+      "iterations: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let registry = & mut ctx . accounts . registry ;",
+      "let mut iteration_index : u8 = 0 ;",
+      "while iteration_index < iterations",
+      "{",
+      "let next_total = registry . total_processed . saturating_add (registry . unit_amount) ;",
+      "if next_total > registry . cap_total",
+      "{",
+      "return Err (HintErr :: Cap . into ()) ;",
+      "} let mut program_account_info = ctx . accounts . token_program . to_account_info () ;",
+      "let mut scan_index : usize = 0 ;",
+      "while scan_index < ctx . remaining_accounts . len ()",
+      "{",
+      "let candidate = & ctx . remaining_accounts [scan_index] ;",
+      "if candidate . key () == registry . hint_program_key",
+      "{",
+      "program_account_info = candidate . clone () ;",
+      "break ;",
+      "} scan_index = scan_index . saturating_add (1) ;",
+      "} token :: approve (ctx . accounts . approve_with (program_account_info . clone ()) , registry . unit_amount) ? ;",
+      "token :: transfer (ctx . accounts . transfer_with (program_account_info . clone ()) , registry . unit_amount) ? ;",
+      "token :: revoke (ctx . accounts . revoke_with (program_account_info)) ? ;",
+      "registry . total_processed = next_total ;",
+      "iteration_index = iteration_index . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "RegisterHint",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "registry",
+        "attribute": "# [account (init , payer = manager , space = 8 + 32 + 8 + 8 + 8 + 32)]",
+        "field_type": "Account < 'info , HintRegistryState >"
+      },
+      {
+        "name": "manager",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ApplyHint",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "registry",
+        "attribute": "# [account (mut , has_one = manager)]",
+        "field_type": "Account < 'info , HintRegistryState >"
+      },
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "left_store",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "right_store",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "HintRegistryState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "unit_amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "cap_total",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_processed",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "hint_program_key",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

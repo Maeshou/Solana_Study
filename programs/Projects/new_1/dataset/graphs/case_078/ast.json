@@ -1,0 +1,265 @@
+[
+  {
+    "name": "publish_content",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PublishContent >",
+      "title: String",
+      "base_reward: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 新しいコンテンツを「公開」し、PDA にメタ情報を保存します。\"]",
+      "# [doc = \" - `title`: コンテンツタイトル  \"]",
+      "# [doc = \" - `base_reward`: 1 視聴あたりの付与トークン量  \"]",
+      "# [doc = \" 署名チェックは一切行われません。\"]"
+    ],
+    "body": [
+      "let info = & mut ctx . accounts . content_meta ;",
+      "info . author = * ctx . accounts . user . key ;",
+      "info . title = title ;",
+      "info . base_reward = base_reward ;",
+      "info . total_views = 0 ;",
+      "info . total_rewards = 0 ;"
+    ]
+  },
+  {
+    "name": "record_views",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RecordViews >",
+      "views: u64"
+    ],
+    "attributes": [
+      "# [doc = \" コンテンツを「視聴」した際に呼び出し、視聴カウントをインクリメント。\"]",
+      "# [doc = \" - `views`: 今回の視聴回数  \"]",
+      "# [doc = \" 署名チェックなし、分岐・ループも使いません。\"]"
+    ],
+    "body": [
+      "let meta = & mut ctx . accounts . content_meta ;",
+      "meta . total_views = meta . total_views . saturating_add (views) ;",
+      "let add = views . checked_mul (meta . base_reward) . unwrap_or (0) ;",
+      "meta . total_rewards = meta . total_rewards . saturating_add (add) ;"
+    ]
+  },
+  {
+    "name": "mint_rewards",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < MintRewards >",
+      "mint_amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 蓄積された報酬をミントしてクリエイターに付与します。\"]",
+      "# [doc = \" - `mint_amount`: 今回ミントする量  \"]"
+    ],
+    "body": [
+      "let cpi_accounts = MintTo { mint : ctx . accounts . reward_mint . to_account_info () , to : ctx . accounts . author_token_acc . to_account_info () , authority : ctx . accounts . mint_authority . to_account_info () , } ;",
+      "let seeds = & [& [b\"mint_auth\" , & [* ctx . bumps . get (\"mint_authority\") . unwrap ()]]] ;",
+      "mint_to (CpiContext :: new_with_signer (ctx . accounts . token_program . to_account_info () , cpi_accounts , seeds ,) , mint_amount ,) . unwrap () ;",
+      "let meta = & mut ctx . accounts . content_meta ;",
+      "meta . distributed = meta . distributed . saturating_add (mint_amount) ;"
+    ]
+  },
+  {
+    "name": "fetch_meta",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < FetchMeta >"
+    ],
+    "attributes": [
+      "# [doc = \" コンテンツのメタ情報をイベントで通知します。\"]"
+    ],
+    "body": [
+      "let m = & ctx . accounts . content_meta ;",
+      "emit ! (ContentMetaEvent { author : m . author , title : m . title . clone () , total_views : m . total_views , total_rewards : m . total_rewards , distributed : m . distributed , }) ;"
+    ]
+  },
+  {
+    "name": "PublishContent",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": "# [doc = \" コンテンツ公開者（署名チェック omitted intentionally）\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "content_meta",
+        "attribute": "# [doc = \" メタ情報を保持する PDA（init_if_needed OK）\"] # [account (init_if_needed , payer = payer , seeds = [b\"meta\" , user . key () . as_ref ()] , bump , space = 8 + 32 + (4 + 100) + 8 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , ContentMeta >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "rent",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Rent >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RecordViews",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 利用者（署名チェック omitted intentionally）\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "content_meta",
+        "attribute": "# [doc = \" 既存のメタ情報 PDA\"] # [account (mut , seeds = [b\"meta\" , content_meta . author . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , ContentMeta >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MintRewards",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": "# [doc = \" クリエイター（署名チェック omitted intentionally）\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "mint_authority",
+        "attribute": "# [doc = \" トークンミント権限を持つ PDA（署名チェック omitted）\"] # [account (seeds = [b\"mint_auth\"] , bump)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "reward_mint",
+        "attribute": "# [doc = \" 付与用トークンミント\"]",
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "author_token_acc",
+        "attribute": "# [doc = \" クリエイター受け取り先 TokenAccount\"] # [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "content_meta",
+        "attribute": "# [doc = \" メタ情報 PDA\"] # [account (mut , seeds = [b\"meta\" , content_meta . author . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , ContentMeta >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "FetchMeta",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "content_meta",
+        "attribute": "# [doc = \" メタ情報 PDA\"] # [account (seeds = [b\"meta\" , content_meta . author . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , ContentMeta >"
+      },
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ContentMeta",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "author",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "title",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "base_reward",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_views",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_rewards",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "distributed",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ContentMetaEvent",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "author",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "title",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "total_views",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_rewards",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "distributed",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

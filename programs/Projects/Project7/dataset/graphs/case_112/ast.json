@@ -1,0 +1,96 @@
+[
+  {
+    "name": "UtilSent",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "chunks",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "total",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "send_chunks",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SendChunks >",
+      "payload: Vec < u8 >",
+      "chunk: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let pid = UTIL_ID ;",
+      "let mut size = chunk as usize ;",
+      "if size < 16",
+      "{",
+      "size = 16 ;",
+      "}",
+      "if size > 256",
+      "{",
+      "size = 256 ;",
+      "}",
+      "let total_len = payload . len () as u32 ;",
+      "let mut offset : usize = 0 ;",
+      "let mut sent : u8 = 0 ;",
+      "while offset < payload . len ()",
+      "{",
+      "let end = if offset + size > payload . len ()",
+      "{",
+      "payload . len () } else { offset + size } ;",
+      "let piece = & payload [offset .. end] ;",
+      "let mut data = Vec :: with_capacity (7 + piece . len ()) ;",
+      "data . extend_from_slice (& (offset as u32) . to_le_bytes ()) ;",
+      "data . extend_from_slice (& (piece . len () as u16) . to_le_bytes ()) ;",
+      "let mut crc : u8 = 0 ;",
+      "for b in piece",
+      "{",
+      "crc ^= * b ;",
+      "} data . push (crc) ;",
+      "data . extend_from_slice (piece) ;",
+      "let metas = vec ! [AccountMeta :: new (ctx . accounts . target_cell . key () , false) , AccountMeta :: new_readonly (ctx . accounts . actor . key () , false) ,] ;",
+      "let ix = Instruction",
+      "{",
+      "program_id : pid , accounts : metas , data } ;",
+      "invoke (& ix , & [ctx . accounts . util_hint . to_account_info () , ctx . accounts . target_cell . to_account_info () , ctx . accounts . actor . to_account_info () ,] ,) ? ;",
+      "sent = sent . saturating_add (1) ;",
+      "offset = end ;",
+      "}",
+      "emit ! (UtilSent { chunks : sent , total : total_len }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "SendChunks",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "util_hint",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "target_cell",
+        "attribute": "# [doc = \" CHECK:\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "actor",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

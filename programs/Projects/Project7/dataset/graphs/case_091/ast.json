@@ -1,0 +1,192 @@
+[
+  {
+    "name": "init_crafting_station",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitCraftingStation >",
+      "base_material_cost: u64",
+      "success_rate: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let station = & mut ctx . accounts . crafting_station ;",
+      "station . crafter = ctx . accounts . crafter . key () ;",
+      "station . material_mint = ctx . accounts . material_mint . key () ;",
+      "station . base_material_cost = base_material_cost ;",
+      "station . success_rate = success_rate ;",
+      "station . total_crafts_attempted = 0 ;",
+      "station . successful_crafts = 0 ;",
+      "station . materials_consumed = 0 ;",
+      "station . station_type = StationType :: Basic ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "execute_craft_attempt",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ExecuteCraftAttempt >",
+      "recipe_type: CraftingRecipe",
+      "enhancement_level: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let station = & mut ctx . accounts . crafting_station ;",
+      "let random_seed = Clock :: get () ? . unix_timestamp as u64 ;",
+      "let recipe_multiplier = match recipe_type { CraftingRecipe :: Common => 1 , CraftingRecipe :: Rare => 3 , CraftingRecipe :: Epic => 7 , CraftingRecipe :: Legendary => 15 , } ;",
+      "let enhancement_multiplier = (enhancement_level as u64) . saturating_add (1) ;",
+      "let total_material_cost = station . base_material_cost * recipe_multiplier * enhancement_multiplier ;",
+      "let mut success_chance = station . success_rate ;",
+      "if station . successful_crafts > 10 && station . station_type == StationType :: Basic",
+      "{",
+      "station . station_type = StationType :: Advanced ;",
+      "success_chance = success_chance . saturating_add (20) ;",
+      "}",
+      "let mut remaining_cost = total_material_cost ;",
+      "while remaining_cost > 0",
+      "{",
+      "let burn_amount = std :: cmp :: min (remaining_cost , 50_000 * 10u64 . pow (6)) ;",
+      "burn (ctx . accounts . burn_materials_ctx () , burn_amount ,) ? ;",
+      "remaining_cost -= burn_amount ;",
+      "}",
+      "station . materials_consumed += total_material_cost ;",
+      "station . total_crafts_attempted += 1 ;",
+      "let success = (random_seed % 100) < success_chance as u64 ;",
+      "if success",
+      "{",
+      "station . successful_crafts += 1 ;",
+      "mint_to (ctx . accounts . mint_nft_ctx () , 1 ,) ? ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitCraftingStation",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "crafter",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "crafting_station",
+        "attribute": "# [account (init , payer = crafter , space = 8 + CraftingStation :: INIT_SPACE , seeds = [b\"station\" , crafter . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , CraftingStation >"
+      },
+      {
+        "name": "material_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ExecuteCraftAttempt",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "crafter",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "crafting_station",
+        "attribute": "# [account (mut , seeds = [b\"station\" , crafting_station . crafter . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , CraftingStation >"
+      },
+      {
+        "name": "material_mint",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "nft_mint",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "crafter_material_account",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "crafter_nft_account",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CraftingStation",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "crafter",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "material_mint",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "base_material_cost",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "success_rate",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "total_crafts_attempted",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "successful_crafts",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "materials_consumed",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "station_type",
+        "attribute": null,
+        "field_type": "StationType"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

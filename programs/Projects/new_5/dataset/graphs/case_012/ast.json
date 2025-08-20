@@ -1,0 +1,129 @@
+[
+  {
+    "name": "breed_nfts",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < BreedNfts >",
+      "seed: u8"
+    ],
+    "attributes": [
+      "# [doc = \" parent_1 と parent_2 から offspring を生成するが、\"]",
+      "# [doc = \" 同一アカウントチェックが抜けている Duplicate Mutable Account 脆弱性あり\"]"
+    ],
+    "body": [
+      "let parent_1 = & mut ctx . accounts . parent_1 ;",
+      "let parent_2 = & mut ctx . accounts . parent_2 ;",
+      "let offspring = & mut ctx . accounts . offspring ;",
+      "let ts = ctx . accounts . clock . unix_timestamp ;",
+      "let lvl = (parent_1 . level as u16) . saturating_mul (parent_2 . level as u16) ;",
+      "offspring . level = if lvl > 255 { 255 } else { lvl as u8 } ;",
+      "offspring . xp = parent_1 . xp . saturating_mul ((seed as u64) . saturating_add (1)) . saturating_div (3) ;",
+      "offspring . score = parent_1 . score . saturating_mul (parent_2 . score) . saturating_div (1000) ;",
+      "offspring . trait_id = (parent_1 . trait_id << (seed % 5)) ^ (parent_2 . trait_id >> ((seed as u32) % 3)) ;",
+      "offspring . name = format ! (\"{}▶{}#{}\" , parent_1 . name , parent_2 . name , seed) ;",
+      "offspring . mixed = ((parent_1 . mixed as u32) . saturating_mul (parent_2 . mixed as u32) . saturating_div (256)) as u16 ;",
+      "offspring . history . clear () ;",
+      "offspring . history . push (format ! (\"Bred at {}\" , ts)) ;",
+      "parent_1 . history . clear () ;",
+      "parent_1 . history . push (format ! (\"Used in breeding at {}\" , ts)) ;",
+      "parent_2 . history . clear () ;",
+      "parent_2 . history . push (format ! (\"Used in breeding at {}\" , ts)) ;",
+      "msg ! (\"Bred NFT '{}' level={} xp={} score={}\" , offspring . name , offspring . level , offspring . xp , offspring . score) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "BreedNfts",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent_1",
+        "attribute": "# [doc = \" 親 NFT その１\"] # [account (mut)]",
+        "field_type": "Account < 'info , GameNft >"
+      },
+      {
+        "name": "parent_2",
+        "attribute": "# [doc = \" 親 NFT その２\"] # [account (mut)]",
+        "field_type": "Account < 'info , GameNft >"
+      },
+      {
+        "name": "offspring",
+        "attribute": "# [doc = \" 生成される子 NFT\"] # [account (init , payer = breeder , space = 8 + GameNft :: SIZE)]",
+        "field_type": "Account < 'info , GameNft >"
+      },
+      {
+        "name": "breeder",
+        "attribute": "# [doc = \" ブリーダー（署名者）\"] # [account (signer)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": "# [doc = \" 時刻取得用 Sysvar\"]",
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": "# [doc = \" システムプログラム\"]",
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [doc = \" 初期資金用\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GameNft",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "level",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "xp",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "score",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "trait_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "mixed",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "history",
+        "attribute": null,
+        "field_type": "Vec < String >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

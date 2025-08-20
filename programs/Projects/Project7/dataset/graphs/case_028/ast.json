@@ -1,0 +1,154 @@
+[
+  {
+    "name": "init_station",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitStation >",
+      "required_power: u32",
+      "base_progress: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let station = & mut ctx . accounts . station ;",
+      "station . creator_key = ctx . accounts . creator . key () ;",
+      "station . required_power = required_power . max (1) ;",
+      "station . progress_points = base_progress . max (2) ;",
+      "station . materials_burned = base_progress . saturating_mul (2) ;",
+      "station . phase = CraftPhase :: Idle ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_craft",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActCraft >",
+      "provided_power: u32",
+      "base_cost: u64",
+      "step_count: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let station = & mut ctx . accounts . station ;",
+      "let mut total_cost = base_cost . max (1) ;",
+      "let mut step_cursor = 0u8 ;",
+      "while step_cursor < step_count",
+      "{",
+      "total_cost = total_cost . saturating_add ((step_cursor as u64) . saturating_add (2)) ;",
+      "step_cursor = step_cursor . saturating_add (1) ;",
+      "}",
+      "if provided_power < station . required_power",
+      "{",
+      "station . phase = CraftPhase :: Cooling ;",
+      "return Err (CraftErr :: LowPower . into ()) ;",
+      "}",
+      "station . phase = CraftPhase :: Heating ;",
+      "token :: burn (ctx . accounts . burn_ctx () , total_cost) ? ;",
+      "station . materials_burned = station . materials_burned . saturating_add (total_cost) ;",
+      "station . progress_points = station . progress_points . saturating_add (total_cost . saturating_div (4) . max (1)) ;",
+      "if station . progress_points > station . materials_burned . saturating_div (3)",
+      "{",
+      "station . phase = CraftPhase :: Assembling ;",
+      "}",
+      "if station . progress_points > station . materials_burned . saturating_sub (station . materials_burned / 5)",
+      "{",
+      "station . phase = CraftPhase :: Complete ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitStation",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "station",
+        "attribute": "# [account (init , payer = creator , space = 8 + 32 + 4 + 8 + 8 + 1)]",
+        "field_type": "Account < 'info , CraftStation >"
+      },
+      {
+        "name": "creator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActCraft",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "station",
+        "attribute": "# [account (mut , has_one = creator_key)]",
+        "field_type": "Account < 'info , CraftStation >"
+      },
+      {
+        "name": "creator_key",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "material_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "material_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CraftStation",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "creator_key",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "required_power",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "progress_points",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "materials_burned",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "phase",
+        "attribute": null,
+        "field_type": "CraftPhase"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

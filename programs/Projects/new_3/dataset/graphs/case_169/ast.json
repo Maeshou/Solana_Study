@@ -1,0 +1,186 @@
+[
+  {
+    "name": "Profile",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "username",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "bio",
+        "attribute": null,
+        "field_type": "String"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ChangeRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "editor",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "profile",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "note",
+        "attribute": null,
+        "field_type": "String"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreateProfile",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "profile",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 4 + 32 + 4 + 256)]",
+        "field_type": "Account < 'info , Profile >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RecordChange",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "profile",
+        "attribute": "# [doc = \" Profile.owner == owner.key() は検証される\"] # [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Profile >"
+      },
+      {
+        "name": "record",
+        "attribute": "# [doc = \" ChangeRecord.profile ⇔ Profile.key() の検証がない\"] # [account (init , payer = owner , space = 8 + 32 + 32 + 4 + 256)]",
+        "field_type": "Account < 'info , ChangeRecord >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "UpdateBio",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "profile",
+        "attribute": "# [doc = \" Profile.owner == owner.key() は検証される\"] # [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Profile >"
+      },
+      {
+        "name": "record",
+        "attribute": "# [doc = \" ChangeRecord.profile ⇔ Profile.key() の検証がない\"] # [account (mut)]",
+        "field_type": "Account < 'info , ChangeRecord >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "create_profile",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateProfile >",
+      "username: String"
+    ],
+    "attributes": [
+      "# [doc = \" プロフィールを作成\"]"
+    ],
+    "body": [
+      "let p = & mut ctx . accounts . profile ;",
+      "p . owner = ctx . accounts . owner . key () ;",
+      "p . username = username ;",
+      "p . bio = String :: from (\"Welcome!\") ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "record_change",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RecordChange >",
+      "note: String"
+    ],
+    "attributes": [
+      "# [doc = \" 変更履歴を記録\"]"
+    ],
+    "body": [
+      "let rec = & mut ctx . accounts . record ;",
+      "rec . editor = ctx . accounts . owner . key () ;",
+      "rec . profile = ctx . accounts . profile . key () ;",
+      "rec . note = note ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "update_bio",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < UpdateBio >",
+      "addition: String"
+    ],
+    "attributes": [
+      "# [doc = \" プロフィールの自己紹介文（bio）を更新\"]"
+    ],
+    "body": [
+      "let p = & mut ctx . accounts . profile ;",
+      "let rec = & mut ctx . accounts . record ;",
+      "p . bio . reserve (addition . len ()) ;",
+      "p . bio . push_str (\" \") ;",
+      "p . bio . push_str (& addition) ;",
+      "rec . note = format ! (\"Appended to bio: {}\" , addition) ;",
+      "Ok (())"
+    ]
+  }
+]

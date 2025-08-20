@@ -1,0 +1,146 @@
+[
+  {
+    "name": "init_user",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitUser >",
+      "user_cap: u64",
+      "base_units: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let book = & mut ctx . accounts . user_badge ;",
+      "book . user = ctx . accounts . user . key () ;",
+      "book . cap_per_user = if user_cap < 5 { 5 } else { user_cap } ;",
+      "book . minted_units = base_units / 2 + 1 ;",
+      "book . streak = 2 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_award",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActAward >",
+      "tasks_completed: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let book = & mut ctx . accounts . user_badge ;",
+      "let mut grant = 1u64 ;",
+      "let mut idx : u8 = 0 ;",
+      "while idx < tasks_completed",
+      "{",
+      "grant = grant + ((idx as u64 % 3) + 1) ;",
+      "idx = idx + 1 ;",
+      "}",
+      "if book . streak % 4 == 0",
+      "{",
+      "grant = grant + 2 ;",
+      "}",
+      "if book . streak % 7 == 0",
+      "{",
+      "grant = grant + 3 ;",
+      "}",
+      "let remaining = if book . cap_per_user > book . minted_units { book . cap_per_user - book . minted_units } else { 0 } ;",
+      "if remaining == 0",
+      "{",
+      "return Err (BadgeErr :: Quota . into ()) ;",
+      "}",
+      "let to_mint = if grant > remaining { remaining } else { grant } ;",
+      "token :: mint_to (ctx . accounts . mint_ctx () , to_mint) ? ;",
+      "book . minted_units = book . minted_units + to_mint ;",
+      "book . streak = book . streak + 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitUser",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user_badge",
+        "attribute": "# [account (init , payer = user , space = 8 + 32 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , UserBadge >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActAward",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user_badge",
+        "attribute": "# [account (mut , has_one = user)]",
+        "field_type": "Account < 'info , UserBadge >"
+      },
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "badge_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "user_badge_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "UserBadge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "cap_per_user",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "minted_units",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "streak",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

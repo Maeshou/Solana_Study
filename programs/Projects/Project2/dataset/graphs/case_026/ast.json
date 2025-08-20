@@ -1,17 +1,82 @@
 [
   {
-    "name": "MintNftCtxxcmq",
+    "name": "stake_tokens",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < StakeTokens >",
+      "amount: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "require ! (ctx . accounts . user_token_account . owner == & token :: ID , ErrorCode :: InvalidUserTokenOwner) ;",
+      "require ! (ctx . accounts . stake_pool_account . owner == & token :: ID , ErrorCode :: InvalidStakePoolOwner) ;",
+      "let stake_info = ctx . accounts . stake_info . to_account_info () ;",
+      "require ! (stake_info . owner == ctx . program_id , ErrorCode :: InvalidStakeInfoOwner) ;",
+      "let stake_info = & mut ctx . accounts . stake_info ;",
+      "stake_info . staker = ctx . accounts . staker . key () ;",
+      "stake_info . amount += amount ;",
+      "stake_info . last_stake_time = Clock :: get () ? . unix_timestamp ;",
+      "let transfer_instruction = Transfer { from : ctx . accounts . user_token_account . to_account_info () , to : ctx . accounts . stake_pool_account . to_account_info () , authority : ctx . accounts . staker . to_account_info () , } ;",
+      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , transfer_instruction ,) ;",
+      "token :: transfer (cpi_ctx , amount)"
+    ]
+  },
+  {
+    "name": "unstake_tokens",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < UnstakeTokens >",
+      "amount: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let stake_info_account = ctx . accounts . stake_info . to_account_info () ;",
+      "require ! (stake_info_account . owner == ctx . program_id , ErrorCode :: InvalidStakeInfoOwner) ;",
+      "let stake_info = & mut ctx . accounts . stake_info ;",
+      "require ! (stake_info . amount >= amount , ErrorCode :: InsufficientStakedAmount) ;",
+      "stake_info . amount -= amount ;",
+      "let seeds = & [b\"stake_pool\" , & [ctx . accounts . stake_pool . bump] ,] ;",
+      "let signer = & [& seeds [..]] ;",
+      "let transfer_instruction = Transfer { from : ctx . accounts . stake_pool_account . to_account_info () , to : ctx . accounts . user_token_account . to_account_info () , authority : ctx . accounts . stake_pool . to_account_info () , } ;",
+      "let cpi_ctx = CpiContext :: new_with_signer (ctx . accounts . token_program . to_account_info () , transfer_instruction , signer ,) ;",
+      "token :: transfer (cpi_ctx , amount)"
+    ]
+  },
+  {
+    "name": "StakeTokens",
     "node_type": "struct",
     "fields": [
       {
-        "name": "mint",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
+        "name": "stake_info",
+        "attribute": "# [account (init_if_needed , payer = staker , space = 8 + 32 + 8 + 8 , seeds = [b\"stake_info\" , staker . key () . as_ref ()] , bump , constraint = stake_info . to_account_info () . owner == program_id)]",
+        "field_type": "Account < 'info , StakeInfo >"
       },
       {
-        "name": "mint_authority",
+        "name": "stake_pool",
+        "attribute": "# [account (constraint = stake_pool . to_account_info () . owner == program_id)]",
+        "field_type": "Account < 'info , StakePool >"
+      },
+      {
+        "name": "user_token_account",
+        "attribute": "# [account (mut , constraint = user_token_account . owner == & token :: ID)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "stake_pool_account",
+        "attribute": "# [account (mut , constraint = stake_pool_account . owner == & token :: ID)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "staker",
         "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
       },
       {
         "name": "system_program",
@@ -24,13 +89,38 @@
     "body": null
   },
   {
-    "name": "DataAccount",
+    "name": "UnstakeTokens",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data",
+        "name": "stake_info",
+        "attribute": "# [account (mut , has_one = staker , constraint = stake_info . to_account_info () . owner == program_id)]",
+        "field_type": "Account < 'info , StakeInfo >"
+      },
+      {
+        "name": "stake_pool",
+        "attribute": "# [account (constraint = stake_pool . to_account_info () . owner == program_id)]",
+        "field_type": "Account < 'info , StakePool >"
+      },
+      {
+        "name": "user_token_account",
+        "attribute": "# [account (mut , constraint = user_token_account . owner == & token :: ID)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "stake_pool_account",
+        "attribute": "# [account (mut , constraint = stake_pool_account . owner == & token :: ID)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "staker",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
       }
     ],
     "inputs": null,
@@ -38,20 +128,46 @@
     "body": null
   },
   {
-    "name": "mint_nft",
-    "node_type": "function",
-    "fields": null,
-    "inputs": [
-      "ctx: Context < MintNftCtxxcmq >",
-      "amount: u64"
+    "name": "StakeInfo",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "staker",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "last_stake_time",
+        "attribute": null,
+        "field_type": "i64"
+      }
     ],
-    "attributes": [],
-    "body": [
-      "let acct = & mut ctx . accounts . mint ;",
-      "let temp = acct . data ;",
-      "acct . data = temp . checked_mul (2) . unwrap () ;",
-      "msg ! (\"Executed mint_nft logic\") ;",
-      "Ok (())"
-    ]
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "StakePool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
   }
 ]

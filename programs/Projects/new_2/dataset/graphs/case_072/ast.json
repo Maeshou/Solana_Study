@@ -1,0 +1,107 @@
+[
+  {
+    "name": "register_participant",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RegisterParticipant >",
+      "new_player: Pubkey"
+    ],
+    "attributes": [
+      "# [doc = \" トーナメント参加登録を行う  \"]",
+      "# [doc = \" （`entry_account` の owner チェックを一切行っていないため、  \"]",
+      "# [doc = \"  攻撃者が他人の参加リストアカウントを指定して、  \"]",
+      "# [doc = \"  勝手に任意のプレイヤーを登録／滑り込ませることができます）\"]"
+    ],
+    "body": [
+      "let acct = & mut ctx . accounts . entry_account . to_account_info () ;",
+      "let data = & mut acct . data . borrow_mut () ;",
+      "const MAX_PARTICIPANTS : usize = 64 ;",
+      "let required = 1 + 32 * MAX_PARTICIPANTS ;",
+      "if data . len () < required",
+      "{",
+      "return err ! (ErrorCode :: DataTooShort) ;",
+      "}",
+      "let (count_slice , list_slice) = data . split_at_mut (1) ;",
+      "let current = count_slice [0] as usize ;",
+      "if current >= MAX_PARTICIPANTS",
+      "{",
+      "return err ! (ErrorCode :: TournamentFull) ;",
+      "}",
+      "let offset = current * 32 ;",
+      "list_slice [offset .. offset + 32] . copy_from_slice (& new_player . to_bytes ()) ;",
+      "count_slice [0] = (current + 1) as u8 ;",
+      "msg ! (\"Player {} registered in tournament (total {} participants)\" , new_player , current + 1) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "deregister_participant",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RegisterParticipant >",
+      "remove_player: Pubkey"
+    ],
+    "attributes": [
+      "# [doc = \" トーナメントから参加解除する  \"]",
+      "# [doc = \" （同様に owner チェックをしていないため、他人を勝手に追放できます）\"]"
+    ],
+    "body": [
+      "let acct = & mut ctx . accounts . entry_account . to_account_info () ;",
+      "let data = & mut acct . data . borrow_mut () ;",
+      "const MAX_PARTICIPANTS : usize = 64 ;",
+      "let required = 1 + 32 * MAX_PARTICIPANTS ;",
+      "if data . len () < required",
+      "{",
+      "return err ! (ErrorCode :: DataTooShort) ;",
+      "}",
+      "let (count_slice , list_slice) = data . split_at_mut (1) ;",
+      "let mut current = count_slice [0] as usize ;",
+      "let mut found = false ;",
+      "for i in 0 .. current",
+      "{",
+      "let idx = i * 32 ;",
+      "let pk = Pubkey :: new (& list_slice [idx .. idx + 32]) ;",
+      "if pk == remove_player",
+      "{",
+      "found = true ;",
+      "for j in i .. current - 1",
+      "{",
+      "let src = (j + 1) * 32 ;",
+      "let dst = j * 32 ;",
+      "list_slice [dst .. dst + 32] . copy_from_slice (& list_slice [src .. src + 32]) ;",
+      "} break ;",
+      "}",
+      "}",
+      "if ! found",
+      "{",
+      "return err ! (ErrorCode :: PlayerNotFound) ;",
+      "}",
+      "let last = (current - 1) * 32 ;",
+      "list_slice [last .. last + 32] . fill (0) ;",
+      "count_slice [0] = (current - 1) as u8 ;",
+      "msg ! (\"Player {} deregistered from tournament (remaining {} participants)\" , remove_player , current - 1) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "RegisterParticipant",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "entry_account",
+        "attribute": "# [doc = \" CHECK: owner == program_id の検証を一切行っていない AccountInfo\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "operator",
+        "attribute": "# [doc = \" 申請者の署名のみ検証\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

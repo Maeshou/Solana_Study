@@ -1,0 +1,225 @@
+[
+  {
+    "name": "init_swap_pool",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitSwapPool >"
+    ],
+    "attributes": [],
+    "body": [
+      "let pool = & mut ctx . accounts . swap_pool ;",
+      "pool . authority = ctx . accounts . authority . key () ;",
+      "pool . token_a_amount = 0 ;",
+      "pool . token_b_amount = 0 ;",
+      "pool . fee_rate = 30 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "add_liquidity",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AddLiquidity >",
+      "amount_a: u64",
+      "amount_b: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let position = & mut ctx . accounts . liquidity_position ;",
+      "position . pool = ctx . accounts . swap_pool . key () ;",
+      "position . provider = ctx . accounts . provider . key () ;",
+      "position . token_a_deposited = amount_a ;",
+      "position . token_b_deposited = amount_b ;",
+      "position . share_percentage = 0 ;",
+      "let pool = & mut ctx . accounts . swap_pool ;",
+      "pool . token_a_amount = pool . token_a_amount . checked_add (amount_a) . unwrap_or (u64 :: MAX) ;",
+      "pool . token_b_amount = pool . token_b_amount . checked_add (amount_b) . unwrap_or (u64 :: MAX) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "exploit_swap",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < VulnerableSwap >"
+    ],
+    "attributes": [],
+    "body": [
+      "let pool = & mut ctx . accounts . swap_pool ;",
+      "let pos_a_info = & ctx . accounts . position_a ;",
+      "let pos_b_info = & ctx . accounts . position_b ;",
+      "let pos_a_data = pos_a_info . try_borrow_data () ? ;",
+      "let pos_b_data = pos_b_info . try_borrow_data () ? ;",
+      "if pos_a_data . len () >= 48 && pos_b_data . len () >= 48",
+      "{",
+      "let a_deposited = u64 :: from_le_bytes ([pos_a_data [40] , pos_a_data [41] , pos_a_data [42] , pos_a_data [43] , pos_a_data [44] , pos_a_data [45] , pos_a_data [46] , pos_a_data [47]]) ;",
+      "for swap_round in 0 .. 4",
+      "{",
+      "if pool . token_a_amount > 1000 { let swap_amount = (a_deposited >> swap_round) & 0xFF ;",
+      "pool . token_a_amount = pool . token_a_amount . saturating_sub (swap_amount) ;",
+      "pool . token_b_amount = pool . token_b_amount . checked_add (swap_amount * 2) . unwrap_or (u64 :: MAX) ;",
+      "msg ! (\"Swap A->B:",
+      "{",
+      "}\" , swap_amount) ;",
+      "} else",
+      "{",
+      "let fee_collected = pool . fee_rate as u64 * 10 ;",
+      "pool . token_b_amount = pool . token_b_amount . checked_add (fee_collected) . unwrap_or (u64 :: MAX) ;",
+      "pool . fee_rate = (pool . fee_rate + swap_round as u32) . min (100) ;",
+      "msg ! (\"Fee collection:",
+      "{",
+      "}\" , fee_collected) ;",
+      "} }",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitSwapPool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "swap_pool",
+        "attribute": "# [account (init , payer = authority , space = 8 + 32 + 8 + 8 + 4)]",
+        "field_type": "Account < 'info , SwapPool >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AddLiquidity",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "swap_pool",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , SwapPool >"
+      },
+      {
+        "name": "liquidity_position",
+        "attribute": "# [account (init , payer = provider , space = 8 + 32 + 32 + 8 + 8 + 4)]",
+        "field_type": "Account < 'info , LiquidityPosition >"
+      },
+      {
+        "name": "provider",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "VulnerableSwap",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "swap_pool",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , SwapPool >"
+      },
+      {
+        "name": "position_a",
+        "attribute": "# [doc = \" CHECK: 脆弱性 - 同一ポジションでも通る\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "position_b",
+        "attribute": "# [doc = \" CHECK: 脆弱性 - position_aと同じでも検証されない\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SwapPool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "token_a_amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "token_b_amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "fee_rate",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "LiquidityPosition",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "provider",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "token_a_deposited",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "token_b_deposited",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "share_percentage",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

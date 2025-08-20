@@ -1,0 +1,84 @@
+[
+  {
+    "name": "Subscription",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "subscriber",
+        "attribute": null,
+        "field_type": "[u8 ; 32]"
+      },
+      {
+        "name": "until",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "_reserved",
+        "attribute": null,
+        "field_type": "[u8 ; 8]"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "renew_subscription",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RenewSubscription >",
+      "payment: u64",
+      "term_secs: u64"
+    ],
+    "attributes": [
+      "# [doc = \" サブスクリプションを延長する  \"]",
+      "# [doc = \" (`sub_account` の owner チェックを全く行っていないため、  \"]",
+      "# [doc = \"  攻撃者が他人のサブスクアカウントを指定して  \"]",
+      "# [doc = \"  任意に延長できる脆弱性があります)\"]"
+    ],
+    "body": [
+      "let data = & mut ctx . accounts . sub_account . data . borrow_mut () ;",
+      "if data . len () < std :: mem :: size_of :: < Subscription > ()",
+      "{",
+      "return err ! (ErrorCode :: DataTooShort) ;",
+      "}",
+      "let sub : & mut Subscription = bytemuck :: from_bytes_mut (& mut data [.. std :: mem :: size_of :: < Subscription > ()]) ;",
+      "let vault = & mut ctx . accounts . fee_vault . to_account_info () ;",
+      "if * * ctx . accounts . payer . to_account_info () . lamports . borrow () < payment",
+      "{",
+      "return err ! (ErrorCode :: InsufficientFunds) ;",
+      "}",
+      "* * ctx . accounts . payer . to_account_info () . lamports . borrow_mut () -= payment ;",
+      "* * vault . lamports . borrow_mut () += payment ;",
+      "sub . until = sub . until . wrapping_add (term_secs) ;",
+      "msg ! (\"Subscription {} renewed for {}s, new expiry {}\" , ctx . accounts . sub_account . key () , term_secs , sub . until) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "RenewSubscription",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "sub_account",
+        "attribute": "# [doc = \" CHECK: owner == program_id の検証を行っていない AccountInfo\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [doc = \" 支払い元アカウント（署名のみ検証）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "fee_vault",
+        "attribute": "# [doc = \" 徴収先プール（owner チェックなし）\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,202 @@
+[
+  {
+    "name": "init_registry",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitRegistry >"
+    ],
+    "attributes": [
+      "# [doc = \" レジストリ初期化：コード一覧と利用履歴を Default::default() で空にする  \"]",
+      "# [doc = \" ⚠\\u{fe0f} 初期化者の署名チェックは一切行われない脆弱性あり\"]"
+    ],
+    "body": [
+      "let reg = & mut ctx . accounts . registry ;",
+      "reg . codes = Vec :: default () ;",
+      "reg . redemptions = Vec :: default () ;",
+      "msg ! (\"Registry initialized (default vec)\") ;"
+    ]
+  },
+  {
+    "name": "issue_code",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < IssueCode >",
+      "code: String",
+      "value: u64"
+    ],
+    "attributes": [
+      "# [doc = \" ギフトコード発行：任意の文字列と金額を追加  \"]",
+      "# [doc = \" ⚠\\u{fe0f} operator の署名チェックなし\"]"
+    ],
+    "body": [
+      "let reg = & mut ctx . accounts . registry ;",
+      "let now = Clock :: get () . unwrap () . unix_timestamp ;",
+      "reg . codes . push (GiftCode { code , value , issued_at : now , active : true , }) ;",
+      "msg ! (\"Code issued at {}\" , now) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "redeem_by_index",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RedeemByIndex >",
+      "code_index: u32"
+    ],
+    "attributes": [
+      "# [doc = \" ギフトコード利用：インデックスで直接アクセスして無効化し、履歴に登録  \"]",
+      "# [doc = \" ⚠\\u{fe0f} redeemer の署名チェックなし\"]"
+    ],
+    "body": [
+      "let reg = & mut ctx . accounts . registry ;",
+      "let now = Clock :: get () . unwrap () . unix_timestamp ;",
+      "let mut entry = & mut reg . codes [code_index as usize] ;",
+      "entry . active = false ;",
+      "reg . redemptions . push (Redemption { code : entry . code . clone () , redeemer : ctx . accounts . redeemer . key () , timestamp : now , }) ;",
+      "msg ! (\"Code at index {} redeemed at {}\" , code_index , now) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Registry",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "codes",
+        "attribute": null,
+        "field_type": "Vec < GiftCode >"
+      },
+      {
+        "name": "redemptions",
+        "attribute": null,
+        "field_type": "Vec < Redemption >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GiftCode",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "code",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "value",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "issued_at",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "active",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Redemption",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "code",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "redeemer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "timestamp",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitRegistry",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "registry",
+        "attribute": "# [account (init , payer = payer , space = 8 + (4 + (4 + 256 + 8 + 8 + 1) * 100) + (4 + (4 + 256 + 32 + 8) * 200))]",
+        "field_type": "Account < 'info , Registry >"
+      },
+      {
+        "name": "initializer",
+        "attribute": "# [doc = \" CHECK: 署名検証なし\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "IssueCode",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "registry",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Registry >"
+      },
+      {
+        "name": "operator",
+        "attribute": "# [doc = \" CHECK: operator の署名検証なし\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RedeemByIndex",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "registry",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Registry >"
+      },
+      {
+        "name": "redeemer",
+        "attribute": "# [doc = \" CHECK: redeemer の署名検証なし\"]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

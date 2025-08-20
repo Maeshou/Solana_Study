@@ -1,0 +1,165 @@
+[
+  {
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Init >",
+      "ids: Vec < Pubkey >",
+      "seed: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let g = & mut ctx . accounts . gw ;",
+      "g . admin = ctx . accounts . admin . key () ;",
+      "g . ids = ids ;",
+      "g . seed = seed ;",
+      "g . ptr = 0 ;",
+      "g . hist = [0 ; 8] ;",
+      "let mut i = 0u8 ;",
+      "while i < 12",
+      "{",
+      "g . seed = g . seed . wrapping_mul (6364136223846793005) . wrapping_add (1442695040888963407) ;",
+      "g . hist [(i % 8) as usize] = g . hist [(i % 8) as usize] . saturating_add ((g . seed as u32) & 0xF) ;",
+      "i = i . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "pay",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Pay >",
+      "base: u64",
+      "label: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let g = & mut ctx . accounts . gw ;",
+      "require ! (g . admin == ctx . accounts . admin . key () , Errs :: Admin) ;",
+      "require ! (g . ids . len () > 0 , Errs :: Empty) ;",
+      "let mut steps = 0u8 ;",
+      "while steps < 5",
+      "{",
+      "g . seed = g . seed . wrapping_mul (1664525) . wrapping_add (1013904223) ;",
+      "let roll = (g . seed >> 27) as usize % g . ids . len () ;",
+      "g . ptr = ((g . ptr as usize + roll) % g . ids . len ()) as u32 ;",
+      "g . hist [(roll % 8) as usize] = g . hist [(roll % 8) as usize] . saturating_add (1) ;",
+      "steps = steps . saturating_add (1) ;",
+      "}",
+      "let chosen = g . ids [(g . ptr as usize) % g . ids . len ()] ;",
+      "let b = label . as_bytes () ;",
+      "let mut i = 0usize ;",
+      "while i < b . len ()",
+      "{",
+      "let bucket = (b [i] % 8) as usize ;",
+      "g . hist [bucket] = g . hist [bucket] . saturating_add ((b [i] % 13) as u32) ;",
+      "i += 1 ;",
+      "}",
+      "let mut score = base ;",
+      "let mut k = 0usize ;",
+      "while k < g . hist . len ()",
+      "{",
+      "score = score . saturating_add ((g . hist [k] as u64) * ((k as u64) + 1)) ;",
+      "k += 1 ;",
+      "}",
+      "let ix = spl_token :: instruction :: transfer (chosen , ctx . accounts . pool . key () , ctx . accounts . member_ata . key () , ctx . accounts . admin . key () , & [] , score ,) ? ;",
+      "invoke (& ix , & [ctx . accounts . pool . to_account_info () , ctx . accounts . member_ata . to_account_info () , ctx . accounts . admin . to_account_info () ,]) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Gw",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "ids",
+        "attribute": null,
+        "field_type": "Vec < Pubkey >"
+      },
+      {
+        "name": "seed",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "ptr",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "hist",
+        "attribute": null,
+        "field_type": "[u32 ; 8]"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Init",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "gw",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + (32 * 8) + 8 + 4 + (4 * 8))]",
+        "field_type": "Account < 'info , Gw >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Pay",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "gw",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Gw >"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "pool",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "member_ata",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

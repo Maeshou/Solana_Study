@@ -1,0 +1,136 @@
+[
+  {
+    "name": "open_shop",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < OpenShop >",
+      "price: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . shop ;",
+      "s . owner = ctx . accounts . merchant . key () ;",
+      "s . price = price % 10_000 + 100 ;",
+      "s . stock = 9 ;",
+      "s . sold = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "issue",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Issue >",
+      "amount: u16",
+      "user_bump: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . shop ;",
+      "let mut waves = (amount as u32 % 15) + 4 ;",
+      "while waves != 0",
+      "{",
+      "s . stock = s . stock . saturating_add (1) ;",
+      "s . sold = s . sold . saturating_add (waves) ;",
+      "let tweak = (s . sold % 7) + 2 ;",
+      "s . price = s . price . saturating_add (tweak as u64) ;",
+      "waves = waves . saturating_sub (1) ;",
+      "}",
+      "if s . stock > 12",
+      "{",
+      "let adjust = (s . stock % 5 + 1) as u64 ;",
+      "s . price = s . price . saturating_sub (adjust) ;",
+      "let mut marker = [0u8 ;",
+      "2] ;",
+      "marker [0] = (adjust % 10) as u8 ;",
+      "s . sold = s . sold . saturating_add (marker [0] as u32) ;",
+      "}",
+      "let seeds = & [b\"coupon_vault\" , ctx . accounts . merchant . key . as_ref () , & [user_bump]] ;",
+      "let check = Pubkey :: create_program_address (seeds , ctx . program_id) . map_err (| _ | error ! (ShopErr :: SeedBad)) ? ;",
+      "if check != ctx . accounts . coupon_vault . key ()",
+      "{",
+      "return Err (error ! (ShopErr :: CouponKey)) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "OpenShop",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "shop",
+        "attribute": "# [account (init , payer = merchant , space = 8 + 32 + 8 + 8 + 8 , seeds = [b\"shop\" , merchant . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Shop >"
+      },
+      {
+        "name": "merchant",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Issue",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "shop",
+        "attribute": "# [account (mut , seeds = [b\"shop\" , merchant . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Shop >"
+      },
+      {
+        "name": "coupon_vault",
+        "attribute": "# [doc = \" CHECK\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "merchant",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Shop",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "price",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "stock",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "sold",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

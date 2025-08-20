@@ -1,0 +1,63 @@
+[
+  {
+    "name": "pay_with_nonce",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PayWithNonce >",
+      "payment_amount: u64",
+      "submitted_nonce: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 支払いを実行しつつ「Nonce 管理アカウント」を更新する  \"]",
+      "# [doc = \" （`nonce_account` の owner チェックを一切行っていないため、\"]",
+      "# [doc = \"  攻撃者が他人の Nonce アカウントをリセットして\"]",
+      "# [doc = \"  再請求や二重請求を行えます）\"]"
+    ],
+    "body": [
+      "let sender = & mut ctx . accounts . payer . to_account_info () ;",
+      "let receiver = & mut ctx . accounts . recipient . to_account_info () ;",
+      "* * sender . lamports . borrow_mut () = sender . lamports () . checked_sub (payment_amount) . ok_or (ErrorCode :: InsufficientFunds) ? ;",
+      "* * receiver . lamports . borrow_mut () += payment_amount ;",
+      "let acct = & mut ctx . accounts . nonce_account . to_account_info () ;",
+      "let data = & mut acct . data . borrow_mut () ;",
+      "if data . len () < 8",
+      "{",
+      "return err ! (ErrorCode :: DataTooShort) ;",
+      "}",
+      "let (nonce_slice , _) = data . split_at_mut (8) ;",
+      "let last_nonce = u64 :: from_le_bytes (nonce_slice . try_into () . unwrap ()) ;",
+      "if submitted_nonce <= last_nonce",
+      "{",
+      "return err ! (ErrorCode :: InvalidNonce) ;",
+      "}",
+      "nonce_slice . copy_from_slice (& submitted_nonce . to_le_bytes ()) ;",
+      "msg ! (\"Payment {} lamports processed with nonce {} → {}\" , payment_amount , last_nonce , submitted_nonce) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "PayWithNonce",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "nonce_account",
+        "attribute": "# [doc = \" CHECK: owner == program_id の検証を一切行っていない生の AccountInfo\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [doc = \" 支払い元アカウント（署名のみ検証）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "recipient",
+        "attribute": "# [doc = \" 支払い先アカウント（owner チェックなし）\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

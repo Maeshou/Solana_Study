@@ -1,0 +1,165 @@
+[
+  {
+    "name": "boot",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Boot >",
+      "seed: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let c = & mut ctx . accounts . craft ;",
+      "c . crafter = ctx . accounts . crafter . key () ;",
+      "c . bump_main = * ctx . bumps . get (\"craft\") . ok_or (error ! (C :: MissingBump)) ? ;",
+      "c . tempo = seed % 750 + 120 ;",
+      "c . grade = 1 ;",
+      "if c . tempo & 1 == 1",
+      "{",
+      "c . grade = c . grade . saturating_add (7) ;",
+      "c . tempo = c . tempo . rotate_left (1) . wrapping_add (11) ;",
+      "} else",
+      "{",
+      "c . grade = c . grade . saturating_add (9) ;",
+      "c . tempo = c . tempo . rotate_right (2) . wrapping_add (15) ;",
+      "}",
+      "for i in 0 .. 4",
+      "{",
+      "c . tempo = c . tempo . wrapping_add ((i as u64) * 19 + 3) ;",
+      "c . grade = c . grade . saturating_add (((c . tempo % 27) as u32) + 4) ;",
+      "}",
+      "let mut t = 0u8 ;",
+      "while t < 2",
+      "{",
+      "c . tempo = c . tempo . wrapping_mul (2) . wrapping_add ((t as u64) * 13 + 9) ;",
+      "c . grade = c . grade . saturating_add (5 + t as u32) ;",
+      "t = t . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "spend_from_kit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SpendFromKit >",
+      "tag: String",
+      "user_bump: u8",
+      "lamports: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let c = & mut ctx . accounts . craft ;",
+      "require ! (tag . as_bytes () . len () <= 32 , C :: TagTooLong) ;",
+      "let mut s = 0u8 ;",
+      "while s < 3",
+      "{",
+      "c . tempo = c . tempo . wrapping_add ((s as u64) * 23 + 7) ;",
+      "c . grade = c . grade . saturating_add (((lamports % 21) as u32) + s as u32 + 6) ;",
+      "s = s . saturating_add (1) ;",
+      "}",
+      "if c . grade & 1 == 0",
+      "{",
+      "c . tempo = c . tempo . rotate_left (2) . wrapping_add (25) ;",
+      "c . grade = c . grade . saturating_add (12) ;",
+      "} else",
+      "{",
+      "c . tempo = c . tempo . rotate_right (1) . wrapping_add (17) ;",
+      "c . grade = c . grade . saturating_add (8) ;",
+      "}",
+      "let seeds = & [b\"kit_slot\" . as_ref () , c . crafter . as_ref () , tag . as_bytes () , core :: slice :: from_ref (& user_bump) ,] ;",
+      "let kit = Pubkey :: create_program_address (& [b\"kit_slot\" , c . crafter . as_ref () , tag . as_bytes () , & [user_bump]] , ctx . program_id ,) . map_err (| _ | error ! (C :: SeedCompute)) ? ;",
+      "let ix = system_instruction :: transfer (& kit , & ctx . accounts . beneficiary . key () , lamports) ;",
+      "invoke_signed (& ix , & [ctx . accounts . kit_hint . to_account_info () , ctx . accounts . beneficiary . to_account_info () , ctx . accounts . system_program . to_account_info () ,] , & [seeds] ,) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Boot",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "craft",
+        "attribute": "# [account (init , payer = crafter , space = 8 + 32 + 8 + 4 + 1 , seeds = [b\"craft\" , crafter . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Craft >"
+      },
+      {
+        "name": "crafter",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SpendFromKit",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "craft",
+        "attribute": "# [account (mut , seeds = [b\"craft\" , crafter . key () . as_ref ()] , bump = craft . bump_main)]",
+        "field_type": "Account < 'info , Craft >"
+      },
+      {
+        "name": "kit_hint",
+        "attribute": "# [doc = \" CHECK\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "beneficiary",
+        "attribute": "# [doc = \" CHECK\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "crafter",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Craft",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "crafter",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "tempo",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "grade",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "bump_main",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

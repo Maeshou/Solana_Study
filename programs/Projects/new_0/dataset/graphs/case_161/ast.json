@@ -1,0 +1,177 @@
+[
+  {
+    "name": "create_order",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateOrder >",
+      "bump: u8",
+      "order_id: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 新規注文作成：注文ID を受け取り、初期状態をまとめて設定\"]"
+    ],
+    "body": [
+      "* ctx . accounts . order = Order { owner : ctx . accounts . user . key () , bump , order_id , items_count : 0 , total_price : 0 , status : String :: from (\"created\") , last_updated_ts : ctx . accounts . clock . unix_timestamp , } ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "add_item",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyOrder >",
+      "quantity: u64",
+      "price_per_item: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 商品追加：個数・単価から合計金額を計算し、状態とタイムスタンプも更新\"]"
+    ],
+    "body": [
+      "let o = & mut ctx . accounts . order ;",
+      "o . items_count = o . items_count . wrapping_add (quantity) ;",
+      "let added = price_per_item . wrapping_mul (quantity) ;",
+      "o . total_price = o . total_price . wrapping_add (added) ;",
+      "o . status = String :: from (\"item_added\") ;",
+      "o . last_updated_ts = ctx . accounts . clock . unix_timestamp ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "complete_order",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyOrder >"
+    ],
+    "attributes": [
+      "# [doc = \" 注文完了：状態とタイムスタンプを更新\"]"
+    ],
+    "body": [
+      "let o = & mut ctx . accounts . order ;",
+      "o . status = String :: from (\"completed\") ;",
+      "o . last_updated_ts = ctx . accounts . clock . unix_timestamp ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "cancel_order",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyOrder >"
+    ],
+    "attributes": [
+      "# [doc = \" 注文取消：状態とタイムスタンプを更新\"]"
+    ],
+    "body": [
+      "let o = & mut ctx . accounts . order ;",
+      "o . status = String :: from (\"canceled\") ;",
+      "o . last_updated_ts = ctx . accounts . clock . unix_timestamp ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CreateOrder",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "order",
+        "attribute": "# [doc = \" PDA で生成する Order アカウント\"] # [account (init , payer = user , space = 8 + 32 + 1 + 8 + 8 + 8 + 4 + 10 + 8 , seeds = [b\"order\" , user . key () . as_ref () , & order_id . to_le_bytes ()] , bump)]",
+        "field_type": "Account < 'info , Order >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 注文作成者（署名必須）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": "# [doc = \" システムプログラム\"]",
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "clock",
+        "attribute": "# [doc = \" 現在のブロック時間を取得\"]",
+        "field_type": "Sysvar < 'info , Clock >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ModifyOrder",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "order",
+        "attribute": "# [doc = \" 既存の Order（PDA 検証 + オーナーチェック）\"] # [account (mut , seeds = [b\"order\" , owner . key () . as_ref () , & order . order_id . to_le_bytes ()] , bump = order . bump , has_one = owner)]",
+        "field_type": "Account < 'info , Order >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 注文所有者（署名必須）\"] # [account (signer)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": "# [doc = \" システムプログラム\"]",
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "clock",
+        "attribute": "# [doc = \" タイムスタンプ更新用\"]",
+        "field_type": "Sysvar < 'info , Clock >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Order",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "order_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "items_count",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_price",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "status",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "last_updated_ts",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

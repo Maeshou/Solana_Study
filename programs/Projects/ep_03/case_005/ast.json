@@ -1,0 +1,112 @@
+[
+  {
+    "name": "claim_rewards",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ClaimRewards >"
+    ],
+    "attributes": [
+      "# [doc = \" ステークアカウントの報酬を請求し、トークンを転送する\"]"
+    ],
+    "body": [
+      "let stake_acc = & mut ctx . accounts . stake_account ;",
+      "let current_time = ctx . accounts . clock . unix_timestamp ;",
+      "let elapsed = current_time - stake_acc . staked_at ;",
+      "let reward_amount = (elapsed as u64) . checked_mul (ctx . accounts . config . reward_rate) . unwrap () ;",
+      "stake_acc . rewards = stake_acc . rewards . checked_add (reward_amount) . unwrap () ;",
+      "stake_acc . staked_at = current_time ;",
+      "let cpi_accounts = Transfer { from : ctx . accounts . reward_vault . to_account_info () , to : ctx . accounts . user_token_account . to_account_info () , authority : ctx . accounts . service_authority . to_account_info () , } ;",
+      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
+      "token :: transfer (cpi_ctx , reward_amount) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "ClaimRewards",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "stake_account",
+        "attribute": "# [account (mut)] # [doc = \" 本来は #[account(has_one = owner)] で所有者チェックを入れるべき\"]",
+        "field_type": "Account < 'info , StakeAccount >"
+      },
+      {
+        "name": "reward_vault",
+        "attribute": "# [doc = \" 報酬支払い用のトークン保管アカウント（Vault）\"] # [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "user_token_account",
+        "attribute": "# [doc = \" ユーザーの受け取り用トークンアカウント\"] # [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "service_authority",
+        "attribute": "# [doc = \" CPI 実行権限を持つサービス権限アカウント\"]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": "# [doc = \" SPL トークンプログラム\"]",
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "config",
+        "attribute": "# [doc = \" 報酬レート等を保持する設定アカウント\"]",
+        "field_type": "Account < 'info , Config >"
+      },
+      {
+        "name": "clock",
+        "attribute": "# [doc = \" システムクロック\"]",
+        "field_type": "Sysvar < 'info , Clock >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "StakeAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 本来このアカウントを所有するユーザーの Pubkey\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "nft_mint",
+        "attribute": "# [doc = \" ステーキング対象の NFT ミントアドレス\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "staked_at",
+        "attribute": "# [doc = \" 前回請求時刻（UNIX タイムスタンプ）\"]",
+        "field_type": "i64"
+      },
+      {
+        "name": "rewards",
+        "attribute": "# [doc = \" 累積報酬ポイント\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Config",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "reward_rate",
+        "attribute": "# [doc = \" 報酬レート（トークン単位／秒）\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

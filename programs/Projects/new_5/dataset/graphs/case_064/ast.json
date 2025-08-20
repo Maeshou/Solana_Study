@@ -1,0 +1,235 @@
+[
+  {
+    "name": "create_library",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateLibrary >",
+      "library_id: u64",
+      "max_books: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let library = & mut ctx . accounts . library ;",
+      "library . manager = ctx . accounts . manager . key () ;",
+      "library . library_id = library_id ;",
+      "library . total_books = 0 ;",
+      "library . max_books = max_books ;",
+      "library . library_status = LibraryStatus :: Open ;",
+      "msg ! (\"Library {} created with capacity {}.\" , library . library_id , library . max_books) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "check_out_book",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CheckOutBook >",
+      "book_id: u32",
+      "user_id: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let book = & mut ctx . accounts . book ;",
+      "let library = & mut ctx . accounts . library ;",
+      "if matches ! (library . library_status , LibraryStatus :: Open)",
+      "{",
+      "if book . is_available",
+      "{",
+      "book . is_available = false ;",
+      "book . checked_out_by = user_id ;",
+      "msg ! (\"Book",
+      "{",
+      "} checked out by user {}.\" , book . book_id , book . checked_out_by) ;",
+      "} else",
+      "{",
+      "msg ! (\"Book {} is not available for checkout.\" , book . book_id) ;",
+      "} } else",
+      "{",
+      "msg ! (\"Library is closed. Cannot check out books.\") ;",
+      "}",
+      "book . library = library . key () ;",
+      "book . book_id = book_id ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "return_book",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ReturnBook >",
+      "user_id: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let book1 = & mut ctx . accounts . book1 ;",
+      "let book2 = & mut ctx . accounts . book2 ;",
+      "if book1 . checked_out_by == user_id && book2 . checked_out_by != user_id",
+      "{",
+      "book1 . is_available = true ;",
+      "book1 . checked_out_by = 0 ;",
+      "msg ! (\"Book 1 returned.\") ;",
+      "} else",
+      "{",
+      "msg ! (\"Book 1 was not checked out by this user.\") ;",
+      "}",
+      "if book2 . checked_out_by == user_id",
+      "{",
+      "book2 . is_available = true ;",
+      "book2 . checked_out_by = 0 ;",
+      "msg ! (\"Book 2 returned.\") ;",
+      "} else",
+      "{",
+      "msg ! (\"Book 2 was not checked out by this user.\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CreateLibrary",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "library",
+        "attribute": "# [account (init , payer = manager , space = 8 + 32 + 8 + 4 + 4 + 1)]",
+        "field_type": "Account < 'info , Library >"
+      },
+      {
+        "name": "manager",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CheckOutBook",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "library",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Library >"
+      },
+      {
+        "name": "book",
+        "attribute": "# [account (init , payer = borrower , space = 8 + 32 + 4 + 4 + 1 + 1)]",
+        "field_type": "Account < 'info , Book >"
+      },
+      {
+        "name": "borrower",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ReturnBook",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "library",
+        "attribute": "# [account (mut , has_one = library)]",
+        "field_type": "Account < 'info , Library >"
+      },
+      {
+        "name": "book1",
+        "attribute": "# [account (mut , has_one = library)]",
+        "field_type": "Account < 'info , Book >"
+      },
+      {
+        "name": "book2",
+        "attribute": "# [account (mut , has_one = library)]",
+        "field_type": "Account < 'info , Book >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Library",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "library_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_books",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "max_books",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "library_status",
+        "attribute": null,
+        "field_type": "LibraryStatus"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Book",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "library",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "book_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "checked_out_by",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "is_available",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "book_type",
+        "attribute": null,
+        "field_type": "BookType"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

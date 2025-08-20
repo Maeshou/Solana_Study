@@ -1,0 +1,704 @@
+[
+  {
+    "name": "init_yield_farm",
+    "inputs": [
+      "ctx: Context < InitYieldFarm >",
+      "reward_token_per_block: u64",
+      "bonus_multiplier: u16"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let farm = & mut ctx . accounts . yield_farm ;"
+      },
+      {
+        "id": 2,
+        "label": "farm . farm_owner = ctx . accounts . owner . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "farm . reward_per_block = reward_token_per_block ;"
+      },
+      {
+        "id": 4,
+        "label": "farm . bonus_multiplier = bonus_multiplier ;"
+      },
+      {
+        "id": 5,
+        "label": "farm . total_staked = 0 ;"
+      },
+      {
+        "id": 6,
+        "label": "farm . total_rewards_distributed = 0 ;"
+      },
+      {
+        "id": 7,
+        "label": "farm . start_block = Clock :: get () ? . slot ;"
+      },
+      {
+        "id": 8,
+        "label": "farm . last_reward_block = Clock :: get () ? . slot ;"
+      },
+      {
+        "id": 9,
+        "label": "farm . accumulated_reward_per_share = 0 ;"
+      },
+      {
+        "id": 10,
+        "label": "farm . emission_rate = 100 ;"
+      },
+      {
+        "id": 11,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: farm"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: farm"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: farm"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: farm"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: farm"
+      },
+      {
+        "from": 1,
+        "to": 6,
+        "label": "data_dep: farm"
+      },
+      {
+        "from": 1,
+        "to": 7,
+        "label": "data_dep: farm"
+      },
+      {
+        "from": 1,
+        "to": 8,
+        "label": "data_dep: farm"
+      },
+      {
+        "from": 1,
+        "to": 9,
+        "label": "data_dep: farm"
+      },
+      {
+        "from": 1,
+        "to": 10,
+        "label": "data_dep: farm"
+      }
+    ]
+  },
+  {
+    "name": "harvest_rewards",
+    "inputs": [
+      "ctx: Context < HarvestRewards >",
+      "user_address: Pubkey",
+      "force_compound: bool"
+    ],
+    "nodes": [
+      {
+        "id": 12,
+        "label": "Entry"
+      },
+      {
+        "id": 13,
+        "label": "let farm = & mut ctx . accounts . yield_farm ;"
+      },
+      {
+        "id": 14,
+        "label": "let user_info = & mut ctx . accounts . user_farming_info ;"
+      },
+      {
+        "id": 15,
+        "label": "let harvester = & ctx . accounts . harvester ;"
+      },
+      {
+        "id": 16,
+        "label": "let current_block = Clock :: get () ? . slot ;"
+      },
+      {
+        "id": 17,
+        "label": "let blocks_elapsed = current_block - farm . last_reward_block ;"
+      },
+      {
+        "id": 18,
+        "label": "if blocks_elapsed > 0 && farm . total_staked > 0 { let reward = blocks_elapsed * farm . reward_per_block ; farm . accumulated_reward_per_share += (reward * 1e12 as u64) / farm . total_staked ; farm . last_reward_block = current_block ; }"
+      },
+      {
+        "id": 19,
+        "label": "let reward = blocks_elapsed * farm . reward_per_block ;"
+      },
+      {
+        "id": 20,
+        "label": "farm . accumulated_reward_per_share += (reward * 1e12 as u64) / farm . total_staked ;"
+      },
+      {
+        "id": 21,
+        "label": "farm . last_reward_block = current_block ;"
+      },
+      {
+        "id": 22,
+        "label": "let user_accumulated_reward = (user_info . staked_amount * farm . accumulated_reward_per_share) / 1e12 as u64 ;"
+      },
+      {
+        "id": 23,
+        "label": "let pending_reward = user_accumulated_reward - user_info . reward_debt ;"
+      },
+      {
+        "id": 24,
+        "label": "if pending_reward > 0 { user_info . total_harvested += pending_reward ; farm . total_rewards_distributed += pending_reward ; if force_compound { user_info . staked_amount += pending_reward ; farm . total_staked += pending_reward ; user_info . compound_count += 1 ; let compound_bonus = (pending_reward * farm . bonus_multiplier as u64) / 10000 ; user_info . bonus_rewards += compound_bonus ; farm . total_bonus_distributed += compound_bonus ; } let farming_duration = current_block - user_info . first_stake_block ; if farming_duration > 100000 { user_info . loyalty_multiplier = (user_info . loyalty_multiplier + 5) . min (200) ; } for week in 0 .. 4 { if farming_duration > (week + 1) as u64 * 10080 { user_info . weekly_multipliers [week] = 110 + (week as u16 * 10) ; } } user_info . reward_debt = (user_info . staked_amount * farm . accumulated_reward_per_share) / 1e12 as u64 ; }"
+      },
+      {
+        "id": 25,
+        "label": "user_info . total_harvested += pending_reward ;"
+      },
+      {
+        "id": 26,
+        "label": "farm . total_rewards_distributed += pending_reward ;"
+      },
+      {
+        "id": 27,
+        "label": "if force_compound { user_info . staked_amount += pending_reward ; farm . total_staked += pending_reward ; user_info . compound_count += 1 ; let compound_bonus = (pending_reward * farm . bonus_multiplier as u64) / 10000 ; user_info . bonus_rewards += compound_bonus ; farm . total_bonus_distributed += compound_bonus ; }"
+      },
+      {
+        "id": 28,
+        "label": "user_info . staked_amount += pending_reward ;"
+      },
+      {
+        "id": 29,
+        "label": "farm . total_staked += pending_reward ;"
+      },
+      {
+        "id": 30,
+        "label": "user_info . compound_count += 1 ;"
+      },
+      {
+        "id": 31,
+        "label": "let compound_bonus = (pending_reward * farm . bonus_multiplier as u64) / 10000 ;"
+      },
+      {
+        "id": 32,
+        "label": "user_info . bonus_rewards += compound_bonus ;"
+      },
+      {
+        "id": 33,
+        "label": "farm . total_bonus_distributed += compound_bonus ;"
+      },
+      {
+        "id": 34,
+        "label": "let farming_duration = current_block - user_info . first_stake_block ;"
+      },
+      {
+        "id": 35,
+        "label": "if farming_duration > 100000 { user_info . loyalty_multiplier = (user_info . loyalty_multiplier + 5) . min (200) ; }"
+      },
+      {
+        "id": 36,
+        "label": "user_info . loyalty_multiplier = (user_info . loyalty_multiplier + 5) . min (200) ;"
+      },
+      {
+        "id": 37,
+        "label": "for week in 0 .. 4 { if farming_duration > (week + 1) as u64 * 10080 { user_info . weekly_multipliers [week] = 110 + (week as u16 * 10) ; } }"
+      },
+      {
+        "id": 38,
+        "label": "if farming_duration > (week + 1) as u64 * 10080 { user_info . weekly_multipliers [week] = 110 + (week as u16 * 10) ; }"
+      },
+      {
+        "id": 39,
+        "label": "user_info . weekly_multipliers [week] = 110 + (week as u16 * 10) ;"
+      },
+      {
+        "id": 40,
+        "label": "user_info . reward_debt = (user_info . staked_amount * farm . accumulated_reward_per_share) / 1e12 as u64 ;"
+      },
+      {
+        "id": 41,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 13,
+        "to": 13,
+        "label": "def: farm"
+      },
+      {
+        "from": 14,
+        "to": 14,
+        "label": "def: user_info"
+      },
+      {
+        "from": 15,
+        "to": 15,
+        "label": "def: harvester"
+      },
+      {
+        "from": 16,
+        "to": 16,
+        "label": "def: current_block"
+      },
+      {
+        "from": 17,
+        "to": 17,
+        "label": "def: blocks_elapsed"
+      },
+      {
+        "from": 16,
+        "to": 17,
+        "label": "data_dep: current_block"
+      },
+      {
+        "from": 13,
+        "to": 17,
+        "label": "data_dep: farm"
+      },
+      {
+        "from": 17,
+        "to": 18,
+        "label": "data_dep: blocks_elapsed"
+      },
+      {
+        "from": 13,
+        "to": 18,
+        "label": "data_dep: farm"
+      },
+      {
+        "from": 17,
+        "to": 18,
+        "label": "data_dep: blocks_elapsed"
+      },
+      {
+        "from": 13,
+        "to": 18,
+        "label": "data_dep: farm"
+      },
+      {
+        "from": 13,
+        "to": 18,
+        "label": "data_dep: farm"
+      },
+      {
+        "from": 13,
+        "to": 18,
+        "label": "data_dep: farm"
+      },
+      {
+        "from": 13,
+        "to": 18,
+        "label": "data_dep: farm"
+      },
+      {
+        "from": 16,
+        "to": 18,
+        "label": "data_dep: current_block"
+      },
+      {
+        "from": 19,
+        "to": 19,
+        "label": "def: reward"
+      },
+      {
+        "from": 17,
+        "to": 19,
+        "label": "data_dep: blocks_elapsed"
+      },
+      {
+        "from": 13,
+        "to": 19,
+        "label": "data_dep: farm"
+      },
+      {
+        "from": 13,
+        "to": 20,
+        "label": "data_dep: farm"
+      },
+      {
+        "from": 19,
+        "to": 20,
+        "label": "data_dep: reward"
+      },
+      {
+        "from": 13,
+        "to": 20,
+        "label": "data_dep: farm"
+      },
+      {
+        "from": 13,
+        "to": 21,
+        "label": "data_dep: farm"
+      },
+      {
+        "from": 16,
+        "to": 21,
+        "label": "data_dep: current_block"
+      },
+      {
+        "from": 22,
+        "to": 22,
+        "label": "def: user_accumulated_reward"
+      },
+      {
+        "from": 14,
+        "to": 22,
+        "label": "data_dep: user_info"
+      },
+      {
+        "from": 13,
+        "to": 22,
+        "label": "data_dep: farm"
+      },
+      {
+        "from": 23,
+        "to": 23,
+        "label": "def: pending_reward"
+      },
+      {
+        "from": 22,
+        "to": 23,
+        "label": "data_dep: user_accumulated_reward"
+      },
+      {
+        "from": 14,
+        "to": 23,
+        "label": "data_dep: user_info"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "data_dep: pending_reward"
+      },
+      {
+        "from": 14,
+        "to": 24,
+        "label": "data_dep: user_info"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "data_dep: pending_reward"
+      },
+      {
+        "from": 13,
+        "to": 24,
+        "label": "data_dep: farm"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "data_dep: pending_reward"
+      },
+      {
+        "from": 14,
+        "to": 24,
+        "label": "data_dep: user_info"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "data_dep: pending_reward"
+      },
+      {
+        "from": 13,
+        "to": 24,
+        "label": "data_dep: farm"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "data_dep: pending_reward"
+      },
+      {
+        "from": 14,
+        "to": 24,
+        "label": "data_dep: user_info"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "data_dep: pending_reward"
+      },
+      {
+        "from": 13,
+        "to": 24,
+        "label": "data_dep: farm"
+      },
+      {
+        "from": 14,
+        "to": 24,
+        "label": "data_dep: user_info"
+      },
+      {
+        "from": 13,
+        "to": 24,
+        "label": "data_dep: farm"
+      },
+      {
+        "from": 16,
+        "to": 24,
+        "label": "data_dep: current_block"
+      },
+      {
+        "from": 14,
+        "to": 24,
+        "label": "data_dep: user_info"
+      },
+      {
+        "from": 14,
+        "to": 24,
+        "label": "data_dep: user_info"
+      },
+      {
+        "from": 14,
+        "to": 24,
+        "label": "data_dep: user_info"
+      },
+      {
+        "from": 14,
+        "to": 24,
+        "label": "data_dep: user_info"
+      },
+      {
+        "from": 14,
+        "to": 24,
+        "label": "data_dep: user_info"
+      },
+      {
+        "from": 14,
+        "to": 24,
+        "label": "data_dep: user_info"
+      },
+      {
+        "from": 13,
+        "to": 24,
+        "label": "data_dep: farm"
+      },
+      {
+        "from": 14,
+        "to": 25,
+        "label": "data_dep: user_info"
+      },
+      {
+        "from": 23,
+        "to": 25,
+        "label": "data_dep: pending_reward"
+      },
+      {
+        "from": 13,
+        "to": 26,
+        "label": "data_dep: farm"
+      },
+      {
+        "from": 23,
+        "to": 26,
+        "label": "data_dep: pending_reward"
+      },
+      {
+        "from": 14,
+        "to": 27,
+        "label": "data_dep: user_info"
+      },
+      {
+        "from": 23,
+        "to": 27,
+        "label": "data_dep: pending_reward"
+      },
+      {
+        "from": 13,
+        "to": 27,
+        "label": "data_dep: farm"
+      },
+      {
+        "from": 23,
+        "to": 27,
+        "label": "data_dep: pending_reward"
+      },
+      {
+        "from": 14,
+        "to": 27,
+        "label": "data_dep: user_info"
+      },
+      {
+        "from": 23,
+        "to": 27,
+        "label": "data_dep: pending_reward"
+      },
+      {
+        "from": 13,
+        "to": 27,
+        "label": "data_dep: farm"
+      },
+      {
+        "from": 14,
+        "to": 27,
+        "label": "data_dep: user_info"
+      },
+      {
+        "from": 13,
+        "to": 27,
+        "label": "data_dep: farm"
+      },
+      {
+        "from": 14,
+        "to": 28,
+        "label": "data_dep: user_info"
+      },
+      {
+        "from": 23,
+        "to": 28,
+        "label": "data_dep: pending_reward"
+      },
+      {
+        "from": 13,
+        "to": 29,
+        "label": "data_dep: farm"
+      },
+      {
+        "from": 23,
+        "to": 29,
+        "label": "data_dep: pending_reward"
+      },
+      {
+        "from": 14,
+        "to": 30,
+        "label": "data_dep: user_info"
+      },
+      {
+        "from": 31,
+        "to": 31,
+        "label": "def: compound_bonus"
+      },
+      {
+        "from": 23,
+        "to": 31,
+        "label": "data_dep: pending_reward"
+      },
+      {
+        "from": 13,
+        "to": 31,
+        "label": "data_dep: farm"
+      },
+      {
+        "from": 14,
+        "to": 32,
+        "label": "data_dep: user_info"
+      },
+      {
+        "from": 31,
+        "to": 32,
+        "label": "data_dep: compound_bonus"
+      },
+      {
+        "from": 13,
+        "to": 33,
+        "label": "data_dep: farm"
+      },
+      {
+        "from": 31,
+        "to": 33,
+        "label": "data_dep: compound_bonus"
+      },
+      {
+        "from": 34,
+        "to": 34,
+        "label": "def: farming_duration"
+      },
+      {
+        "from": 16,
+        "to": 34,
+        "label": "data_dep: current_block"
+      },
+      {
+        "from": 14,
+        "to": 34,
+        "label": "data_dep: user_info"
+      },
+      {
+        "from": 34,
+        "to": 35,
+        "label": "data_dep: farming_duration"
+      },
+      {
+        "from": 14,
+        "to": 35,
+        "label": "data_dep: user_info"
+      },
+      {
+        "from": 14,
+        "to": 35,
+        "label": "data_dep: user_info"
+      },
+      {
+        "from": 14,
+        "to": 36,
+        "label": "data_dep: user_info"
+      },
+      {
+        "from": 14,
+        "to": 36,
+        "label": "data_dep: user_info"
+      },
+      {
+        "from": 34,
+        "to": 37,
+        "label": "data_dep: farming_duration"
+      },
+      {
+        "from": 14,
+        "to": 37,
+        "label": "data_dep: user_info"
+      },
+      {
+        "from": 34,
+        "to": 38,
+        "label": "data_dep: farming_duration"
+      },
+      {
+        "from": 14,
+        "to": 38,
+        "label": "data_dep: user_info"
+      },
+      {
+        "from": 14,
+        "to": 39,
+        "label": "data_dep: user_info"
+      },
+      {
+        "from": 14,
+        "to": 40,
+        "label": "data_dep: user_info"
+      },
+      {
+        "from": 14,
+        "to": 40,
+        "label": "data_dep: user_info"
+      },
+      {
+        "from": 13,
+        "to": 40,
+        "label": "data_dep: farm"
+      }
+    ]
+  }
+]

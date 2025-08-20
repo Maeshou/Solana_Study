@@ -1,0 +1,160 @@
+[
+  {
+    "name": "init_escrow",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitEscrow >",
+      "lease_id: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let e = & mut ctx . accounts . escrow ;",
+      "e . manager = ctx . accounts . manager . key () ;",
+      "e . lease_id = lease_id . rotate_left (2) . wrapping_add (33) ;",
+      "e . state = 2 ;",
+      "let mut i = 0u8 ;",
+      "let mut s = e . lease_id . rotate_right (1) . wrapping_add (5) ;",
+      "while i < 4",
+      "{",
+      "s = s . rotate_left (1) . wrapping_mul (2) . wrapping_add (7) ;",
+      "if s % 3 > 0",
+      "{",
+      "e . state = e . state . saturating_add (((s % 23) as u32) + 1) ;",
+      "} i = i . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "settle",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Settle >",
+      "rent: u64",
+      "token_refund: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let bump = * ctx . bumps . get (\"escrow\") . ok_or (error ! (E :: MissingBump)) ? ;",
+      "let seeds : & [& [u8]] = & [b\"escrow\" , ctx . accounts . manager . key . as_ref () , & ctx . accounts . escrow . lease_id . to_le_bytes () , & [bump]] ;",
+      "let ix = system_instruction :: transfer (& ctx . accounts . escrow . key () , & ctx . accounts . landlord . key () , rent) ;",
+      "invoke_signed (& ix , & [ctx . accounts . escrow . to_account_info () , ctx . accounts . landlord . to_account_info () , ctx . accounts . system_program . to_account_info () ,] , & [seeds] ,) ? ;",
+      "let cpi_accounts = Transfer { from : ctx . accounts . escrow_token . to_account_info () , to : ctx . accounts . tenant_token . to_account_info () , authority : ctx . accounts . escrow . to_account_info () , } ;",
+      "let cpi_ctx = CpiContext :: new_with_signer (ctx . accounts . token_program . to_account_info () , cpi_accounts , & [seeds]) ;",
+      "let mut left = token_refund ;",
+      "let mut step = (token_refund / 3) . max (1) ;",
+      "let mut rounds = 3u8 ;",
+      "while left > 0 && rounds > 0",
+      "{",
+      "let give = left . min (step) ;",
+      "token :: transfer (cpi_ctx . clone () , give) ? ;",
+      "left = left . saturating_sub (give) ;",
+      "step = step . rotate_right (1) . wrapping_add (2) ;",
+      "if step > left && left > 4",
+      "{",
+      "step = left - 2 ;",
+      "} rounds = rounds . saturating_sub (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitEscrow",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "escrow",
+        "attribute": "# [account (init , payer = manager , space = 8 + 32 + 8 + 4 , seeds = [b\"escrow\" , manager . key () . as_ref () , lease_id . to_le_bytes () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Escrow >"
+      },
+      {
+        "name": "manager",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "lease_id",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Settle",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "escrow",
+        "attribute": "# [account (mut , seeds = [b\"escrow\" , manager . key () . as_ref () , escrow . lease_id . to_le_bytes () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Escrow >"
+      },
+      {
+        "name": "landlord",
+        "attribute": "# [account (mut)]",
+        "field_type": "SystemAccount < 'info >"
+      },
+      {
+        "name": "escrow_token",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "tenant_token",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Escrow",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "lease_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "state",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

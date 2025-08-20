@@ -1,0 +1,152 @@
+[
+  {
+    "name": "init_points",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitPoints >"
+    ],
+    "attributes": [
+      "# [doc = \" 1. ポイントシステムの初期化：バランス配列とユーザ配列はデフォルト（zeroed）、\"]",
+      "# [doc = \"    count だけリセット（署名チェックなしの脆弱性あり）\"]"
+    ],
+    "body": [
+      "let pts = & mut ctx . accounts . points ;",
+      "pts . count = 0 ;",
+      "msg ! (\"Points system initialized\") ;"
+    ]
+  },
+  {
+    "name": "award_point",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AwardPoint >",
+      "slot: u8"
+    ],
+    "attributes": [
+      "# [doc = \" 2. ポイント付与：指定したスロット（index）に対してユーザとバランスを直接設定  \"]",
+      "# [doc = \"    → loops/branches/Vec 一切なし、署名検証なし\"]"
+    ],
+    "body": [
+      "let pts = & mut ctx . accounts . points ;",
+      "let idx = slot as usize ;",
+      "pts . users [idx] = ctx . accounts . user . key () ;",
+      "pts . balances [idx] = pts . balances [idx] . saturating_add (1) ;",
+      "pts . count = pts . count . saturating_add (1) ;",
+      "msg ! (\"Awarded 1 point to {}\" , pts . users [idx]) ;"
+    ]
+  },
+  {
+    "name": "redeem_point",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RedeemPoint >",
+      "slot: u8"
+    ],
+    "attributes": [
+      "# [doc = \" 3. ポイント消費：指定スロットのバランスを 0 にし、その値を返す  \"]",
+      "# [doc = \"    → branches/loops/Vec 一切なし、署名検証なし\"]"
+    ],
+    "body": [
+      "let pts = & mut ctx . accounts . points ;",
+      "let idx = slot as usize ;",
+      "let redeemed = pts . balances [idx] ;",
+      "pts . balances [idx] = 0 ;",
+      "msg ! (\"Redeemed {} points from {}\" , redeemed , pts . users [idx]) ;",
+      "redeemed"
+    ]
+  },
+  {
+    "name": "Points",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "users",
+        "attribute": "# [doc = \" 固定長で最大 10 件のユーザスロット\"]",
+        "field_type": "[Pubkey ; 10]"
+      },
+      {
+        "name": "balances",
+        "attribute": "# [doc = \" 各スロットのポイント残高\"]",
+        "field_type": "[u64 ; 10]"
+      },
+      {
+        "name": "count",
+        "attribute": "# [doc = \" 総ポイント付与回数\"]",
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitPoints",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "points",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 * 10 + 8 * 10 + 1)]",
+        "field_type": "Account < 'info , Points >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AwardPoint",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "points",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Points >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" CHECK: 署名検証なしでポイント付与対象を指定\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "operator",
+        "attribute": "# [doc = \" CHECK: 呼び出し元の権限検証なし\"]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RedeemPoint",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "points",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Points >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" CHECK: 署名検証なしでポイント消費対象を指定\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

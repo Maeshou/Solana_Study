@@ -1,0 +1,54 @@
+[
+  {
+    "name": "recover_stamina",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RecoverStamina >",
+      "amount: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let acc = & mut ctx . accounts . stamina_account . to_account_info () ;",
+      "let buf = & mut acc . data . borrow_mut () ;",
+      "if buf . len () < 12",
+      "{",
+      "return err ! (ErrorCode :: DataTooShort) ;",
+      "}",
+      "let cur = u16 :: from_le_bytes ([buf [0] , buf [1]]) ;",
+      "let max = u16 :: from_le_bytes ([buf [2] , buf [3]]) ;",
+      "let recovered = cur . saturating_add (amount) . min (max) ;",
+      "let recovered_bytes = recovered . to_le_bytes () ;",
+      "buf [0] = recovered_bytes [0] ;",
+      "buf [1] = recovered_bytes [1] ;",
+      "let now_ts = Clock :: get () ? . unix_timestamp ;",
+      "let now_bytes = now_ts . to_le_bytes () ;",
+      "let start = buf . len () - 8 ;",
+      "for i in 0 .. 8",
+      "{",
+      "buf [start + i] = now_bytes [i] ;",
+      "}",
+      "msg ! (\"Stamina on {}: recovered {} → {} (capped at max {})\" , acc . key () , cur , recovered , max) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "RecoverStamina",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "stamina_account",
+        "attribute": "# [doc = \" CHECK: 検証なしの任意アカウント（脆弱性あり）\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 実行者（署名のみ確認）\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

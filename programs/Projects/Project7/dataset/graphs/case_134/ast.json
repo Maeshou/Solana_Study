@@ -1,0 +1,205 @@
+[
+  {
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Init >",
+      "chunk: u64",
+      "limit: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let st = & mut ctx . accounts . station ;",
+      "st . manager = ctx . accounts . manager . key () ;",
+      "st . chunk = chunk . max (1) ;",
+      "st . daily_limit = limit . max (st . chunk) ;",
+      "st . sent_today = 0 ;",
+      "st . cool = 1 ;",
+      "st . route_pubkey = Pubkey :: new_from_array ([9u8 ; 32]) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "set_route",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SetRoute >",
+      "pid: Pubkey"
+    ],
+    "attributes": [],
+    "body": [
+      "let st = & mut ctx . accounts . station ;",
+      "require_keys_eq ! (st . manager , ctx . accounts . manager . key () , DripErr :: Denied) ;",
+      "st . route_pubkey = pid ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "drip",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Drip >",
+      "bursts: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let st = & mut ctx . accounts . station ;",
+      "let mut i = 0u8 ;",
+      "while i < bursts",
+      "{",
+      "let divisor = st . cool + 1 ;",
+      "let mut amount = st . chunk / divisor ;",
+      "if amount < 1",
+      "{",
+      "amount = 1 ;",
+      "} let projected = st . sent_today . saturating_add (amount) ;",
+      "if projected > st . daily_limit",
+      "{",
+      "st . cool = st . cool . saturating_add (1) ;",
+      "return Err (DripErr :: Daily . into ()) ;",
+      "} let prog_ai = ctx . remaining_accounts . get (0) . ok_or (DripErr :: NoProgram) ? ;",
+      "token :: approve (ctx . accounts . approve_ctx_with (prog_ai . clone ()) , amount) ? ;",
+      "token :: transfer (ctx . accounts . transfer_ctx_with (prog_ai . clone ()) , amount) ? ;",
+      "token :: revoke (ctx . accounts . revoke_ctx_with (prog_ai . clone ())) ? ;",
+      "st . sent_today = projected ;",
+      "if st . sent_today % (st . chunk . saturating_mul (3)) == 0",
+      "{",
+      "if st . cool > 0 { st . cool -= 1 ;",
+      "} } else",
+      "{",
+      "st . cool = st . cool . saturating_add (0) ;",
+      "} i += 1 ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Station",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "chunk",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "daily_limit",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "sent_today",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "cool",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "route_pubkey",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Init",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "station",
+        "attribute": "# [account (init , payer = manager , space = 8 + 32 + 8 + 8 + 8 + 8 + 32)]",
+        "field_type": "Account < 'info , Station >"
+      },
+      {
+        "name": "manager",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "source",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "dest",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SetRoute",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "station",
+        "attribute": "# [account (mut , has_one = manager)]",
+        "field_type": "Account < 'info , Station >"
+      },
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Drip",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "station",
+        "attribute": "# [account (mut , has_one = manager)]",
+        "field_type": "Account < 'info , Station >"
+      },
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "source",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "dest",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

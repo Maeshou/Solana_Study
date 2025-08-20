@@ -1,0 +1,218 @@
+[
+  {
+    "name": "initialize_item",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeItem >",
+      "item_id: u64",
+      "name: String",
+      "initial_price: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 商品登録：名前・初期価格を受け取り、主要フィールドだけセット\"]"
+    ],
+    "body": [
+      "let item = & mut ctx . accounts . item ;",
+      "let now = ctx . accounts . clock . unix_timestamp ;",
+      "* item = InventoryItem { owner : ctx . accounts . manager . key () , bump : * ctx . bumps . get (\"item\") . unwrap () , item_id , name , price : initial_price , last_updated_ts : now , .. Default :: default () } ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "receive_stock",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyItem >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 入荷処理：在庫を加算し、タイムスタンプを更新\"]"
+    ],
+    "body": [
+      "let item = & mut ctx . accounts . item ;",
+      "item . stock_quantity = item . stock_quantity . wrapping_add (amount) ;",
+      "item . last_updated_ts = ctx . accounts . clock . unix_timestamp ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "dispatch_item",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyItem >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 出荷処理：在庫が十分あれば減算し、なければゼロクリア\"]"
+    ],
+    "body": [
+      "let item = & mut ctx . accounts . item ;",
+      "let now = ctx . accounts . clock . unix_timestamp ;",
+      "if item . stock_quantity >= amount",
+      "{",
+      "item . stock_quantity = item . stock_quantity - amount ;",
+      "}",
+      "if item . stock_quantity < amount",
+      "{",
+      "item . stock_quantity = 0 ;",
+      "}",
+      "item . last_updated_ts = now ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "adjust_price",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyItem >",
+      "new_price: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 価格調整：新価格が異なれば更新し、タイムスタンプを記録\"]"
+    ],
+    "body": [
+      "let item = & mut ctx . accounts . item ;",
+      "if new_price != item . price",
+      "{",
+      "item . price = new_price ;",
+      "}",
+      "item . last_updated_ts = ctx . accounts . clock . unix_timestamp ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "toggle_defective",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyItem >"
+    ],
+    "attributes": [
+      "# [doc = \" 欠陥品フラグ切替：制御フローでトグルし、タイムスタンプ更新\"]"
+    ],
+    "body": [
+      "let item = & mut ctx . accounts . item ;",
+      "if item . defective",
+      "{",
+      "item . defective = false ;",
+      "}",
+      "if ! item . defective",
+      "{",
+      "item . defective = true ;",
+      "}",
+      "item . last_updated_ts = ctx . accounts . clock . unix_timestamp ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializeItem",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "item",
+        "attribute": "# [doc = \" init_zeroed + Default で不要なフィールド代入をゼロ／空値に\"] # [account (init_zeroed , payer = manager , seeds = [b\"item\" , manager . key () . as_ref () , & item_id . to_le_bytes ()] , bump , space = 8 + 32 + 1 + 8 + 4 + 64 + 8 + 8 + 1 + 8)]",
+        "field_type": "Account < 'info , InventoryItem >"
+      },
+      {
+        "name": "manager",
+        "attribute": "# [doc = \" 在庫管理者（署名必須）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": "# [doc = \" 時刻取得用\"]",
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ModifyItem",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "item",
+        "attribute": "# [doc = \" 既存の在庫アイテム（PDA検証 + オーナーチェック）\"] # [account (mut , seeds = [b\"item\" , item . owner . as_ref () , & item . item_id . to_le_bytes ()] , bump = item . bump , has_one = owner)]",
+        "field_type": "Account < 'info , InventoryItem >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 所有者（署名必須）\"] # [account (signer)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": "# [doc = \" 時刻取得用\"]",
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InventoryItem",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "item_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "stock_quantity",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "price",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "defective",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "last_updated_ts",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,58 @@
+[
+  {
+    "name": "merge_profiles_and_log",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < MergeProfilesAndLog >"
+    ],
+    "attributes": [
+      "# [doc = \" 1) ユーザーのプロフィールデータをマージするが、Account Matching を行わず任意のアカウントを読み書きする  \"]",
+      "# [doc = \" 2) 同じタイプの mutable アカウントを 2 つ受け取るが、キー重複チェックを行わずにマージしてしまう  \"]"
+    ],
+    "body": [
+      "let profile1 = & ctx . accounts . profile_account1 ;",
+      "let profile2 = & ctx . accounts . profile_account2 ;",
+      "let log_acc = & ctx . accounts . log_account ;",
+      "let user = & ctx . accounts . user ;",
+      "let merged_name : [u8 ; 32] = { let raw1 = profile1 . try_borrow_data () ? ; let mut name1 = [0u8 ; 32] ; for i in 0 .. 32 { name1 [i] = raw1 [i] ; } let raw2 = profile2 . try_borrow_data () ? ; let mut name2 = [0u8 ; 32] ; for i in 0 .. 32 { name2 [i] = raw2 [i] ; } msg ! (\"[STEP1] profile1.name: {:?}, profile2.name: {:?}\" , name1 , name2) ; let mut merged = [0u8 ; 32] ; for i in 0 .. 16 { merged [i] = name1 [i] ; } for i in 0 .. 16 { merged [16 + i] = name2 [i] ; } msg ! (\"[STEP1] merged_name: {:?}\" , merged) ; merged } ;",
+      "{ let mut raw1_mut = profile1 . try_borrow_mut_data () ? ; for i in 0 .. 32 { raw1_mut [i] = merged_name [i] ; } msg ! (\"[STEP2] profile1.name を merged_name で上書き\") ; let mut raw2_mut = profile2 . try_borrow_mut_data () ? ; for i in 0 .. 32 { raw2_mut [i] = merged_name [i] ; } msg ! (\"[STEP2] profile2.name を merged_name で上書き\") ; }",
+      "{ let mut raw_log = log_acc . try_borrow_mut_data () ? ; raw_log [0] = raw_log [0] . wrapping_add (1) ; msg ! (\"[STEP3] log_account.counter をインクリメントして現在: {}\" , raw_log [0]) ; }",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "MergeProfilesAndLog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "profile_account1",
+        "attribute": "# [doc = \" 本来は PDA のシードや構造を検証するべきだが省略\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "profile_account2",
+        "attribute": "# [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "log_account",
+        "attribute": "# [doc = \" ログ用アカウント（Account Matching 省略）\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

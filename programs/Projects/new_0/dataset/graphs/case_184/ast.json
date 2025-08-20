@@ -1,0 +1,201 @@
+[
+  {
+    "name": "SavingsTracker",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "",
+        "attribute": null,
+        "field_type": "Vec < (u64 , u64) >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "initialize",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Initialize >"
+    ],
+    "attributes": [
+      "# [doc = \" アカウント初期化：内部 Vec は空、bump のみ設定\"]"
+    ],
+    "body": [
+      "let bump = * ctx . bumps . get (\"tracker\") . unwrap () ;",
+      "ctx . accounts . tracker . 0 = bump ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "add_goal",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Modify >",
+      "goal_id: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 目標登録：件数制限チェック＋push\"]"
+    ],
+    "body": [
+      "let list = & mut ctx . accounts . tracker . 1 ;",
+      "if list . len () >= MAX_GOALS",
+      "{",
+      "return err ! (ErrorCode :: MaxGoalsReached) ;",
+      "}",
+      "list . push ((goal_id , 0)) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "deposit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Modify >",
+      "goal_id: u64",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 貯金：既存目標を検索し、金額を加算\"]"
+    ],
+    "body": [
+      "let list = & mut ctx . accounts . tracker . 1 ;",
+      "let mut found = false ;",
+      "for entry in list . iter_mut ()",
+      "{",
+      "if entry . 0 == goal_id",
+      "{",
+      "entry . 1 = entry . 1 . wrapping_add (amount) ;",
+      "found = true ;",
+      "}",
+      "}",
+      "if ! found",
+      "{",
+      "return err ! (ErrorCode :: NoSuchGoal) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "withdraw",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Modify >",
+      "goal_id: u64",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 引き出し：既存目標を検索し、残高チェック＋減算\"]"
+    ],
+    "body": [
+      "let list = & mut ctx . accounts . tracker . 1 ;",
+      "let mut found = false ;",
+      "for entry in list . iter_mut ()",
+      "{",
+      "if entry . 0 == goal_id",
+      "{",
+      "found = true ;",
+      "if entry . 1 < amount",
+      "{",
+      "return err ! (ErrorCode :: InsufficientFunds) ;",
+      "} entry . 1 = entry . 1 - amount ;",
+      "}",
+      "}",
+      "if ! found",
+      "{",
+      "return err ! (ErrorCode :: NoSuchGoal) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "purge_zero",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Modify >"
+    ],
+    "attributes": [
+      "# [doc = \" 完了・未達問わず残高 0 の目標を除去\"]"
+    ],
+    "body": [
+      "let list = & mut ctx . accounts . tracker . 1 ;",
+      "list . retain (| & (_ , saved) | saved > 0) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "count_goals",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Modify >"
+    ],
+    "attributes": [
+      "# [doc = \" 目標数報告：ログ出力\"]"
+    ],
+    "body": [
+      "let total = ctx . accounts . tracker . 1 . len () as u64 ;",
+      "msg ! (\"Total goals: {}\" , total) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Initialize",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "tracker",
+        "attribute": "# [account (init_zeroed , payer = authority , seeds = [b\"savings\" , authority . key () . as_ref ()] , bump , space = 8 + 1 + 4 + 20 * (8 + 8))]",
+        "field_type": "Account < 'info , SavingsTracker >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Modify",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "tracker",
+        "attribute": "# [account (mut , seeds = [b\"savings\" , authority . key () . as_ref ()] , bump = tracker . 0)]",
+        "field_type": "Account < 'info , SavingsTracker >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (signer)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

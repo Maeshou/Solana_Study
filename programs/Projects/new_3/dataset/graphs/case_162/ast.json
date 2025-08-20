@@ -1,0 +1,138 @@
+[
+  {
+    "name": "Coupon",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "issuer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "code",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "remaining",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CouponUsage",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "coupon",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "times_used",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitializeCoupon",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "coupon",
+        "attribute": "# [account (init , payer = issuer , space = 8 + 32 + 4 + 32 + 8)]",
+        "field_type": "Account < 'info , Coupon >"
+      },
+      {
+        "name": "issuer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "UseCoupon",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "coupon",
+        "attribute": "# [doc = \" Coupon.issuer == issuer.key() は検証される\"] # [account (mut , has_one = issuer)]",
+        "field_type": "Account < 'info , Coupon >"
+      },
+      {
+        "name": "usage",
+        "attribute": "# [doc = \" CouponUsage.coupon ⇔ Coupon.key() の検証がないため、\"] # [doc = \" 任意の Usage アカウントを渡して残数操作が可能\"] # [account (mut)]",
+        "field_type": "Account < 'info , CouponUsage >"
+      },
+      {
+        "name": "issuer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "initialize_coupon",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeCoupon >",
+      "code: String",
+      "max_uses: u64"
+    ],
+    "attributes": [
+      "# [doc = \" クーポンを初期化\"]"
+    ],
+    "body": [
+      "let c = & mut ctx . accounts . coupon ;",
+      "c . issuer = ctx . accounts . issuer . key () ;",
+      "c . code = code ;",
+      "c . remaining = max_uses ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "use_coupon",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < UseCoupon >"
+    ],
+    "attributes": [
+      "# [doc = \" クーポンを利用\"]"
+    ],
+    "body": [
+      "let c = & mut ctx . accounts . coupon ;",
+      "let u = & mut ctx . accounts . usage ;",
+      "u . user = ctx . accounts . issuer . key () ;",
+      "u . coupon = c . key () ;",
+      "u . times_used = u . times_used . saturating_add (1) ;",
+      "c . remaining = c . remaining . saturating_sub (1) ;",
+      "Ok (())"
+    ]
+  }
+]

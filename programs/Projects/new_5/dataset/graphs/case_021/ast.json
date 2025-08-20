@@ -1,0 +1,138 @@
+[
+  {
+    "name": "list_nft",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ListNft >",
+      "price: u64"
+    ],
+    "attributes": [
+      "# [doc = \" seller_account から escrow_account へ NFT を移動して出品するが、\"]",
+      "# [doc = \" 同一アカウントチェックが入っていないため、\"]",
+      "# [doc = \" seller_account.key() == escrow_account.key() のまま処理が進む可能性がある\"]"
+    ],
+    "body": [
+      "let seller = & mut ctx . accounts . seller_account ;",
+      "let escrow = & mut ctx . accounts . escrow_account ;",
+      "let now = ctx . accounts . clock . unix_timestamp ;",
+      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , Transfer { from : ctx . accounts . seller_nft_account . to_account_info () , to : ctx . accounts . escrow_nft_account . to_account_info () , authority : ctx . accounts . seller . to_account_info () , } ,) ;",
+      "anchor_spl :: token :: transfer (cpi_ctx , 1) ? ;",
+      "seller . listing_count = seller . listing_count . wrapping_add (1) ;",
+      "escrow . locked_nft_count = escrow . locked_nft_count . wrapping_add (1) ;",
+      "seller . total_listed_value = seller . total_listed_value + price ;",
+      "escrow . total_value_locked = escrow . total_value_locked + price ;",
+      "seller . note = format ! (\"{}|listed@{}:{}\" , seller . note , now , price) ;",
+      "escrow . note = format ! (\"{}|locked@{}\" , escrow . note , now) ;",
+      "msg ! (\"User {} listed NFT at price {} lamports (listing #{})\" , ctx . accounts . seller . key () , price , seller . listing_count) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "ListNft",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "seller_account",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , UserAccount >"
+      },
+      {
+        "name": "escrow_account",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , EscrowAccount >"
+      },
+      {
+        "name": "seller_nft_account",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "escrow_nft_account",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "seller",
+        "attribute": "# [account (signer)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "clock",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "UserAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "listing_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "total_listed_value",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "note",
+        "attribute": null,
+        "field_type": "String"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EscrowAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "locked_nft_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "total_value_locked",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "note",
+        "attribute": null,
+        "field_type": "String"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

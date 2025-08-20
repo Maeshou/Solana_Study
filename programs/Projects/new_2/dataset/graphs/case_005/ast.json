@@ -1,0 +1,181 @@
+[
+  {
+    "name": "secure_increment",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SecureIncrementCtx >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" パターン1：完全検証（has_one + signer）で直接増加\"]"
+    ],
+    "body": [
+      "let acct_info = ctx . accounts . secure_vault . to_account_info () ;",
+      "let current = * * acct_info . try_borrow_lamports () ? ;",
+      "* * acct_info . try_borrow_mut_lamports () ? = current + amount ;",
+      "msg ! (\"secure_increment 完了\") ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "loop_increment",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SignedLoopIncrementCtx >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" パターン2：署名のみ検証、単一ループで増加（オーナーチェックなし）\"]"
+    ],
+    "body": [
+      "for _ in 0 .. 1",
+      "{",
+      "* * ctx . accounts . partial_vault . try_borrow_mut_lamports () ? += amount ;",
+      "}",
+      "msg ! (\"loop_increment 完了\") ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "closure_increment",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < OwnerClosureIncrementCtx >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" パターン3：has_one のみ検証、クロージャ内で増加（署名不要）\"]"
+    ],
+    "body": [
+      "let mut info = ctx . accounts . owner_vault . to_account_info () ;",
+      "(| | -> Result < () > { * * info . try_borrow_mut_lamports () ? += amount ; Ok (()) }) () ? ;",
+      "msg ! (\"closure_increment 完了\") ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "raw_increment",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < OpenIncrementCtx >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" パターン4：未検証 raw、直接加算\"]"
+    ],
+    "body": [
+      "* * ctx . accounts . any_vault . try_borrow_mut_lamports () ? += amount ;",
+      "msg ! (\"raw_increment 完了\") ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "SecureIncrementCtx",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "secure_vault",
+        "attribute": "# [doc = \" has_one で Vault.owner == authority を検証\"] # [account (mut , has_one = authority)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [doc = \" 署名チェック\"]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SignedLoopIncrementCtx",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "partial_vault",
+        "attribute": "# [doc = \" raw AccountInfo、owner チェックなし\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 署名チェック\"]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "OwnerClosureIncrementCtx",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner_vault",
+        "attribute": "# [doc = \" has_one で Vault.owner == authority を検証（署名不要）\"] # [account (mut , has_one = authority)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [doc = \" AccountInfo のみ\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "OpenIncrementCtx",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "any_vault",
+        "attribute": "# [doc = \" raw AccountInfo、全く検証なし\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Vault",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "authority",
+        "attribute": "# [doc = \" 正当なオーナーの Pubkey\"]",
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

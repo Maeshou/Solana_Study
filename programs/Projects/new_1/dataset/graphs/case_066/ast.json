@@ -1,0 +1,103 @@
+[
+  {
+    "name": "compute_odds",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < OddsCtx >",
+      "base_rate: u8",
+      "total_mints: u64",
+      "issuer_flag: u8"
+    ],
+    "attributes": [
+      "# [doc = \" 発行者がミントしたときは `issuer_flag = 1`、そうでなければ `0` を渡してください。\"]",
+      "# [doc = \" - `base_rate`   : 1 枚あたりの当選率 (0–100)\"]",
+      "# [doc = \" - `total_mints` : これまでにミントされた総数\"]",
+      "# [doc = \" - `issuer_flag`: 発行者なら 1、その他は 0\"]",
+      "# [doc = \"\"]",
+      "# [doc = \" 分岐・ループなしで分母・分子を調整し、抽選結果を記録します。\"]"
+    ],
+    "body": [
+      "let held = ctx . accounts . hold_acc . amount ;",
+      "let num = held + issuer_flag as u64 ;",
+      "let den = total_mints + 1 ;",
+      "let rate = (num . checked_mul (base_rate as u64) . unwrap_or (0) . checked_div (den) . unwrap_or (0)) . min (100) as u8 ;",
+      "let rnd = (ctx . accounts . clock . unix_timestamp as u64 % 100) as u8 ;",
+      "let success = rnd < rate ;",
+      "let o = & mut ctx . accounts . outcome ;",
+      "o . numerator = num ;",
+      "o . denominator = den ;",
+      "o . chance = rate ;",
+      "o . random = rnd ;",
+      "o . is_win = success ;"
+    ]
+  },
+  {
+    "name": "OddsCtx",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 参加ユーザー（署名チェックなし）\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "hold_acc",
+        "attribute": "# [doc = \" 保有枚数を参照する TokenAccount\"] # [account (constraint = hold_acc . owner == * user . key , constraint = hold_acc . mint == nft_mint . key ())]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "nft_mint",
+        "attribute": "# [doc = \" 対象 NFT の Mint（参照用）\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "outcome",
+        "attribute": "# [doc = \" 抽選結果を記録する既存 PDA（事前に初期化必須）\"] # [account (mut)]",
+        "field_type": "Account < 'info , OddsData >"
+      },
+      {
+        "name": "clock",
+        "attribute": "# [doc = \" 乱数源\"]",
+        "field_type": "Sysvar < 'info , Clock >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "OddsData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "numerator",
+        "attribute": "# [doc = \" 分子 (held + issuer_flag)\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "denominator",
+        "attribute": "# [doc = \" 分母 (total_mints + 1)\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "chance",
+        "attribute": "# [doc = \" 計算された当選率 (0–100)\"]",
+        "field_type": "u8"
+      },
+      {
+        "name": "random",
+        "attribute": "# [doc = \" 生成された乱数 (0–99)\"]",
+        "field_type": "u8"
+      },
+      {
+        "name": "is_win",
+        "attribute": "# [doc = \" 当選フラグ\"]",
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,200 @@
+[
+  {
+    "name": "init_price_feed",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitPriceFeed >",
+      "asset_symbol: String",
+      "update_frequency: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let feed = & mut ctx . accounts . price_feed ;",
+      "feed . oracle_authority = ctx . accounts . authority . key () ;",
+      "feed . asset_symbol = asset_symbol ;",
+      "feed . update_frequency_seconds = update_frequency ;",
+      "feed . current_price = 0 ;",
+      "feed . last_update = 0 ;",
+      "feed . price_deviation_threshold = 500 ;",
+      "feed . total_updates = 0 ;",
+      "feed . reliability_score = 1000 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "aggregate_price_data",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AggregatePriceData >",
+      "price_submissions: Vec < u64 >",
+      "confidence_scores: Vec < u16 >"
+    ],
+    "attributes": [],
+    "body": [
+      "let feed = & mut ctx . accounts . price_feed ;",
+      "let aggregator = & ctx . accounts . aggregator ;",
+      "let current_time = Clock :: get () ? . unix_timestamp ;",
+      "let submission_count = price_submissions . len () . min (10) ;",
+      "if submission_count > 0",
+      "{",
+      "let mut weighted_sum = 0u128 ;",
+      "let mut total_weight = 0u128 ;",
+      "for i in 0 .. submission_count",
+      "{",
+      "let price = price_submissions [i] ;",
+      "let confidence = confidence_scores . get (i) . unwrap_or (& 1000) . min (& 1000) ;",
+      "let weight = * confidence as u128 ;",
+      "weighted_sum += price as u128 * weight ;",
+      "total_weight += weight ;",
+      "feed . price_history [i] = price ;",
+      "feed . confidence_history [i] = * confidence ;",
+      "} let new_price = if total_weight > 0",
+      "{",
+      "(weighted_sum / total_weight) as u64 } else { feed . current_price } ;",
+      "if feed . current_price > 0",
+      "{",
+      "let deviation = if new_price > feed . current_price { ((new_price - feed . current_price) * 10000) / feed . current_price } else { ((feed . current_price - new_price) * 10000) / feed . current_price } ;",
+      "if deviation > feed . price_deviation_threshold as u64",
+      "{",
+      "feed . reliability_score = feed . reliability_score . saturating_sub (50) ;",
+      "feed . large_deviation_count += 1 ;",
+      "} else",
+      "{",
+      "feed . reliability_score = (feed . reliability_score + 10) . min (1000) ;",
+      "} feed . volatility_score = ((feed . volatility_score as u64 * 9 + deviation) / 10) as u16 ;",
+      "} feed . current_price = new_price ;",
+      "feed . last_update = current_time ;",
+      "feed . total_updates += 1 ;",
+      "let window_size = 5 . min (feed . total_updates) ;",
+      "if window_size > 0",
+      "{",
+      "let mut sum = 0u64 ;",
+      "for j in 0 .. window_size",
+      "{",
+      "sum += feed . price_history [j as usize] ;",
+      "} feed . moving_average_5 = sum / window_size as u64 ;",
+      "}",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitPriceFeed",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "price_feed",
+        "attribute": "# [account (init , payer = authority , space = 8 + 600)]",
+        "field_type": "Account < 'info , PriceFeedData >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AggregatePriceData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "price_feed",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , PriceFeedData >"
+      },
+      {
+        "name": "aggregator",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PriceFeedData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "oracle_authority",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "asset_symbol",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "update_frequency_seconds",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "current_price",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "last_update",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "price_deviation_threshold",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "total_updates",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "reliability_score",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "volatility_score",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "large_deviation_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "moving_average_5",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "price_history",
+        "attribute": null,
+        "field_type": "[u64 ; 10]"
+      },
+      {
+        "name": "confidence_history",
+        "attribute": null,
+        "field_type": "[u16 ; 10]"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

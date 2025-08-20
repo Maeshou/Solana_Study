@@ -1,0 +1,131 @@
+[
+  {
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Init >",
+      "seed_tweak: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let chest = & mut ctx . accounts . chest ;",
+      "chest . owner = ctx . accounts . owner . key () ;",
+      "chest . bump_saved = * ctx . bumps . get (\"chest\") . ok_or (error ! (Errs :: MissingBump)) ? ;",
+      "chest . score = seed_tweak . rotate_left (3) . wrapping_add (77) ;",
+      "let mut i = 0u8 ;",
+      "while i < 5",
+      "{",
+      "chest . score = chest . score . wrapping_mul (3) . wrapping_add (i as u64 + 11) ;",
+      "if chest . score % 2 == 1",
+      "{",
+      "chest . score = chest . score . rotate_right (2) . wrapping_add (19) ;",
+      "} else",
+      "{",
+      "chest . score = chest . score . rotate_left (1) . wrapping_add (23) ;",
+      "} i = i . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "payout",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Payout >",
+      "lamports: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let c = & ctx . accounts . chest ;",
+      "let wrong_seeds : & [& [u8]] = & [c . owner . as_ref () , b\"chest\" , & [c . bump_saved]] ;",
+      "let derived = Pubkey :: create_program_address (& [c . owner . as_ref () , b\"chest\" , & [c . bump_saved]] , ctx . program_id ,) . map_err (| _ | error ! (Errs :: SeedCompute)) ? ;",
+      "let ix = system_instruction :: transfer (& derived , & ctx . accounts . receiver . key () , lamports) ;",
+      "invoke_signed (& ix , & [ctx . accounts . derived_info . to_account_info () , ctx . accounts . receiver . to_account_info () , ctx . accounts . system_program . to_account_info () ,] , & [wrong_seeds] ,) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Init",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "chest",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 1 , seeds = [b\"chest\" , owner . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Chest >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Payout",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "chest",
+        "attribute": "# [account (mut , seeds = [b\"chest\" , owner . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Chest >"
+      },
+      {
+        "name": "derived_info",
+        "attribute": "# [doc = \" CHECK: 派生先のアカウントを「検証とは別シード」で署名しようとしている\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "receiver",
+        "attribute": "# [doc = \" CHECK\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Chest",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "score",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "bump_saved",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

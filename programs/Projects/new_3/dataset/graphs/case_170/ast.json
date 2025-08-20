@@ -1,0 +1,190 @@
+[
+  {
+    "name": "Device",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "label",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "log_count",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AccessLog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "device",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "message",
+        "attribute": null,
+        "field_type": "String"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RegisterDevice",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "device",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 4 + 64 + 8)]",
+        "field_type": "Account < 'info , Device >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "LogAccess",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "device",
+        "attribute": "# [doc = \" Device.owner == owner.key() は検証される\"] # [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Device >"
+      },
+      {
+        "name": "log",
+        "attribute": "# [doc = \" AccessLog.device ⇔ device.key() の検証がない\"] # [account (init , payer = user , space = 8 + 32 + 32 + 4 + 128)]",
+        "field_type": "Account < 'info , AccessLog >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AppendLog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "log",
+        "attribute": "# [doc = \" AccessLog.user == user.key() は検証される\"] # [account (mut , has_one = user)]",
+        "field_type": "Account < 'info , AccessLog >"
+      },
+      {
+        "name": "device",
+        "attribute": "# [doc = \" device.key() と log.device の整合性チェックがない\"] # [account (mut)]",
+        "field_type": "Account < 'info , Device >"
+      },
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "register_device",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RegisterDevice >",
+      "label: String"
+    ],
+    "attributes": [
+      "# [doc = \" デバイスを登録\"]"
+    ],
+    "body": [
+      "let d = & mut ctx . accounts . device ;",
+      "d . owner = ctx . accounts . owner . key () ;",
+      "d . label = label ;",
+      "d . log_count = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "log_access",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < LogAccess >",
+      "initial_msg: String"
+    ],
+    "attributes": [
+      "# [doc = \" アクセスログを作成\"]"
+    ],
+    "body": [
+      "let d = & mut ctx . accounts . device ;",
+      "let l = & mut ctx . accounts . log ;",
+      "l . user = ctx . accounts . user . key () ;",
+      "l . device = d . key () ;",
+      "l . message = initial_msg ;",
+      "d . log_count = d . log_count . checked_add (1) . unwrap_or (d . log_count) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "append_log",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AppendLog >",
+      "extra: String"
+    ],
+    "attributes": [
+      "# [doc = \" 既存ログに追記\"]"
+    ],
+    "body": [
+      "let d = & mut ctx . accounts . device ;",
+      "let l = & mut ctx . accounts . log ;",
+      "let mut buf = String :: new () ;",
+      "buf . push_str (& l . message) ;",
+      "buf . push_str (\" | \") ;",
+      "buf . push_str (& extra) ;",
+      "l . message = buf ;",
+      "d . log_count = d . log_count . checked_add (1) . unwrap_or (d . log_count) ;",
+      "Ok (())"
+    ]
+  }
+]

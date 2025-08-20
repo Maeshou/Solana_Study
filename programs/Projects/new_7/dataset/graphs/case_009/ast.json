@@ -1,0 +1,161 @@
+[
+  {
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Init >",
+      "min_len: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . station ;",
+      "s . curator = ctx . accounts . curator . key () ;",
+      "s . min_len = min_len ;",
+      "s . approved = 0 ;",
+      "s . rejected = 0 ;",
+      "s . bucket = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "submit_and_grant",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SubmitAndGrant >",
+      "title: String",
+      "shades: Vec < u8 >"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . station ;",
+      "require ! (s . curator == ctx . accounts . curator . key () , Errs :: Curator) ;",
+      "if title . len () as u16 >= s . min_len",
+      "{",
+      "let mut acc : u64 = 0 ;",
+      "let mut i = 0 ;",
+      "while i < shades . len ()",
+      "{",
+      "acc = acc . saturating_add (shades [i] as u64) ;",
+      "i += 1 ;",
+      "} s . approved = s . approved . saturating_add (1) ;",
+      "s . bucket = s . bucket . saturating_add ((acc % 50) as u32) ;",
+      "} else",
+      "{",
+      "let mut step = 0 ;",
+      "while step < 3",
+      "{",
+      "if s . min_len > 1 { s . min_len = s . min_len . saturating_sub (1) ;",
+      "} step = step . saturating_add (1) ;",
+      "} s . rejected = s . rejected . saturating_add (1) ;",
+      "}",
+      "let mut grant = (s . approved as u64) . saturating_mul (10) ;",
+      "if s . bucket > 100",
+      "{",
+      "let mut more = 0 ;",
+      "let mut j = 0 ;",
+      "while j < 4",
+      "{",
+      "more = more . saturating_add ((j + 1) as u64) ;",
+      "j = j . saturating_add (1) ;",
+      "} grant = grant . saturating_add (more) ;",
+      "}",
+      "let ix = spl_token :: instruction :: transfer (ctx . accounts . token_program . key () , ctx . accounts . pool . key () , ctx . accounts . creator_ata . key () , ctx . accounts . curator . key () , & [] , grant ,) ? ;",
+      "invoke (& ix , & [ctx . accounts . pool . to_account_info () , ctx . accounts . creator_ata . to_account_info () , ctx . accounts . curator . to_account_info () ,]) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Station",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "curator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "min_len",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "approved",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "rejected",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "bucket",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Init",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "station",
+        "attribute": "# [account (init , payer = curator , space = 8 + 32 + 2 + 4 + 4 + 4)]",
+        "field_type": "Account < 'info , Station >"
+      },
+      {
+        "name": "curator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SubmitAndGrant",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "station",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Station >"
+      },
+      {
+        "name": "curator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "pool",
+        "attribute": "# [doc = \" CHECK:\"] # [account (mut)]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "creator_ata",
+        "attribute": "# [doc = \" CHECK:\"] # [account (mut)]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

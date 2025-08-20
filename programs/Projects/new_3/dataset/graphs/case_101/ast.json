@@ -1,0 +1,91 @@
+[
+  {
+    "name": "end_rental",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < EndRental >"
+    ],
+    "attributes": [
+      "# [doc = \" レンタル契約を終了し、Escrow から NFT を返却するが、\"]",
+      "# [doc = \" has_one を使っているものの `rental_account.renter` との一致検証がなく、\"]",
+      "# [doc = \" 攻撃者が別のユーザーの返却処理をトリガーできる\"]"
+    ],
+    "body": [
+      "let rental = & mut ctx . accounts . rental_account ;",
+      "rental . active = false ;",
+      "let cpi_accounts = Transfer { from : ctx . accounts . escrow_account . to_account_info () , to : ctx . accounts . user_account . to_account_info () , authority : ctx . accounts . service_authority . to_account_info () , } ;",
+      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
+      "token :: transfer (cpi_ctx , 1) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "EndRental",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "rental_account",
+        "attribute": "# [account (mut , has_one = owner , has_one = escrow_account)] # [doc = \" 本来は `has_one = renter` も指定して借り手照合を行うべき\"]",
+        "field_type": "Account < 'info , RentalContract >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 出品者（所有者チェックのみ）\"]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "escrow_account",
+        "attribute": "# [doc = \" Escrow に預けられた NFT のトークンアカウント\"] # [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "user_account",
+        "attribute": "# [doc = \" NFT を受け取るべき借り手のトークンアカウント\"] # [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "service_authority",
+        "attribute": "# [doc = \" CPI 実行用サービス権限\"]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": "# [doc = \" SPL Token プログラム\"]",
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RentalContract",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 出品者の Pubkey\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "renter",
+        "attribute": "# [doc = \" 借り手の Pubkey（検証漏れ）\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "escrow_account",
+        "attribute": "# [doc = \" Escrow 用トークンアカウントの Pubkey\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "active",
+        "attribute": "# [doc = \" レンタル中かどうか\"]",
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,173 @@
+[
+  {
+    "name": "initialize_inventory",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeInventory >"
+    ],
+    "attributes": [],
+    "body": [
+      "let inventory = & mut ctx . accounts . inventory ;",
+      "inventory . owner = ctx . accounts . owner . key () ;",
+      "inventory . item_slots = [Pubkey :: default () ; 10] ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "craft_item",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CraftItem >"
+    ],
+    "attributes": [],
+    "body": [
+      "let inventory = & mut ctx . accounts . inventory ;",
+      "let recipe = & mut ctx . accounts . recipe ;",
+      "let mut total_mats_consumed = 0u64 ;",
+      "let mut i = 0 ;",
+      "while i < recipe . material_mints . len ()",
+      "{",
+      "let mint_key = recipe . material_mints [i] ;",
+      "let required_amount = recipe . material_amounts [i] ;",
+      "let cpi_program = ctx . accounts . token_program . to_account_info () ;",
+      "let cpi_accounts = token :: Burn",
+      "{",
+      "mint : ctx . accounts . material_mints [i] . to_account_info () , from : ctx . accounts . material_token_accounts [i] . to_account_info () , authority : ctx . accounts . owner . to_account_info () , } ;",
+      "let cpi_ctx = CpiContext :: new (cpi_program , cpi_accounts) ;",
+      "token :: burn (cpi_ctx , required_amount) ? ;",
+      "total_mats_consumed += required_amount ;",
+      "i += 1 ;",
+      "}",
+      "let new_item_mint = ctx . accounts . new_item_mint . key () ;",
+      "if inventory . item_slots . iter () . any (| & x | x == Pubkey :: default ())",
+      "{",
+      "for slot in inventory . item_slots . iter_mut ()",
+      "{",
+      "if * slot == Pubkey :: default () { * slot = new_item_mint ;",
+      "break ;",
+      "} } } else",
+      "{",
+      "msg ! (\"Inventory is full!\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializeInventory",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "inventory",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 10 * 32 , owner = crate :: ID ,)]",
+        "field_type": "Account < 'info , Inventory >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CraftItem",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "inventory",
+        "attribute": "# [account (mut , has_one = owner ,)]",
+        "field_type": "Account < 'info , Inventory >"
+      },
+      {
+        "name": "recipe",
+        "attribute": "# [account (has_one = inventory , constraint = inventory . key () != recipe . key () @ ErrorCode :: CosplayBlocked ,)]",
+        "field_type": "Account < 'info , CraftingRecipe >"
+      },
+      {
+        "name": "new_item_mint",
+        "attribute": "# [account (owner = token :: ID ,)]",
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "material_token_accounts",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Vec < TokenAccount > >"
+      },
+      {
+        "name": "material_mints",
+        "attribute": null,
+        "field_type": "Account < 'info , Vec < Mint > >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Inventory",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "item_slots",
+        "attribute": null,
+        "field_type": "[Pubkey ; 10]"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CraftingRecipe",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "inventory",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "material_mints",
+        "attribute": null,
+        "field_type": "Vec < Pubkey >"
+      },
+      {
+        "name": "material_amounts",
+        "attribute": null,
+        "field_type": "Vec < u64 >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,246 @@
+[
+  {
+    "name": "init_market",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitMarket >",
+      "fee_bps: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let m = & mut ctx . accounts . market ;",
+      "m . admin = ctx . accounts . admin . key () ;",
+      "m . fee_bps = fee_bps . min (10_000) ;",
+      "m . volume = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "place_order",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PlaceOrder >",
+      "side: Side",
+      "price: u64",
+      "qty: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let m = & mut ctx . accounts . market ;",
+      "let o = & mut ctx . accounts . order ;",
+      "o . market = m . key () ;",
+      "o . side = side ;",
+      "o . price = price . min (1_000_000_000) ;",
+      "o . qty = qty . min (1_000_000) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "match_orders",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < MatchOrders >",
+      "fills: Vec < u64 >"
+    ],
+    "attributes": [],
+    "body": [
+      "let m = & mut ctx . accounts . market ;",
+      "let maker = & mut ctx . accounts . maker ;",
+      "let taker = & mut ctx . accounts . taker ;",
+      "let tape = & mut ctx . accounts . tape ;",
+      "let mut traded : u128 = 0 ;",
+      "let mut spread_mix : u64 = 0 ;",
+      "for f in fills",
+      "{",
+      "let cap = f . min (maker . qty . min (taker . qty)) ;",
+      "traded = traded . saturating_add (cap as u128) ;",
+      "spread_mix ^= (maker . price ^ taker . price ^ cap) . rotate_left (7) ;",
+      "}",
+      "let t = traded as u64 ;",
+      "if maker . side == Buy",
+      "{",
+      "maker . qty = maker . qty . saturating_sub (t . min (maker . qty)) ;",
+      "taker . qty = taker . qty . saturating_sub (t . min (taker . qty)) ;",
+      "m . volume = m . volume . saturating_add (t) ;",
+      "msg ! (\"Maker=Buy branch: t=",
+      "{",
+      "}, mix={}, m.qty={}, t.qty={}\" , t , spread_mix , maker . qty , taker . qty) ;",
+      "} else",
+      "{",
+      "maker . qty = maker . qty . saturating_sub (t . min (maker . qty)) ;",
+      "taker . qty = taker . qty . saturating_sub (t . min (taker . qty)) ;",
+      "m . volume = m . volume . saturating_add (t + (spread_mix & 0xFF)) ;",
+      "msg ! (\"Maker=Sell branch: t=",
+      "{",
+      "}, mix={}, m.qty={}, t.qty={}\" , t , spread_mix , maker . qty , taker . qty) ;",
+      "}",
+      "let mut x = (m . volume as u128) . max (1) ;",
+      "let mut i = 0 ;",
+      "while i < 3",
+      "{",
+      "x = (x + (m . volume as u128 / x)) . max (1) / 2 ;",
+      "i += 1 ;",
+      "}",
+      "tape . market = m . key () ;",
+      "tape . index = (x as u64) . min (9_999_999) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitMarket",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "market",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 2 + 8)]",
+        "field_type": "Account < 'info , Market >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PlaceOrder",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "market",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Market >"
+      },
+      {
+        "name": "order",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 8 + 8)]",
+        "field_type": "Account < 'info , Order >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MatchOrders",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "market",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Market >"
+      },
+      {
+        "name": "tape",
+        "attribute": "# [account (mut , has_one = market)]",
+        "field_type": "Account < 'info , Tape >"
+      },
+      {
+        "name": "maker",
+        "attribute": "# [account (mut , has_one = market , constraint = maker . side != taker . side @ ErrCode :: CosplayBlocked)]",
+        "field_type": "Account < 'info , Order >"
+      },
+      {
+        "name": "taker",
+        "attribute": "# [account (mut , has_one = market)]",
+        "field_type": "Account < 'info , Order >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Market",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "fee_bps",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "volume",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Order",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "market",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "side",
+        "attribute": null,
+        "field_type": "Side"
+      },
+      {
+        "name": "price",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "qty",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Tape",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "market",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "index",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

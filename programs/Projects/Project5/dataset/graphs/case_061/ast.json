@@ -1,43 +1,216 @@
 [
   {
-    "name": "resume_stream",
+    "name": "init_rally",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx061 >",
-      "amount: u64"
+      "ctx: Context < InitRally >",
+      "laps: u32"
     ],
     "attributes": [],
     "body": [
-      "let cpi_accounts = Transfer { from : ctx . accounts . from_token . to_account_info () , to : ctx . accounts . to_token . to_account_info () , authority : ctx . accounts . authority . to_account_info () , } ;",
-      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
-      "token :: transfer (cpi_ctx , amount) ? ;",
+      "let r = & mut ctx . accounts ;",
+      "r . track . host = r . host . key () ;",
+      "r . track . laps = laps ;",
+      "r . track . stage = Grid ;",
+      "r . cart_a . track = r . track . key () ;",
+      "r . cart_a . lane = 5 ;",
+      "r . cart_b . track = r . track . key () ;",
+      "r . cart_b . lane = 8 ;",
+      "r . stats . track = r . track . key () ;",
+      "r . stats . lane = 99 ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx061",
+    "name": "run",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Run >",
+      "tick: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let r = & mut ctx . accounts ;",
+      "for i in 0 .. tick",
+      "{",
+      "r . cart_a . time = r . cart_a . time . saturating_add (10 + (i % 3)) ;",
+      "r . cart_b . time = r . cart_b . time . saturating_add (9 + (i % 4)) ;",
+      "r . stats . total = r . stats . total . saturating_add (7) ;",
+      "}",
+      "if r . stats . total > (r . track . laps as u64) * 15",
+      "{",
+      "r . track . stage = Cooldown ;",
+      "r . stats . heats = r . stats . heats . saturating_add (3) ;",
+      "r . cart_b . flags = r . cart_b . flags . saturating_add (2) ;",
+      "r . cart_a . flags = r . cart_a . flags . saturating_add (1) ;",
+      "msg ! (\"cooldown: heats+3, flags updated\") ;",
+      "} else",
+      "{",
+      "r . track . stage = Sprint ;",
+      "r . stats . heats = r . stats . heats . saturating_add (1) ;",
+      "r . cart_a . time = r . cart_a . time . saturating_add (6) ;",
+      "r . cart_b . time = r . cart_b . time . saturating_add (6) ;",
+      "msg ! (\"sprint: heats+1, times+6\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitRally",
     "node_type": "struct",
     "fields": [
       {
-        "name": "from_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "track",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Track >"
       },
       {
-        "name": "to_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "cart_a",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4 + 4)]",
+        "field_type": "Account < 'info , Cart >"
       },
       {
-        "name": "authority",
+        "name": "cart_b",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4 + 4)]",
+        "field_type": "Account < 'info , Cart >"
+      },
+      {
+        "name": "stats",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 8 + 4)]",
+        "field_type": "Account < 'info , RallyStats >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "host",
         "attribute": null,
         "field_type": "Signer < 'info >"
       },
       {
-        "name": "token_program",
+        "name": "system_program",
         "attribute": null,
-        "field_type": "Program < 'info , Token >"
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Run",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "track",
+        "attribute": "# [account (mut , has_one = host)]",
+        "field_type": "Account < 'info , Track >"
+      },
+      {
+        "name": "cart_a",
+        "attribute": "# [account (mut , has_one = track , constraint = cart_a . lane != cart_b . lane @ NrErr :: Dup)]",
+        "field_type": "Account < 'info , Cart >"
+      },
+      {
+        "name": "cart_b",
+        "attribute": "# [account (mut , has_one = track , constraint = cart_b . lane != stats . lane @ NrErr :: Dup)]",
+        "field_type": "Account < 'info , Cart >"
+      },
+      {
+        "name": "stats",
+        "attribute": "# [account (mut , has_one = track)]",
+        "field_type": "Account < 'info , RallyStats >"
+      },
+      {
+        "name": "host",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Track",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "host",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "laps",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "stage",
+        "attribute": null,
+        "field_type": "RallyStage"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Cart",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "track",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "lane",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "time",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "flags",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RallyStats",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "track",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "lane",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "total",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "heats",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

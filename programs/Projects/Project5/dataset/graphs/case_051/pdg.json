@@ -1,9 +1,9 @@
 [
   {
-    "name": "repay_liquidity",
+    "name": "init_arena",
     "inputs": [
-      "ctx: Context < Ctx051 >",
-      "amount: u64"
+      "ctx: Context < InitArena >",
+      "cap: u32"
     ],
     "nodes": [
       {
@@ -12,26 +12,22 @@
       },
       {
         "id": 1,
-        "label": "let src = & mut ctx . accounts . account_src ;"
+        "label": "let a = & mut ctx . accounts ;"
       },
       {
         "id": 2,
-        "label": "let dst = & mut ctx . accounts . account_dst ;"
+        "label": "a . board . judge = a . judge . key () ;"
       },
       {
         "id": 3,
-        "label": "let before = * * src . to_account_info () . try_borrow_lamports () ? ;"
+        "label": "a . board . cap = cap ;"
       },
       {
         "id": 4,
-        "label": "* * src . to_account_info () . try_borrow_mut_lamports () ? = before . saturating_sub (amount) ;"
+        "label": "a . board . state = Queue ;"
       },
       {
         "id": 5,
-        "label": "* * dst . to_account_info () . try_borrow_mut_lamports () ? += amount ;"
-      },
-      {
-        "id": 6,
         "label": "Ok (())"
       }
     ],
@@ -39,37 +35,405 @@
       {
         "from": 1,
         "to": 1,
-        "label": "def: src"
+        "label": "def: a"
       },
       {
-        "from": 2,
+        "from": 1,
         "to": 2,
-        "label": "def: dst"
+        "label": "data_dep: a"
       },
       {
-        "from": 3,
-        "to": 3,
-        "label": "def: before"
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: a"
       },
       {
         "from": 1,
         "to": 3,
-        "label": "data_dep: src"
+        "label": "data_dep: a"
       },
       {
         "from": 1,
         "to": 4,
-        "label": "data_dep: src"
+        "label": "data_dep: a"
+      }
+    ]
+  },
+  {
+    "name": "duel",
+    "inputs": [
+      "ctx: Context < Duel >",
+      "rounds: u32"
+    ],
+    "nodes": [
+      {
+        "id": 6,
+        "label": "Entry"
       },
       {
-        "from": 3,
-        "to": 4,
-        "label": "data_dep: before"
+        "id": 7,
+        "label": "let a = & mut ctx . accounts ;"
       },
       {
-        "from": 2,
-        "to": 5,
-        "label": "data_dep: dst"
+        "id": 8,
+        "label": "for k in 0 .. rounds { let phi_q16 : u32 = 40503 ; let val = k . wrapping_mul (phi_q16) ; let frac_q16 = val & 0xFFFF ; let contrib = (frac_q16 as u64) + 1 ; a . stats . sum = a . stats . sum . wrapping_add (contrib) ; a . stats . count = a . stats . count . wrapping_add (1) ; a . a . score = a . a . score . wrapping_add (((contrib >> 4) & 0x3FF) as u32) ; a . b . score = a . b . score . wrapping_add (((contrib >> 6) & 0x1FF) as u32) ; }"
+      },
+      {
+        "id": 9,
+        "label": "let phi_q16 : u32 = 40503 ;"
+      },
+      {
+        "id": 10,
+        "label": "let val = k . wrapping_mul (phi_q16) ;"
+      },
+      {
+        "id": 11,
+        "label": "let frac_q16 = val & 0xFFFF ;"
+      },
+      {
+        "id": 12,
+        "label": "let contrib = (frac_q16 as u64) + 1 ;"
+      },
+      {
+        "id": 13,
+        "label": "a . stats . sum = a . stats . sum . wrapping_add (contrib) ;"
+      },
+      {
+        "id": 14,
+        "label": "a . stats . count = a . stats . count . wrapping_add (1) ;"
+      },
+      {
+        "id": 15,
+        "label": "a . a . score = a . a . score . wrapping_add (((contrib >> 4) & 0x3FF) as u32) ;"
+      },
+      {
+        "id": 16,
+        "label": "a . b . score = a . b . score . wrapping_add (((contrib >> 6) & 0x1FF) as u32) ;"
+      },
+      {
+        "id": 17,
+        "label": "if a . stats . sum > (a . board . cap as u64) * 100 { a . board . state = Pause ; a . stats . flags = a . stats . flags . wrapping_add (2) ; a . b . score = a . b . score / 2 + 13 ; a . a . score = a . a . score + 7 ; msg ! (\"pause: flags+2, adjust scores\") ; } else { a . board . state = Fight ; a . stats . sum = a . stats . sum . wrapping_mul (2) ; a . a . score = a . a . score . rotate_left (1) ; a . b . score = a . b . score . rotate_right (1) ; msg ! (\"fight: sum*2, rotate scores\") ; }"
+      },
+      {
+        "id": 18,
+        "label": "a . board . state = Pause ;"
+      },
+      {
+        "id": 19,
+        "label": "a . stats . flags = a . stats . flags . wrapping_add (2) ;"
+      },
+      {
+        "id": 20,
+        "label": "a . b . score = a . b . score / 2 + 13 ;"
+      },
+      {
+        "id": 21,
+        "label": "a . a . score = a . a . score + 7 ;"
+      },
+      {
+        "id": 22,
+        "label": "msg ! (\"pause: flags+2, adjust scores\") ;"
+      },
+      {
+        "id": 23,
+        "label": "a . board . state = Fight ;"
+      },
+      {
+        "id": 24,
+        "label": "a . stats . sum = a . stats . sum . wrapping_mul (2) ;"
+      },
+      {
+        "id": 25,
+        "label": "a . a . score = a . a . score . rotate_left (1) ;"
+      },
+      {
+        "id": 26,
+        "label": "a . b . score = a . b . score . rotate_right (1) ;"
+      },
+      {
+        "id": 27,
+        "label": "msg ! (\"fight: sum*2, rotate scores\") ;"
+      },
+      {
+        "id": 28,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 7,
+        "to": 7,
+        "label": "def: a"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 10,
+        "to": 10,
+        "label": "def: val"
+      },
+      {
+        "from": 11,
+        "to": 11,
+        "label": "def: frac_q16"
+      },
+      {
+        "from": 10,
+        "to": 11,
+        "label": "data_dep: val"
+      },
+      {
+        "from": 12,
+        "to": 12,
+        "label": "def: contrib"
+      },
+      {
+        "from": 11,
+        "to": 12,
+        "label": "data_dep: frac_q16"
+      },
+      {
+        "from": 7,
+        "to": 13,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 13,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 12,
+        "to": 13,
+        "label": "data_dep: contrib"
+      },
+      {
+        "from": 7,
+        "to": 14,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 14,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 15,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 15,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 12,
+        "to": 15,
+        "label": "data_dep: contrib"
+      },
+      {
+        "from": 7,
+        "to": 16,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 16,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 12,
+        "to": 16,
+        "label": "data_dep: contrib"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 18,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 19,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 19,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 20,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 20,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 21,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 21,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 23,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 24,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 24,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 25,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 25,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 26,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 26,
+        "label": "data_dep: a"
       }
     ]
   }

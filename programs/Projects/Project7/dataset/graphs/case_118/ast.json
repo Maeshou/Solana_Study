@@ -1,0 +1,136 @@
+[
+  {
+    "name": "configure_plan",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ConfigurePlan >",
+      "fraction_hint: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let plan_state = & mut ctx . accounts . plan_state ;",
+      "plan_state . owner = ctx . accounts . owner . key () ;",
+      "plan_state . fraction_hint = fraction_hint ;",
+      "if plan_state . fraction_hint == 0",
+      "{",
+      "plan_state . fraction_hint = 1 ;",
+      "}",
+      "plan_state . executions = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "disperse",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Disperse >",
+      "total_amount: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let first_part = total_amount / 2 ;",
+      "let second_part = total_amount . saturating_sub (first_part) ;",
+      "token :: transfer (CpiContext :: new (ctx . accounts . token_program . to_account_info () , Transfer { from : ctx . accounts . source_tokens . to_account_info () , to : ctx . accounts . intermediate_tokens . to_account_info () , authority : ctx . accounts . owner . to_account_info () , }) , first_part) ? ;",
+      "token :: approve (CpiContext :: new (ctx . accounts . external_program . clone () , Approve { to : ctx . accounts . intermediate_tokens . to_account_info () , delegate : ctx . accounts . destination_tokens . to_account_info () , authority : ctx . accounts . owner . to_account_info () , }) , second_part) ? ;",
+      "token :: transfer (CpiContext :: new (ctx . accounts . external_program . clone () , Transfer { from : ctx . accounts . intermediate_tokens . to_account_info () , to : ctx . accounts . destination_tokens . to_account_info () , authority : ctx . accounts . owner . to_account_info () , }) , second_part) ? ;",
+      "token :: revoke (CpiContext :: new (ctx . accounts . external_program . clone () , Revoke { source : ctx . accounts . intermediate_tokens . to_account_info () , authority : ctx . accounts . owner . to_account_info () , })) ? ;",
+      "ctx . accounts . plan_state . executions = ctx . accounts . plan_state . executions . saturating_add (1) ;",
+      "msg ! (\"disperse completed: first={}, second={}\" , first_part , second_part) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "ConfigurePlan",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "plan_state",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 8)]",
+        "field_type": "Account < 'info , TransferPlan >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Disperse",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "plan_state",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , TransferPlan >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "source_tokens",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "intermediate_tokens",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "destination_tokens",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "external_program",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TransferPlan",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "fraction_hint",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "executions",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

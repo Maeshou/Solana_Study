@@ -1,0 +1,148 @@
+[
+  {
+    "name": "init_profile",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitProfile >",
+      "quota: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let profile = & mut ctx . accounts . profile ;",
+      "profile . owner = ctx . accounts . user . key () ;",
+      "profile . quota = quota % 500 + 40 ;",
+      "profile . credits = 7 ;",
+      "profile . audit = 3 ;",
+      "let canonical_bump = * ctx . bumps . get (\"profile\") . ok_or (error ! (ProfileErr :: MissingBump)) ? ;",
+      "profile . saved_bump = canonical_bump ;",
+      "let mut seed_hash = profile . owner . to_bytes () [0] as u32 ;",
+      "seed_hash = seed_hash . saturating_add ((profile . quota % 9) + 1) ;",
+      "if seed_hash % 3 != 1",
+      "{",
+      "profile . audit = profile . audit . saturating_add (seed_hash % 7 + 2) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "charge",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Charge >",
+      "amount: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let profile = & mut ctx . accounts . profile ;",
+      "let seeds = & [b\"fee_sink\" , profile . owner . as_ref () , & [profile . saved_bump]] ;",
+      "let derived = Pubkey :: create_program_address (seeds , ctx . program_id) . map_err (| _ | error ! (ProfileErr :: SeedCompute)) ? ;",
+      "if derived != ctx . accounts . fee_sink . key ()",
+      "{",
+      "return Err (error ! (ProfileErr :: FeeSinkMismatch)) ;",
+      "}",
+      "let ix = Instruction { program_id : * ctx . program_id , accounts : vec ! [AccountMeta :: new (profile . key () , false) , AccountMeta :: new_readonly (ctx . accounts . user . key () , true) ,] , data : amount . to_le_bytes () . to_vec () , } ;",
+      "let signer = & [b\"fee_sink\" , profile . owner . as_ref () , & [profile . saved_bump]] ;",
+      "invoke_signed (& ix , & [profile . to_account_info () , ctx . accounts . user . to_account_info ()] , & [signer] ,) ? ;",
+      "let mut step = 2u32 ;",
+      "while step < 9",
+      "{",
+      "profile . credits = profile . credits . saturating_add (step) ;",
+      "let modv = (profile . credits % 5) + 2 ;",
+      "profile . quota = profile . quota . saturating_add (modv) ;",
+      "step = step . saturating_add (2) ;",
+      "}",
+      "if amount > 1000",
+      "{",
+      "let adj = (amount % 13) as u32 + 3 ;",
+      "profile . audit = profile . audit . saturating_add (adj) ;",
+      "let marker = profile . owner . to_bytes () [1] ;",
+      "profile . credits = profile . credits . saturating_add ((marker % 7) as u32 + 1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitProfile",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "profile",
+        "attribute": "# [account (init , payer = user , space = 8 + 32 + 4 + 4 + 4 + 1 , seeds = [b\"profile\" , user . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Profile >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Charge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "profile",
+        "attribute": "# [account (mut , seeds = [b\"profile\" , user . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Profile >"
+      },
+      {
+        "name": "fee_sink",
+        "attribute": "# [doc = \" CHECK: fee_sink は手動導出に依存（危険）\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Profile",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "quota",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "credits",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "audit",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "saved_bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

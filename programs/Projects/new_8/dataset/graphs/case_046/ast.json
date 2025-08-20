@@ -1,0 +1,137 @@
+[
+  {
+    "name": "create_mixer",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateMixer >",
+      "slots: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let m = & mut ctx . accounts . mixer ;",
+      "m . owner = ctx . accounts . crafter . key () ;",
+      "m . slots = slots % 40 + 8 ;",
+      "m . heat = 12 ;",
+      "m . batches = 4 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "blend",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Blend >",
+      "level: u8",
+      "user_bump: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let m = & mut ctx . accounts . mixer ;",
+      "let mut step = 1u32 ;",
+      "while step < ((level as u32 % 18) + 5)",
+      "{",
+      "m . heat = m . heat . saturating_add (step) ;",
+      "let temp = (m . heat % 9) + 2 ;",
+      "m . batches = m . batches . saturating_add (temp) ;",
+      "if m . batches % 4 != 1",
+      "{",
+      "m . slots = m . slots . saturating_add (1) ;",
+      "} step = step . saturating_add (3) ;",
+      "}",
+      "let seeds = & [b\"coolant_cell\" , ctx . accounts . crafter . key . as_ref () , & [user_bump]] ;",
+      "let addr = Pubkey :: create_program_address (seeds , ctx . program_id) . map_err (| _ | error ! (MixErr :: SeedBad)) ? ;",
+      "if addr != ctx . accounts . coolant_cell . key ()",
+      "{",
+      "return Err (error ! (MixErr :: CoolantKey)) ;",
+      "}",
+      "if level > 100",
+      "{",
+      "let mut buf = [0u8 ;",
+      "4] ;",
+      "buf [0] = level ;",
+      "m . heat = m . heat . saturating_add (buf [0] as u32) ;",
+      "m . batches = m . batches . saturating_add ((buf [0] as u32 % 5) + 1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CreateMixer",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "mixer",
+        "attribute": "# [account (init , payer = crafter , space = 8 + 32 + 2 + 4 + 4 , seeds = [b\"mixer\" , crafter . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Mixer >"
+      },
+      {
+        "name": "crafter",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Blend",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "mixer",
+        "attribute": "# [account (mut , seeds = [b\"mixer\" , crafter . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Mixer >"
+      },
+      {
+        "name": "coolant_cell",
+        "attribute": "# [doc = \" CHECK\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "crafter",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Mixer",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "slots",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "heat",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "batches",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

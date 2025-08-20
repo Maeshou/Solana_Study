@@ -1,43 +1,216 @@
 [
   {
-    "name": "submit_proposal",
+    "name": "isqrt",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx037 >",
-      "amount: u64"
+      "n: u128"
     ],
     "attributes": [],
     "body": [
-      "let cpi_accounts = Transfer { from : ctx . accounts . from_token . to_account_info () , to : ctx . accounts . to_token . to_account_info () , authority : ctx . accounts . authority . to_account_info () , } ;",
-      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
-      "token :: transfer (cpi_ctx , amount) ? ;",
+      "if n == 0",
+      "{",
+      "return 0 ;",
+      "}",
+      "let mut x = n ;",
+      "let mut y = (x + 1) >> 1 ;",
+      "while y < x",
+      "{",
+      "x = y ;",
+      "y = (x + n / x) >> 1 ;",
+      "}",
+      "x"
+    ]
+  },
+  {
+    "name": "init_listing",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitListing >",
+      "base: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let m = & mut ctx . accounts ;",
+      "m . listing . seller = m . seller . key () ;",
+      "m . listing . base = base ;",
+      "m . listing . state = ListingState :: Live ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx037",
+    "name": "buy",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Buy >",
+      "qty: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let m = & mut ctx . accounts ;",
+      "assert_ne ! (m . listing . key () , m . wallet . key () , \"listing/wallet must differ\") ;",
+      "for _ in 0 .. qty",
+      "{",
+      "let k = 17u128 ;",
+      "let old = m . stats . price as u128 + 1 ;",
+      "let newp = isqrt (old . saturating_mul (old + k)) ;",
+      "m . stats . price = (newp . min (u128 :: from (u64 :: MAX))) as u64 ;",
+      "m . wallet . lock = m . wallet . lock . wrapping_add (1) ;",
+      "m . stats . trades = m . stats . trades . wrapping_add (1) ;",
+      "}",
+      "if m . stats . price > m . listing . base * 20",
+      "{",
+      "m . listing . state = ListingState :: Closed ;",
+      "m . wallet . balance = m . wallet . balance . saturating_sub (1) . max (0) ;",
+      "m . stats . disputes = m . stats . disputes . wrapping_add (1) ;",
+      "msg ! (\"closed: price high;",
+      "balance-1, disputes+1\") ;",
+      "} else",
+      "{",
+      "m . listing . state = ListingState :: Cooling ;",
+      "m . wallet . balance = m . wallet . balance . saturating_add (2) ;",
+      "m . stats . trades = m . stats . trades . wrapping_mul (2) ;",
+      "msg ! (\"cooling: balance+2, trades*=2\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitListing",
     "node_type": "struct",
     "fields": [
       {
-        "name": "from_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "listing",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 8 + 1)]",
+        "field_type": "Account < 'info , Listing >"
       },
       {
-        "name": "to_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "wallet",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 8 + 1)]",
+        "field_type": "Account < 'info , Wallet >"
       },
       {
-        "name": "authority",
+        "name": "stats",
+        "attribute": "# [account (init , payer = payer , space = 8 + 8 + 4)]",
+        "field_type": "Account < 'info , MarketStats >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "seller",
         "attribute": null,
         "field_type": "Signer < 'info >"
       },
       {
-        "name": "token_program",
+        "name": "system_program",
         "attribute": null,
-        "field_type": "Program < 'info , Token >"
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Buy",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "listing",
+        "attribute": "# [account (mut , has_one = seller , constraint = listing . key () != stats . key () , error = CurveErr :: Dup)]",
+        "field_type": "Account < 'info , Listing >"
+      },
+      {
+        "name": "wallet",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Wallet >"
+      },
+      {
+        "name": "stats",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , MarketStats >"
+      },
+      {
+        "name": "seller",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Listing",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "seller",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "base",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "state",
+        "attribute": null,
+        "field_type": "ListingState"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Wallet",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "balance",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "lock",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MarketStats",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "price",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "trades",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "disputes",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

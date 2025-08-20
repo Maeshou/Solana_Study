@@ -1,6 +1,6 @@
 [
   {
-    "name": "mint_nft",
+    "name": "stake_tokens",
     "nodes": [
       {
         "id": 0,
@@ -8,23 +8,47 @@
       },
       {
         "id": 1,
-        "label": "let acct = & mut ctx . accounts . mint ;"
+        "label": "require ! (ctx . accounts . user_token_account . owner == & token :: ID , ErrorCode :: InvalidUserTokenOwner) ;"
       },
       {
         "id": 2,
-        "label": "let temp = acct . data ;"
+        "label": "require ! (ctx . accounts . stake_pool_account . owner == & token :: ID , ErrorCode :: InvalidStakePoolOwner) ;"
       },
       {
         "id": 3,
-        "label": "acct . data = temp . checked_mul (2) . unwrap () ;"
+        "label": "let stake_info = ctx . accounts . stake_info . to_account_info () ;"
       },
       {
         "id": 4,
-        "label": "msg ! (\"Executed mint_nft logic\") ;"
+        "label": "require ! (stake_info . owner == ctx . program_id , ErrorCode :: InvalidStakeInfoOwner) ;"
       },
       {
         "id": 5,
-        "label": "Ok (())"
+        "label": "let stake_info = & mut ctx . accounts . stake_info ;"
+      },
+      {
+        "id": 6,
+        "label": "stake_info . staker = ctx . accounts . staker . key () ;"
+      },
+      {
+        "id": 7,
+        "label": "stake_info . amount += amount ;"
+      },
+      {
+        "id": 8,
+        "label": "stake_info . last_stake_time = Clock :: get () ? . unix_timestamp ;"
+      },
+      {
+        "id": 9,
+        "label": "let transfer_instruction = Transfer { from : ctx . accounts . user_token_account . to_account_info () , to : ctx . accounts . stake_pool_account . to_account_info () , authority : ctx . accounts . staker . to_account_info () , } ;"
+      },
+      {
+        "id": 10,
+        "label": "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , transfer_instruction ,) ;"
+      },
+      {
+        "id": 11,
+        "label": "token :: transfer (cpi_ctx , amount)"
       }
     ],
     "edges": [
@@ -51,6 +75,137 @@
       {
         "from": 4,
         "to": 5,
+        "label": "next"
+      },
+      {
+        "from": 5,
+        "to": 6,
+        "label": "next"
+      },
+      {
+        "from": 6,
+        "to": 7,
+        "label": "next"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "next"
+      },
+      {
+        "from": 8,
+        "to": 9,
+        "label": "next"
+      },
+      {
+        "from": 9,
+        "to": 10,
+        "label": "next"
+      },
+      {
+        "from": 10,
+        "to": 11,
+        "label": "call"
+      }
+    ]
+  },
+  {
+    "name": "unstake_tokens",
+    "nodes": [
+      {
+        "id": 12,
+        "label": "Entry"
+      },
+      {
+        "id": 13,
+        "label": "let stake_info_account = ctx . accounts . stake_info . to_account_info () ;"
+      },
+      {
+        "id": 14,
+        "label": "require ! (stake_info_account . owner == ctx . program_id , ErrorCode :: InvalidStakeInfoOwner) ;"
+      },
+      {
+        "id": 15,
+        "label": "let stake_info = & mut ctx . accounts . stake_info ;"
+      },
+      {
+        "id": 16,
+        "label": "require ! (stake_info . amount >= amount , ErrorCode :: InsufficientStakedAmount) ;"
+      },
+      {
+        "id": 17,
+        "label": "stake_info . amount -= amount ;"
+      },
+      {
+        "id": 18,
+        "label": "let seeds = & [b\"stake_pool\" , & [ctx . accounts . stake_pool . bump] ,] ;"
+      },
+      {
+        "id": 19,
+        "label": "let signer = & [& seeds [..]] ;"
+      },
+      {
+        "id": 20,
+        "label": "let transfer_instruction = Transfer { from : ctx . accounts . stake_pool_account . to_account_info () , to : ctx . accounts . user_token_account . to_account_info () , authority : ctx . accounts . stake_pool . to_account_info () , } ;"
+      },
+      {
+        "id": 21,
+        "label": "let cpi_ctx = CpiContext :: new_with_signer (ctx . accounts . token_program . to_account_info () , transfer_instruction , signer ,) ;"
+      },
+      {
+        "id": 22,
+        "label": "token :: transfer (cpi_ctx , amount)"
+      }
+    ],
+    "edges": [
+      {
+        "from": 12,
+        "to": 13,
+        "label": "next"
+      },
+      {
+        "from": 13,
+        "to": 14,
+        "label": "next"
+      },
+      {
+        "from": 14,
+        "to": 15,
+        "label": "next"
+      },
+      {
+        "from": 15,
+        "to": 16,
+        "label": "next"
+      },
+      {
+        "from": 16,
+        "to": 17,
+        "label": "next"
+      },
+      {
+        "from": 17,
+        "to": 18,
+        "label": "next"
+      },
+      {
+        "from": 18,
+        "to": 19,
+        "label": "next"
+      },
+      {
+        "from": 19,
+        "to": 20,
+        "label": "next"
+      },
+      {
+        "from": 20,
+        "to": 21,
+        "label": "next"
+      },
+      {
+        "from": 21,
+        "to": 22,
         "label": "call"
       }
     ]

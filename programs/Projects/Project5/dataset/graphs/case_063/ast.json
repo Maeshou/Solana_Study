@@ -1,40 +1,229 @@
 [
   {
-    "name": "init_merkle_distributor",
+    "name": "init_guild",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx063 >",
-      "amount: u64"
+      "ctx: Context < InitGuild >",
+      "cap: u32"
     ],
     "attributes": [],
     "body": [
-      "let src = & mut ctx . accounts . account_src ;",
-      "let dst = & mut ctx . accounts . account_dst ;",
-      "let before = * * src . to_account_info () . try_borrow_lamports () ? ;",
-      "* * src . to_account_info () . try_borrow_mut_lamports () ? = before . saturating_sub (amount) ;",
-      "* * dst . to_account_info () . try_borrow_mut_lamports () ? += amount ;",
+      "let g = & mut ctx . accounts . guild ;",
+      "let a = & mut ctx . accounts . member_alpha ;",
+      "let b = & mut ctx . accounts . member_beta ;",
+      "let h = & mut ctx . accounts . hall ;",
+      "g . owner = ctx . accounts . owner . key () ;",
+      "g . cap = cap ;",
+      "g . phase = Forming ;",
+      "a . parent = g . key () ;",
+      "a . seat = 1 ;",
+      "a . power = 10 ;",
+      "b . parent = g . key () ;",
+      "b . seat = 2 ;",
+      "b . power = 12 ;",
+      "h . parent = g . key () ;",
+      "h . channel = 9 ;",
+      "h . flags = 0 ;",
+      "h . notice = 0 ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx063",
+    "name": "update_march",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < UpdateMarch >",
+      "steps: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let g = & mut ctx . accounts . guild ;",
+      "let a = & mut ctx . accounts . member_alpha ;",
+      "let b = & mut ctx . accounts . member_beta ;",
+      "let h = & mut ctx . accounts . hall ;",
+      "for i in 0 .. steps",
+      "{",
+      "let da = (3 + (i % 5)) as u32 ;",
+      "let db = (5 + (i % 7)) as u32 ;",
+      "a . power = a . power . checked_add (da) . unwrap_or (u32 :: MAX) ;",
+      "b . power = b . power . checked_add (db) . unwrap_or (u32 :: MAX) ;",
+      "let mix = ((a . power as u64 + b . power as u64) / 6) as u32 ;",
+      "h . notice = h . notice . rotate_left ((i % 8) as u32) ^ mix ;",
+      "}",
+      "let total = a . power as u64 + b . power as u64 ;",
+      "if total > g . cap as u64",
+      "{",
+      "g . phase = Rest ;",
+      "h . flags = h . flags . saturating_add (2) ;",
+      "a . power = (a . power / 2) + 11 ;",
+      "b . power = (b . power / 2) + 13 ;",
+      "msg ! (\"phase=Rest flags+2 damp powers total=",
+      "{",
+      "}\" , total) ;",
+      "} else",
+      "{",
+      "g . phase = March ;",
+      "h . notice = h . notice . saturating_add (7) ;",
+      "a . power ^= 0x00FF_00FF ;",
+      "b . power = b . power . saturating_add (9) ;",
+      "msg ! (\"phase=March notice+7 xor/boost total=",
+      "{",
+      "}\" , total) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitGuild",
     "node_type": "struct",
     "fields": [
       {
-        "name": "account_src",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "guild",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , GuildHead >"
       },
       {
-        "name": "account_dst",
+        "name": "member_alpha",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , GuildMember >"
+      },
+      {
+        "name": "member_beta",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , GuildMember >"
+      },
+      {
+        "name": "hall",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4 + 4)]",
+        "field_type": "Account < 'info , GuildHall >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
       },
       {
         "name": "system_program",
         "attribute": null,
         "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "UpdateMarch",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , GuildHead >"
+      },
+      {
+        "name": "member_alpha",
+        "attribute": "# [account (mut , has_one = guild , constraint = member_alpha . seat != member_beta . seat @ GuildErr :: DupAcc)]",
+        "field_type": "Account < 'info , GuildMember >"
+      },
+      {
+        "name": "member_beta",
+        "attribute": "# [account (mut , has_one = guild , constraint = member_beta . seat != hall . channel @ GuildErr :: DupAcc)]",
+        "field_type": "Account < 'info , GuildMember >"
+      },
+      {
+        "name": "hall",
+        "attribute": "# [account (mut , has_one = guild)]",
+        "field_type": "Account < 'info , GuildHall >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GuildHead",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "cap",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "phase",
+        "attribute": null,
+        "field_type": "GuildPhase"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GuildMember",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "seat",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "power",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GuildHall",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "channel",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "flags",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "notice",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

@@ -1,0 +1,163 @@
+[
+  {
+    "name": "initialize",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Initialize >",
+      "threshold: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let st = & mut ctx . accounts . settings ;",
+      "st . owner = ctx . accounts . owner . key () ;",
+      "st . threshold = threshold ;",
+      "st . processed = 0 ;",
+      "st . sent = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "bridge_points",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < BridgePoints >",
+      "amount: u64",
+      "tick: u8",
+      "seed: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let st = & mut ctx . accounts . settings ;",
+      "let mut remain = amount ;",
+      "let mut loop_count = 0u8 ;",
+      "if remain < st . threshold",
+      "{",
+      "st . processed += 1 ;",
+      "return Ok (()) ;",
+      "}",
+      "let chosen = if (seed % 2) == 0 { & ctx . accounts . program_a } else { & ctx . accounts . program_b } ;",
+      "while loop_count < tick",
+      "{",
+      "let slice = (remain / 4) . max (1) ;",
+      "if slice > remain",
+      "{",
+      "break ;",
+      "} let ix = token_ix :: transfer (& chosen . key () , & ctx . accounts . source_vault . key () , & ctx . accounts . dest_vault . key () , & ctx . accounts . owner . key () , & [] , slice ,) ? ;",
+      "invoke (& ix , & [chosen . to_account_info () , ctx . accounts . source_vault . to_account_info () , ctx . accounts . dest_vault . to_account_info () , ctx . accounts . owner . to_account_info () ,] ,) ? ;",
+      "remain -= slice ;",
+      "st . sent += slice ;",
+      "st . processed += 1 ;",
+      "let mut j = 0u8 ;",
+      "while j < 2",
+      "{",
+      "st . sent += (seed % 3) as u64 ;",
+      "j += 1 ;",
+      "} if remain == 0",
+      "{",
+      "break ;",
+      "} loop_count += 1 ;",
+      "}",
+      "if remain > 0",
+      "{",
+      "let ix2 = token_ix :: transfer (& chosen . key () , & ctx . accounts . source_vault . key () , & ctx . accounts . dest_vault . key () , & ctx . accounts . owner . key () , & [] , remain ,) ? ;",
+      "invoke (& ix2 , & [chosen . to_account_info () , ctx . accounts . source_vault . to_account_info () , ctx . accounts . dest_vault . to_account_info () , ctx . accounts . owner . to_account_info () ,] ,) ? ;",
+      "st . sent += remain ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Settings",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "threshold",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "processed",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "sent",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Initialize",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "settings",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , Settings >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BridgePoints",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "settings",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Settings >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "source_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "dest_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "program_a",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "program_b",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

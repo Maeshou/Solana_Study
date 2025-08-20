@@ -1,0 +1,124 @@
+[
+  {
+    "name": "upgrade_armor",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < UpgradeArmor >",
+      "extra_thruster: u16"
+    ],
+    "attributes": [
+      "# [doc = \" armor_main と armor_aux のステータスを組み合わせて強化するが、\"]",
+      "# [doc = \" 同一アカウントかどうかの検証が抜けている Duplicate Mutable Account 脆弱性あり\"]"
+    ],
+    "body": [
+      "let armor_main = & mut ctx . accounts . armor_main ;",
+      "let armor_aux = & mut ctx . accounts . armor_aux ;",
+      "let clock = & ctx . accounts . clock ;",
+      "armor_main . durability = (armor_main . durability + armor_aux . durability) * 3 / 4 ;",
+      "armor_main . defense = (armor_main . defense as u32 + armor_aux . defense as u32 + 1) / 2 as u16 ;",
+      "armor_main . weight = armor_main . weight + armor_aux . weight - (armor_aux . weight % 10) ;",
+      "armor_main . thrusters = armor_main . thrusters . wrapping_add (extra_thruster) ;",
+      "armor_main . tag = armor_main . tag . clone () . to_uppercase () ;",
+      "armor_main . summary = format ! (\"{}+{}#{}\" , armor_main . tag , armor_aux . tag , armor_main . thrusters) ;",
+      "let seed = (clock . slot % 256) as u8 ;",
+      "armor_main . luck = seed ;",
+      "armor_aux . multiplier = armor_aux . multiplier . wrapping_sub (armor_aux . multiplier) ;",
+      "msg ! (\"Upgraded {} → durability={}, defense={}, weight={}, luck={}\" , armor_main . name , armor_main . durability , armor_main . defense , armor_main . weight , armor_main . luck) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "UpgradeArmor",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "armor_main",
+        "attribute": "# [doc = \" 強化対象装備（mutable）\"] # [account (mut)]",
+        "field_type": "Account < 'info , Armor >"
+      },
+      {
+        "name": "armor_aux",
+        "attribute": "# [doc = \" 補助装備（mutable）\"] # [account (mut)]",
+        "field_type": "Account < 'info , Armor >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 実行プレイヤー（署名者）\"] # [account (signer)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": "# [doc = \" 現在スロット取得用\"]",
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": "# [doc = \" システムプログラム\"]",
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Armor",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 装備所有者\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "name",
+        "attribute": "# [doc = \" 装備名称\"]",
+        "field_type": "String"
+      },
+      {
+        "name": "durability",
+        "attribute": "# [doc = \" 耐久度ポイント\"]",
+        "field_type": "u32"
+      },
+      {
+        "name": "defense",
+        "attribute": "# [doc = \" 防御力値\"]",
+        "field_type": "u16"
+      },
+      {
+        "name": "weight",
+        "attribute": "# [doc = \" 重量（単位グラム）\"]",
+        "field_type": "u16"
+      },
+      {
+        "name": "thrusters",
+        "attribute": "# [doc = \" スラスタ数\"]",
+        "field_type": "u16"
+      },
+      {
+        "name": "tag",
+        "attribute": "# [doc = \" アイテムタグ\"]",
+        "field_type": "String"
+      },
+      {
+        "name": "summary",
+        "attribute": "# [doc = \" 強化サマリー\"]",
+        "field_type": "String"
+      },
+      {
+        "name": "luck",
+        "attribute": "# [doc = \" 運ステータス（0–255）\"]",
+        "field_type": "u8"
+      },
+      {
+        "name": "multiplier",
+        "attribute": "# [doc = \" ボーナスマルチプライヤー\"]",
+        "field_type": "u16"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

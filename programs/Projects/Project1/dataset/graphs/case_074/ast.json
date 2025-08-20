@@ -1,0 +1,123 @@
+[
+  {
+    "name": "claim",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Claim >",
+      "now_ts: i64"
+    ],
+    "attributes": [
+      "# [doc = \" ユーザーは現在時刻 `now_ts` に応じた権利確定済みトークン量を受け取ります。\"]",
+      "# [doc = \" 分岐やループを使わず、算術メソッドとミニマム／サチュレート演算のみで安全に計算します。\"]"
+    ],
+    "body": [
+      "let rec = & mut ctx . accounts . vesting_record ;",
+      "let elapsed = now_ts . saturating_sub (rec . start_time) ;",
+      "let elapsed_u = (elapsed as u64) . min (rec . duration) ;",
+      "let vested = rec . total_amount . saturating_mul (elapsed_u) . checked_div (rec . duration) . unwrap_or (0) ;",
+      "let to_pay = vested . saturating_sub (rec . claimed_amount) ;",
+      "rec . claimed_amount = rec . claimed_amount . saturating_add (to_pay) ;",
+      "rec . last_claim_ts = now_ts ;",
+      "msg ! (\"Claimed {} tokens (total vested {}).\" , to_pay , rec . claimed_amount) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "view",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < View >"
+    ],
+    "attributes": [
+      "# [doc = \" 現在のレコードをログで確認します。\"]"
+    ],
+    "body": [
+      "let rec = & ctx . accounts . vesting_record ;",
+      "msg ! (\"User             : {:?}\" , rec . user) ;",
+      "msg ! (\"Total Amount     : {}\" , rec . total_amount) ;",
+      "msg ! (\"Claimed Amount   : {}\" , rec . claimed_amount) ;",
+      "msg ! (\"Start Time (UTC) : {}\" , rec . start_time) ;",
+      "msg ! (\"Duration (secs)  : {}\" , rec . duration) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Claim",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vesting_record",
+        "attribute": "# [doc = \" PDA で再初期化攻撃を防止\"] # [account (seeds = [b\"vesting\" , user . key () . as_ref ()] , bump , has_one = user)]",
+        "field_type": "Account < 'info , VestingRecord >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 請求操作に署名が必要\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "View",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vesting_record",
+        "attribute": "# [doc = \" 誰でも自分のレコードをビュー可能\"] # [account (seeds = [b\"vesting\" , user . key () . as_ref ()] , bump , has_one = user)]",
+        "field_type": "Account < 'info , VestingRecord >"
+      },
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "VestingRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": "# [doc = \" オーナー\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "total_amount",
+        "attribute": "# [doc = \" 総付与予定量\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "claimed_amount",
+        "attribute": "# [doc = \" 既に請求した量\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "start_time",
+        "attribute": "# [doc = \" 権利確定開始時刻（UTC UNIX epoch）\"]",
+        "field_type": "i64"
+      },
+      {
+        "name": "duration",
+        "attribute": "# [doc = \" 権利確定に要する期間（秒）\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "last_claim_ts",
+        "attribute": "# [doc = \" 最後に請求した時刻（UTC UNIX epoch）\"]",
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

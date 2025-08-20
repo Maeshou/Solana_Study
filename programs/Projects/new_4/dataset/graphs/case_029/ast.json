@@ -1,0 +1,136 @@
+[
+  {
+    "name": "configure_notifications",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ConfigureNotifications >",
+      "email: String",
+      "frequency: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "require ! (email . contains (\"@\") , ErrorCode :: InvalidEmail) ;",
+      "let cfg = & mut ctx . accounts . notification_config ;",
+      "cfg . email = email ;",
+      "cfg . frequency = frequency ;",
+      "cfg . updated_at = Clock :: get () ? . unix_timestamp ;",
+      "let log = & mut ctx . accounts . activity_log ;",
+      "log . activities . push (format ! (\"configured {}hz at {}\" , frequency , cfg . updated_at)) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "update_preferences",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ConfigureNotifications >",
+      "new_email: Option < String >",
+      "new_frequency: Option < u16 >"
+    ],
+    "attributes": [],
+    "body": [
+      "let cfg = & mut ctx . accounts . notification_config ;",
+      "if let Some (e) = new_email",
+      "{",
+      "require ! (e . contains (\"@\") , ErrorCode :: InvalidEmail) ;",
+      "cfg . email = e ;",
+      "}",
+      "if let Some (f) = new_frequency",
+      "{",
+      "cfg . frequency = f ;",
+      "}",
+      "cfg . updated_at = Clock :: get () ? . unix_timestamp ;",
+      "let log = & mut ctx . accounts . activity_log ;",
+      "log . activities . push (format ! (\"updated at {}\" , cfg . updated_at)) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "log_activity",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ConfigureNotifications >",
+      "activity: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let log = & mut ctx . accounts . activity_log ;",
+      "if log . activities . len () >= 100",
+      "{",
+      "log . activities . remove (0) ;",
+      "}",
+      "log . activities . push (activity) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "ConfigureNotifications",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "notification_config",
+        "attribute": "# [account (init , payer = user , space = 8 + (4 + 128) + 2 + 8)]",
+        "field_type": "Account < 'info , NotificationConfig >"
+      },
+      {
+        "name": "activity_log",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , ActivityLog >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "NotificationConfig",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "email",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "frequency",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "updated_at",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActivityLog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "activities",
+        "attribute": null,
+        "field_type": "Vec < String >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

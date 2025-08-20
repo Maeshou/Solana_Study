@@ -1,9 +1,10 @@
 [
   {
-    "name": "settle",
+    "name": "create_lottery",
     "inputs": [
-      "ctx: Context < SettleCtxikig >",
-      "amount: u64"
+      "ctx: Context < CreateLottery >",
+      "ticket_price: u64",
+      "max_tickets: u64"
     ],
     "nodes": [
       {
@@ -12,18 +13,38 @@
       },
       {
         "id": 1,
-        "label": "let acct = & mut ctx . accounts . vault ;"
+        "label": "let lottery = & mut ctx . accounts . lottery ;"
       },
       {
         "id": 2,
-        "label": "* * ctx . accounts . vault . to_account_info () . try_borrow_mut_lamports () ? += amount ;"
+        "label": "lottery . admin = ctx . accounts . admin . key () ;"
       },
       {
         "id": 3,
-        "label": "msg ! (\"Executed settle logic\") ;"
+        "label": "lottery . ticket_price = ticket_price ;"
       },
       {
         "id": 4,
+        "label": "lottery . max_tickets = max_tickets ;"
+      },
+      {
+        "id": 5,
+        "label": "lottery . tickets_sold = 0 ;"
+      },
+      {
+        "id": 6,
+        "label": "lottery . is_active = true ;"
+      },
+      {
+        "id": 7,
+        "label": "lottery . winner = None ;"
+      },
+      {
+        "id": 8,
+        "label": "lottery . bump = * ctx . bumps . get (\"lottery\") . unwrap () ;"
+      },
+      {
+        "id": 9,
         "label": "Ok (())"
       }
     ],
@@ -31,7 +52,213 @@
       {
         "from": 1,
         "to": 1,
-        "label": "def: acct"
+        "label": "def: lottery"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: lottery"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: lottery"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: lottery"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: lottery"
+      },
+      {
+        "from": 1,
+        "to": 6,
+        "label": "data_dep: lottery"
+      },
+      {
+        "from": 1,
+        "to": 7,
+        "label": "data_dep: lottery"
+      },
+      {
+        "from": 1,
+        "to": 8,
+        "label": "data_dep: lottery"
+      }
+    ]
+  },
+  {
+    "name": "buy_ticket",
+    "inputs": [
+      "ctx: Context < BuyTicket >"
+    ],
+    "nodes": [
+      {
+        "id": 10,
+        "label": "Entry"
+      },
+      {
+        "id": 11,
+        "label": "let lottery = & mut ctx . accounts . lottery ;"
+      },
+      {
+        "id": 12,
+        "label": "let ticket = & mut ctx . accounts . ticket ;"
+      },
+      {
+        "id": 13,
+        "label": "require ! (lottery . is_active , LotteryError :: LotteryNotActive) ;"
+      },
+      {
+        "id": 14,
+        "label": "require ! (lottery . tickets_sold < lottery . max_tickets , LotteryError :: SoldOut) ;"
+      },
+      {
+        "id": 15,
+        "label": "ticket . lottery = lottery . key () ;"
+      },
+      {
+        "id": 16,
+        "label": "ticket . owner = ctx . accounts . buyer . key () ;"
+      },
+      {
+        "id": 17,
+        "label": "ticket . ticket_number = lottery . tickets_sold ;"
+      },
+      {
+        "id": 18,
+        "label": "ticket . bump = * ctx . bumps . get (\"ticket\") . unwrap () ;"
+      },
+      {
+        "id": 19,
+        "label": "lottery . tickets_sold += 1 ;"
+      },
+      {
+        "id": 20,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 11,
+        "to": 11,
+        "label": "def: lottery"
+      },
+      {
+        "from": 12,
+        "to": 12,
+        "label": "def: ticket"
+      },
+      {
+        "from": 12,
+        "to": 15,
+        "label": "data_dep: ticket"
+      },
+      {
+        "from": 11,
+        "to": 15,
+        "label": "data_dep: lottery"
+      },
+      {
+        "from": 12,
+        "to": 16,
+        "label": "data_dep: ticket"
+      },
+      {
+        "from": 12,
+        "to": 17,
+        "label": "data_dep: ticket"
+      },
+      {
+        "from": 11,
+        "to": 17,
+        "label": "data_dep: lottery"
+      },
+      {
+        "from": 12,
+        "to": 18,
+        "label": "data_dep: ticket"
+      },
+      {
+        "from": 11,
+        "to": 19,
+        "label": "data_dep: lottery"
+      }
+    ]
+  },
+  {
+    "name": "draw_winner",
+    "inputs": [
+      "ctx: Context < DrawWinner >"
+    ],
+    "nodes": [
+      {
+        "id": 21,
+        "label": "Entry"
+      },
+      {
+        "id": 22,
+        "label": "let lottery = & mut ctx . accounts . lottery ;"
+      },
+      {
+        "id": 23,
+        "label": "require ! (lottery . is_active , LotteryError :: LotteryNotActive) ;"
+      },
+      {
+        "id": 24,
+        "label": "require ! (lottery . tickets_sold > 0 , LotteryError :: NoTicketsSold) ;"
+      },
+      {
+        "id": 25,
+        "label": "let winner_ticket = lottery . tickets_sold % 10 ;"
+      },
+      {
+        "id": 26,
+        "label": "lottery . winner = Some (winner_ticket) ;"
+      },
+      {
+        "id": 27,
+        "label": "lottery . is_active = false ;"
+      },
+      {
+        "id": 28,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 22,
+        "to": 22,
+        "label": "def: lottery"
+      },
+      {
+        "from": 25,
+        "to": 25,
+        "label": "def: winner_ticket"
+      },
+      {
+        "from": 22,
+        "to": 25,
+        "label": "data_dep: lottery"
+      },
+      {
+        "from": 22,
+        "to": 26,
+        "label": "data_dep: lottery"
+      },
+      {
+        "from": 25,
+        "to": 26,
+        "label": "data_dep: winner_ticket"
+      },
+      {
+        "from": 22,
+        "to": 27,
+        "label": "data_dep: lottery"
       }
     ]
   }

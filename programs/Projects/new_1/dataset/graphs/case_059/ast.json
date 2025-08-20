@@ -1,0 +1,93 @@
+[
+  {
+    "name": "apply_stones",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ApplyStones >",
+      "stone_count: u64",
+      "inc_per_stone: u64"
+    ],
+    "attributes": [
+      "# [doc = \" ユーザーが保持する「属性強化石」を消費して\"]",
+      "# [doc = \" NFT の属性値を上昇させます。\"]",
+      "# [doc = \"\"]",
+      "# [doc = \" - `stone_count`     : 使用する強化石の枚数  \"]",
+      "# [doc = \" - `inc_per_stone`   : １石あたりの属性上昇量  \"]",
+      "# [doc = \" ※ すべてのアカウントは AccountInfo／Account のまま、Signer は使いません。\"]"
+    ],
+    "body": [
+      "let delta = stone_count . checked_mul (inc_per_stone) . unwrap () ;",
+      "let data = & mut ctx . accounts . attr_data ;",
+      "data . value = data . value . saturating_add (delta) ;"
+    ]
+  },
+  {
+    "name": "ApplyStones",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "fee_payer",
+        "attribute": "# [doc = \" トランザクション手数料支払い用（署名必須）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 強化を実行するユーザー（署名チェック omitted intentionally）\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "stone_acc",
+        "attribute": "# [doc = \" 強化石として消費するトークンアカウント（所有者チェックのみ）\"] # [account (constraint = stone_acc . owner == * user . key , constraint = stone_acc . mint == stone_mint . key ())]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "stone_mint",
+        "attribute": "# [doc = \" 強化石の Mint\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "nft_acc",
+        "attribute": "# [doc = \" 強化対象の NFT TokenAccount（所有者チェックのみ）\"] # [account (constraint = nft_acc . owner == * user . key , constraint = nft_acc . mint == nft_mint . key ())]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "nft_mint",
+        "attribute": "# [doc = \" 対象 NFT の Mint\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "attr_data",
+        "attribute": "# [doc = \" NFT の属性値を保持する PDA\"] # [account (init_if_needed , payer = fee_payer , seeds = [b\"attr\" , user . key () . as_ref () , nft_mint . key () . as_ref ()] , bump , space = 8 + 8)]",
+        "field_type": "Account < 'info , AttrData >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "rent",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Rent >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AttrData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "value",
+        "attribute": "# [doc = \" 現在の属性値\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

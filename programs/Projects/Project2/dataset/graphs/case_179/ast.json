@@ -1,0 +1,151 @@
+[
+  {
+    "name": "ChatRoom",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "",
+        "attribute": null,
+        "field_type": "Vec < (i64 , Pubkey , String) >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "initialize",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Initialize >"
+    ],
+    "attributes": [
+      "# [doc = \" ChatRoom 初期化：bump のみ設定\"]"
+    ],
+    "body": [
+      "let bump = * ctx . bumps . get (\"chat_room\") . unwrap () ;",
+      "ctx . accounts . room . 0 = bump ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "post_message",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyRoom >",
+      "content: String"
+    ],
+    "attributes": [
+      "# [doc = \" メッセージ投稿：現在時刻・署名者・本文を追加\"]"
+    ],
+    "body": [
+      "let list = & mut ctx . accounts . room . 1 ;",
+      "let now = ctx . accounts . clock . unix_timestamp ;",
+      "list . push ((now , ctx . accounts . user . key () , content)) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "purge_old",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyRoom >",
+      "threshold_ts: i64"
+    ],
+    "attributes": [
+      "# [doc = \" 古いメッセージ削除：threshold_ts より古いものを取り除く\"]"
+    ],
+    "body": [
+      "let list = & mut ctx . accounts . room . 1 ;",
+      "list . retain (| & (ts , _ , _) | ts > threshold_ts) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "count_recent",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyRoom >",
+      "window_secs: i64"
+    ],
+    "attributes": [
+      "# [doc = \" 最近のメッセージ数報告：now から window_secs 以内の数をログ出力\"]"
+    ],
+    "body": [
+      "let list = & ctx . accounts . room . 1 ;",
+      "let now = ctx . accounts . clock . unix_timestamp ;",
+      "let mut cnt = 0u64 ;",
+      "for & (ts , _ , _) in list . iter ()",
+      "{",
+      "if ts + window_secs >= now",
+      "{",
+      "cnt = cnt . wrapping_add (1) ;",
+      "}",
+      "}",
+      "msg ! (\"Recent messages: {}\" , cnt) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Initialize",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "room",
+        "attribute": "# [account (init_zeroed , payer = authority , seeds = [b\"chat_room\" , authority . key () . as_ref ()] , bump , space = 8 + 1 + 4 + 10 * (8 + 32 + 4 + 200))]",
+        "field_type": "Account < 'info , ChatRoom >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ModifyRoom",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "room",
+        "attribute": "# [account (mut , seeds = [b\"chat_room\" , authority . key () . as_ref ()] , bump = room . 0 ,)]",
+        "field_type": "Account < 'info , ChatRoom >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 投稿者（署名必須）\"] # [account (signer)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": "# [doc = \" 時刻取得用\"]",
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

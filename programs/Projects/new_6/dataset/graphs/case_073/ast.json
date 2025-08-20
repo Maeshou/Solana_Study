@@ -1,0 +1,274 @@
+[
+  {
+    "name": "init_tournament_bracket",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitTournamentBracket >",
+      "game_type: u8",
+      "max_players: u32",
+      "entry_fee: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let bracket = & mut ctx . accounts . tournament_bracket ;",
+      "bracket . organizer = ctx . accounts . organizer . key () ;",
+      "bracket . game_type = game_type ;",
+      "bracket . max_players = max_players ;",
+      "bracket . entry_fee = entry_fee ;",
+      "bracket . current_round = 1 ;",
+      "bracket . tournament_status = 0 ;",
+      "bracket . total_prize_pool = 0 ;",
+      "bracket . registered_players = 0 ;",
+      "bracket . eliminated_players = 0 ;",
+      "bracket . start_time = 0 ;",
+      "bracket . registration_deadline = Clock :: get () ? . unix_timestamp + 86400 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "manage_tournament_flow",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ManageTournamentFlow >",
+      "action: u8",
+      "player_results: Vec < (Pubkey , u32 , bool) >"
+    ],
+    "attributes": [],
+    "body": [
+      "let bracket = & mut ctx . accounts . tournament_bracket ;",
+      "let match_data = & mut ctx . accounts . match_data ;",
+      "let manager = & ctx . accounts . manager ;",
+      "let current_time = Clock :: get () ? . unix_timestamp ;",
+      "match action { 0 => { if bracket . registered_players >= 4 { bracket . tournament_status = 1 ; bracket . start_time = current_time ; let matches_in_round = bracket . registered_players / 2 ; match_data . current_round_matches = matches_in_round ; match_data . matches_completed = 0 ; } } , 1 => { for (i , (player , score , winner)) in player_results . iter () . enumerate () . take (16) { match_data . match_results [i] = MatchResult { player : * player , score : * score , is_winner : * winner , match_time : current_time , } ; if * winner { match_data . round_winners [match_data . matches_completed as usize] = * player ; } else { bracket . eliminated_players += 1 ; let consolation = (bracket . total_prize_pool * 5) / 100 ; match_data . consolation_prizes [i] = consolation ; } } match_data . matches_completed += player_results . len () as u32 ; } , 2 => { if match_data . matches_completed >= match_data . current_round_matches { bracket . current_round += 1 ; let remaining_players = bracket . registered_players - bracket . eliminated_players ; if remaining_players <= 1 { bracket . tournament_status = 3 ; bracket . end_time = current_time ; let winner_prize = (bracket . total_prize_pool * 60) / 100 ; let runner_up_prize = (bracket . total_prize_pool * 25) / 100 ; let third_place_prize = (bracket . total_prize_pool * 15) / 100 ; match_data . final_prizes = [winner_prize , runner_up_prize , third_place_prize] ; } else { match_data . current_round_matches = remaining_players / 2 ; match_data . matches_completed = 0 ; for i in 0 .. remaining_players . min (32) { bracket . active_players [i as usize] = match_data . round_winners [i as usize] ; } } } } , 3 => { bracket . tournament_status = 4 ; bracket . pause_reason = if player_results . len () > 0 { 1 } else { 2 } ; bracket . paused_at = current_time ; } , _ => { } }",
+      "for (player , score , winner) in player_results . iter ()",
+      "{",
+      "if let Some (player_index) = bracket . active_players . iter () . position (| & p | p == * player)",
+      "{",
+      "bracket . player_scores [player_index] += * score ;",
+      "if * winner",
+      "{",
+      "bracket . player_wins [player_index] += 1 ;",
+      "} bracket . player_matches [player_index] += 1 ;",
+      "}",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitTournamentBracket",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "tournament_bracket",
+        "attribute": "# [account (init , payer = organizer , space = 8 + 1200)]",
+        "field_type": "Account < 'info , TournamentBracketData >"
+      },
+      {
+        "name": "organizer",
+        "attribute": "# [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ManageTournamentFlow",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "tournament_bracket",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TournamentBracketData >"
+      },
+      {
+        "name": "match_data",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , MatchData >"
+      },
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MatchResult",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "player",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "score",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "is_winner",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "match_time",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TournamentBracketData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "organizer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "game_type",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "max_players",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "entry_fee",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "current_round",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "tournament_status",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "total_prize_pool",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "registered_players",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "eliminated_players",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "start_time",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "end_time",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "registration_deadline",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "paused_at",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "pause_reason",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "active_players",
+        "attribute": null,
+        "field_type": "[Pubkey ; 32]"
+      },
+      {
+        "name": "player_scores",
+        "attribute": null,
+        "field_type": "[u32 ; 32]"
+      },
+      {
+        "name": "player_wins",
+        "attribute": null,
+        "field_type": "[u32 ; 32]"
+      },
+      {
+        "name": "player_matches",
+        "attribute": null,
+        "field_type": "[u32 ; 32]"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MatchData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "current_round_matches",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "matches_completed",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "match_results",
+        "attribute": null,
+        "field_type": "[MatchResult ; 16]"
+      },
+      {
+        "name": "round_winners",
+        "attribute": null,
+        "field_type": "[Pubkey ; 16]"
+      },
+      {
+        "name": "consolation_prizes",
+        "attribute": null,
+        "field_type": "[u64 ; 16]"
+      },
+      {
+        "name": "final_prizes",
+        "attribute": null,
+        "field_type": "[u64 ; 3]"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

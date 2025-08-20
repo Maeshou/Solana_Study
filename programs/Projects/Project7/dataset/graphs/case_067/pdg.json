@@ -1,0 +1,347 @@
+[
+  {
+    "name": "init_network",
+    "inputs": [
+      "ctx: Context < InitNetwork >",
+      "base_rate_bps_input: u16",
+      "min_uptime_bps_input: u16"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let state = & mut ctx . accounts . network_state ;"
+      },
+      {
+        "id": 2,
+        "label": "state . admin = ctx . accounts . admin . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "state . base_rate_bps = clamp_u16 (base_rate_bps_input , 50 , 3000) ;"
+      },
+      {
+        "id": 4,
+        "label": "state . min_uptime_bps = clamp_u16 (min_uptime_bps_input , 8000 , 10_000) ;"
+      },
+      {
+        "id": 5,
+        "label": "state . epoch_index = 1 ;"
+      },
+      {
+        "id": 6,
+        "label": "state . total_paid = 1 ;"
+      },
+      {
+        "id": 7,
+        "label": "state . curve = IncentiveCurve :: Flat ;"
+      },
+      {
+        "id": 8,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: state"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: state"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: state"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: state"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: state"
+      },
+      {
+        "from": 1,
+        "to": 6,
+        "label": "data_dep: state"
+      },
+      {
+        "from": 1,
+        "to": 7,
+        "label": "data_dep: state"
+      }
+    ]
+  },
+  {
+    "name": "act_reward",
+    "inputs": [
+      "ctx: Context < ActReward >",
+      "uptime_bps_reported: u16",
+      "epochs_continuous: u8"
+    ],
+    "nodes": [
+      {
+        "id": 9,
+        "label": "Entry"
+      },
+      {
+        "id": 10,
+        "label": "let state = & mut ctx . accounts . network_state ;"
+      },
+      {
+        "id": 11,
+        "label": "if uptime_bps_reported < state . min_uptime_bps { state . epoch_index = state . epoch_index + 1 ; return Err (NodeErr :: LowUptime . into ()) ; }"
+      },
+      {
+        "id": 12,
+        "label": "state . epoch_index = state . epoch_index + 1 ;"
+      },
+      {
+        "id": 13,
+        "label": "return Err (NodeErr :: LowUptime . into ()) ;"
+      },
+      {
+        "id": 14,
+        "label": "let mut harmonic_bps : u64 = 0 ;"
+      },
+      {
+        "id": 15,
+        "label": "let mut epoch_counter : u8 = 1 ;"
+      },
+      {
+        "id": 16,
+        "label": "while epoch_counter <= epochs_continuous { harmonic_bps = harmonic_bps + (10_000 / (epoch_counter as u64 + 9)) ; epoch_counter = epoch_counter + 1 ; }"
+      },
+      {
+        "id": 17,
+        "label": "harmonic_bps = harmonic_bps + (10_000 / (epoch_counter as u64 + 9)) ;"
+      },
+      {
+        "id": 18,
+        "label": "epoch_counter = epoch_counter + 1 ;"
+      },
+      {
+        "id": 19,
+        "label": "let mut effective_bps : u64 = state . base_rate_bps as u64 + (harmonic_bps / 60) ;"
+      },
+      {
+        "id": 20,
+        "label": "if state . curve == IncentiveCurve :: Aggressive { effective_bps = effective_bps + (effective_bps / 8) ; }"
+      },
+      {
+        "id": 21,
+        "label": "effective_bps = effective_bps + (effective_bps / 8) ;"
+      },
+      {
+        "id": 22,
+        "label": "if state . curve == IncentiveCurve :: Cautious { effective_bps = effective_bps - (effective_bps / 12) ; }"
+      },
+      {
+        "id": 23,
+        "label": "effective_bps = effective_bps - (effective_bps / 12) ;"
+      },
+      {
+        "id": 24,
+        "label": "let mut reward_units : u64 = (uptime_bps_reported as u64) * effective_bps / 10_000 ;"
+      },
+      {
+        "id": 25,
+        "label": "let upper_limit : u64 = (state . base_rate_bps as u64) * 4 / 10 ;"
+      },
+      {
+        "id": 26,
+        "label": "if reward_units > upper_limit { reward_units = upper_limit ; }"
+      },
+      {
+        "id": 27,
+        "label": "reward_units = upper_limit ;"
+      },
+      {
+        "id": 28,
+        "label": "if reward_units < 1 { reward_units = 1 ; }"
+      },
+      {
+        "id": 29,
+        "label": "reward_units = 1 ;"
+      },
+      {
+        "id": 30,
+        "label": "token :: transfer (ctx . accounts . pool_to_validator () , reward_units) ? ;"
+      },
+      {
+        "id": 31,
+        "label": "state . total_paid = state . total_paid + reward_units ;"
+      },
+      {
+        "id": 32,
+        "label": "state . epoch_index = state . epoch_index + 1 ;"
+      },
+      {
+        "id": 33,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 10,
+        "to": 10,
+        "label": "def: state"
+      },
+      {
+        "from": 10,
+        "to": 11,
+        "label": "data_dep: state"
+      },
+      {
+        "from": 10,
+        "to": 11,
+        "label": "data_dep: state"
+      },
+      {
+        "from": 10,
+        "to": 11,
+        "label": "data_dep: state"
+      },
+      {
+        "from": 10,
+        "to": 12,
+        "label": "data_dep: state"
+      },
+      {
+        "from": 10,
+        "to": 12,
+        "label": "data_dep: state"
+      },
+      {
+        "from": 10,
+        "to": 19,
+        "label": "data_dep: state"
+      },
+      {
+        "from": 10,
+        "to": 20,
+        "label": "data_dep: state"
+      },
+      {
+        "from": 10,
+        "to": 22,
+        "label": "data_dep: state"
+      },
+      {
+        "from": 10,
+        "to": 25,
+        "label": "data_dep: state"
+      },
+      {
+        "from": 10,
+        "to": 31,
+        "label": "data_dep: state"
+      },
+      {
+        "from": 10,
+        "to": 31,
+        "label": "data_dep: state"
+      },
+      {
+        "from": 10,
+        "to": 32,
+        "label": "data_dep: state"
+      },
+      {
+        "from": 10,
+        "to": 32,
+        "label": "data_dep: state"
+      }
+    ]
+  },
+  {
+    "name": "clamp_u16",
+    "inputs": [
+      "v: u16",
+      "lo: u16",
+      "hi: u16"
+    ],
+    "nodes": [
+      {
+        "id": 36,
+        "label": "Entry"
+      },
+      {
+        "id": 37,
+        "label": "let mut out = v ;"
+      },
+      {
+        "id": 38,
+        "label": "if out < lo { out = lo ; }"
+      },
+      {
+        "id": 39,
+        "label": "out = lo ;"
+      },
+      {
+        "id": 40,
+        "label": "if out > hi { out = hi ; }"
+      },
+      {
+        "id": 41,
+        "label": "out = hi ;"
+      },
+      {
+        "id": 42,
+        "label": "out"
+      }
+    ],
+    "edges": [
+      {
+        "from": 37,
+        "to": 37,
+        "label": "def: out"
+      },
+      {
+        "from": 37,
+        "to": 38,
+        "label": "data_dep: out"
+      },
+      {
+        "from": 37,
+        "to": 38,
+        "label": "data_dep: out"
+      },
+      {
+        "from": 37,
+        "to": 39,
+        "label": "data_dep: out"
+      },
+      {
+        "from": 37,
+        "to": 40,
+        "label": "data_dep: out"
+      },
+      {
+        "from": 37,
+        "to": 40,
+        "label": "data_dep: out"
+      },
+      {
+        "from": 37,
+        "to": 41,
+        "label": "data_dep: out"
+      },
+      {
+        "from": 37,
+        "to": 42,
+        "label": "data_dep: out"
+      }
+    ]
+  }
+]

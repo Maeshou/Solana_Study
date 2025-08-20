@@ -1,0 +1,106 @@
+[
+  {
+    "name": "configure",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Configure >",
+      "lamports_per_nft: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 設定：NFT 1枚あたりの報酬 lamports を設定\"]"
+    ],
+    "body": [
+      "let cfg = & mut ctx . accounts . config ;",
+      "cfg . lamports_per_nft = lamports_per_nft ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "withdraw",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Withdraw >",
+      "nft_count: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 引き出し：NFT 枚数に応じて vault から recipient へ lamports を直接移動\"]",
+      "# [doc = \" CPI も Result<T,_> も使わず、ProgramResult のみ\"]"
+    ],
+    "body": [
+      "let cfg = & ctx . accounts . config ;",
+      "let vault = ctx . accounts . vault . to_account_info () ;",
+      "let recipient = ctx . accounts . recipient . to_account_info () ;",
+      "require ! (cfg . lamports_per_nft . checked_mul (nft_count) . is_some () , ErrorCode :: Overflow) ;",
+      "let total = cfg . lamports_per_nft . checked_mul (nft_count) . unwrap () ;",
+      "let vault_balance = * * vault . lamports . borrow () ;",
+      "require ! (vault_balance >= total , ErrorCode :: InsufficientFunds) ;",
+      "* * vault . lamports . borrow_mut () = vault_balance - total ;",
+      "* * recipient . lamports . borrow_mut () += total ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Config",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "lamports_per_nft",
+        "attribute": "# [doc = \" NFT 1枚あたりの lamports 報酬\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Configure",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "config",
+        "attribute": "# [account (init , payer = payer , space = 8 + 8)]",
+        "field_type": "Account < 'info , Config >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Withdraw",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": "# [doc = \" 報酬保管用アカウント\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "recipient",
+        "attribute": "# [doc = \" 報酬受取先アカウント\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "config",
+        "attribute": null,
+        "field_type": "Account < 'info , Config >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

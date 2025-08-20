@@ -1,0 +1,235 @@
+[
+  {
+    "name": "initialize_escrow",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeEscrow >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 初期化：Maker→Vault にエスクロートークンを転送\"]"
+    ],
+    "body": [
+      "let escrow = & mut ctx . accounts . escrow_account ;",
+      "escrow . maker = ctx . accounts . maker . key () ;",
+      "escrow . token_mint = ctx . accounts . mint . key () ;",
+      "escrow . amount = amount ;",
+      "escrow . bump = * ctx . bumps . get (\"escrow_account\") . unwrap () ;",
+      "let cpi_accounts = Transfer { from : ctx . accounts . maker_token_account . to_account_info () , to : ctx . accounts . vault_token_account . to_account_info () , authority : ctx . accounts . maker . to_account_info () , } ;",
+      "token :: transfer (CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) , amount ,) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "cancel_escrow",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CancelEscrow >"
+    ],
+    "attributes": [
+      "# [doc = \" キャンセル：Vault→Maker に払い戻し後、自動クローズ\"]"
+    ],
+    "body": [
+      "let escrow = & ctx . accounts . escrow_account ;",
+      "let seeds = & [b\"escrow\" . as_ref () , escrow . maker . as_ref () , escrow . token_mint . as_ref () , & [escrow . bump] ,] ;",
+      "let signer = & [& seeds [..]] ;",
+      "let cpi_accounts = Transfer { from : ctx . accounts . vault_token_account . to_account_info () , to : ctx . accounts . maker_token_account . to_account_info () , authority : ctx . accounts . escrow_account . to_account_info () , } ;",
+      "token :: transfer (CpiContext :: new_with_signer (ctx . accounts . token_program . to_account_info () , cpi_accounts , signer ,) , escrow . amount ,) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "accept_escrow",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AcceptEscrow >"
+    ],
+    "attributes": [
+      "# [doc = \" 受け入れ：Taker→Maker ①、Vault→Taker ②、両方完了後に自動クローズ\"]"
+    ],
+    "body": [
+      "let escrow = & ctx . accounts . escrow_account ;",
+      "let cpi1 = Transfer { from : ctx . accounts . taker_token_account . to_account_info () , to : ctx . accounts . maker_receive_account . to_account_info () , authority : ctx . accounts . taker . to_account_info () , } ;",
+      "token :: transfer (CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi1) , escrow . amount ,) ? ;",
+      "let seeds = & [b\"escrow\" . as_ref () , escrow . maker . as_ref () , escrow . token_mint . as_ref () , & [escrow . bump] ,] ;",
+      "let signer = & [& seeds [..]] ;",
+      "let cpi2 = Transfer { from : ctx . accounts . vault_token_account . to_account_info () , to : ctx . accounts . taker_receive_account . to_account_info () , authority : ctx . accounts . escrow_account . to_account_info () , } ;",
+      "token :: transfer (CpiContext :: new_with_signer (ctx . accounts . token_program . to_account_info () , cpi2 , signer ,) , escrow . amount ,) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializeEscrow",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "escrow_account",
+        "attribute": "# [doc = \" PDA：[\\\"escrow\\\", maker, mint], 再初期化不可\"] # [account (init , payer = maker , seeds = [b\"escrow\" , maker . key () . as_ref () , mint . key () . as_ref ()] , bump , space = 8 + 32 + 32 + 8 + 1)]",
+        "field_type": "Account < 'info , EscrowAccount >"
+      },
+      {
+        "name": "maker",
+        "attribute": "# [doc = \" Maker（署名者）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "maker_token_account",
+        "attribute": "# [doc = \" Maker のトークン保有口座\"] # [account (mut , constraint = maker_token_account . owner == * maker . key , constraint = maker_token_account . mint == mint . key () ,)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "vault_token_account",
+        "attribute": "# [doc = \" エスクロー用 Vault（PDA）のトークン口座\"] # [account (mut , seeds = [b\"vault\" , escrow_account . key () . as_ref ()] , bump , constraint = vault_token_account . mint == mint . key () ,)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": "# [doc = \" トークンプログラムを固定\"] # [account (address = token :: ID)]",
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "mint",
+        "attribute": "# [doc = \" ミント情報\"]",
+        "field_type": "Account < 'info , anchor_spl :: token :: Mint >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "rent",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Rent >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CancelEscrow",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "escrow_account",
+        "attribute": "# [doc = \" キャンセルは Maker のみ・自動クローズ\"] # [account (mut , has_one = maker , seeds = [b\"escrow\" , maker . key () . as_ref () , mint . key () . as_ref ()] , bump = escrow_account . bump , close = maker ,)]",
+        "field_type": "Account < 'info , EscrowAccount >"
+      },
+      {
+        "name": "maker",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "maker_token_account",
+        "attribute": "# [doc = \" Maker に戻す口座\"] # [account (mut , constraint = maker_token_account . owner == * maker . key , constraint = maker_token_account . mint == escrow_account . token_mint ,)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "vault_token_account",
+        "attribute": "# [doc = \" Vault トークン口座もクローズ\"] # [account (mut , seeds = [b\"vault\" , escrow_account . key () . as_ref ()] , bump = escrow_account . bump , constraint = vault_token_account . mint == escrow_account . token_mint , close = maker ,)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": "# [account (address = token :: ID)]",
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "mint",
+        "attribute": null,
+        "field_type": "Account < 'info , anchor_spl :: token :: Mint >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AcceptEscrow",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "escrow_account",
+        "attribute": "# [doc = \" 受け入れ完了後に Maker に返却\"] # [account (mut , has_one = maker , seeds = [b\"escrow\" , maker . key () . as_ref () , mint . key () . as_ref ()] , bump = escrow_account . bump , close = maker ,)]",
+        "field_type": "Account < 'info , EscrowAccount >"
+      },
+      {
+        "name": "maker",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "taker_token_account",
+        "attribute": "# [doc = \" 支払い元：Taker の口座\"] # [account (mut , constraint = taker_token_account . owner == * taker . key , constraint = taker_token_account . mint == escrow_account . token_mint ,)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "maker_receive_account",
+        "attribute": "# [doc = \" Maker が受け取る口座\"] # [account (mut , constraint = maker_receive_account . owner == maker . key () , constraint = maker_receive_account . mint == escrow_account . token_mint ,)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "taker_receive_account",
+        "attribute": "# [doc = \" Taker が受け取る口座\"] # [account (mut , constraint = taker_receive_account . owner == * taker . key , constraint = taker_receive_account . mint == escrow_account . token_mint ,)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "vault_token_account",
+        "attribute": "# [doc = \" Vault トークン口座もクローズ\"] # [account (mut , seeds = [b\"vault\" , escrow_account . key () . as_ref ()] , bump = escrow_account . bump , constraint = vault_token_account . mint == escrow_account . token_mint , close = maker ,)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "taker",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": "# [account (address = token :: ID)]",
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "mint",
+        "attribute": null,
+        "field_type": "Account < 'info , anchor_spl :: token :: Mint >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EscrowAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "maker",
+        "attribute": "# [doc = \" Maker の Pubkey（has_one でチェック）\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "token_mint",
+        "attribute": "# [doc = \" 扱うトークンのミント\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "amount",
+        "attribute": "# [doc = \" エスクロー量\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "bump",
+        "attribute": "# [doc = \" PDA bump\"]",
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

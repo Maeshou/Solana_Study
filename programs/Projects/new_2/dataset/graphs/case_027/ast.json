@@ -1,0 +1,194 @@
+[
+  {
+    "name": "enforced_deposit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < EnforcedDeposit >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" パターンA：has_one + signer で完全ガード\"]"
+    ],
+    "body": [
+      "let vault_info = ctx . accounts . vault_acc . to_account_info () ;",
+      "let before = * * vault_info . try_borrow_lamports () ? ;",
+      "* * vault_info . try_borrow_mut_lamports () ? = before + amount ;",
+      "msg ! (\"enforced_deposit 完了\") ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "auth_only_deposit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AuthOnlyDeposit >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" パターンB：署名のみ検証（owner チェックなし）\"]"
+    ],
+    "body": [
+      "let raw = & ctx . accounts . raw_vault ;",
+      "* * raw . try_borrow_mut_lamports () ? += amount ;",
+      "msg ! (\"auth_only_deposit 完了\") ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "manual_owner_deposit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ManualOwnerDeposit >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" パターンC：手動所有者チェック（has_one は使わずフィールド比較）\"]"
+    ],
+    "body": [
+      "let vault = & ctx . accounts . managed_vault ;",
+      "if vault . owner == ctx . accounts . user . key ()",
+      "{",
+      "let info = vault . to_account_info () ;",
+      "* * info . try_borrow_mut_lamports () ? += amount ;",
+      "}",
+      "msg ! (\"manual_owner_deposit 完了\") ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "batch_deposit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < BatchDeposit >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" パターンD：remaining_accounts に含まれる全アカウントをまとめて更新\"]"
+    ],
+    "body": [
+      "for acct in ctx . remaining_accounts . iter ()",
+      "{",
+      "if acct . lamports () >= 0",
+      "{",
+      "* * acct . try_borrow_mut_lamports () ? += amount ;",
+      "}",
+      "}",
+      "msg ! (\"batch_deposit 完了\") ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "EnforcedDeposit",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault_acc",
+        "attribute": "# [doc = \" has_one で Vault.owner == owner を検証\"] # [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AuthOnlyDeposit",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "raw_vault",
+        "attribute": "# [doc = \" CHECK: raw AccountInfo、所有権チェックなし\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ManualOwnerDeposit",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "managed_vault",
+        "attribute": "# [doc = \" mut 指定のみ、has_one は使わず手動チェック\"] # [account (mut)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BatchDeposit",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": "# [doc = \" mut 指定のみ、remaining_accounts で追加アカウントを受け取る\"] # [account (mut)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Vault",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 正当なオーナーの Pubkey\"]",
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

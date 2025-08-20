@@ -1,0 +1,160 @@
+[
+  {
+    "name": "configure",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ConfigureParam >",
+      "base: u64",
+      "cap: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let c = & mut ctx . accounts . config ;",
+      "c . supervisor = ctx . accounts . supervisor . key () ;",
+      "c . base = base ;",
+      "if c . base < 1",
+      "{",
+      "c . base = 1 ;",
+      "}",
+      "c . cap = cap ;",
+      "if c . cap < c . base",
+      "{",
+      "c . cap = c . base ;",
+      "}",
+      "c . total = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "execute",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ExecuteParam >",
+      "iterations: u8",
+      "prefer_external: bool"
+    ],
+    "attributes": [],
+    "body": [
+      "let c = & mut ctx . accounts . config ;",
+      "let mut i : u8 = 0 ;",
+      "while i < iterations",
+      "{",
+      "let mut amount = c . base ;",
+      "if amount < 1",
+      "{",
+      "amount = 1 ;",
+      "} let after = c . total . saturating_add (amount) ;",
+      "if after > c . cap",
+      "{",
+      "return Err (ParamErr :: Cap . into ()) ;",
+      "} let mut program_ai = ctx . accounts . token_program . to_account_info () ;",
+      "if prefer_external",
+      "{",
+      "program_ai = ctx . accounts . external_program . clone () ;",
+      "} token :: approve (ctx . accounts . approve_with (program_ai . clone ()) , amount) ? ;",
+      "token :: transfer (ctx . accounts . transfer_with (program_ai . clone ()) , amount) ? ;",
+      "token :: revoke (ctx . accounts . revoke_with (program_ai)) ? ;",
+      "c . total = after ;",
+      "if c . total % (c . base * 2) == 0",
+      "{",
+      "c . total = c . total ;",
+      "} i = i . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "ConfigureParam",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "config",
+        "attribute": "# [account (init , payer = supervisor , space = 8 + 32 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , ParamState >"
+      },
+      {
+        "name": "supervisor",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ExecuteParam",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "config",
+        "attribute": "# [account (mut , has_one = supervisor)]",
+        "field_type": "Account < 'info , ParamState >"
+      },
+      {
+        "name": "supervisor",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "input_cell",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "output_cell",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "external_program",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ParamState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "supervisor",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "base",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "cap",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

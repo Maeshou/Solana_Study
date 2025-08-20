@@ -1,9 +1,8 @@
 [
   {
-    "name": "init_lending_market",
+    "name": "init_table",
     "inputs": [
-      "ctx: Context < Ctx048 >",
-      "amount: u64"
+      "ctx: Context < InitTable >"
     ],
     "nodes": [
       {
@@ -12,26 +11,18 @@
       },
       {
         "id": 1,
-        "label": "let src = & mut ctx . accounts . account_src ;"
+        "label": "let s = & mut ctx . accounts ;"
       },
       {
         "id": 2,
-        "label": "let dst = & mut ctx . accounts . account_dst ;"
+        "label": "s . table . host = s . host . key () ;"
       },
       {
         "id": 3,
-        "label": "let before = * * src . to_account_info () . try_borrow_lamports () ? ;"
+        "label": "s . table . state = Prep ;"
       },
       {
         "id": 4,
-        "label": "* * src . to_account_info () . try_borrow_mut_lamports () ? = before . saturating_sub (amount) ;"
-      },
-      {
-        "id": 5,
-        "label": "* * dst . to_account_info () . try_borrow_mut_lamports () ? += amount ;"
-      },
-      {
-        "id": 6,
         "label": "Ok (())"
       }
     ],
@@ -39,37 +30,373 @@
       {
         "from": 1,
         "to": 1,
-        "label": "def: src"
+        "label": "def: s"
       },
       {
-        "from": 2,
+        "from": 1,
         "to": 2,
-        "label": "def: dst"
+        "label": "data_dep: s"
       },
       {
-        "from": 3,
-        "to": 3,
-        "label": "def: before"
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: s"
       },
       {
         "from": 1,
         "to": 3,
-        "label": "data_dep: src"
+        "label": "data_dep: s"
+      }
+    ]
+  },
+  {
+    "name": "cast",
+    "inputs": [
+      "ctx: Context < CastRunes >",
+      "turns: u32"
+    ],
+    "nodes": [
+      {
+        "id": 5,
+        "label": "Entry"
       },
       {
-        "from": 1,
-        "to": 4,
-        "label": "data_dep: src"
+        "id": 6,
+        "label": "let s = & mut ctx . accounts ;"
       },
       {
-        "from": 3,
-        "to": 4,
-        "label": "data_dep: before"
+        "id": 7,
+        "label": "for t in 0 .. turns { let h = hashv (& [s . table . host . as_ref () , & s . bag . rolls . to_le_bytes () , & t . to_le_bytes ()]) ; let v = u32 :: from_le_bytes ([h . 0 [0] , h . 0 [1] , h . 0 [2] , h . 0 [3]]) ; s . bag . rolls = s . bag . rolls . wrapping_add (v & 0x3FF) ; s . log . faces = s . log . faces . rotate_left ((v % 31) + 1) ; s . log . turns = s . log . turns . wrapping_add (1) ; }"
       },
       {
-        "from": 2,
-        "to": 5,
-        "label": "data_dep: dst"
+        "id": 8,
+        "label": "let h = hashv (& [s . table . host . as_ref () , & s . bag . rolls . to_le_bytes () , & t . to_le_bytes ()]) ;"
+      },
+      {
+        "id": 9,
+        "label": "let v = u32 :: from_le_bytes ([h . 0 [0] , h . 0 [1] , h . 0 [2] , h . 0 [3]]) ;"
+      },
+      {
+        "id": 10,
+        "label": "s . bag . rolls = s . bag . rolls . wrapping_add (v & 0x3FF) ;"
+      },
+      {
+        "id": 11,
+        "label": "s . log . faces = s . log . faces . rotate_left ((v % 31) + 1) ;"
+      },
+      {
+        "id": 12,
+        "label": "s . log . turns = s . log . turns . wrapping_add (1) ;"
+      },
+      {
+        "id": 13,
+        "label": "if (s . bag . rolls & 1) == 1 { s . table . state = Lock ; s . log . flags = s . log . flags . wrapping_add (2) ; s . bag . rolls ^= s . log . faces ; s . log . faces = s . log . faces . rotate_right (4) ; msg ! (\"odd parity: lock, flags+2, xor+rotate\") ; } else { s . table . state = Cast ; s . log . turns = s . log . turns . wrapping_mul (2) ; s . bag . rolls = s . bag . rolls . wrapping_add (7) ; s . log . faces ^= 0xDEAD_BEEF ; msg ! (\"even parity: cast, turns*2, rolls+7, faces xor\") ; }"
+      },
+      {
+        "id": 14,
+        "label": "s . table . state = Lock ;"
+      },
+      {
+        "id": 15,
+        "label": "s . log . flags = s . log . flags . wrapping_add (2) ;"
+      },
+      {
+        "id": 16,
+        "label": "s . bag . rolls ^= s . log . faces ;"
+      },
+      {
+        "id": 17,
+        "label": "s . log . faces = s . log . faces . rotate_right (4) ;"
+      },
+      {
+        "id": 18,
+        "label": "msg ! (\"odd parity: lock, flags+2, xor+rotate\") ;"
+      },
+      {
+        "id": 19,
+        "label": "s . table . state = Cast ;"
+      },
+      {
+        "id": 20,
+        "label": "s . log . turns = s . log . turns . wrapping_mul (2) ;"
+      },
+      {
+        "id": 21,
+        "label": "s . bag . rolls = s . bag . rolls . wrapping_add (7) ;"
+      },
+      {
+        "id": 22,
+        "label": "s . log . faces ^= 0xDEAD_BEEF ;"
+      },
+      {
+        "id": 23,
+        "label": "msg ! (\"even parity: cast, turns*2, rolls+7, faces xor\") ;"
+      },
+      {
+        "id": 24,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 6,
+        "to": 6,
+        "label": "def: s"
+      },
+      {
+        "from": 6,
+        "to": 7,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 6,
+        "to": 7,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 6,
+        "to": 7,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 6,
+        "to": 7,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 6,
+        "to": 7,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 6,
+        "to": 7,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 6,
+        "to": 7,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 6,
+        "to": 7,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 8,
+        "to": 8,
+        "label": "def: h"
+      },
+      {
+        "from": 6,
+        "to": 8,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 6,
+        "to": 8,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 9,
+        "to": 9,
+        "label": "def: v"
+      },
+      {
+        "from": 8,
+        "to": 9,
+        "label": "data_dep: h"
+      },
+      {
+        "from": 8,
+        "to": 9,
+        "label": "data_dep: h"
+      },
+      {
+        "from": 8,
+        "to": 9,
+        "label": "data_dep: h"
+      },
+      {
+        "from": 8,
+        "to": 9,
+        "label": "data_dep: h"
+      },
+      {
+        "from": 6,
+        "to": 10,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 6,
+        "to": 10,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 9,
+        "to": 10,
+        "label": "data_dep: v"
+      },
+      {
+        "from": 6,
+        "to": 11,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 6,
+        "to": 11,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 9,
+        "to": 11,
+        "label": "data_dep: v"
+      },
+      {
+        "from": 6,
+        "to": 12,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 6,
+        "to": 12,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 6,
+        "to": 13,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 6,
+        "to": 13,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 6,
+        "to": 13,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 6,
+        "to": 13,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 6,
+        "to": 13,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 6,
+        "to": 13,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 6,
+        "to": 13,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 6,
+        "to": 13,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 6,
+        "to": 13,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 6,
+        "to": 13,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 6,
+        "to": 13,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 6,
+        "to": 13,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 6,
+        "to": 13,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 6,
+        "to": 13,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 6,
+        "to": 14,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 6,
+        "to": 15,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 6,
+        "to": 15,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 6,
+        "to": 16,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 6,
+        "to": 16,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 6,
+        "to": 17,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 6,
+        "to": 17,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 6,
+        "to": 19,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 6,
+        "to": 20,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 6,
+        "to": 20,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 6,
+        "to": 21,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 6,
+        "to": 21,
+        "label": "data_dep: s"
+      },
+      {
+        "from": 6,
+        "to": 22,
+        "label": "data_dep: s"
       }
     ]
   }

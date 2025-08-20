@@ -1,0 +1,148 @@
+[
+  {
+    "name": "encode",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "s: & str",
+      "k: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut out = Vec :: with_capacity (s . len ()) ;",
+      "for b in s . as_bytes ()",
+      "{",
+      "out . push (b ^ k) ;",
+      "}",
+      "out"
+    ]
+  },
+  {
+    "name": "decode",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "b: & [u8]",
+      "k: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut out = Vec :: with_capacity (b . len ()) ;",
+      "let mut i = 0 ;",
+      "while i < b . len ()",
+      "{",
+      "out . push (b [i] ^ k) ;",
+      "i += 1 ;",
+      "}",
+      "out"
+    ]
+  },
+  {
+    "name": "run",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Run >",
+      "key: u8",
+      "tip: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let s1 = format ! (\"{}:{}\" , ctx . accounts . user . key () , key) ;",
+      "let enc = encode (& s1 , key) ;",
+      "let dec = decode (& enc , key) ;",
+      "if dec . len () > 10",
+      "{",
+      "ctx . accounts . sheet . large = ctx . accounts . sheet . large . saturating_add (1) ;",
+      "}",
+      "invoke (& Instruction { program_id : FIXED_ARCHIVE_ID , accounts : vec ! [AccountMeta :: new (ctx . accounts . archive_cell . key () , false) , AccountMeta :: new_readonly (ctx . accounts . user . key () , false) ,] , data : enc } , & [ctx . accounts . archive_hint . to_account_info () , ctx . accounts . archive_cell . to_account_info () , ctx . accounts . user . to_account_info () ,]) ? ;",
+      "let mut f = ctx . accounts . feed_hint . to_account_info () ;",
+      "if ! ctx . remaining_accounts . is_empty ()",
+      "{",
+      "f = ctx . remaining_accounts [0] . clone () ;",
+      "ctx . accounts . sheet . paths = ctx . accounts . sheet . paths . saturating_add (5) ;",
+      "}",
+      "invoke (& Instruction { program_id : * f . key , accounts : vec ! [AccountMeta :: new (ctx . accounts . feed_board . key () , false) , AccountMeta :: new_readonly (ctx . accounts . user . key () , false) ,] , data : tip . to_le_bytes () . to_vec () } , & [f , ctx . accounts . feed_board . to_account_info () , ctx . accounts . user . to_account_info () ,]) ? ;",
+      "token :: transfer (CpiContext :: new (ctx . accounts . token_program . to_account_info () , Transfer { from : ctx . accounts . vault . to_account_info () , to : ctx . accounts . user_token . to_account_info () , authority : ctx . accounts . vault_auth . to_account_info () , }) , tip ,) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Sheet",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "large",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "paths",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Run",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "sheet",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Sheet >"
+      },
+      {
+        "name": "archive_cell",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "archive_hint",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "feed_board",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "feed_hint",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "user_token",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "vault_auth",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

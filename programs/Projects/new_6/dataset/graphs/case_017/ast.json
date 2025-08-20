@@ -1,0 +1,236 @@
+[
+  {
+    "name": "init_marketplace",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitMarketplace >",
+      "fee_rate: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let marketplace = & mut ctx . accounts . marketplace ;",
+      "marketplace . authority = ctx . accounts . authority . key () ;",
+      "marketplace . fee_rate = fee_rate ;",
+      "marketplace . total_sales = 0 ;",
+      "marketplace . is_active = true ;",
+      "msg ! (\"Marketplace initialized with fee rate: {}%\" , fee_rate) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_listing",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitListing >",
+      "price: u64",
+      "nft_mint: Pubkey"
+    ],
+    "attributes": [],
+    "body": [
+      "let listing = & mut ctx . accounts . listing ;",
+      "listing . marketplace = ctx . accounts . marketplace . key () ;",
+      "listing . seller = ctx . accounts . seller . key () ;",
+      "listing . price = price ;",
+      "listing . nft_mint = nft_mint ;",
+      "listing . is_active = true ;",
+      "listing . created_at = Clock :: get () ? . unix_timestamp ;",
+      "msg ! (\"NFT listed for {} lamports\" , price) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "execute_trade",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ExecuteTrade >",
+      "expected_price: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let marketplace = & mut ctx . accounts . marketplace ;",
+      "let listing = & mut ctx . accounts . listing ;",
+      "for iteration in 0 .. 3",
+      "{",
+      "if listing . is_active",
+      "{",
+      "let adjusted_price = expected_price . checked_add (iteration * 1000) . unwrap_or (u64 :: MAX) ;",
+      "listing . price = adjusted_price ;",
+      "listing . is_active = false ;",
+      "marketplace . total_sales = marketplace . total_sales . checked_add (1) . unwrap_or (u64 :: MAX) ;",
+      "let fee_amount = (adjusted_price * marketplace . fee_rate as u64) / 10000 ;",
+      "let seller_amount = adjusted_price - fee_amount ;",
+      "msg ! (\"Trade executed: seller gets",
+      "{",
+      "}, fee: {}\" , seller_amount , fee_amount) ;",
+      "} else",
+      "{",
+      "marketplace . total_sales = marketplace . total_sales . checked_add (iteration) . unwrap_or (u64 :: MAX) ;",
+      "let timestamp_diff = Clock :: get () ? . unix_timestamp - listing . created_at ;",
+      "listing . price = listing . price . checked_add (timestamp_diff as u64 * 100) . unwrap_or (u64 :: MAX) ;",
+      "msg ! (\"Inactive listing processed in iteration",
+      "{",
+      "}\" , iteration) ;",
+      "}",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitMarketplace",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "marketplace",
+        "attribute": "# [account (init , payer = authority , space = 8 + 32 + 2 + 8 + 1)]",
+        "field_type": "Account < 'info , Marketplace >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitListing",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "marketplace",
+        "attribute": null,
+        "field_type": "Account < 'info , Marketplace >"
+      },
+      {
+        "name": "listing",
+        "attribute": "# [account (init , payer = seller , space = 8 + 32 + 32 + 8 + 32 + 1 + 8)]",
+        "field_type": "Account < 'info , Listing >"
+      },
+      {
+        "name": "seller",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ExecuteTrade",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "marketplace",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Marketplace >"
+      },
+      {
+        "name": "listing",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Listing >"
+      },
+      {
+        "name": "buyer_info",
+        "attribute": "# [doc = \" CHECK: 買い手の検証が不十分（AccountInfo使用）\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "seller_info",
+        "attribute": "# [doc = \" CHECK: 売り手の検証が不十分（AccountInfo使用）\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "buyer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Marketplace",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "fee_rate",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "total_sales",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "is_active",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Listing",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "marketplace",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "seller",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "price",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "nft_mint",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "is_active",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "created_at",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

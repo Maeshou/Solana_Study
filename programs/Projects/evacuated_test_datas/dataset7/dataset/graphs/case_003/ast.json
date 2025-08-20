@@ -1,0 +1,58 @@
+[
+  {
+    "name": "update_metadata_and_notify",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < UpdateMetadataAndNotify >"
+    ],
+    "attributes": [
+      "# [doc = \" 1) メタデータアカウントを上書きするが、Account Matching を行わず任意のアカウントを読み書きしてしまう  \"]",
+      "# [doc = \" 2) 同じ型の mutable アカウントを 2 つ受け取るが、キー重複チェックを行わずに両方を操作してしまう  \"]"
+    ],
+    "body": [
+      "let metadata1 = & ctx . accounts . metadata_account1 ;",
+      "let metadata2 = & ctx . accounts . metadata_account2 ;",
+      "let notify_acc = & ctx . accounts . notify_account ;",
+      "let authority = & ctx . accounts . authority ;",
+      "let new_hash : [u8 ; 32] = { let raw1 = metadata1 . try_borrow_data () ? ; let mut fragment1 = [0u8 ; 32] ; for i in 0 .. 32 { fragment1 [i] = raw1 [i] ; } let raw2 = metadata2 . try_borrow_data () ? ; let mut fragment2 = [0u8 ; 32] ; for i in 0 .. 32 { fragment2 [i] = raw2 [i] ; } msg ! (\"[STEP1] fragment1: {:?}, fragment2: {:?}\" , fragment1 , fragment2) ; let mut computed = [0u8 ; 32] ; for i in 0 .. 32 { computed [i] = fragment1 [i] ^ fragment2 [i] ; } msg ! (\"[STEP1] new_hash を生成: {:?}\" , computed) ; computed } ;",
+      "{ let mut raw1_mut = metadata1 . try_borrow_mut_data () ? ; for i in 0 .. 32 { raw1_mut [i] = new_hash [i] ; } msg ! (\"[STEP2] metadata1 に new_hash を上書き\") ; let mut raw2_mut = metadata2 . try_borrow_mut_data () ? ; for i in 0 .. 32 { raw2_mut [i] = new_hash [i] ; } msg ! (\"[STEP2] metadata2 に new_hash を上書き\") ; }",
+      "{ let mut raw_notify = notify_acc . try_borrow_mut_data () ? ; if raw_notify [0] == 0 { raw_notify [0] = 1 ; msg ! (\"[STEP3] notify_account フラグを 1 にセット\") ; } else { msg ! (\"[STEP3] notify_account フラグはすでに 1\") ; } }",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "UpdateMetadataAndNotify",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "metadata_account1",
+        "attribute": "# [doc = \" 本来は PDA の検証を行うべきだが省略\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "metadata_account2",
+        "attribute": "# [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "notify_account",
+        "attribute": "# [doc = \" 通知用アカウント（Account Matching 省略）\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

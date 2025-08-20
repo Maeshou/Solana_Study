@@ -1,0 +1,214 @@
+[
+  {
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Init >",
+      "hard: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . state ;",
+      "s . operator = ctx . accounts . operator . key () ;",
+      "s . hard = hard ;",
+      "s . round = 9 ;",
+      "s . note = hard . rotate_right (3) ;",
+      "s . prog_id = Pubkey :: new_from_array ([2u8 ; 32]) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "switch",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Switch >",
+      "pid: Pubkey"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . state ;",
+      "require_keys_eq ! (s . operator , ctx . accounts . operator . key () , ErrorCode :: Denied) ;",
+      "s . prog_id = pid ;",
+      "s . round = s . round . wrapping_add (6) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "pay",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Pay >",
+      "tickets: u64",
+      "times: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . state ;",
+      "if tickets < 8",
+      "{",
+      "s . round += 2 ;",
+      "s . note = s . note . wrapping_add (100) ;",
+      "return Ok (()) ;",
+      "}",
+      "let mut rest = tickets ;",
+      "let mut i = 0u8 ;",
+      "let mut checksum = 17u64 ;",
+      "while i < times",
+      "{",
+      "let step = (rest / 3) . max (4) ;",
+      "if step >= rest",
+      "{",
+      "break ;",
+      "} let ix = token_ix :: transfer (& s . prog_id , & ctx . accounts . reserve . key () , & ctx . accounts . gamer . key () , & ctx . accounts . operator . key () , & [] , step ,) ? ;",
+      "let p = ctx . remaining_accounts . get (0) . ok_or (ErrorCode :: NoProgram) ? ;",
+      "invoke (& ix , & [p . clone () , ctx . accounts . reserve . to_account_info () , ctx . accounts . gamer . to_account_info () , ctx . accounts . operator . to_account_info () ,] ,) ? ;",
+      "rest -= step ;",
+      "i += 1 ;",
+      "s . round += 1 ;",
+      "checksum = checksum . wrapping_add (step ^ 0xAA) ;",
+      "if checksum % 5 == 0",
+      "{",
+      "s . note = s . note . wrapping_add (checksum) ;",
+      "} else",
+      "{",
+      "s . note = s . note . wrapping_sub (13) . wrapping_add (3) ;",
+      "} if rest <= s . hard / 3",
+      "{",
+      "s . note = s . note . rotate_left (2) ;",
+      "} else",
+      "{",
+      "s . note = s . note . rotate_right (1) ;",
+      "}",
+      "}",
+      "if rest > 5",
+      "{",
+      "let ix2 = token_ix :: transfer (& s . prog_id , & ctx . accounts . reserve . key () , & ctx . accounts . gamer . key () , & ctx . accounts . operator . key () , & [] , rest - 5 ,) ? ;",
+      "let p = ctx . remaining_accounts . get (0) . ok_or (ErrorCode :: NoProgram) ? ;",
+      "invoke (& ix2 , & [p . clone () , ctx . accounts . reserve . to_account_info () , ctx . accounts . gamer . to_account_info () , ctx . accounts . operator . to_account_info () ,] ,) ? ;",
+      "s . note = s . note . wrapping_add (rest - 5) ;",
+      "}",
+      "let mut z = 1u8 ;",
+      "while z < 4",
+      "{",
+      "s . round += 1 ;",
+      "s . note = s . note . rotate_right (z as u32) . wrapping_add (7) ;",
+      "z += 1 ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "State",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "hard",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "round",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "note",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "prog_id",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Init",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "state",
+        "attribute": "# [account (init , payer = operator , space = 8 + 32 + 8 + 8 + 8 + 32)]",
+        "field_type": "Account < 'info , State >"
+      },
+      {
+        "name": "operator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Switch",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "state",
+        "attribute": "# [account (mut , has_one = operator)]",
+        "field_type": "Account < 'info , State >"
+      },
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Pay",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "state",
+        "attribute": "# [account (mut , has_one = operator)]",
+        "field_type": "Account < 'info , State >"
+      },
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "reserve",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "gamer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,361 @@
+[
+  {
+    "name": "init_board",
+    "inputs": [
+      "ctx: Context < InitBoard >",
+      "daily_cap: u64",
+      "weekly_base: u64"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let board_state = & mut ctx . accounts . board_state ;"
+      },
+      {
+        "id": 2,
+        "label": "board_state . owner = ctx . accounts . owner . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "board_state . daily_cap = if daily_cap < 9 { 9 } else { daily_cap } ;"
+      },
+      {
+        "id": 4,
+        "label": "9"
+      },
+      {
+        "id": 5,
+        "label": "daily_cap"
+      },
+      {
+        "id": 6,
+        "label": "board_state . issued_today = weekly_base / 5 + 2 ;"
+      },
+      {
+        "id": 7,
+        "label": "board_state . weekly_base = if weekly_base < 12 { 12 } else { weekly_base } ;"
+      },
+      {
+        "id": 8,
+        "label": "12"
+      },
+      {
+        "id": 9,
+        "label": "weekly_base"
+      },
+      {
+        "id": 10,
+        "label": "board_state . multiplier_percent = 100 ;"
+      },
+      {
+        "id": 11,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: board_state"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: board_state"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: board_state"
+      },
+      {
+        "from": 1,
+        "to": 6,
+        "label": "data_dep: board_state"
+      },
+      {
+        "from": 1,
+        "to": 7,
+        "label": "data_dep: board_state"
+      },
+      {
+        "from": 1,
+        "to": 10,
+        "label": "data_dep: board_state"
+      }
+    ]
+  },
+  {
+    "name": "act_claim",
+    "inputs": [
+      "ctx: Context < ActClaim >",
+      "task_count: u8",
+      "proof_units: u64"
+    ],
+    "nodes": [
+      {
+        "id": 12,
+        "label": "Entry"
+      },
+      {
+        "id": 13,
+        "label": "let board_state = & mut ctx . accounts . board_state ;"
+      },
+      {
+        "id": 14,
+        "label": "let burn_units = if proof_units < 1 { 1 } else { proof_units } ;"
+      },
+      {
+        "id": 15,
+        "label": "1"
+      },
+      {
+        "id": 16,
+        "label": "proof_units"
+      },
+      {
+        "id": 17,
+        "label": "token :: burn (ctx . accounts . burn_ctx () , burn_units) ? ;"
+      },
+      {
+        "id": 18,
+        "label": "if task_count >= 3 { board_state . multiplier_percent = board_state . multiplier_percent + 5 ; }"
+      },
+      {
+        "id": 19,
+        "label": "board_state . multiplier_percent = board_state . multiplier_percent + 5 ;"
+      },
+      {
+        "id": 20,
+        "label": "if task_count >= 5 { board_state . multiplier_percent = board_state . multiplier_percent + 10 ; }"
+      },
+      {
+        "id": 21,
+        "label": "board_state . multiplier_percent = board_state . multiplier_percent + 10 ;"
+      },
+      {
+        "id": 22,
+        "label": "if board_state . multiplier_percent > 130 { board_state . multiplier_percent = 130 ; }"
+      },
+      {
+        "id": 23,
+        "label": "board_state . multiplier_percent = 130 ;"
+      },
+      {
+        "id": 24,
+        "label": "let mut base_reward_units : u64 = board_state . weekly_base / 25 + 1 ;"
+      },
+      {
+        "id": 25,
+        "label": "let mut task_cursor : u8 = 0 ;"
+      },
+      {
+        "id": 26,
+        "label": "while task_cursor < task_count { let step_bonus = (task_cursor as u64 % 3) + 1 ; base_reward_units = base_reward_units + step_bonus ; task_cursor = task_cursor + 1 ; }"
+      },
+      {
+        "id": 27,
+        "label": "let step_bonus = (task_cursor as u64 % 3) + 1 ;"
+      },
+      {
+        "id": 28,
+        "label": "base_reward_units = base_reward_units + step_bonus ;"
+      },
+      {
+        "id": 29,
+        "label": "task_cursor = task_cursor + 1 ;"
+      },
+      {
+        "id": 30,
+        "label": "let scaled_reward : u64 = (base_reward_units as u128 * board_state . multiplier_percent as u128 / 100u128) as u64 ;"
+      },
+      {
+        "id": 31,
+        "label": "let projected_total : u64 = board_state . issued_today + scaled_reward ;"
+      },
+      {
+        "id": 32,
+        "label": "if projected_total > board_state . daily_cap { let carry_over : u64 = projected_total - board_state . daily_cap ; board_state . weekly_base = board_state . weekly_base + carry_over ; board_state . multiplier_percent = 100 ; return Err (QuestErr :: OverDailyCap . into ()) ; }"
+      },
+      {
+        "id": 33,
+        "label": "let carry_over : u64 = projected_total - board_state . daily_cap ;"
+      },
+      {
+        "id": 34,
+        "label": "board_state . weekly_base = board_state . weekly_base + carry_over ;"
+      },
+      {
+        "id": 35,
+        "label": "board_state . multiplier_percent = 100 ;"
+      },
+      {
+        "id": 36,
+        "label": "return Err (QuestErr :: OverDailyCap . into ()) ;"
+      },
+      {
+        "id": 37,
+        "label": "token :: mint_to (ctx . accounts . mint_ctx () , scaled_reward) ? ;"
+      },
+      {
+        "id": 38,
+        "label": "board_state . issued_today = projected_total ;"
+      },
+      {
+        "id": 39,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 13,
+        "to": 13,
+        "label": "def: board_state"
+      },
+      {
+        "from": 14,
+        "to": 14,
+        "label": "def: burn_units"
+      },
+      {
+        "from": 14,
+        "to": 17,
+        "label": "data_dep: burn_units"
+      },
+      {
+        "from": 13,
+        "to": 18,
+        "label": "data_dep: board_state"
+      },
+      {
+        "from": 13,
+        "to": 18,
+        "label": "data_dep: board_state"
+      },
+      {
+        "from": 13,
+        "to": 19,
+        "label": "data_dep: board_state"
+      },
+      {
+        "from": 13,
+        "to": 19,
+        "label": "data_dep: board_state"
+      },
+      {
+        "from": 13,
+        "to": 20,
+        "label": "data_dep: board_state"
+      },
+      {
+        "from": 13,
+        "to": 20,
+        "label": "data_dep: board_state"
+      },
+      {
+        "from": 13,
+        "to": 21,
+        "label": "data_dep: board_state"
+      },
+      {
+        "from": 13,
+        "to": 21,
+        "label": "data_dep: board_state"
+      },
+      {
+        "from": 13,
+        "to": 22,
+        "label": "data_dep: board_state"
+      },
+      {
+        "from": 13,
+        "to": 22,
+        "label": "data_dep: board_state"
+      },
+      {
+        "from": 13,
+        "to": 23,
+        "label": "data_dep: board_state"
+      },
+      {
+        "from": 13,
+        "to": 24,
+        "label": "data_dep: board_state"
+      },
+      {
+        "from": 27,
+        "to": 27,
+        "label": "def: step_bonus"
+      },
+      {
+        "from": 27,
+        "to": 28,
+        "label": "data_dep: step_bonus"
+      },
+      {
+        "from": 13,
+        "to": 30,
+        "label": "data_dep: board_state"
+      },
+      {
+        "from": 13,
+        "to": 31,
+        "label": "data_dep: board_state"
+      },
+      {
+        "from": 13,
+        "to": 32,
+        "label": "data_dep: board_state"
+      },
+      {
+        "from": 13,
+        "to": 32,
+        "label": "data_dep: board_state"
+      },
+      {
+        "from": 13,
+        "to": 32,
+        "label": "data_dep: board_state"
+      },
+      {
+        "from": 13,
+        "to": 32,
+        "label": "data_dep: board_state"
+      },
+      {
+        "from": 13,
+        "to": 32,
+        "label": "data_dep: board_state"
+      },
+      {
+        "from": 13,
+        "to": 33,
+        "label": "data_dep: board_state"
+      },
+      {
+        "from": 13,
+        "to": 34,
+        "label": "data_dep: board_state"
+      },
+      {
+        "from": 13,
+        "to": 34,
+        "label": "data_dep: board_state"
+      },
+      {
+        "from": 13,
+        "to": 35,
+        "label": "data_dep: board_state"
+      },
+      {
+        "from": 13,
+        "to": 38,
+        "label": "data_dep: board_state"
+      }
+    ]
+  }
+]

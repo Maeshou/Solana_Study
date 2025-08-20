@@ -1,0 +1,231 @@
+[
+  {
+    "name": "launch_expedition",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < LaunchExpedition >",
+      "expedition_id: u64",
+      "vessel_name: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let expedition = & mut ctx . accounts . expedition ;",
+      "expedition . leader = ctx . accounts . leader . key () ;",
+      "expedition . expedition_id = expedition_id ;",
+      "expedition . vessel_name = vessel_name ;",
+      "expedition . crew_count = 1 ;",
+      "expedition . expedition_status = ExpeditionStatus :: OnMission ;",
+      "msg ! (\"Expedition {} launched with vessel {}.\" , expedition . expedition_id , expedition . vessel_name) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "join_crew",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < JoinCrew >",
+      "crew_member_id: u32",
+      "skill_level: u8",
+      "role_code: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let crew_member = & mut ctx . accounts . crew_member ;",
+      "let expedition = & mut ctx . accounts . expedition ;",
+      "if matches ! (expedition . expedition_status , ExpeditionStatus :: OnMission)",
+      "{",
+      "crew_member . expedition_id = expedition . expedition_id ;",
+      "crew_member . skill_level = skill_level ;",
+      "if role_code == 1",
+      "{",
+      "crew_member . role = CrewRole :: Pilot ;",
+      "} else",
+      "{",
+      "crew_member . role = CrewRole :: Engineer ;",
+      "} expedition . crew_count = expedition . crew_count . saturating_add (1) ;",
+      "msg ! (\"Crew member",
+      "{",
+      "} joined the expedition.\" , crew_member . member_id) ;",
+      "} else",
+      "{",
+      "msg ! (\"Expedition is not on a mission. Cannot join crew.\") ;",
+      "}",
+      "crew_member . member_id = crew_member_id ;",
+      "crew_member . wallet_address = ctx . accounts . new_member . key () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "transfer_resources",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < TransferResources >",
+      "amount: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let member1 = & mut ctx . accounts . member1 ;",
+      "let member2 = & mut ctx . accounts . member2 ;",
+      "if member1 . expedition_id == member2 . expedition_id",
+      "{",
+      "member1 . skill_level = member1 . skill_level . saturating_sub (amount as u8) ;",
+      "member2 . skill_level = member2 . skill_level . saturating_add (amount as u8) ;",
+      "msg ! (\"Transferred",
+      "{",
+      "} skill level from member1 to member2.\" , amount) ;",
+      "} else",
+      "{",
+      "msg ! (\"Crew members are not on the same expedition.\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "LaunchExpedition",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "expedition",
+        "attribute": "# [account (init , payer = leader , space = 8 + 32 + 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Expedition >"
+      },
+      {
+        "name": "leader",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "JoinCrew",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "expedition",
+        "attribute": "# [account (mut , has_one = expedition_id)]",
+        "field_type": "Account < 'info , Expedition >"
+      },
+      {
+        "name": "crew_member",
+        "attribute": "# [account (init , payer = new_member , space = 8 + 4 + 32 + 1 + 1 + 8)]",
+        "field_type": "Account < 'info , CrewMember >"
+      },
+      {
+        "name": "new_member",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TransferResources",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "expedition",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Expedition >"
+      },
+      {
+        "name": "member1",
+        "attribute": "# [account (mut , has_one = expedition_id)]",
+        "field_type": "Account < 'info , CrewMember >"
+      },
+      {
+        "name": "member2",
+        "attribute": "# [account (mut , has_one = expedition_id)]",
+        "field_type": "Account < 'info , CrewMember >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Expedition",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "leader",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "expedition_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "vessel_name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "crew_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "expedition_status",
+        "attribute": null,
+        "field_type": "ExpeditionStatus"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CrewMember",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "expedition_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "member_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "wallet_address",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "skill_level",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "role",
+        "attribute": null,
+        "field_type": "CrewRole"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

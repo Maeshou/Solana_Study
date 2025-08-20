@@ -1,0 +1,771 @@
+[
+  {
+    "name": "init_forge",
+    "inputs": [
+      "ctx: Context < InitForge >",
+      "seed: u64"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let f = & mut ctx . accounts . forge ;"
+      },
+      {
+        "id": 2,
+        "label": "f . operator = ctx . accounts . operator . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "f . seed = seed ;"
+      },
+      {
+        "id": 4,
+        "label": "f . banks = vec ! [0 ; 6] ;"
+      },
+      {
+        "id": 5,
+        "label": "f . modes = [0u8 ; 4] ;"
+      },
+      {
+        "id": 6,
+        "label": "f . paused = false ;"
+      },
+      {
+        "id": 7,
+        "label": "f . history = vec ! [] ;"
+      },
+      {
+        "id": 8,
+        "label": "f . eff_index = 0 ;"
+      },
+      {
+        "id": 9,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: f"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 1,
+        "to": 6,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 1,
+        "to": 7,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 1,
+        "to": 8,
+        "label": "data_dep: f"
+      }
+    ]
+  },
+  {
+    "name": "act_cycle",
+    "inputs": [
+      "ctx: Context < CycleForge >",
+      "pulses: u16",
+      "tweak: u8",
+      "tag: String"
+    ],
+    "nodes": [
+      {
+        "id": 10,
+        "label": "Entry"
+      },
+      {
+        "id": 11,
+        "label": "let f = & mut ctx . accounts . forge ;"
+      },
+      {
+        "id": 12,
+        "label": "let inspector = & ctx . accounts . inspector ;"
+      },
+      {
+        "id": 13,
+        "label": "let ts = Clock :: get () ? . unix_timestamp ;"
+      },
+      {
+        "id": 14,
+        "label": "f . history . push (format ! (\"p={}/{} t={}\" , pulses , tweak , ts)) ;"
+      },
+      {
+        "id": 15,
+        "label": "if f . history . len () > 30 { f . history . drain (0 .. 5) ; }"
+      },
+      {
+        "id": 16,
+        "label": "f . history . drain (0 .. 5) ;"
+      },
+      {
+        "id": 17,
+        "label": "let mut i = 0u16 ;"
+      },
+      {
+        "id": 18,
+        "label": "while i < pulses { let pos = (i as usize) % f . banks . len () ; let shifted = (pulses ^ (i . rotate_left (2))) as u64 ; f . banks [pos] = f . banks [pos] . wrapping_add ((shifted & 0x3FF) + (tweak as u64)) ; if f . banks [pos] & 1 == 1 { f . modes [pos % 4] = f . modes [pos % 4] . wrapping_add ((tweak ^ (pos as u8)) & 0x1F) ; f . seed = f . seed . rotate_left (((pos as u32) & 7) + 1) ; } if f . modes [pos % 4] > 127 { f . modes [pos % 4] = f . modes [pos % 4] % 101 ; f . banks [pos] = f . banks [pos] . reverse_bits () ; } i = i . saturating_add (3) ; }"
+      },
+      {
+        "id": 19,
+        "label": "let pos = (i as usize) % f . banks . len () ;"
+      },
+      {
+        "id": 20,
+        "label": "let shifted = (pulses ^ (i . rotate_left (2))) as u64 ;"
+      },
+      {
+        "id": 21,
+        "label": "f . banks [pos] = f . banks [pos] . wrapping_add ((shifted & 0x3FF) + (tweak as u64)) ;"
+      },
+      {
+        "id": 22,
+        "label": "if f . banks [pos] & 1 == 1 { f . modes [pos % 4] = f . modes [pos % 4] . wrapping_add ((tweak ^ (pos as u8)) & 0x1F) ; f . seed = f . seed . rotate_left (((pos as u32) & 7) + 1) ; }"
+      },
+      {
+        "id": 23,
+        "label": "f . modes [pos % 4] = f . modes [pos % 4] . wrapping_add ((tweak ^ (pos as u8)) & 0x1F) ;"
+      },
+      {
+        "id": 24,
+        "label": "f . seed = f . seed . rotate_left (((pos as u32) & 7) + 1) ;"
+      },
+      {
+        "id": 25,
+        "label": "if f . modes [pos % 4] > 127 { f . modes [pos % 4] = f . modes [pos % 4] % 101 ; f . banks [pos] = f . banks [pos] . reverse_bits () ; }"
+      },
+      {
+        "id": 26,
+        "label": "f . modes [pos % 4] = f . modes [pos % 4] % 101 ;"
+      },
+      {
+        "id": 27,
+        "label": "f . banks [pos] = f . banks [pos] . reverse_bits () ;"
+      },
+      {
+        "id": 28,
+        "label": "i = i . saturating_add (3) ;"
+      },
+      {
+        "id": 29,
+        "label": "let mut local = 0u32 ;"
+      },
+      {
+        "id": 30,
+        "label": "for ch in tag . as_bytes () { local = local . wrapping_add (* ch as u32) ; if ch % 2 == 0 { f . eff_index = f . eff_index . wrapping_add ((ch % 7) as u8) ; f . seed ^= (* ch as u64) << (ch % 8) ; } }"
+      },
+      {
+        "id": 31,
+        "label": "local = local . wrapping_add (* ch as u32) ;"
+      },
+      {
+        "id": 32,
+        "label": "if ch % 2 == 0 { f . eff_index = f . eff_index . wrapping_add ((ch % 7) as u8) ; f . seed ^= (* ch as u64) << (ch % 8) ; }"
+      },
+      {
+        "id": 33,
+        "label": "f . eff_index = f . eff_index . wrapping_add ((ch % 7) as u8) ;"
+      },
+      {
+        "id": 34,
+        "label": "f . seed ^= (* ch as u64) << (ch % 8) ;"
+      },
+      {
+        "id": 35,
+        "label": "if local % 5 == 0 { f . paused = true ; f . history . push (\"eff pause\" . into ()) ; f . banks . rotate_left (1) ; }"
+      },
+      {
+        "id": 36,
+        "label": "f . paused = true ;"
+      },
+      {
+        "id": 37,
+        "label": "f . history . push (\"eff pause\" . into ()) ;"
+      },
+      {
+        "id": 38,
+        "label": "f . banks . rotate_left (1) ;"
+      },
+      {
+        "id": 39,
+        "label": "if f . paused { f . modes . iter_mut () . for_each (| m | * m = m . rotate_left (1)) ; let s = f . banks . iter () . fold (0u64 , | a , b | a . wrapping_add (* b)) ; f . history . push (format ! (\"cooldown={}\" , s & 0xFF)) ; }"
+      },
+      {
+        "id": 40,
+        "label": "f . modes . iter_mut () . for_each (| m | * m = m . rotate_left (1)) ;"
+      },
+      {
+        "id": 41,
+        "label": "let s = f . banks . iter () . fold (0u64 , | a , b | a . wrapping_add (* b)) ;"
+      },
+      {
+        "id": 42,
+        "label": "f . history . push (format ! (\"cooldown={}\" , s & 0xFF)) ;"
+      },
+      {
+        "id": 43,
+        "label": "f . operator = inspector . key () ;"
+      },
+      {
+        "id": 44,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 11,
+        "to": 11,
+        "label": "def: f"
+      },
+      {
+        "from": 12,
+        "to": 12,
+        "label": "def: inspector"
+      },
+      {
+        "from": 13,
+        "to": 13,
+        "label": "def: ts"
+      },
+      {
+        "from": 11,
+        "to": 14,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 11,
+        "to": 15,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 11,
+        "to": 15,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 11,
+        "to": 16,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 17,
+        "to": 17,
+        "label": "def: i"
+      },
+      {
+        "from": 17,
+        "to": 18,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 17,
+        "to": 18,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 11,
+        "to": 18,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 17,
+        "to": 18,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 11,
+        "to": 18,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 11,
+        "to": 18,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 11,
+        "to": 18,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 11,
+        "to": 18,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 11,
+        "to": 18,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 11,
+        "to": 18,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 11,
+        "to": 18,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 11,
+        "to": 18,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 11,
+        "to": 18,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 11,
+        "to": 18,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 11,
+        "to": 18,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 11,
+        "to": 18,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 17,
+        "to": 18,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 17,
+        "to": 18,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 19,
+        "to": 19,
+        "label": "def: pos"
+      },
+      {
+        "from": 17,
+        "to": 19,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 11,
+        "to": 19,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 20,
+        "to": 20,
+        "label": "def: shifted"
+      },
+      {
+        "from": 17,
+        "to": 20,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 11,
+        "to": 21,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 19,
+        "to": 21,
+        "label": "data_dep: pos"
+      },
+      {
+        "from": 11,
+        "to": 21,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 19,
+        "to": 21,
+        "label": "data_dep: pos"
+      },
+      {
+        "from": 20,
+        "to": 21,
+        "label": "data_dep: shifted"
+      },
+      {
+        "from": 11,
+        "to": 22,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 19,
+        "to": 22,
+        "label": "data_dep: pos"
+      },
+      {
+        "from": 11,
+        "to": 22,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 19,
+        "to": 22,
+        "label": "data_dep: pos"
+      },
+      {
+        "from": 11,
+        "to": 22,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 19,
+        "to": 22,
+        "label": "data_dep: pos"
+      },
+      {
+        "from": 19,
+        "to": 22,
+        "label": "data_dep: pos"
+      },
+      {
+        "from": 11,
+        "to": 22,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 11,
+        "to": 22,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 19,
+        "to": 22,
+        "label": "data_dep: pos"
+      },
+      {
+        "from": 11,
+        "to": 23,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 19,
+        "to": 23,
+        "label": "data_dep: pos"
+      },
+      {
+        "from": 11,
+        "to": 23,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 19,
+        "to": 23,
+        "label": "data_dep: pos"
+      },
+      {
+        "from": 19,
+        "to": 23,
+        "label": "data_dep: pos"
+      },
+      {
+        "from": 11,
+        "to": 24,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 11,
+        "to": 24,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 19,
+        "to": 24,
+        "label": "data_dep: pos"
+      },
+      {
+        "from": 11,
+        "to": 25,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 19,
+        "to": 25,
+        "label": "data_dep: pos"
+      },
+      {
+        "from": 11,
+        "to": 25,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 19,
+        "to": 25,
+        "label": "data_dep: pos"
+      },
+      {
+        "from": 11,
+        "to": 25,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 19,
+        "to": 25,
+        "label": "data_dep: pos"
+      },
+      {
+        "from": 11,
+        "to": 25,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 19,
+        "to": 25,
+        "label": "data_dep: pos"
+      },
+      {
+        "from": 11,
+        "to": 25,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 19,
+        "to": 25,
+        "label": "data_dep: pos"
+      },
+      {
+        "from": 11,
+        "to": 26,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 19,
+        "to": 26,
+        "label": "data_dep: pos"
+      },
+      {
+        "from": 11,
+        "to": 26,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 19,
+        "to": 26,
+        "label": "data_dep: pos"
+      },
+      {
+        "from": 11,
+        "to": 27,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 19,
+        "to": 27,
+        "label": "data_dep: pos"
+      },
+      {
+        "from": 11,
+        "to": 27,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 19,
+        "to": 27,
+        "label": "data_dep: pos"
+      },
+      {
+        "from": 17,
+        "to": 28,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 17,
+        "to": 28,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 29,
+        "to": 29,
+        "label": "def: local"
+      },
+      {
+        "from": 29,
+        "to": 30,
+        "label": "data_dep: local"
+      },
+      {
+        "from": 29,
+        "to": 30,
+        "label": "data_dep: local"
+      },
+      {
+        "from": 11,
+        "to": 30,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 11,
+        "to": 30,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 11,
+        "to": 30,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 29,
+        "to": 31,
+        "label": "data_dep: local"
+      },
+      {
+        "from": 29,
+        "to": 31,
+        "label": "data_dep: local"
+      },
+      {
+        "from": 11,
+        "to": 32,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 11,
+        "to": 32,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 11,
+        "to": 32,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 11,
+        "to": 33,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 11,
+        "to": 33,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 11,
+        "to": 34,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 29,
+        "to": 35,
+        "label": "data_dep: local"
+      },
+      {
+        "from": 11,
+        "to": 35,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 11,
+        "to": 35,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 11,
+        "to": 35,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 11,
+        "to": 36,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 11,
+        "to": 37,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 11,
+        "to": 38,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 11,
+        "to": 39,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 11,
+        "to": 39,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 11,
+        "to": 39,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 11,
+        "to": 39,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 11,
+        "to": 40,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 41,
+        "to": 41,
+        "label": "def: s"
+      },
+      {
+        "from": 11,
+        "to": 41,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 11,
+        "to": 42,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 11,
+        "to": 43,
+        "label": "data_dep: f"
+      },
+      {
+        "from": 12,
+        "to": 43,
+        "label": "data_dep: inspector"
+      }
+    ]
+  }
+]

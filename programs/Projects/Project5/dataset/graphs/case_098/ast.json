@@ -1,33 +1,223 @@
 [
   {
-    "name": "init_registry",
+    "name": "init_smithy",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx098 >"
+      "ctx: Context < InitSmithy >",
+      "name: String"
     ],
     "attributes": [],
     "body": [
-      "let a = & ctx . accounts . first ;",
-      "let b = & ctx . accounts . second ;",
-      "msg ! (\"Account A: {}\" , a . key ()) ;",
-      "msg ! (\"Account B: {}\" , b . key ()) ;",
+      "let s = & mut ctx . accounts . smithy ;",
+      "s . master = ctx . accounts . master . key () ;",
+      "s . name = name ;",
+      "s . capacity = 12 ;",
+      "s . open = true ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx098",
+    "name": "init_gear",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitGear >",
+      "kind: u8",
+      "seed: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let g = & mut ctx . accounts . gear ;",
+      "g . parent = ctx . accounts . smithy . key () ;",
+      "g . kind = kind ;",
+      "g . power = (seed & 0xFF) as u32 ;",
+      "g . durability = 1000 ;",
+      "g . state = Idle ;",
+      "g . locked = false ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "update_refine",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < UpdateRefine >",
+      "cycles: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let a = & mut ctx . accounts . left ;",
+      "let b = & mut ctx . accounts . right ;",
+      "for t in 0 .. cycles . min (16)",
+      "{",
+      "let tri = (t as i64 % 8 - 4) . abs () as u32 ;",
+      "a . power = a . power . saturating_add (tri) - (tri / 2) ;",
+      "b . power = b . power . saturating_add (3 * tri / 2) - tri / 3 ;",
+      "}",
+      "if a . power >= b . power",
+      "{",
+      "a . state = Busy ;",
+      "b . state = Idle ;",
+      "a . durability = a . durability . saturating_sub (7) ;",
+      "b . durability = b . durability . checked_add (2) . unwrap_or (u32 :: MAX) ;",
+      "msg ! (\"Left refines more, right cools down\") ;",
+      "} else",
+      "{",
+      "b . state = Busy ;",
+      "a . state = Idle ;",
+      "b . durability = b . durability . saturating_sub (7) ;",
+      "a . durability = a . durability . checked_add (2) . unwrap_or (u32 :: MAX) ;",
+      "msg ! (\"Right refines more, left cools down\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitSmithy",
     "node_type": "struct",
     "fields": [
       {
-        "name": "first",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "smithy",
+        "attribute": "# [account (init , payer = master , space = 8 + 32 + 4 + 1 + 32)]",
+        "field_type": "Account < 'info , Smithy >"
       },
       {
-        "name": "second",
+        "name": "master",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitGear",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "smithy",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Smithy >"
+      },
+      {
+        "name": "gear",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 1 + 4 + 4 + 1 + 1)]",
+        "field_type": "Account < 'info , Gear >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "UpdateRefine",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "smithy",
+        "attribute": null,
+        "field_type": "Account < 'info , Smithy >"
+      },
+      {
+        "name": "left",
+        "attribute": "# [account (mut , has_one = parent , constraint = left . key () != right . key ())]",
+        "field_type": "Account < 'info , Gear >"
+      },
+      {
+        "name": "right",
+        "attribute": "# [account (mut , has_one = parent)]",
+        "field_type": "Account < 'info , Gear >"
+      },
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Account < 'info , Smithy >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Smithy",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "master",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "capacity",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "open",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Gear",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "kind",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "power",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "durability",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "state",
+        "attribute": null,
+        "field_type": "SlotState"
+      },
+      {
+        "name": "locked",
+        "attribute": null,
+        "field_type": "bool"
       }
     ],
     "inputs": null,

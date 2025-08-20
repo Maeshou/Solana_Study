@@ -1,0 +1,549 @@
+[
+  {
+    "name": "init_engine",
+    "inputs": [
+      "ctx: Context < InitEngine >",
+      "engine_id: u64",
+      "base_energy: u64"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let engine = & mut ctx . accounts . engine_core ;"
+      },
+      {
+        "id": 2,
+        "label": "engine . engine_id = engine_id << 4 ;"
+      },
+      {
+        "id": 3,
+        "label": "engine . energy_level = base_energy * 100 ;"
+      },
+      {
+        "id": 4,
+        "label": "engine . fragment_count = 0 ;"
+      },
+      {
+        "id": 5,
+        "label": "engine . is_operational = engine . energy_level > 1000 ;"
+      },
+      {
+        "id": 6,
+        "label": "msg ! (\"Void Engine {} activated with {} energy.\" , engine . engine_id , engine . energy_level) ;"
+      },
+      {
+        "id": 7,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: engine"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: engine"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: engine"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: engine"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: engine"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: engine"
+      }
+    ]
+  },
+  {
+    "name": "init_fragment",
+    "inputs": [
+      "ctx: Context < InitFragment >",
+      "fragment_id: u64",
+      "efficiency: u32"
+    ],
+    "nodes": [
+      {
+        "id": 8,
+        "label": "Entry"
+      },
+      {
+        "id": 9,
+        "label": "let fragment = & mut ctx . accounts . fragment_data ;"
+      },
+      {
+        "id": 10,
+        "label": "fragment . parent_engine = ctx . accounts . engine_core . key () ;"
+      },
+      {
+        "id": 11,
+        "label": "if let Some (fid) = fragment_id . checked_add (1000) { fragment . fragment_id = fid ; } else { fragment . fragment_id = u64 :: MAX ; }"
+      },
+      {
+        "id": 12,
+        "label": "fragment . fragment_id = fid ;"
+      },
+      {
+        "id": 13,
+        "label": "fragment . fragment_id = u64 :: MAX ;"
+      },
+      {
+        "id": 14,
+        "label": "fragment . efficiency = efficiency / 2 ;"
+      },
+      {
+        "id": 15,
+        "label": "fragment . is_active = true ;"
+      },
+      {
+        "id": 16,
+        "label": "fragment . processed_count = 0 ;"
+      },
+      {
+        "id": 17,
+        "label": "msg ! (\"New fragment {} linked with efficiency {}.\" , fragment . fragment_id , fragment . efficiency) ;"
+      },
+      {
+        "id": 18,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 9,
+        "to": 9,
+        "label": "def: fragment"
+      },
+      {
+        "from": 9,
+        "to": 10,
+        "label": "data_dep: fragment"
+      },
+      {
+        "from": 9,
+        "to": 11,
+        "label": "data_dep: fragment"
+      },
+      {
+        "from": 9,
+        "to": 11,
+        "label": "data_dep: fragment"
+      },
+      {
+        "from": 9,
+        "to": 12,
+        "label": "data_dep: fragment"
+      },
+      {
+        "from": 9,
+        "to": 13,
+        "label": "data_dep: fragment"
+      },
+      {
+        "from": 9,
+        "to": 14,
+        "label": "data_dep: fragment"
+      },
+      {
+        "from": 9,
+        "to": 15,
+        "label": "data_dep: fragment"
+      },
+      {
+        "from": 9,
+        "to": 16,
+        "label": "data_dep: fragment"
+      }
+    ]
+  },
+  {
+    "name": "process_fragments",
+    "inputs": [
+      "ctx: Context < ProcessFragments >",
+      "cycles: u32"
+    ],
+    "nodes": [
+      {
+        "id": 19,
+        "label": "Entry"
+      },
+      {
+        "id": 20,
+        "label": "let engine = & mut ctx . accounts . engine_core ;"
+      },
+      {
+        "id": 21,
+        "label": "let core_fragment = & mut ctx . accounts . core_fragment ;"
+      },
+      {
+        "id": 22,
+        "label": "let peripheral_fragment = & mut ctx . accounts . peripheral_fragment ;"
+      },
+      {
+        "id": 23,
+        "label": "let mut loop_counter = cycles ;"
+      },
+      {
+        "id": 24,
+        "label": "while loop_counter > 0 { let energy_gain_core = (core_fragment . efficiency as u64) * 10 ; engine . energy_level = engine . energy_level . saturating_add (energy_gain_core) ; core_fragment . processed_count = core_fragment . processed_count . saturating_add (1) ; core_fragment . is_active = core_fragment . efficiency > 50 && engine . is_operational ; let energy_gain_peripheral = (peripheral_fragment . efficiency as u64) * 20 ; engine . energy_level = engine . energy_level . saturating_add (energy_gain_peripheral) ; peripheral_fragment . processed_count = peripheral_fragment . processed_count . saturating_add (1) ; peripheral_fragment . is_active = peripheral_fragment . efficiency > 60 && engine . is_operational ; engine . fragment_count = (core_fragment . is_active as u32) + (peripheral_fragment . is_active as u32) ; engine . is_operational = engine . energy_level > 500 && engine . fragment_count > 0 ; loop_counter = loop_counter . saturating_sub (1) ; }"
+      },
+      {
+        "id": 25,
+        "label": "let energy_gain_core = (core_fragment . efficiency as u64) * 10 ;"
+      },
+      {
+        "id": 26,
+        "label": "engine . energy_level = engine . energy_level . saturating_add (energy_gain_core) ;"
+      },
+      {
+        "id": 27,
+        "label": "core_fragment . processed_count = core_fragment . processed_count . saturating_add (1) ;"
+      },
+      {
+        "id": 28,
+        "label": "core_fragment . is_active = core_fragment . efficiency > 50 && engine . is_operational ;"
+      },
+      {
+        "id": 29,
+        "label": "let energy_gain_peripheral = (peripheral_fragment . efficiency as u64) * 20 ;"
+      },
+      {
+        "id": 30,
+        "label": "engine . energy_level = engine . energy_level . saturating_add (energy_gain_peripheral) ;"
+      },
+      {
+        "id": 31,
+        "label": "peripheral_fragment . processed_count = peripheral_fragment . processed_count . saturating_add (1) ;"
+      },
+      {
+        "id": 32,
+        "label": "peripheral_fragment . is_active = peripheral_fragment . efficiency > 60 && engine . is_operational ;"
+      },
+      {
+        "id": 33,
+        "label": "engine . fragment_count = (core_fragment . is_active as u32) + (peripheral_fragment . is_active as u32) ;"
+      },
+      {
+        "id": 34,
+        "label": "engine . is_operational = engine . energy_level > 500 && engine . fragment_count > 0 ;"
+      },
+      {
+        "id": 35,
+        "label": "loop_counter = loop_counter . saturating_sub (1) ;"
+      },
+      {
+        "id": 36,
+        "label": "msg ! (\"Engine processed fragments for {} cycles. Current energy level is {}. Active fragments: {}.\" , cycles , engine . energy_level , engine . fragment_count) ;"
+      },
+      {
+        "id": 37,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 20,
+        "to": 20,
+        "label": "def: engine"
+      },
+      {
+        "from": 21,
+        "to": 21,
+        "label": "def: core_fragment"
+      },
+      {
+        "from": 22,
+        "to": 22,
+        "label": "def: peripheral_fragment"
+      },
+      {
+        "from": 23,
+        "to": 23,
+        "label": "def: loop_counter"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "data_dep: loop_counter"
+      },
+      {
+        "from": 21,
+        "to": 24,
+        "label": "data_dep: core_fragment"
+      },
+      {
+        "from": 20,
+        "to": 24,
+        "label": "data_dep: engine"
+      },
+      {
+        "from": 20,
+        "to": 24,
+        "label": "data_dep: engine"
+      },
+      {
+        "from": 21,
+        "to": 24,
+        "label": "data_dep: core_fragment"
+      },
+      {
+        "from": 21,
+        "to": 24,
+        "label": "data_dep: core_fragment"
+      },
+      {
+        "from": 21,
+        "to": 24,
+        "label": "data_dep: core_fragment"
+      },
+      {
+        "from": 21,
+        "to": 24,
+        "label": "data_dep: core_fragment"
+      },
+      {
+        "from": 20,
+        "to": 24,
+        "label": "data_dep: engine"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: peripheral_fragment"
+      },
+      {
+        "from": 20,
+        "to": 24,
+        "label": "data_dep: engine"
+      },
+      {
+        "from": 20,
+        "to": 24,
+        "label": "data_dep: engine"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: peripheral_fragment"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: peripheral_fragment"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: peripheral_fragment"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: peripheral_fragment"
+      },
+      {
+        "from": 20,
+        "to": 24,
+        "label": "data_dep: engine"
+      },
+      {
+        "from": 20,
+        "to": 24,
+        "label": "data_dep: engine"
+      },
+      {
+        "from": 21,
+        "to": 24,
+        "label": "data_dep: core_fragment"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: peripheral_fragment"
+      },
+      {
+        "from": 20,
+        "to": 24,
+        "label": "data_dep: engine"
+      },
+      {
+        "from": 20,
+        "to": 24,
+        "label": "data_dep: engine"
+      },
+      {
+        "from": 20,
+        "to": 24,
+        "label": "data_dep: engine"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "data_dep: loop_counter"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "data_dep: loop_counter"
+      },
+      {
+        "from": 25,
+        "to": 25,
+        "label": "def: energy_gain_core"
+      },
+      {
+        "from": 21,
+        "to": 25,
+        "label": "data_dep: core_fragment"
+      },
+      {
+        "from": 20,
+        "to": 26,
+        "label": "data_dep: engine"
+      },
+      {
+        "from": 20,
+        "to": 26,
+        "label": "data_dep: engine"
+      },
+      {
+        "from": 25,
+        "to": 26,
+        "label": "data_dep: energy_gain_core"
+      },
+      {
+        "from": 21,
+        "to": 27,
+        "label": "data_dep: core_fragment"
+      },
+      {
+        "from": 21,
+        "to": 27,
+        "label": "data_dep: core_fragment"
+      },
+      {
+        "from": 21,
+        "to": 28,
+        "label": "data_dep: core_fragment"
+      },
+      {
+        "from": 21,
+        "to": 28,
+        "label": "data_dep: core_fragment"
+      },
+      {
+        "from": 20,
+        "to": 28,
+        "label": "data_dep: engine"
+      },
+      {
+        "from": 29,
+        "to": 29,
+        "label": "def: energy_gain_peripheral"
+      },
+      {
+        "from": 22,
+        "to": 29,
+        "label": "data_dep: peripheral_fragment"
+      },
+      {
+        "from": 20,
+        "to": 30,
+        "label": "data_dep: engine"
+      },
+      {
+        "from": 20,
+        "to": 30,
+        "label": "data_dep: engine"
+      },
+      {
+        "from": 29,
+        "to": 30,
+        "label": "data_dep: energy_gain_peripheral"
+      },
+      {
+        "from": 22,
+        "to": 31,
+        "label": "data_dep: peripheral_fragment"
+      },
+      {
+        "from": 22,
+        "to": 31,
+        "label": "data_dep: peripheral_fragment"
+      },
+      {
+        "from": 22,
+        "to": 32,
+        "label": "data_dep: peripheral_fragment"
+      },
+      {
+        "from": 22,
+        "to": 32,
+        "label": "data_dep: peripheral_fragment"
+      },
+      {
+        "from": 20,
+        "to": 32,
+        "label": "data_dep: engine"
+      },
+      {
+        "from": 20,
+        "to": 33,
+        "label": "data_dep: engine"
+      },
+      {
+        "from": 21,
+        "to": 33,
+        "label": "data_dep: core_fragment"
+      },
+      {
+        "from": 22,
+        "to": 33,
+        "label": "data_dep: peripheral_fragment"
+      },
+      {
+        "from": 20,
+        "to": 34,
+        "label": "data_dep: engine"
+      },
+      {
+        "from": 20,
+        "to": 34,
+        "label": "data_dep: engine"
+      },
+      {
+        "from": 20,
+        "to": 34,
+        "label": "data_dep: engine"
+      },
+      {
+        "from": 23,
+        "to": 35,
+        "label": "data_dep: loop_counter"
+      },
+      {
+        "from": 23,
+        "to": 35,
+        "label": "data_dep: loop_counter"
+      }
+    ]
+  }
+]

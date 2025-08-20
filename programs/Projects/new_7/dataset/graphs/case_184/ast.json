@@ -1,0 +1,124 @@
+[
+  {
+    "name": "send_tip",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "tp: & Program < Token >",
+      "bank: & Account < TokenAccount >",
+      "rider: & Account < TokenAccount >",
+      "auth: & AccountInfo",
+      "tip: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "token :: transfer (CpiContext :: new (tp . to_account_info () , Transfer { from : bank . to_account_info () , to : rider . to_account_info () , authority : auth . clone () }) , tip)"
+    ]
+  },
+  {
+    "name": "travel",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Travel >",
+      "steps: u64",
+      "tip: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "if steps > 0",
+      "{",
+      "ctx . accounts . trail . progress = ctx . accounts . trail . progress . saturating_add (steps) ;",
+      "}",
+      "let ix_fixed = Instruction { program_id : FIXED_LOG_ID , accounts : vec ! [AccountMeta :: new (ctx . accounts . step_cell . key () , false) , AccountMeta :: new_readonly (ctx . accounts . rider . key () , false) ,] , data : steps . to_le_bytes () . to_vec () , } ;",
+      "invoke (& ix_fixed , & [ctx . accounts . step_hint . to_account_info () , ctx . accounts . step_cell . to_account_info () , ctx . accounts . rider . to_account_info () ,]) ? ;",
+      "let mut route = ctx . accounts . cast_hint . to_account_info () ;",
+      "if ! ctx . remaining_accounts . is_empty ()",
+      "{",
+      "route = ctx . remaining_accounts [0] . clone () ;",
+      "ctx . accounts . trail . paths = ctx . accounts . trail . paths . wrapping_add (1) ;",
+      "}",
+      "let ix_dyn = Instruction { program_id : * route . key , accounts : vec ! [AccountMeta :: new (ctx . accounts . stage_board . key () , false) , AccountMeta :: new_readonly (ctx . accounts . rider . key () , false) ,] , data : tip . rotate_right (2) . to_le_bytes () . to_vec () , } ;",
+      "invoke (& ix_dyn , & [route , ctx . accounts . stage_board . to_account_info () , ctx . accounts . rider . to_account_info () ,]) ? ;",
+      "send_tip (& ctx . accounts . token_program , & ctx . accounts . bank , & ctx . accounts . rider_token , & ctx . accounts . bank_authority , tip)"
+    ]
+  },
+  {
+    "name": "Travel",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "trail",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Trail >"
+      },
+      {
+        "name": "step_cell",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "rider",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "step_hint",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "stage_board",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "cast_hint",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "bank",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "rider_token",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "bank_authority",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Trail",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "progress",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "paths",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

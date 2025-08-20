@@ -1,0 +1,99 @@
+[
+  {
+    "name": "craft",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CraftCtx >"
+    ],
+    "attributes": [
+      "# [doc = \" ２つの NFT を「クラフト」した実績をカウントします。\"]",
+      "# [doc = \" - `left` と `right` の両方から同じ枚数だけ使用したとみなし、\"]",
+      "# [doc = \"   使用枚数を累積します。\"]",
+      "# [doc = \" ※ 署名チェックはすべて `AccountInfo` のまま省略\"]"
+    ],
+    "body": [
+      "let left_amt = ctx . accounts . left . amount ;",
+      "let right_amt = ctx . accounts . right . amount ;",
+      "let used = left_amt . min (right_amt) ;",
+      "let rec = & mut ctx . accounts . craft_data ;",
+      "rec . times = rec . times . saturating_add (1) ;",
+      "rec . total_left = rec . total_left . saturating_add (used) ;",
+      "rec . total_right = rec . total_right . saturating_add (used) ;",
+      "rec . total_crafted = rec . total_crafted . saturating_add (used) ;"
+    ]
+  },
+  {
+    "name": "CraftCtx",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "fee_payer",
+        "attribute": "# [doc = \" トランザクション手数料支払い用（署名必須）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" クラフトを実行するユーザー（署名チェック omitted intentionally）\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "left",
+        "attribute": "# [doc = \" 左側に使う NFT トークンアカウント\"] # [account (mut , constraint = left . owner == * user . key)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "right",
+        "attribute": "# [doc = \" 右側に使う NFT トークンアカウント\"] # [account (mut , constraint = right . owner == * user . key)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "craft_data",
+        "attribute": "# [doc = \" クラフト実績を保持する PDA\"] # [account (init_if_needed , payer = fee_payer , seeds = [b\"craft\" , user . key () . as_ref ()] , bump , space = 8 + 8 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , CraftData >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "rent",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Rent >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CraftData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "times",
+        "attribute": "# [doc = \" クラフトを実行した回数\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "total_left",
+        "attribute": "# [doc = \" 左側トークンから使用した累計枚数\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "total_right",
+        "attribute": "# [doc = \" 右側トークンから使用した累計枚数\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "total_crafted",
+        "attribute": "# [doc = \" 合計クラフト枚数（used × times）\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,40 +1,224 @@
 [
   {
-    "name": "write_option",
+    "name": "init_teahouse",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx081 >",
-      "amount: u64"
+      "ctx: Context < InitTeahouse >",
+      "mask: u32"
     ],
     "attributes": [],
     "body": [
-      "let src = & mut ctx . accounts . account_src ;",
-      "let dst = & mut ctx . accounts . account_dst ;",
-      "let before = * * src . to_account_info () . try_borrow_lamports () ? ;",
-      "* * src . to_account_info () . try_borrow_mut_lamports () ? = before . saturating_sub (amount) ;",
-      "* * dst . to_account_info () . try_borrow_mut_lamports () ? += amount ;",
+      "let h = & mut ctx . accounts . house ;",
+      "h . owner = ctx . accounts . host . key () ;",
+      "h . target = 70 + (mask & 31) ;",
+      "h . state = Warm ;",
+      "let k = & mut ctx . accounts . kettle_a ;",
+      "let l = & mut ctx . accounts . kettle_b ;",
+      "let t = & mut ctx . accounts . taster ;",
+      "k . house = h . key () ;",
+      "k . spout = (mask & 7) as u8 ;",
+      "k . heat = (mask % 90) + 12 ;",
+      "l . house = h . key () ;",
+      "l . spout = ((mask >> 4) & 7) as u8 ;",
+      "l . heat = ((mask >> 2) % 90) + 11 ;",
+      "t . house = h . key () ;",
+      "t . spout = 9 ;",
+      "t . ticks = 0 ;",
+      "t . check = (mask as u64) ^ 0xAA55_AA55 ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx081",
+    "name": "steep",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Steep >",
+      "cycles: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let h = & mut ctx . accounts . house ;",
+      "let a = & mut ctx . accounts . kettle_a ;",
+      "let b = & mut ctx . accounts . kettle_b ;",
+      "let t = & mut ctx . accounts . taster ;",
+      "for i in 0 .. cycles",
+      "{",
+      "let tri = ((i % 10) as i32 - 5) . abs () as u32 + 1 ;",
+      "a . heat = ((a . heat as u64 * 7 + (tri + 2) as u64 * 3) / 10) as u32 ;",
+      "b . heat = b . heat . saturating_add (tri / 2 + 1) ;",
+      "t . ticks = t . ticks . saturating_add (1) ;",
+      "t . check ^= ((a . heat ^ b . heat) as u64) << (i % 8) ;",
+      "}",
+      "let avg = (a . heat + b . heat) / 2 ;",
+      "if avg > h . target",
+      "{",
+      "h . state = Rest ;",
+      "a . spout ^= 1 ;",
+      "b . spout = b . spout . saturating_add (1) ;",
+      "t . spout = t . spout . saturating_add (1) ;",
+      "msg ! (\"rest: spout tweak & taster move\") ;",
+      "} else",
+      "{",
+      "h . state = Steep ;",
+      "a . heat = a . heat . saturating_add (7) ;",
+      "b . heat = b . heat / 2 + 9 ;",
+      "t . check ^= 0x0F0F_F0F0 ;",
+      "msg ! (\"steep: adjust heat & check flip\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitTeahouse",
     "node_type": "struct",
     "fields": [
       {
-        "name": "account_src",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "house",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , TeaHouse >"
       },
       {
-        "name": "account_dst",
+        "name": "kettle_a",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Kettle >"
+      },
+      {
+        "name": "kettle_b",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Kettle >"
+      },
+      {
+        "name": "taster",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 8 + 8)]",
+        "field_type": "Account < 'info , TasterLog >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "host",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
       },
       {
         "name": "system_program",
         "attribute": null,
         "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Steep",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "house",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , TeaHouse >"
+      },
+      {
+        "name": "kettle_a",
+        "attribute": "# [account (mut , has_one = house , constraint = kettle_a . spout != kettle_b . spout @ TeaErr :: Dup)]",
+        "field_type": "Account < 'info , Kettle >"
+      },
+      {
+        "name": "kettle_b",
+        "attribute": "# [account (mut , has_one = house , constraint = kettle_b . spout != taster . spout @ TeaErr :: Dup)]",
+        "field_type": "Account < 'info , Kettle >"
+      },
+      {
+        "name": "taster",
+        "attribute": "# [account (mut , has_one = house)]",
+        "field_type": "Account < 'info , TasterLog >"
+      },
+      {
+        "name": "host",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TeaHouse",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "target",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "state",
+        "attribute": null,
+        "field_type": "BrewState"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Kettle",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "house",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "spout",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "heat",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TasterLog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "house",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "spout",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "ticks",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "check",
+        "attribute": null,
+        "field_type": "u64"
       }
     ],
     "inputs": null,

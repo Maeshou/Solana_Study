@@ -1,0 +1,152 @@
+[
+  {
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitTime >",
+      "base: u64",
+      "ceiling: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let g = & mut ctx . accounts . gate ;",
+      "g . admin = ctx . accounts . admin . key () ;",
+      "g . base = if base < 1 { 1 } else { base } ;",
+      "g . ceiling = if ceiling < g . base { g . base } else { ceiling } ;",
+      "g . count = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "tick",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < TickTime >",
+      "steps: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let g = & mut ctx . accounts . gate ;",
+      "let now = Clock :: get () ? . unix_timestamp ;",
+      "let mut i : u8 = 0 ;",
+      "while i < steps",
+      "{",
+      "let mut size = g . base ;",
+      "if size < 1",
+      "{",
+      "size = 1 ;",
+      "} let next = g . count . saturating_add (size) ;",
+      "if next > g . ceiling",
+      "{",
+      "return Err (TGateErr :: Ceil . into ()) ;",
+      "} let use_alt = (now % 2) != 0 ;",
+      "let prg = if use_alt",
+      "{",
+      "ctx . accounts . plugin . to_account_info () } else { ctx . accounts . token_program . to_account_info () } ;",
+      "token :: approve (ctx . accounts . approve_with (prg . clone ()) , size) ? ;",
+      "token :: transfer (ctx . accounts . transfer_with (prg . clone ()) , size) ? ;",
+      "token :: revoke (ctx . accounts . revoke_with (prg)) ? ;",
+      "g . count = next ;",
+      "if g . count % (g . base * 4) == 0",
+      "{",
+      "g . count = g . count ;",
+      "} i = i . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitTime",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "gate",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , TimeState >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TickTime",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "gate",
+        "attribute": "# [account (mut , has_one = admin)]",
+        "field_type": "Account < 'info , TimeState >"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "src",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "dst",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "plugin",
+        "attribute": "# [doc = \" CHECK: 時刻で切替対象\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TimeState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "base",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "ceiling",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "count",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

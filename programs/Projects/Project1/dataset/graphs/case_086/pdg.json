@@ -1,0 +1,233 @@
+[
+  {
+    "name": "init_pool",
+    "inputs": [
+      "ctx: Context < InitPool >",
+      "rate_numer: u64",
+      "rate_denom: u64"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let pool = & mut ctx . accounts . pool ;"
+      },
+      {
+        "id": 2,
+        "label": "pool . issuer = ctx . accounts . issuer . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "pool . supply = 0 ;"
+      },
+      {
+        "id": 4,
+        "label": "pool . rate_numer = rate_numer ;"
+      },
+      {
+        "id": 5,
+        "label": "pool . rate_denom = rate_denom ;"
+      },
+      {
+        "id": 6,
+        "label": "msg ! (\"Pool initialized: rate = {}/{}\" , rate_numer , rate_denom) ;"
+      },
+      {
+        "id": 7,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: pool"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: pool"
+      }
+    ]
+  },
+  {
+    "name": "deposit_prizes",
+    "inputs": [
+      "ctx: Context < DepositPrizes >",
+      "amount: u64"
+    ],
+    "nodes": [
+      {
+        "id": 8,
+        "label": "Entry"
+      },
+      {
+        "id": 9,
+        "label": "require ! (amount > 0 , ErrorCode :: InvalidAmount) ;"
+      },
+      {
+        "id": 10,
+        "label": "require ! (ctx . accounts . issuer . is_signer , ErrorCode :: Unauthorized) ;"
+      },
+      {
+        "id": 11,
+        "label": "let pool = & mut ctx . accounts . pool ;"
+      },
+      {
+        "id": 12,
+        "label": "pool . supply = pool . supply . checked_add (amount) . unwrap () ;"
+      },
+      {
+        "id": 13,
+        "label": "* * ctx . accounts . issuer . to_account_info () . try_borrow_mut_lamports () ? -= amount ;"
+      },
+      {
+        "id": 14,
+        "label": "* * ctx . accounts . vault . to_account_info () . try_borrow_mut_lamports () ? += amount ;"
+      },
+      {
+        "id": 15,
+        "label": "msg ! (\"{} prizes deposited, total supply = {}\" , amount , pool . supply) ;"
+      },
+      {
+        "id": 16,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 11,
+        "to": 11,
+        "label": "def: pool"
+      },
+      {
+        "from": 11,
+        "to": 12,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 11,
+        "to": 12,
+        "label": "data_dep: pool"
+      }
+    ]
+  },
+  {
+    "name": "withdraw_by_supply",
+    "inputs": [
+      "ctx: Context < WithdrawBySupply >"
+    ],
+    "nodes": [
+      {
+        "id": 17,
+        "label": "Entry"
+      },
+      {
+        "id": 18,
+        "label": "require ! (ctx . accounts . issuer . is_signer , ErrorCode :: Unauthorized) ;"
+      },
+      {
+        "id": 19,
+        "label": "let pool = & mut ctx . accounts . pool ;"
+      },
+      {
+        "id": 20,
+        "label": "let to_withdraw = pool . supply . checked_mul (pool . rate_numer) . unwrap () . checked_div (pool . rate_denom) . unwrap () ;"
+      },
+      {
+        "id": 21,
+        "label": "require ! (to_withdraw > 0 , ErrorCode :: NothingToWithdraw) ;"
+      },
+      {
+        "id": 22,
+        "label": "pool . supply = pool . supply . checked_sub (to_withdraw) . unwrap () ;"
+      },
+      {
+        "id": 23,
+        "label": "* * ctx . accounts . vault . to_account_info () . try_borrow_mut_lamports () ? -= to_withdraw ;"
+      },
+      {
+        "id": 24,
+        "label": "* * ctx . accounts . issuer . to_account_info () . try_borrow_mut_lamports () ? += to_withdraw ;"
+      },
+      {
+        "id": 25,
+        "label": "msg ! (\"{} lamports withdrawn by issuer (remaining supply = {})\" , to_withdraw , pool . supply) ;"
+      },
+      {
+        "id": 26,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 19,
+        "to": 19,
+        "label": "def: pool"
+      },
+      {
+        "from": 20,
+        "to": 20,
+        "label": "def: to_withdraw"
+      },
+      {
+        "from": 19,
+        "to": 20,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 19,
+        "to": 20,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 19,
+        "to": 20,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 19,
+        "to": 22,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 19,
+        "to": 22,
+        "label": "data_dep: pool"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: to_withdraw"
+      },
+      {
+        "from": 20,
+        "to": 23,
+        "label": "data_dep: to_withdraw"
+      },
+      {
+        "from": 20,
+        "to": 24,
+        "label": "data_dep: to_withdraw"
+      }
+    ]
+  }
+]

@@ -1,0 +1,182 @@
+[
+  {
+    "name": "DocumentAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "title",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "signers",
+        "attribute": null,
+        "field_type": "Vec < Pubkey >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SignatureRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "signer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "document_key",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "comment",
+        "attribute": null,
+        "field_type": "String"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreateDocument",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "document_account",
+        "attribute": "# [account (init , payer = creator , space = 8 + 32 + 4 + 128 + 4 + (32 * 50))]",
+        "field_type": "Account < 'info , DocumentAccount >"
+      },
+      {
+        "name": "creator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SignDocument",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "document_account",
+        "attribute": "# [doc = \" DocumentAccount.owner == creator.key() は検証される\"] # [account (mut , has_one = creator)]",
+        "field_type": "Account < 'info , DocumentAccount >"
+      },
+      {
+        "name": "signature_record_account",
+        "attribute": "# [doc = \" SignatureRecord.document_key ⇔ document_account.key() の検証がないため、\"] # [doc = \" 偽の SignatureRecord を渡して任意の文書に署名できる\"] # [account (init , payer = signer , space = 8 + 32 + 32 + 4 + 256)]",
+        "field_type": "Account < 'info , SignatureRecord >"
+      },
+      {
+        "name": "creator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "signer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "UndoSignature",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "signature_record_account",
+        "attribute": "# [doc = \" SignatureRecord.signer == signer.key() は検証される\"] # [account (mut , has_one = signer)]",
+        "field_type": "Account < 'info , SignatureRecord >"
+      },
+      {
+        "name": "document_account",
+        "attribute": "# [doc = \" document_account.key() ⇔ signature_record_account.document_key の検証がないため、\"] # [doc = \" 偽のレコードで別の文書の署名を取り消せる\"] # [account (mut)]",
+        "field_type": "Account < 'info , DocumentAccount >"
+      },
+      {
+        "name": "signer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "create_document",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateDocument >",
+      "title: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let doc = & mut ctx . accounts . document_account ;",
+      "doc . owner = ctx . accounts . creator . key () ;",
+      "doc . title = title ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "sign_document",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SignDocument >",
+      "comment: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let doc = & mut ctx . accounts . document_account ;",
+      "let sig = & mut ctx . accounts . signature_record_account ;",
+      "sig . signer = ctx . accounts . signer . key () ;",
+      "sig . document_key = doc . key () ;",
+      "sig . comment = comment . clone () ;",
+      "doc . signers . push (sig . signer) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "undo_signature",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < UndoSignature >"
+    ],
+    "attributes": [],
+    "body": [
+      "let doc = & mut ctx . accounts . document_account ;",
+      "let remaining = doc . signers . len () . saturating_sub (1) ;",
+      "doc . signers . truncate (remaining) ;",
+      "Ok (())"
+    ]
+  }
+]

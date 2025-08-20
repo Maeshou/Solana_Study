@@ -1,0 +1,225 @@
+[
+  {
+    "name": "init_pool",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitPool >",
+      "base_award: u64",
+      "tier_boost_bps: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let state = & mut ctx . accounts . pool_state ;",
+      "state . organizer = ctx . accounts . organizer . key () ;",
+      "state . base_award = if base_award < 2 { 2 } else { base_award } ;",
+      "state . tier_boost_bps = clamp_u16 (tier_boost_bps , 50 , 2500) ;",
+      "state . round = 1 ;",
+      "state . total_distributed = base_award / 2 + 3 ;",
+      "state . tier = PrizeTier :: Silver ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_settle",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActSettle >",
+      "participant_count: u8",
+      "extra_rounds: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let state = & mut ctx . accounts . pool_state ;",
+      "let mut tier_bonus : u64 = 0 ;",
+      "let mut index : u8 = 1 ;",
+      "while index <= participant_count",
+      "{",
+      "if index <= 4",
+      "{",
+      "tier_bonus = tier_bonus + 10 ;",
+      "} if index > 4",
+      "{",
+      "tier_bonus = tier_bonus + 6 ;",
+      "} if index > 8",
+      "{",
+      "tier_bonus = tier_bonus + 3 ;",
+      "} index = index + 1 ;",
+      "}",
+      "let mut decay_bonus_bps : u64 = 0 ;",
+      "let mut r : u8 = 1 ;",
+      "while r <= extra_rounds",
+      "{",
+      "decay_bonus_bps = decay_bonus_bps + (10_000 / (r as u64 + 8)) ;",
+      "r = r + 1 ;",
+      "}",
+      "let mut effective_bps = state . tier_boost_bps as u64 ;",
+      "if state . tier == PrizeTier :: Bronze",
+      "{",
+      "effective_bps = effective_bps - (effective_bps / 10) ;",
+      "}",
+      "if state . tier == PrizeTier :: Gold",
+      "{",
+      "effective_bps = effective_bps + (effective_bps / 8) ;",
+      "}",
+      "let mut award_units = state . base_award + tier_bonus + (decay_bonus_bps / 50) ;",
+      "let ceiling = state . base_award * 3 ;",
+      "if award_units > ceiling",
+      "{",
+      "award_units = ceiling ;",
+      "}",
+      "if award_units < 1",
+      "{",
+      "award_units = 1 ;",
+      "}",
+      "let mut fee_bps : u64 = 500 ;",
+      "let mut k : u64 = 0 ;",
+      "while k < state . round / 2",
+      "{",
+      "if fee_bps > 100",
+      "{",
+      "fee_bps = fee_bps - 100 ;",
+      "} k = k + 1 ;",
+      "}",
+      "let boosted = award_units + (award_units * effective_bps / 10_000) ;",
+      "let fee_amount = boosted * fee_bps / 10_000 ;",
+      "let payout_to_winner = boosted - fee_amount ;",
+      "if payout_to_winner < state . base_award / 10",
+      "{",
+      "state . round = state . round + 1 ;",
+      "return Err (PrizeErr :: TooSmall . into ()) ;",
+      "}",
+      "token :: transfer (ctx . accounts . treasury_to_winner () , payout_to_winner) ? ;",
+      "token :: transfer (ctx . accounts . treasury_to_fee () , fee_amount) ? ;",
+      "state . total_distributed = state . total_distributed + payout_to_winner ;",
+      "state . round = state . round + 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitPool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool_state",
+        "attribute": "# [account (init , payer = organizer , space = 8 + 32 + 8 + 2 + 8 + 8 + 1)]",
+        "field_type": "Account < 'info , PrizePoolState >"
+      },
+      {
+        "name": "organizer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActSettle",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool_state",
+        "attribute": "# [account (mut , has_one = organizer)]",
+        "field_type": "Account < 'info , PrizePoolState >"
+      },
+      {
+        "name": "organizer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "prize_treasury",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "winner_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "fee_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PrizePoolState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "organizer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "base_award",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "tier_boost_bps",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "round",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_distributed",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "tier",
+        "attribute": null,
+        "field_type": "PrizeTier"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "clamp_u16",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "v: u16",
+      "lo: u16",
+      "hi: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut out = v ;",
+      "if out < lo",
+      "{",
+      "out = lo ;",
+      "}",
+      "if out > hi",
+      "{",
+      "out = hi ;",
+      "}",
+      "out"
+    ]
+  }
+]

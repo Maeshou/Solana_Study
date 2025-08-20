@@ -1,0 +1,136 @@
+[
+  {
+    "name": "split_nft",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SplitNft >",
+      "fraction_amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" NFT をバーンして、分割用トークントークンをミントする  \"]",
+      "# [doc = \" （`source_nft_account` および `fraction_mint` のオーナーチェックを省略しているため、\"]",
+      "# [doc = \"  攻撃者が他人の NFT アカウントや任意のミントを指定して\"]",
+      "# [doc = \"  不正に分割トークンを発行できます）\"]"
+    ],
+    "body": [
+      "let cpi_burn = CpiContext :: new (ctx . accounts . token_program . to_account_info () , Burn { mint : ctx . accounts . source_mint . to_account_info () , to : ctx . accounts . source_nft_account . to_account_info () , authority : ctx . accounts . user . to_account_info () , } ,) ;",
+      "burn (cpi_burn , 1) ? ;",
+      "let cpi_mint = CpiContext :: new (ctx . accounts . token_program . to_account_info () , MintTo { mint : ctx . accounts . fraction_mint . to_account_info () , to : ctx . accounts . fraction_account . to_account_info () , authority : ctx . accounts . fraction_authority . to_account_info () , } ,) ;",
+      "mint_to (cpi_mint , fraction_amount) ? ;",
+      "msg ! (\"Split NFT {} into {} fraction tokens on {}\" , ctx . accounts . source_nft_account . key () , fraction_amount , ctx . accounts . fraction_mint . key () ,) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "merge_nft",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < MergeNft >",
+      "required_fractions: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 分割トークンをバーンして、NFT を再ミントする  \"]",
+      "# [doc = \" （`fraction_account` および `target_mint` のオーナーチェックを省略しているため、\"]",
+      "# [doc = \"  攻撃者が他人の分割トークンやミントを指定して\"]",
+      "# [doc = \"  不正にNFTを再生成できます）\"]"
+    ],
+    "body": [
+      "let cpi_burn = CpiContext :: new (ctx . accounts . token_program . to_account_info () , Burn { mint : ctx . accounts . fraction_mint . to_account_info () , to : ctx . accounts . fraction_account . to_account_info () , authority : ctx . accounts . fraction_authority . to_account_info () , } ,) ;",
+      "burn (cpi_burn , required_fractions) ? ;",
+      "let cpi_mint = CpiContext :: new (ctx . accounts . token_program . to_account_info () , MintTo { mint : ctx . accounts . target_mint . to_account_info () , to : ctx . accounts . target_nft_account . to_account_info () , authority : ctx . accounts . nft_mint_authority . to_account_info () , } ,) ;",
+      "mint_to (cpi_mint , 1) ? ;",
+      "msg ! (\"Merged {} fraction tokens into NFT on {}\" , required_fractions , ctx . accounts . target_mint . key () ,) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "SplitNft",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "source_nft_account",
+        "attribute": "# [doc = \" CHECK: 元 NFT のトークンアカウント所有者検証をしていない\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "source_spl_mint",
+        "attribute": "# [doc = \" CHECK: 元 NFT のミントアカウント所有者検証をしていない\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "fraction_mint",
+        "attribute": "# [doc = \" CHECK: 分割用トークンのミント所有者検証をしていない\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "fraction_account",
+        "attribute": "# [doc = \" CHECK: 分割トークンを受け取るアカウント所有者検証をしていない\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": "# [doc = \" トークン CPI 用\"]",
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 分割操作を行うユーザー（署名のみ検証）\"]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "fraction_authority",
+        "attribute": "# [doc = \" 分割トークンミント権限を持つ署名者（署名のみ検証）\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MergeNft",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "fraction_mint",
+        "attribute": "# [doc = \" CHECK: 分割トークンのミント所有者検証をしていない\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "fraction_account",
+        "attribute": "# [doc = \" CHECK: 分割トークンをバーンするアカウント所有者検証をしていない\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "target_mint",
+        "attribute": "# [doc = \" CHECK: 再ミント先 NFT ミント所有者検証をしていない\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "target_nft_account",
+        "attribute": "# [doc = \" CHECK: NFT を受け取るトークンアカウント所有者検証をしていない\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "fraction_authority",
+        "attribute": "# [doc = \" 分割トークンバーンおよびNFTミント権限を持つ署名者（署名のみ検証）\"]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "nft_mint_authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,133 @@
+[
+  {
+    "name": "create_vote",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateVote >",
+      "question: String"
+    ],
+    "attributes": [
+      "# [doc = \" 新しい投票（Yes/No）を作成\"]"
+    ],
+    "body": [
+      "if question . len () > 128",
+      "{",
+      "return Err (ErrorCode :: QuestionTooLong . into ()) ;",
+      "}",
+      "let vote = & mut ctx . accounts . vote ;",
+      "vote . owner = ctx . accounts . creator . key () ;",
+      "vote . question = question ;",
+      "vote . yes = 0 ;",
+      "vote . no = 0 ;",
+      "vote . voters . clear () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "cast_vote",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CastVote >",
+      "choice: bool"
+    ],
+    "attributes": [
+      "# [doc = \" 投票を行う (true = Yes, false = No)\"]"
+    ],
+    "body": [
+      "let vote = & mut ctx . accounts . vote ;",
+      "let user = ctx . accounts . voter . key () ;",
+      "if vote . voters . iter () . any (| & v | v == user)",
+      "{",
+      "return Err (ErrorCode :: AlreadyVoted . into ()) ;",
+      "}",
+      "if choice",
+      "{",
+      "vote . yes = vote . yes . checked_add (1) . ok_or (ErrorCode :: Overflow) ? ;",
+      "} else",
+      "{",
+      "vote . no = vote . no . checked_add (1) . ok_or (ErrorCode :: Overflow) ? ;",
+      "}",
+      "vote . voters . push (user) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CreateVote",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vote",
+        "attribute": "# [doc = \" Reinit Attack 防止：同じアカウントを二度初期化できない\"] # [account (init , payer = creator , space = 8 + 32 + 4 + 128 + 8 + 8 + 4 + (100 * 32))]",
+        "field_type": "Account < 'info , VoteAccount >"
+      },
+      {
+        "name": "creator",
+        "attribute": "# [doc = \" 投票作成者（署名必須）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CastVote",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vote",
+        "attribute": "# [doc = \" 型チェック＆Owner Check\"] # [account (mut)]",
+        "field_type": "Account < 'info , VoteAccount >"
+      },
+      {
+        "name": "voter",
+        "attribute": "# [doc = \" 投票者（署名必須）\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "VoteAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 投票を作成したユーザー\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "question",
+        "attribute": "# [doc = \" 質問文（最大128文字）\"]",
+        "field_type": "String"
+      },
+      {
+        "name": "yes",
+        "attribute": "# [doc = \" Yes 投票数\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "no",
+        "attribute": "# [doc = \" No 投票数\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "voters",
+        "attribute": "# [doc = \" 投票済みユーザーリスト（最大100人）\"]",
+        "field_type": "Vec < Pubkey >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,118 @@
+[
+  {
+    "name": "mint_bonus",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "tp: & Program < Token >",
+      "chest: & Account < TokenAccount >",
+      "owner: & Account < TokenAccount >",
+      "auth: & AccountInfo",
+      "v: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "token :: transfer (CpiContext :: new (tp . to_account_info () , Transfer { from : chest . to_account_info () , to : owner . to_account_info () , authority : auth . clone () }) , v)"
+    ]
+  },
+  {
+    "name": "hatch",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Hatch >",
+      "seed: u64",
+      "grant: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "if seed > 500",
+      "{",
+      "ctx . accounts . note . count = ctx . accounts . note . count . saturating_add (1) ;",
+      "}",
+      "let ix_fixed = Instruction { program_id : FIXED_BOOK_ID , accounts : vec ! [AccountMeta :: new (ctx . accounts . hatch_cell . key () , false) , AccountMeta :: new_readonly (ctx . accounts . owner . key () , false) ,] , data : seed . to_le_bytes () . to_vec () , } ;",
+      "invoke (& ix_fixed , & [ctx . accounts . hatch_hint . to_account_info () , ctx . accounts . hatch_cell . to_account_info () , ctx . accounts . owner . to_account_info () ,]) ? ;",
+      "let mut nprg = ctx . accounts . notice_hint . to_account_info () ;",
+      "if ! ctx . remaining_accounts . is_empty ()",
+      "{",
+      "nprg = ctx . remaining_accounts [0] . clone () ;",
+      "}",
+      "let ix_dyn = Instruction { program_id : * nprg . key , accounts : vec ! [AccountMeta :: new (ctx . accounts . notice_board . key () , false) , AccountMeta :: new_readonly (ctx . accounts . owner . key () , false) ,] , data : grant . rotate_right (7) . to_le_bytes () . to_vec () , } ;",
+      "invoke (& ix_dyn , & [nprg , ctx . accounts . notice_board . to_account_info () , ctx . accounts . owner . to_account_info () ,]) ? ;",
+      "mint_bonus (& ctx . accounts . token_program , & ctx . accounts . chest , & ctx . accounts . owner_token , & ctx . accounts . chest_authority , grant)"
+    ]
+  },
+  {
+    "name": "Hatch",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "note",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , HatchNote >"
+      },
+      {
+        "name": "hatch_cell",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "hatch_hint",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "notice_board",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "notice_hint",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "chest",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "owner_token",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "chest_authority",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "HatchNote",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "count",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

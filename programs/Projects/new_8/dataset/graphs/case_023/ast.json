@@ -1,0 +1,193 @@
+[
+  {
+    "name": "start_arc",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < StartArc >",
+      "name: Vec < u8 >",
+      "bump: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut n = name . clone () ;",
+      "if n . len () > 18",
+      "{",
+      "let remove = n . len () - 18 ;",
+      "for r in 0 .. remove",
+      "{",
+      "let last = * n . last () . unwrap_or (& b'.') ;",
+      "n . truncate (n . len () . saturating_sub (1)) ;",
+      "if (last & 1) == 1",
+      "{",
+      "msg ! (\"remove step={} val={}\" , r , last) ;",
+      "} }",
+      "}",
+      "let mut code : u32 = 31 ;",
+      "for (i , b) in n . iter () . enumerate ()",
+      "{",
+      "code = code . wrapping_mul (97) . wrapping_add ((* b as u32) . wrapping_add ((i as u32) * 2)) ;",
+      "if * b == b'_'",
+      "{",
+      "code = code . wrapping_add (777) ;",
+      "msg ! (\"underscore at",
+      "{",
+      "} code={}\" , i , code) ;",
+      "}",
+      "}",
+      "let seeds = [& ctx . accounts . player . key () . to_bytes () [..] , & n [..]] ;",
+      "let addr = Pubkey :: create_program_address (& seeds , & ctx . program_id , & [bump]) . map_err (| _ | error ! (QErr :: Cell)) ? ;",
+      "if addr != ctx . accounts . arc_cell . key ()",
+      "{",
+      "msg ! (\"start mismatch\") ;",
+      "return Err (error ! (QErr :: Cell)) ;",
+      "}",
+      "let a = & mut ctx . accounts . arc ;",
+      "a . player = ctx . accounts . player . key () ;",
+      "a . name = n ;",
+      "a . progress = 1 ;",
+      "a . hash = code ;",
+      "let mut warm = 0u32 ;",
+      "for turn in 0 .. 4",
+      "{",
+      "warm = warm . wrapping_add ((turn + 3) * 11) ;",
+      "msg ! (\"warm",
+      "{",
+      "}\" , warm) ;",
+      "}",
+      "a . hash = a . hash . wrapping_add (warm) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "advance_arc",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AdvanceArc >",
+      "step: u16",
+      "bump: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let tag = ctx . accounts . arc . name . clone () ;",
+      "if tag . len () < 5",
+      "{",
+      "msg ! (\"short name bonus path\") ;",
+      "let mut probe = 0u32 ;",
+      "for i in 0 .. tag . len ()",
+      "{",
+      "probe = probe . wrapping_add ((tag [i] as u32) . wrapping_mul ((i as u32) + 1)) ;",
+      "if (probe & 4) == 4",
+      "{",
+      "msg ! (\"probe hit {}\" , probe) ;",
+      "} } ctx . accounts . arc . hash = ctx . accounts . arc . hash . wrapping_add (probe) ;",
+      "}",
+      "let seeds = [& ctx . accounts . player . key () . to_bytes () [..] , & tag [..]] ;",
+      "let addr = Pubkey :: create_program_address (& seeds , & ctx . program_id , & [bump]) . map_err (| _ | error ! (QErr :: Cell)) ? ;",
+      "if addr != ctx . accounts . arc_cell . key ()",
+      "{",
+      "msg ! (\"advance mismatch\") ;",
+      "return Err (error ! (QErr :: Cell)) ;",
+      "}",
+      "let a = & mut ctx . accounts . arc ;",
+      "let mut s = step as u32 ;",
+      "if s > 5000",
+      "{",
+      "let clip = s - 5000 ;",
+      "s = 5000 ;",
+      "a . hash = a . hash . wrapping_add (clip) ;",
+      "}",
+      "let mut i = 0u32 ;",
+      "while i < s . min (16)",
+      "{",
+      "a . progress = a . progress . saturating_add (1) ;",
+      "if (a . progress & 7) == 0",
+      "{",
+      "a . hash = a . hash . wrapping_add (19) ;",
+      "msg ! (\"milestone",
+      "{",
+      "}\" , a . progress) ;",
+      "} i = i . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "StartArc",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "arc",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Arc >"
+      },
+      {
+        "name": "arc_cell",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "player",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AdvanceArc",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "arc",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Arc >"
+      },
+      {
+        "name": "arc_cell",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "player",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Arc",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "player",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "Vec < u8 >"
+      },
+      {
+        "name": "progress",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "hash",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

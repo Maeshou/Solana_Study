@@ -1,0 +1,122 @@
+[
+  {
+    "name": "fuse_items",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < FuseItems >",
+      "new_suffix: String"
+    ],
+    "attributes": [
+      "# [doc = \" base_nft と catalyst_nft を融合するが、\"]",
+      "# [doc = \" 同一アカウントチェックが抜けている Duplicate Mutable Account 脆弱性あり\"]"
+    ],
+    "body": [
+      "let base = & mut ctx . accounts . base_nft ;",
+      "let catalyst = & mut ctx . accounts . catalyst_nft ;",
+      "let clock = & ctx . accounts . clock ;",
+      "let lvl = base . level . saturating_add (catalyst . level) ;",
+      "base . level = cmp :: min (lvl , 100) ;",
+      "base . xp = base . xp . checked_add (catalyst . xp) . unwrap_or (u64 :: MAX) ;",
+      "base . rarity = cmp :: max (base . rarity , catalyst . rarity) ;",
+      "for i in 0 .. base . attributes . len () . min (catalyst . attributes . len ())",
+      "{",
+      "base . attributes [i] |= catalyst . attributes [i] ;",
+      "}",
+      "for & abil in catalyst . abilities . iter ()",
+      "{",
+      "base . abilities . push (abil) ;",
+      "}",
+      "let ts = clock . unix_timestamp ;",
+      "base . history . push (format ! (\"Fused at {}\" , ts)) ;",
+      "base . title . push_str (\"-\") ;",
+      "base . title . push_str (& new_suffix) ;",
+      "catalyst . xp = 0 ;",
+      "catalyst . level = 0 ;",
+      "catalyst . rarity = 0 ;",
+      "catalyst . attributes . clear () ;",
+      "catalyst . abilities . clear () ;",
+      "catalyst . history . push (format ! (\"Used as catalyst at {}\" , ts)) ;",
+      "msg ! (\"Fusion complete: '{}' lvl={} xp={} rarity={}\" , base . title , base . level , base . xp , base . rarity) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "FuseItems",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "base_nft",
+        "attribute": "# [doc = \" 融合されるメインNFT\"] # [account (mut)]",
+        "field_type": "Account < 'info , GameNft >"
+      },
+      {
+        "name": "catalyst_nft",
+        "attribute": "# [doc = \" 融合に使われる触媒NFT\"] # [account (mut)]",
+        "field_type": "Account < 'info , GameNft >"
+      },
+      {
+        "name": "player",
+        "attribute": "# [doc = \" 実行プレイヤー（署名者）\"] # [account (signer)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": "# [doc = \" 現在時刻取得用\"]",
+        "field_type": "Sysvar < 'info , Clock >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GameNft",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" NFT 保有者\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "title",
+        "attribute": "# [doc = \" NFT 名称\"]",
+        "field_type": "String"
+      },
+      {
+        "name": "level",
+        "attribute": "# [doc = \" レベル (0–100)\"]",
+        "field_type": "u8"
+      },
+      {
+        "name": "xp",
+        "attribute": "# [doc = \" 経験値\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "rarity",
+        "attribute": "# [doc = \" レア度 (0–255)\"]",
+        "field_type": "u8"
+      },
+      {
+        "name": "attributes",
+        "attribute": "# [doc = \" 属性バイト列\"]",
+        "field_type": "Vec < u8 >"
+      },
+      {
+        "name": "abilities",
+        "attribute": "# [doc = \" 特殊能力IDリスト\"]",
+        "field_type": "Vec < u16 >"
+      },
+      {
+        "name": "history",
+        "attribute": "# [doc = \" 操作履歴ログ\"]",
+        "field_type": "Vec < String >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

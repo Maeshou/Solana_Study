@@ -1,0 +1,602 @@
+[
+  {
+    "name": "init_auction_house",
+    "inputs": [
+      "ctx: Context < InitAuctionHouse >"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let house = & mut ctx . accounts . auction_house ;"
+      },
+      {
+        "id": 2,
+        "label": "house . operator = ctx . accounts . operator . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "house . total_auctions = 0 ;"
+      },
+      {
+        "id": 4,
+        "label": "house . commission_rate = 10 ;"
+      },
+      {
+        "id": 5,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: house"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: house"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: house"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: house"
+      }
+    ]
+  },
+  {
+    "name": "create_auction",
+    "inputs": [
+      "ctx: Context < CreateAuction >",
+      "starting_price: u64"
+    ],
+    "nodes": [
+      {
+        "id": 6,
+        "label": "Entry"
+      },
+      {
+        "id": 7,
+        "label": "let auction = & mut ctx . accounts . auction ;"
+      },
+      {
+        "id": 8,
+        "label": "auction . house = ctx . accounts . auction_house . key () ;"
+      },
+      {
+        "id": 9,
+        "label": "auction . seller = ctx . accounts . seller . key () ;"
+      },
+      {
+        "id": 10,
+        "label": "auction . starting_price = starting_price ;"
+      },
+      {
+        "id": 11,
+        "label": "auction . current_bid = starting_price ;"
+      },
+      {
+        "id": 12,
+        "label": "auction . highest_bidder = Pubkey :: default () ;"
+      },
+      {
+        "id": 13,
+        "label": "auction . active = true ;"
+      },
+      {
+        "id": 14,
+        "label": "let house = & mut ctx . accounts . auction_house ;"
+      },
+      {
+        "id": 15,
+        "label": "house . total_auctions = house . total_auctions . checked_add (1) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 16,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 7,
+        "to": 7,
+        "label": "def: auction"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: auction"
+      },
+      {
+        "from": 7,
+        "to": 9,
+        "label": "data_dep: auction"
+      },
+      {
+        "from": 7,
+        "to": 10,
+        "label": "data_dep: auction"
+      },
+      {
+        "from": 7,
+        "to": 11,
+        "label": "data_dep: auction"
+      },
+      {
+        "from": 7,
+        "to": 12,
+        "label": "data_dep: auction"
+      },
+      {
+        "from": 7,
+        "to": 13,
+        "label": "data_dep: auction"
+      },
+      {
+        "from": 14,
+        "to": 14,
+        "label": "def: house"
+      },
+      {
+        "from": 14,
+        "to": 15,
+        "label": "data_dep: house"
+      },
+      {
+        "from": 14,
+        "to": 15,
+        "label": "data_dep: house"
+      }
+    ]
+  },
+  {
+    "name": "vulnerable_bid",
+    "inputs": [
+      "ctx: Context < VulnerableBid >"
+    ],
+    "nodes": [
+      {
+        "id": 17,
+        "label": "Entry"
+      },
+      {
+        "id": 18,
+        "label": "let house = & mut ctx . accounts . auction_house ;"
+      },
+      {
+        "id": 19,
+        "label": "let auction_info = & ctx . accounts . auction_account ;"
+      },
+      {
+        "id": 20,
+        "label": "let bidder_info = & ctx . accounts . bidder_account ;"
+      },
+      {
+        "id": 21,
+        "label": "let auction_data = auction_info . try_borrow_mut_data () ? ;"
+      },
+      {
+        "id": 22,
+        "label": "if auction_data . len () >= 80 { let mut current_bid_bytes = [0u8 ; 8] ; current_bid_bytes . copy_from_slice (& auction_data [72 .. 80]) ; let mut current_bid = u64 :: from_le_bytes (current_bid_bytes) ; for bid_round in 0 .. 6 { if current_bid < 10000 { let bid_increment = (bid_round + 1) as u64 * 100 ; current_bid = current_bid . checked_add (bid_increment) . unwrap_or (u64 :: MAX) ; let new_bid_bytes = current_bid . to_le_bytes () ; auction_data [72 .. 80] . copy_from_slice (& new_bid_bytes) ; house . commission_rate = (house . commission_rate + bid_round as u32) . min (25) ; msg ! (\"Bid round {}: new bid = {}\" , bid_round , current_bid) ; } else { let commission = current_bid / 10 ; house . total_auctions = house . total_auctions . checked_add (commission) . unwrap_or (u64 :: MAX) ; current_bid = (current_bid >> 1) | 0x8000_0000_0000_0000 ; let adjusted_bytes = current_bid . to_le_bytes () ; auction_data [72 .. 80] . copy_from_slice (& adjusted_bytes) ; msg ! (\"Commission collected: {}\" , commission) ; } } }"
+      },
+      {
+        "id": 23,
+        "label": "let mut current_bid_bytes = [0u8 ; 8] ;"
+      },
+      {
+        "id": 24,
+        "label": "current_bid_bytes . copy_from_slice (& auction_data [72 .. 80]) ;"
+      },
+      {
+        "id": 25,
+        "label": "let mut current_bid = u64 :: from_le_bytes (current_bid_bytes) ;"
+      },
+      {
+        "id": 26,
+        "label": "for bid_round in 0 .. 6 { if current_bid < 10000 { let bid_increment = (bid_round + 1) as u64 * 100 ; current_bid = current_bid . checked_add (bid_increment) . unwrap_or (u64 :: MAX) ; let new_bid_bytes = current_bid . to_le_bytes () ; auction_data [72 .. 80] . copy_from_slice (& new_bid_bytes) ; house . commission_rate = (house . commission_rate + bid_round as u32) . min (25) ; msg ! (\"Bid round {}: new bid = {}\" , bid_round , current_bid) ; } else { let commission = current_bid / 10 ; house . total_auctions = house . total_auctions . checked_add (commission) . unwrap_or (u64 :: MAX) ; current_bid = (current_bid >> 1) | 0x8000_0000_0000_0000 ; let adjusted_bytes = current_bid . to_le_bytes () ; auction_data [72 .. 80] . copy_from_slice (& adjusted_bytes) ; msg ! (\"Commission collected: {}\" , commission) ; } }"
+      },
+      {
+        "id": 27,
+        "label": "if current_bid < 10000 { let bid_increment = (bid_round + 1) as u64 * 100 ; current_bid = current_bid . checked_add (bid_increment) . unwrap_or (u64 :: MAX) ; let new_bid_bytes = current_bid . to_le_bytes () ; auction_data [72 .. 80] . copy_from_slice (& new_bid_bytes) ; house . commission_rate = (house . commission_rate + bid_round as u32) . min (25) ; msg ! (\"Bid round {}: new bid = {}\" , bid_round , current_bid) ; } else { let commission = current_bid / 10 ; house . total_auctions = house . total_auctions . checked_add (commission) . unwrap_or (u64 :: MAX) ; current_bid = (current_bid >> 1) | 0x8000_0000_0000_0000 ; let adjusted_bytes = current_bid . to_le_bytes () ; auction_data [72 .. 80] . copy_from_slice (& adjusted_bytes) ; msg ! (\"Commission collected: {}\" , commission) ; }"
+      },
+      {
+        "id": 28,
+        "label": "let bid_increment = (bid_round + 1) as u64 * 100 ;"
+      },
+      {
+        "id": 29,
+        "label": "current_bid = current_bid . checked_add (bid_increment) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 30,
+        "label": "let new_bid_bytes = current_bid . to_le_bytes () ;"
+      },
+      {
+        "id": 31,
+        "label": "auction_data [72 .. 80] . copy_from_slice (& new_bid_bytes) ;"
+      },
+      {
+        "id": 32,
+        "label": "house . commission_rate = (house . commission_rate + bid_round as u32) . min (25) ;"
+      },
+      {
+        "id": 33,
+        "label": "msg ! (\"Bid round {}: new bid = {}\" , bid_round , current_bid) ;"
+      },
+      {
+        "id": 34,
+        "label": "let commission = current_bid / 10 ;"
+      },
+      {
+        "id": 35,
+        "label": "house . total_auctions = house . total_auctions . checked_add (commission) . unwrap_or (u64 :: MAX) ;"
+      },
+      {
+        "id": 36,
+        "label": "current_bid = (current_bid >> 1) | 0x8000_0000_0000_0000 ;"
+      },
+      {
+        "id": 37,
+        "label": "let adjusted_bytes = current_bid . to_le_bytes () ;"
+      },
+      {
+        "id": 38,
+        "label": "auction_data [72 .. 80] . copy_from_slice (& adjusted_bytes) ;"
+      },
+      {
+        "id": 39,
+        "label": "msg ! (\"Commission collected: {}\" , commission) ;"
+      },
+      {
+        "id": 40,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 18,
+        "to": 18,
+        "label": "def: house"
+      },
+      {
+        "from": 19,
+        "to": 19,
+        "label": "def: auction_info"
+      },
+      {
+        "from": 20,
+        "to": 20,
+        "label": "def: bidder_info"
+      },
+      {
+        "from": 21,
+        "to": 21,
+        "label": "def: auction_data"
+      },
+      {
+        "from": 19,
+        "to": 21,
+        "label": "data_dep: auction_info"
+      },
+      {
+        "from": 21,
+        "to": 22,
+        "label": "data_dep: auction_data"
+      },
+      {
+        "from": 21,
+        "to": 22,
+        "label": "data_dep: auction_data"
+      },
+      {
+        "from": 21,
+        "to": 22,
+        "label": "data_dep: auction_data"
+      },
+      {
+        "from": 18,
+        "to": 22,
+        "label": "data_dep: house"
+      },
+      {
+        "from": 18,
+        "to": 22,
+        "label": "data_dep: house"
+      },
+      {
+        "from": 18,
+        "to": 22,
+        "label": "data_dep: house"
+      },
+      {
+        "from": 18,
+        "to": 22,
+        "label": "data_dep: house"
+      },
+      {
+        "from": 21,
+        "to": 22,
+        "label": "data_dep: auction_data"
+      },
+      {
+        "from": 23,
+        "to": 23,
+        "label": "def: current_bid_bytes"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "data_dep: current_bid_bytes"
+      },
+      {
+        "from": 21,
+        "to": 24,
+        "label": "data_dep: auction_data"
+      },
+      {
+        "from": 25,
+        "to": 25,
+        "label": "def: current_bid"
+      },
+      {
+        "from": 23,
+        "to": 25,
+        "label": "data_dep: current_bid_bytes"
+      },
+      {
+        "from": 25,
+        "to": 26,
+        "label": "data_dep: current_bid"
+      },
+      {
+        "from": 25,
+        "to": 26,
+        "label": "data_dep: current_bid"
+      },
+      {
+        "from": 25,
+        "to": 26,
+        "label": "data_dep: current_bid"
+      },
+      {
+        "from": 25,
+        "to": 26,
+        "label": "data_dep: current_bid"
+      },
+      {
+        "from": 21,
+        "to": 26,
+        "label": "data_dep: auction_data"
+      },
+      {
+        "from": 18,
+        "to": 26,
+        "label": "data_dep: house"
+      },
+      {
+        "from": 18,
+        "to": 26,
+        "label": "data_dep: house"
+      },
+      {
+        "from": 25,
+        "to": 26,
+        "label": "data_dep: current_bid"
+      },
+      {
+        "from": 18,
+        "to": 26,
+        "label": "data_dep: house"
+      },
+      {
+        "from": 18,
+        "to": 26,
+        "label": "data_dep: house"
+      },
+      {
+        "from": 25,
+        "to": 26,
+        "label": "data_dep: current_bid"
+      },
+      {
+        "from": 25,
+        "to": 26,
+        "label": "data_dep: current_bid"
+      },
+      {
+        "from": 25,
+        "to": 26,
+        "label": "data_dep: current_bid"
+      },
+      {
+        "from": 21,
+        "to": 26,
+        "label": "data_dep: auction_data"
+      },
+      {
+        "from": 25,
+        "to": 27,
+        "label": "data_dep: current_bid"
+      },
+      {
+        "from": 25,
+        "to": 27,
+        "label": "data_dep: current_bid"
+      },
+      {
+        "from": 25,
+        "to": 27,
+        "label": "data_dep: current_bid"
+      },
+      {
+        "from": 25,
+        "to": 27,
+        "label": "data_dep: current_bid"
+      },
+      {
+        "from": 21,
+        "to": 27,
+        "label": "data_dep: auction_data"
+      },
+      {
+        "from": 18,
+        "to": 27,
+        "label": "data_dep: house"
+      },
+      {
+        "from": 18,
+        "to": 27,
+        "label": "data_dep: house"
+      },
+      {
+        "from": 25,
+        "to": 27,
+        "label": "data_dep: current_bid"
+      },
+      {
+        "from": 18,
+        "to": 27,
+        "label": "data_dep: house"
+      },
+      {
+        "from": 18,
+        "to": 27,
+        "label": "data_dep: house"
+      },
+      {
+        "from": 25,
+        "to": 27,
+        "label": "data_dep: current_bid"
+      },
+      {
+        "from": 25,
+        "to": 27,
+        "label": "data_dep: current_bid"
+      },
+      {
+        "from": 25,
+        "to": 27,
+        "label": "data_dep: current_bid"
+      },
+      {
+        "from": 21,
+        "to": 27,
+        "label": "data_dep: auction_data"
+      },
+      {
+        "from": 28,
+        "to": 28,
+        "label": "def: bid_increment"
+      },
+      {
+        "from": 25,
+        "to": 29,
+        "label": "data_dep: current_bid"
+      },
+      {
+        "from": 25,
+        "to": 29,
+        "label": "data_dep: current_bid"
+      },
+      {
+        "from": 28,
+        "to": 29,
+        "label": "data_dep: bid_increment"
+      },
+      {
+        "from": 30,
+        "to": 30,
+        "label": "def: new_bid_bytes"
+      },
+      {
+        "from": 25,
+        "to": 30,
+        "label": "data_dep: current_bid"
+      },
+      {
+        "from": 21,
+        "to": 31,
+        "label": "data_dep: auction_data"
+      },
+      {
+        "from": 30,
+        "to": 31,
+        "label": "data_dep: new_bid_bytes"
+      },
+      {
+        "from": 18,
+        "to": 32,
+        "label": "data_dep: house"
+      },
+      {
+        "from": 18,
+        "to": 32,
+        "label": "data_dep: house"
+      },
+      {
+        "from": 34,
+        "to": 34,
+        "label": "def: commission"
+      },
+      {
+        "from": 25,
+        "to": 34,
+        "label": "data_dep: current_bid"
+      },
+      {
+        "from": 18,
+        "to": 35,
+        "label": "data_dep: house"
+      },
+      {
+        "from": 18,
+        "to": 35,
+        "label": "data_dep: house"
+      },
+      {
+        "from": 34,
+        "to": 35,
+        "label": "data_dep: commission"
+      },
+      {
+        "from": 25,
+        "to": 36,
+        "label": "data_dep: current_bid"
+      },
+      {
+        "from": 25,
+        "to": 36,
+        "label": "data_dep: current_bid"
+      },
+      {
+        "from": 37,
+        "to": 37,
+        "label": "def: adjusted_bytes"
+      },
+      {
+        "from": 25,
+        "to": 37,
+        "label": "data_dep: current_bid"
+      },
+      {
+        "from": 21,
+        "to": 38,
+        "label": "data_dep: auction_data"
+      },
+      {
+        "from": 37,
+        "to": 38,
+        "label": "data_dep: adjusted_bytes"
+      }
+    ]
+  }
+]

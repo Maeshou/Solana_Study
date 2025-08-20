@@ -1,0 +1,84 @@
+[
+  {
+    "name": "tip",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < TipCtx >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" NFT 保有者が指定した金額を「チップ」した実績を記録します。\"]",
+      "# [doc = \" - `amount`: 今回のチップ額（lamports）\"]",
+      "# [doc = \" 署名チェックは user: AccountInfo のまま省略、分岐・ループなし。\"]"
+    ],
+    "body": [
+      "let rec = & mut ctx . accounts . tip_data ;",
+      "rec . count = rec . count . saturating_add (1) ;",
+      "rec . total = rec . total . saturating_add (amount) ;"
+    ]
+  },
+  {
+    "name": "TipCtx",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "fee_payer",
+        "attribute": "# [doc = \" トランザクション手数料支払い用（署名必須）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" チップを行うユーザー（署名チェック omitted intentionally）\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "hold_acc",
+        "attribute": "# [doc = \" チップ元として NFT 保有を確認する TokenAccount\"] # [account (constraint = hold_acc . owner == * user . key , constraint = hold_acc . mint == nft_mint . key ())]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "nft_mint",
+        "attribute": "# [doc = \" 対象 NFT の Mint（参照用）\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "tip_data",
+        "attribute": "# [doc = \" NFT ごとのチップ記録を保持する PDA\"] # [account (init_if_needed , payer = fee_payer , seeds = [b\"tip\" , user . key () . as_ref () , nft_mint . key () . as_ref ()] , bump , space = 8 + 8 + 8)]",
+        "field_type": "Account < 'info , TipData >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "rent",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Rent >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TipData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "count",
+        "attribute": "# [doc = \" チップを行った回数\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "total",
+        "attribute": "# [doc = \" 累積チップ額\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

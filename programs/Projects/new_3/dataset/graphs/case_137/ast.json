@@ -1,0 +1,159 @@
+[
+  {
+    "name": "StakePool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "total_staked",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "StakeAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "pool",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "staked_amount",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "StakeDeposited",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "staker",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "amount",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitializePool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": "# [account (init , payer = manager , space = 8 + 32 + 8)]",
+        "field_type": "Account < 'info , StakePool >"
+      },
+      {
+        "name": "manager",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Stake",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": "# [doc = \" StakePool.manager == manager.key() は検証される\"] # [account (mut , has_one = manager)]",
+        "field_type": "Account < 'info , StakePool >"
+      },
+      {
+        "name": "stake_account",
+        "attribute": "# [doc = \" StakeAccount.pool == pool.key() の検証がないため、\"] # [doc = \" 別の任意の StakeAccount を渡しても通ってしまう\"] # [account (mut)]",
+        "field_type": "Account < 'info , StakeAccount >"
+      },
+      {
+        "name": "manager",
+        "attribute": "# [doc = \" プール管理者として署名チェックのみ行われる\"]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "initialize_pool",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializePool >"
+    ],
+    "attributes": [
+      "# [doc = \" プールを初期化\"]"
+    ],
+    "body": [
+      "let pool = & mut ctx . accounts . pool ;",
+      "pool . manager = ctx . accounts . manager . key () ;",
+      "pool . total_staked = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "stake",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Stake >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" ステークを預け入れ\"]"
+    ],
+    "body": [
+      "let pool = & mut ctx . accounts . pool ;",
+      "let stake_acc = & mut ctx . accounts . stake_account ;",
+      "stake_acc . staked_amount = stake_acc . staked_amount . checked_add (amount) . unwrap () ;",
+      "pool . total_staked = pool . total_staked . checked_add (amount) . unwrap () ;",
+      "emit ! (StakeDeposited { pool : pool . key () , staker : stake_acc . owner , amount , }) ;",
+      "Ok (())"
+    ]
+  }
+]

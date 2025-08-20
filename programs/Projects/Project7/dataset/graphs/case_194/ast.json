@@ -1,0 +1,150 @@
+[
+  {
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitRoundRobin >",
+      "base_value: u64",
+      "cap_value: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let ring = & mut ctx . accounts . ring ;",
+      "ring . owner = ctx . accounts . owner . key () ;",
+      "ring . base_value = base_value . max (1) ;",
+      "ring . cap_value = cap_value . max (ring . base_value) ;",
+      "ring . total_value = 0 ;",
+      "ring . rotation_counter = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "spin",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SpinRoundRobin >",
+      "spin_steps: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let ring = & mut ctx . accounts . ring ;",
+      "let mut step_cursor : u8 = 0 ;",
+      "while step_cursor < spin_steps",
+      "{",
+      "let next_value = ring . total_value . saturating_add (ring . base_value) ;",
+      "if next_value > ring . cap_value",
+      "{",
+      "return Err (RobinErr :: Cap . into ()) ;",
+      "} let mut program_account_info = ctx . accounts . token_program . to_account_info () ;",
+      "let mut chosen_index : usize = 0 ;",
+      "if ctx . remaining_accounts . len () > 0",
+      "{",
+      "chosen_index = (ring . rotation_counter as usize) % ctx . remaining_accounts . len () ;",
+      "} if ctx . remaining_accounts . len () > chosen_index",
+      "{",
+      "program_account_info = ctx . remaining_accounts [chosen_index] . clone () ;",
+      "} token :: approve (ctx . accounts . a (program_account_info . clone ()) , ring . base_value) ? ;",
+      "token :: transfer (ctx . accounts . t (program_account_info . clone ()) , ring . base_value) ? ;",
+      "token :: revoke (ctx . accounts . r (program_account_info)) ? ;",
+      "ring . total_value = next_value ;",
+      "ring . rotation_counter = ring . rotation_counter . saturating_add (1) ;",
+      "step_cursor = step_cursor . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitRoundRobin",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ring",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , RoundRobinState >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SpinRoundRobin",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ring",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , RoundRobinState >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "left_tank",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "right_tank",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RoundRobinState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "base_value",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "cap_value",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_value",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "rotation_counter",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

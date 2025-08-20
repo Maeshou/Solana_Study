@@ -1,0 +1,87 @@
+[
+  {
+    "name": "EnhanceRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "level",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "enhancements",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "reserved",
+        "attribute": null,
+        "field_type": "[u8 ; 6]"
+      },
+      {
+        "name": "timestamp",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "enhance_item",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < EnhanceItem >",
+      "inc: u8"
+    ],
+    "attributes": [
+      "# [doc = \" アイテムを強化し、強化回数とタイムスタンプを更新する  \"]",
+      "# [doc = \" (`item_account` の owner チェックを一切行っていないため、  \"]",
+      "# [doc = \"  他人のアイテムを好きなだけ強化できます)\"]"
+    ],
+    "body": [
+      "let now = ctx . accounts . clock . unix_timestamp as u64 ;",
+      "let data = & mut ctx . accounts . item_account . data . borrow_mut () ;",
+      "let min_len = std :: mem :: size_of :: < EnhanceRecord > () + 32 ;",
+      "if data . len () < min_len",
+      "{",
+      "return err ! (ErrorCode :: DataTooShort) ;",
+      "}",
+      "let (head , tail) = data . split_at_mut (std :: mem :: size_of :: < EnhanceRecord > ()) ;",
+      "let mut record : & mut EnhanceRecord = bytemuck :: from_bytes_mut (head) ;",
+      "record . level = record . level . saturating_add (inc) ;",
+      "record . enhancements = record . enhancements . saturating_add (inc) ;",
+      "record . timestamp = now ;",
+      "let user_pk = ctx . accounts . user . key () . to_bytes () ;",
+      "tail [.. 32] . copy_from_slice (& user_pk) ;",
+      "msg ! (\"Enhanced {}: level→{} (＋{}), total→{} at {} by {}\" , ctx . accounts . item_account . key () , record . level , inc , record . enhancements , now , ctx . accounts . user . key ()) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "EnhanceItem",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "item_account",
+        "attribute": "# [doc = \" CHECK: owner == program_id の検証を省略している AccountInfo\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": "# [doc = \" Clock Sysvar を受け取る\"]",
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 操作ユーザーの署名のみ検証\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

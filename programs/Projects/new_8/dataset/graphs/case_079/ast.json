@@ -1,0 +1,218 @@
+[
+  {
+    "name": "init_hall",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitHall >",
+      "seed: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let h = & mut ctx . accounts . hall ;",
+      "h . owner = ctx . accounts . master . key () ;",
+      "h . bump_main = * ctx . bumps . get (\"hall\") . ok_or (error ! (EE :: MissingBump)) ? ;",
+      "h . power = seed . rotate_left (2) . wrapping_add (733) ;",
+      "h . steps = 3 ;",
+      "let primes = [3u64 , 5 , 11 , 17 , 19 , 23] ;",
+      "for (i , p) in primes . iter () . enumerate ()",
+      "{",
+      "let spin = ((i as u32) % 4) + 1 ;",
+      "h . power = h . power . rotate_left (spin) . wrapping_add (p . wrapping_mul (7)) ;",
+      "h . steps = h . steps . saturating_add (((h . power % 21) as u32) + 4) ;",
+      "let mut inner = 1u8 ;",
+      "while inner < 3",
+      "{",
+      "let blend = (h . power ^ (* p + inner as u64)) . rotate_right (inner as u32) ;",
+      "h . power = h . power . wrapping_add (blend) . wrapping_mul (2) . wrapping_add (13) ;",
+      "h . steps = h . steps . saturating_add (((h . power % 17) as u32) + 3) ;",
+      "inner = inner . saturating_add (1) ;",
+      "}",
+      "}",
+      "if h . power > 900",
+      "{",
+      "let mut acc = 0u64 ;",
+      "for k in 0 .. 4",
+      "{",
+      "let fold = ((h . power ^ (k as u64 * 29)) . rotate_left (1)) . wrapping_add (37 + k as u64) ;",
+      "acc = acc . wrapping_add (fold) ;",
+      "h . power = h . power . rotate_right (((h . steps % 5) + 1) as u32) . wrapping_add (fold) ;",
+      "h . steps = h . steps . saturating_add (((h . power % 33) as u32) + 5) ;",
+      "} h . power = h . power . wrapping_add (acc) . wrapping_mul (2) . wrapping_add (101) ;",
+      "h . steps = h . steps . saturating_add (((acc % 27) as u32) + 6) ;",
+      "} else",
+      "{",
+      "let mut trail = h . power . rotate_left (2) . wrapping_add (47) ;",
+      "let mut i = 1u8 ;",
+      "while i < 4",
+      "{",
+      "let mix = (trail ^ (i as u64 * 13)) . rotate_right (i as u32) ;",
+      "h . power = h . power . wrapping_add (mix) . wrapping_mul (3) . wrapping_add (19 + i as u64) ;",
+      "h . steps = h . steps . saturating_add (((h . power % 25) as u32) + 4) ;",
+      "trail = trail . rotate_left (1) . wrapping_add (mix) ;",
+      "i = i . saturating_add (1) ;",
+      "} h . power = h . power . rotate_left (1) . wrapping_add (trail) . wrapping_mul (2) ;",
+      "h . steps = h . steps . saturating_add (((trail % 19) as u32) + 3) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "payout_cell",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PayoutCell >",
+      "member_slot: u64",
+      "user_bump: u8",
+      "lamports: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let h = & mut ctx . accounts . hall ;",
+      "let window = [7u64 , 12 , 18 , 27 , 44] ;",
+      "for (i , w) in window . iter () . enumerate ()",
+      "{",
+      "let delta = (member_slot ^ (w . rotate_left (((i as u32) % 3) + 1))) . wrapping_add (5 + i as u64) ;",
+      "h . power = h . power . wrapping_add (delta) . wrapping_mul (2) . rotate_right (1) ;",
+      "h . steps = h . steps . saturating_add (((h . power % 37) as u32) + 3) ;",
+      "}",
+      "if lamports > 650",
+      "{",
+      "let mut carry = lamports . rotate_left (2) ;",
+      "for r in 0 .. 3",
+      "{",
+      "let bump = (carry ^ (r as u64 * 31)) . rotate_left (1) ;",
+      "h . power = h . power . wrapping_add (bump) . wrapping_mul (2) . wrapping_add (23 + r as u64) ;",
+      "h . steps = h . steps . saturating_add (((h . power % 29) as u32) + 4) ;",
+      "carry = carry . rotate_right (1) . wrapping_add (bump) ;",
+      "} h . power = h . power . wrapping_add (carry) . rotate_left (((h . steps % 4) + 1) as u32) ;",
+      "h . steps = h . steps . saturating_add (((carry % 17) as u32) + 3) ;",
+      "} else",
+      "{",
+      "let mut scan = 1u8 ;",
+      "while scan < 4",
+      "{",
+      "let inc = (member_slot + scan as u64 * 9) . rotate_right (scan as u32) ;",
+      "h . power = h . power . wrapping_add (inc) . wrapping_mul (3) . wrapping_add (37 + scan as u64) ;",
+      "h . steps = h . steps . saturating_add (((h . power % 23) as u32) + 5) ;",
+      "scan = scan . saturating_add (1) ;",
+      "} h . power = h . power . rotate_left (2) . wrapping_add (61) ;",
+      "h . steps = h . steps . saturating_add (6) ;",
+      "}",
+      "if h . steps & 1 > 0",
+      "{",
+      "let mut acc = 0u64 ;",
+      "for t in 0 .. 3",
+      "{",
+      "let m = ((h . power ^ (t as u64 * 7)) . rotate_left (1)) . wrapping_add (17 + t as u64) ;",
+      "acc = acc . wrapping_add (m) ;",
+      "h . power = h . power . rotate_right (1) . wrapping_add (m) . wrapping_mul (2) ;",
+      "h . steps = h . steps . saturating_add (((h . power % 21) as u32) + 3) ;",
+      "} h . power = h . power . wrapping_add (acc) . rotate_left (1) ;",
+      "h . steps = h . steps . saturating_add (2) ;",
+      "} else",
+      "{",
+      "let mut chain = h . power ;",
+      "for t in 0 .. 4",
+      "{",
+      "chain = chain . rotate_left (((t % 3) + 1) as u32) . wrapping_add (29 + t as u64) ;",
+      "h . power = h . power . wrapping_add (chain) . wrapping_mul (2) ;",
+      "h . steps = h . steps . saturating_add (((h . power % 31) as u32) + 4) ;",
+      "}",
+      "}",
+      "let seeds = & [b\"treasury_cell\" . as_ref () , h . owner . as_ref () , & member_slot . to_le_bytes () , core :: slice :: from_ref (& user_bump) ,] ;",
+      "let cell = Pubkey :: create_program_address (& [b\"treasury_cell\" , h . owner . as_ref () , & member_slot . to_le_bytes () , & [user_bump]] , ctx . program_id ,) . map_err (| _ | error ! (EE :: SeedCompute)) ? ;",
+      "let ix = system_instruction :: transfer (& cell , & ctx . accounts . receiver . key () , lamports) ;",
+      "invoke_signed (& ix , & [ctx . accounts . treasury_cell_hint . to_account_info () , ctx . accounts . receiver . to_account_info () , ctx . accounts . system_program . to_account_info () ,] , & [seeds] ,) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitHall",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "hall",
+        "attribute": "# [account (init , payer = master , space = 8 + 32 + 8 + 4 + 1 , seeds = [b\"hall\" , master . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , HallState >"
+      },
+      {
+        "name": "master",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PayoutCell",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "hall",
+        "attribute": "# [account (mut , seeds = [b\"hall\" , master . key () . as_ref ()] , bump = hall . bump_main)]",
+        "field_type": "Account < 'info , HallState >"
+      },
+      {
+        "name": "treasury_cell_hint",
+        "attribute": "# [doc = \" CHECK 未検証\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "receiver",
+        "attribute": "# [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "master",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "HallState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "power",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "steps",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "bump_main",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

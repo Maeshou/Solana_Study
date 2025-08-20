@@ -1,0 +1,292 @@
+[
+  {
+    "name": "init_bridge_config",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitBridgeConfig >",
+      "bridge_fee: u64",
+      "min_transfer: u64",
+      "max_transfer: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let bridge = & mut ctx . accounts . bridge_config ;",
+      "bridge . bridge_operator = ctx . accounts . operator . key () ;",
+      "bridge . bridge_fee = bridge_fee ;",
+      "bridge . min_transfer_amount = min_transfer ;",
+      "bridge . max_transfer_amount = max_transfer ;",
+      "bridge . total_volume_in = 0 ;",
+      "bridge . total_volume_out = 0 ;",
+      "bridge . total_fees_collected = 0 ;",
+      "bridge . successful_transfers = 0 ;",
+      "bridge . failed_transfers = 0 ;",
+      "bridge . is_paused = false ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "execute_cross_chain_transfer",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ExecuteCrossChainTransfer >",
+      "amount: u64",
+      "destination_chain: u8",
+      "recipient: [u8 ; 32]",
+      "nonce: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let bridge = & mut ctx . accounts . bridge_config ;",
+      "let transfer_record = & mut ctx . accounts . transfer_record ;",
+      "let executor = & ctx . accounts . executor ;",
+      "if ! bridge . is_paused && amount >= bridge . min_transfer_amount && amount <= bridge . max_transfer_amount",
+      "{",
+      "let current_time = Clock :: get () ? . unix_timestamp ;",
+      "let fee_amount = bridge . bridge_fee + (amount * 25) / 10000 ;",
+      "let transfer_amount = amount - fee_amount ;",
+      "transfer_record . sender = executor . key () ;",
+      "transfer_record . recipient = recipient ;",
+      "transfer_record . amount = amount ;",
+      "transfer_record . fee_paid = fee_amount ;",
+      "transfer_record . destination_chain = destination_chain ;",
+      "transfer_record . nonce = nonce ;",
+      "transfer_record . initiated_at = current_time ;",
+      "transfer_record . status = 0 ;",
+      "let mut validation_score = 0u32 ;",
+      "if amount > 1000 && amount < 1000000",
+      "{",
+      "validation_score += 25 ;",
+      "} let mut recipient_score = 0u32 ;",
+      "for byte in recipient . iter ()",
+      "{",
+      "recipient_score += * byte as u32 ;",
+      "} if recipient_score % 100 > 20",
+      "{",
+      "validation_score += 25 ;",
+      "} if nonce > bridge . last_processed_nonce",
+      "{",
+      "validation_score += 25 ;",
+      "bridge . last_processed_nonce = nonce ;",
+      "} let supported_chains = [1 , 2 , 3 , 4 , 5] ;",
+      "if supported_chains . contains (& destination_chain)",
+      "{",
+      "validation_score += 25 ;",
+      "} if validation_score >= 75",
+      "{",
+      "transfer_record . status = 1 ;",
+      "transfer_record . validation_score = validation_score ;",
+      "bridge . total_volume_out += transfer_amount ;",
+      "bridge . total_fees_collected += fee_amount ;",
+      "bridge . successful_transfers += 1 ;",
+      "bridge . chain_liquidity [destination_chain as usize] += transfer_amount ;",
+      "if amount > bridge . max_transfer_amount / 2",
+      "{",
+      "transfer_record . requires_manual_review = true ;",
+      "bridge . high_value_transfers += 1 ;",
+      "} for i in 0 .. 5",
+      "{",
+      "if i == destination_chain as usize { bridge . transfer_counts_by_chain [i] += 1 ;",
+      "break ;",
+      "} } } else",
+      "{",
+      "transfer_record . status = 3 ;",
+      "bridge . failed_transfers += 1 ;",
+      "}",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitBridgeConfig",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "bridge_config",
+        "attribute": "# [account (init , payer = operator , space = 8 + 800)]",
+        "field_type": "Account < 'info , BridgeConfig >"
+      },
+      {
+        "name": "operator",
+        "attribute": "# [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ExecuteCrossChainTransfer",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "bridge_config",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , BridgeConfig >"
+      },
+      {
+        "name": "transfer_record",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TransferRecord >"
+      },
+      {
+        "name": "executor",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BridgeConfig",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "bridge_operator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "bridge_fee",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "min_transfer_amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "max_transfer_amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_volume_in",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_volume_out",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_fees_collected",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "successful_transfers",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "failed_transfers",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "high_value_transfers",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "last_processed_nonce",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "is_paused",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "chain_liquidity",
+        "attribute": null,
+        "field_type": "[u64 ; 10]"
+      },
+      {
+        "name": "transfer_counts_by_chain",
+        "attribute": null,
+        "field_type": "[u32 ; 5]"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TransferRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "sender",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "recipient",
+        "attribute": null,
+        "field_type": "[u8 ; 32]"
+      },
+      {
+        "name": "amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "fee_paid",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "destination_chain",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "nonce",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "initiated_at",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "completed_at",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "status",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "validation_score",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "requires_manual_review",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

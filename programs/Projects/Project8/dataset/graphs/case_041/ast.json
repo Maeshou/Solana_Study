@@ -1,0 +1,148 @@
+[
+  {
+    "name": "harvest_from_land",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < HarvestFromLand >"
+    ],
+    "attributes": [],
+    "body": [
+      "let land = & mut ctx . accounts . land_plot ;",
+      "let player_resources = & mut ctx . accounts . player_resources ;",
+      "let clock = Clock :: get () ? ;",
+      "let current_timestamp = clock . unix_timestamp ;",
+      "let time_elapsed = current_timestamp . saturating_sub (land . last_harvest_timestamp) ;",
+      "require ! (time_elapsed > 3600 , GameError :: HarvestOnCooldown) ;",
+      "let mut harvest_amount : u64 = 0 ;",
+      "for _ in 0 .. (time_elapsed / 60)",
+      "{",
+      "if land . rarity == 1",
+      "{",
+      "harvest_amount += 10 ;",
+      "} if land . rarity == 2",
+      "{",
+      "harvest_amount += 25 ;",
+      "} if land . rarity == 3",
+      "{",
+      "harvest_amount += 70 ;",
+      "}",
+      "}",
+      "let resource_id_to_add = land . resource_type ;",
+      "let mut resource_updated = false ;",
+      "for resource in player_resources . resources . iter_mut ()",
+      "{",
+      "if resource . resource_id == resource_id_to_add",
+      "{",
+      "resource . amount += harvest_amount ;",
+      "resource_updated = true ;",
+      "}",
+      "}",
+      "if ! resource_updated",
+      "{",
+      "player_resources . resources . push (Resource",
+      "{",
+      "resource_id : resource_id_to_add , amount : harvest_amount , }) ;",
+      "}",
+      "land . last_harvest_timestamp = current_timestamp ;",
+      "msg ! (\"Harvested {} of resource {}!\" , harvest_amount , resource_id_to_add) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "HarvestFromLand",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "land_plot",
+        "attribute": "# [account (mut , seeds = [b\"land\" , owner . key () . as_ref () , land_plot . mint . as_ref ()] , bump = land_plot . bump)]",
+        "field_type": "Account < 'info , LandPlot >"
+      },
+      {
+        "name": "player_resources",
+        "attribute": "# [account (mut , seeds = [b\"resources\" , owner . key () . as_ref ()] , bump = player_resources . bump)]",
+        "field_type": "Account < 'info , PlayerResources >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "LandPlot",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "mint",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "rarity",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "resource_type",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "last_harvest_timestamp",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PlayerResources",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "resources",
+        "attribute": null,
+        "field_type": "Vec < Resource >"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Resource",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "resource_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "amount",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

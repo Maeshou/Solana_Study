@@ -1,0 +1,288 @@
+[
+  {
+    "name": "init_auction_house",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitAuctionHouse >",
+      "house_name: String",
+      "commission_rate: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let auction_house = & mut ctx . accounts . auction_house ;",
+      "auction_house . owner = ctx . accounts . owner . key () ;",
+      "auction_house . house_name = house_name ;",
+      "auction_house . commission_rate = commission_rate ;",
+      "auction_house . total_auctions = 0 ;",
+      "auction_house . total_volume = 0 ;",
+      "auction_house . is_operational = true ;",
+      "auction_house . created_at = Clock :: get () ? . unix_timestamp ;",
+      "msg ! (\"Auction house '{}' created\" , auction_house . house_name) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_art_listing",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitArtListing >",
+      "art_title: String",
+      "starting_bid: u64",
+      "reserve_price: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let listing = & mut ctx . accounts . listing ;",
+      "listing . auction_house = ctx . accounts . auction_house . key () ;",
+      "listing . artist = ctx . accounts . artist . key () ;",
+      "listing . art_title = art_title ;",
+      "listing . starting_bid = starting_bid ;",
+      "listing . current_bid = starting_bid ;",
+      "listing . reserve_price = reserve_price ;",
+      "listing . bid_count = 0 ;",
+      "listing . status = AuctionStatus :: Open ;",
+      "listing . created_at = Clock :: get () ? . unix_timestamp ;",
+      "msg ! (\"Art '{}' listed with starting bid: {}\" , listing . art_title , starting_bid) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "process_auction_bidding",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ProcessAuctionBidding >",
+      "bid_iterations: u32",
+      "increment_base: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let auction_house = & mut ctx . accounts . auction_house ;",
+      "let listing = & mut ctx . accounts . listing ;",
+      "let mut iteration = 0 ;",
+      "while iteration < bid_iterations",
+      "{",
+      "if listing . status == AuctionStatus :: Open",
+      "{",
+      "let bid_increment = increment_base . checked_add ((iteration as u64) * 500) . unwrap_or (u64 :: MAX) ;",
+      "listing . current_bid = listing . current_bid . checked_add (bid_increment) . unwrap_or (u64 :: MAX) ;",
+      "listing . bid_count = listing . bid_count . checked_add (1) . unwrap_or (u32 :: MAX) ;",
+      "let commission_bits = (iteration ^ 0x9) << 2 ;",
+      "let commission = (listing . current_bid * commission_bits as u64) / 10000 ;",
+      "auction_house . total_volume = auction_house . total_volume . checked_add (commission) . unwrap_or (u64 :: MAX) ;",
+      "msg ! (\"Bid iteration",
+      "{",
+      "}: new bid {}\" , iteration , listing . current_bid) ;",
+      "} else",
+      "{",
+      "listing . current_bid = listing . current_bid . checked_add (increment_base / 10) . unwrap_or (u64 :: MAX) ;",
+      "let final_commission = (listing . current_bid * auction_house . commission_rate as u64) / 10000 ;",
+      "auction_house . total_volume = auction_house . total_volume . checked_add (final_commission) . unwrap_or (u64 :: MAX) ;",
+      "let price_sqrt = integer_sqrt (listing . current_bid) ;",
+      "listing . reserve_price = listing . reserve_price . max (price_sqrt) . min (listing . current_bid) ;",
+      "msg ! (\"Closed auction iteration",
+      "{",
+      "}: final adjustments\" , iteration) ;",
+      "} iteration += 1 ;",
+      "}",
+      "for stats_round in 0 .. 4",
+      "{",
+      "auction_house . total_auctions = auction_house . total_auctions . checked_add (stats_round as u64 + 1) . unwrap_or (u64 :: MAX) ;",
+      "let avg_volume = (auction_house . total_volume * 98 + listing . current_bid * 2) / 100 ;",
+      "auction_house . total_volume = avg_volume ;",
+      "listing . bid_count = listing . bid_count ^ (stats_round % 16) ;",
+      "msg ! (\"Statistics round",
+      "{",
+      "}: total auctions {}\" , stats_round , auction_house . total_auctions) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitAuctionHouse",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "auction_house",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 64 + 2 + 8 + 8 + 1 + 8)]",
+        "field_type": "Account < 'info , AuctionHouse >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitArtListing",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "auction_house",
+        "attribute": null,
+        "field_type": "Account < 'info , AuctionHouse >"
+      },
+      {
+        "name": "listing",
+        "attribute": "# [account (init , payer = artist , space = 8 + 32 + 32 + 64 + 8 + 8 + 8 + 4 + 1 + 8)]",
+        "field_type": "Account < 'info , ArtListing >"
+      },
+      {
+        "name": "artist",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ProcessAuctionBidding",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "auction_house",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , AuctionHouse >"
+      },
+      {
+        "name": "listing",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , ArtListing >"
+      },
+      {
+        "name": "bidder_account",
+        "attribute": "# [doc = \" CHECK: 入札者の検証が不十分\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "seller_account",
+        "attribute": "# [doc = \" CHECK: 出品者の検証が不十分\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "auctioneer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AuctionHouse",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "house_name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "commission_rate",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "total_auctions",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_volume",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "is_operational",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "created_at",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ArtListing",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "auction_house",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "artist",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "art_title",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "starting_bid",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "current_bid",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "reserve_price",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "bid_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "status",
+        "attribute": null,
+        "field_type": "AuctionStatus"
+      },
+      {
+        "name": "created_at",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

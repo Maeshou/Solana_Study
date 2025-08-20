@@ -1,0 +1,103 @@
+[
+  {
+    "name": "set_reward_rate",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SetRate >",
+      "lamports_per_nft: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 1. 報酬レート設定：NFT 1枚あたりの lamports を登録する\"]"
+    ],
+    "body": [
+      "let cfg = & mut ctx . accounts . rate_config ;",
+      "cfg . lamports_per_nft = lamports_per_nft ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "distribute_rewards",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Distribute >",
+      "nft_count: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 2. 報酬配布：指定枚数分の lamports を vault から受取アカウントへ移す  \"]",
+      "# [doc = \"    オーバーフローや残高不足はすべて `unwrap()` でパニック扱い\"]"
+    ],
+    "body": [
+      "let cfg = & ctx . accounts . rate_config ;",
+      "let vault = ctx . accounts . vault . to_account_info () ;",
+      "let recipient = ctx . accounts . recipient . to_account_info () ;",
+      "let total = cfg . lamports_per_nft . checked_mul (nft_count) . unwrap () ;",
+      "* * vault . lamports . borrow_mut () -= total ;",
+      "* * recipient . lamports . borrow_mut () += total ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "RateConfig",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "lamports_per_nft",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SetRate",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "rate_config",
+        "attribute": "# [account (init , payer = authority , space = 8 + 8)]",
+        "field_type": "Account < 'info , RateConfig >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Distribute",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": "# [doc = \" 報酬保管用アカウント\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "recipient",
+        "attribute": "# [doc = \" 報酬受取先アカウント\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "rate_config",
+        "attribute": "# [doc = \" レート設定アカウント\"]",
+        "field_type": "Account < 'info , RateConfig >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

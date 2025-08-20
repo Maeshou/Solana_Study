@@ -1,0 +1,207 @@
+[
+  {
+    "name": "Plan",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "price",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "subscribers",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Subscription",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "subscriber",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "plan",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "expiry",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PlanRenewed",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "subscription",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "new_expiry",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitializePlan",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "plan",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 8)]",
+        "field_type": "Account < 'info , Plan >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Subscribe",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "plan",
+        "attribute": "# [doc = \" Plan.owner == owner.key() は検証される\"] # [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Plan >"
+      },
+      {
+        "name": "subscription",
+        "attribute": "# [doc = \" 新規 Subscription を作成するが、plan フィールドに plan.key() を入れるだけで検証ナシ\"] # [account (init , payer = subscriber , space = 8 + 32 + 32 + 8)]",
+        "field_type": "Account < 'info , Subscription >"
+      },
+      {
+        "name": "subscriber",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RenewSubscription",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "subscription",
+        "attribute": "# [doc = \" Subscription.subscriber == subscriber.key() は検証される\"] # [account (mut , has_one = subscriber)]",
+        "field_type": "Account < 'info , Subscription >"
+      },
+      {
+        "name": "plan",
+        "attribute": "# [doc = \" Plan.key() と subscription.plan の一致チェックが **一切ない**\"] # [account (mut)]",
+        "field_type": "Account < 'info , Plan >"
+      },
+      {
+        "name": "subscriber",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "initialize_plan",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializePlan >",
+      "price: u64"
+    ],
+    "attributes": [
+      "# [doc = \" プランを初期化\"]"
+    ],
+    "body": [
+      "let plan = & mut ctx . accounts . plan ;",
+      "plan . owner = ctx . accounts . owner . key () ;",
+      "plan . price = price ;",
+      "plan . subscribers = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "subscribe",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Subscribe >"
+    ],
+    "attributes": [
+      "# [doc = \" サブスクライブ（登録）\"]"
+    ],
+    "body": [
+      "let plan = & mut ctx . accounts . plan ;",
+      "let sub = & mut ctx . accounts . subscription ;",
+      "sub . subscriber = ctx . accounts . subscriber . key () ;",
+      "sub . plan = plan . key () ;",
+      "sub . expiry = Clock :: get () ? . unix_timestamp + 30 * 24 * 60 * 60 ;",
+      "plan . subscribers = plan . subscribers . checked_add (1) . unwrap () ;",
+      "msg ! (\"{} がプラン {} にサブスクライブしました\" , sub . subscriber , plan . key ()) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "renew",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RenewSubscription >",
+      "extra_days: i64"
+    ],
+    "attributes": [
+      "# [doc = \" サブスクリプションを延長\"]"
+    ],
+    "body": [
+      "let plan = & mut ctx . accounts . plan ;",
+      "let sub = & mut ctx . accounts . subscription ;",
+      "sub . expiry = sub . expiry . checked_add (extra_days * 24 * 60 * 60) . unwrap () ;",
+      "plan . price = plan . price . checked_add (sub . plan != plan . key () as u64) . unwrap () ;",
+      "emit ! (PlanRenewed { subscription : sub . key () , new_expiry : sub . expiry , }) ;",
+      "msg ! (\"{} のサブスクリプション有効期限を {} に延長しました\" , sub . subscriber , sub . expiry) ;",
+      "Ok (())"
+    ]
+  }
+]

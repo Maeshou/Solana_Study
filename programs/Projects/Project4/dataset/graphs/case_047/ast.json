@@ -1,33 +1,81 @@
 [
   {
-    "name": "initialize_security_policy",
+    "name": "init_course",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Initialize047 >",
-      "param: u64"
+      "ctx: Context < InitCourse >",
+      "capacity: u8",
+      "default_students: Vec < Pubkey >"
     ],
     "attributes": [],
     "body": [
-      "let mut data = SecurityPolicyData :: try_from_slice (& ctx . accounts . data_account . data . borrow ()) ? ;",
-      "data . value = param ;",
-      "data . serialize (& mut * ctx . accounts . data_account . data . borrow_mut ()) ? ;",
+      "let course = & mut ctx . accounts . course ;",
+      "course . capacity = capacity ;",
+      "course . enrolled = 0 ;",
+      "let roster = & mut ctx . accounts . roster ;",
+      "roster . students = Vec :: new () ;",
+      "for pk in default_students . iter () . take (capacity as usize)",
+      "{",
+      "roster . students . push (* pk) ;",
+      "course . enrolled += 1 ;",
+      "}",
+      "let stats = & mut ctx . accounts . stats ;",
+      "stats . enrolled = course . enrolled as u32 ;",
+      "stats . started_at = Clock :: get () ? . unix_timestamp ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Initialize047",
+    "name": "add_student",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AddStudent >",
+      "student: Pubkey"
+    ],
+    "attributes": [],
+    "body": [
+      "let course = & mut ctx . accounts . course ;",
+      "let roster = & mut ctx . accounts . roster ;",
+      "let stats = & mut ctx . accounts . stats ;",
+      "if course . enrolled < course . capacity",
+      "{",
+      "roster . students . push (student) ;",
+      "course . enrolled += 1 ;",
+      "stats . enrolled = course . enrolled as u32 ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitCourse",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "course",
+        "attribute": "# [account (init , payer = teacher , space = 8 + 1 + 1)]",
+        "field_type": "Account < 'info , CourseData >"
       },
       {
-        "name": "authority",
-        "attribute": null,
+        "name": "roster",
+        "attribute": "# [account (init , payer = teacher , space = 8 + 4 + (32 * 10))]",
+        "field_type": "Account < 'info , RosterData >"
+      },
+      {
+        "name": "stats",
+        "attribute": "# [account (init , payer = teacher , space = 8 + 4 + 8)]",
+        "field_type": "Account < 'info , StatsData >"
+      },
+      {
+        "name": "teacher",
+        "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -35,13 +83,75 @@
     "body": null
   },
   {
-    "name": "SecurityPolicyData",
+    "name": "AddStudent",
     "node_type": "struct",
     "fields": [
       {
-        "name": "value",
+        "name": "course",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , CourseData >"
+      },
+      {
+        "name": "roster",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , RosterData >"
+      },
+      {
+        "name": "stats",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , StatsData >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CourseData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "capacity",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "u8"
+      },
+      {
+        "name": "enrolled",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RosterData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "students",
+        "attribute": null,
+        "field_type": "Vec < Pubkey >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "StatsData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "enrolled",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "started_at",
+        "attribute": null,
+        "field_type": "i64"
       }
     ],
     "inputs": null,

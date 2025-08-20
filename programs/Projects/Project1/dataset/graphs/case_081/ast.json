@@ -1,0 +1,248 @@
+[
+  {
+    "name": "initialize_pool",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializePool >",
+      "total_gifts: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 管理者だけが呼べるギフトプールの初期化\"]"
+    ],
+    "body": [
+      "let pool = & mut ctx . accounts . pool ;",
+      "pool . admin = ctx . accounts . admin . key () ;",
+      "pool . total = total_gifts ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "initialize_user_claim",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeUserClaim >"
+    ],
+    "attributes": [
+      "# [doc = \" ユーザーごとに一度だけ初回登録\"]"
+    ],
+    "body": [
+      "let uc = & mut ctx . accounts . user_claim ;",
+      "uc . user = ctx . accounts . user . key () ;",
+      "uc . claimed = false ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "claim_gift",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ClaimGift >"
+    ],
+    "attributes": [
+      "# [doc = \" ユーザーがギフトを１つだけ請求\"]"
+    ],
+    "body": [
+      "let pool = & mut ctx . accounts . pool ;",
+      "let uc = & mut ctx . accounts . user_claim ;",
+      "require ! (! uc . claimed , ErrorCode :: AlreadyClaimed) ;",
+      "require ! (pool . total > 0 , ErrorCode :: NoGiftsLeft) ;",
+      "uc . claimed = true ;",
+      "pool . total = pool . total . checked_sub (1) . unwrap () ;",
+      "msg ! (\"🎉 {} claimed a gift! Remaining: {}\" , uc . user , pool . total) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "view_pool",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ViewPool >"
+    ],
+    "attributes": [
+      "# [doc = \" プールの現在状況を確認\"]"
+    ],
+    "body": [
+      "let pool = & ctx . accounts . pool ;",
+      "msg ! (\"Pool managed by {} has {} gifts left\" , pool . admin , pool . total) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "view_user",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ViewUser >"
+    ],
+    "attributes": [
+      "# [doc = \" 自分の請求状況を確認\"]"
+    ],
+    "body": [
+      "let uc = & ctx . accounts . user_claim ;",
+      "msg ! (\"User {} claimed? {}\" , uc . user , uc . claimed) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializePool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": "# [doc = \" 初回のみ PDA を init してプールを作成\"] # [account (init , payer = admin , space = 8 + 32 + 8 , seeds = [b\"pool\" , admin . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , PoolAccount >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitializeUserClaim",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user_claim",
+        "attribute": "# [doc = \" ユーザーごとに PDA を init\"] # [account (init , payer = user , space = 8 + 32 + 1 , seeds = [b\"claim\" , pool . key () . as_ref () , user . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , UserClaimAccount >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "pool",
+        "attribute": "# [doc = \" プールが存在していることだけ確認\"]",
+        "field_type": "Account < 'info , PoolAccount >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ClaimGift",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": "# [doc = \" 管理者署名ではなくギフト請求者の署名チェック\"] # [account (mut , seeds = [b\"pool\" , pool . admin . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , PoolAccount >"
+      },
+      {
+        "name": "user_claim",
+        "attribute": "# [account (mut , seeds = [b\"claim\" , pool . key () . as_ref () , user . key () . as_ref ()] , bump , has_one = user)]",
+        "field_type": "Account < 'info , UserClaimAccount >"
+      },
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ViewPool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": "# [account (seeds = [b\"pool\" , admin . key () . as_ref ()] , bump , has_one = admin)]",
+        "field_type": "Account < 'info , PoolAccount >"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ViewUser",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user_claim",
+        "attribute": "# [account (seeds = [b\"claim\" , pool . key () . as_ref () , user . key () . as_ref ()] , bump , has_one = user)]",
+        "field_type": "Account < 'info , UserClaimAccount >"
+      },
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "pool",
+        "attribute": null,
+        "field_type": "Account < 'info , PoolAccount >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PoolAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "total",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "UserClaimAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "claimed",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

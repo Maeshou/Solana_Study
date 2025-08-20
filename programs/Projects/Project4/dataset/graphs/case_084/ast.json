@@ -1,33 +1,67 @@
 [
   {
-    "name": "initialize_dex_account",
+    "name": "init_memory",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Initialize084 >",
-      "param: u64"
+      "ctx: Context < InitMemory >",
+      "total: u32"
     ],
     "attributes": [],
     "body": [
-      "let mut data = DexAccountData :: try_from_slice (& ctx . accounts . data_account . data . borrow ()) ? ;",
-      "data . value = param ;",
-      "data . serialize (& mut * ctx . accounts . data_account . data . borrow_mut ()) ? ;",
+      "let m = & mut ctx . accounts . memory ;",
+      "m . total_mem = total ;",
+      "m . used_mem = 0 ;",
+      "m . mem_ok_flag = false ;",
+      "let rate = if total > 0 { m . used_mem * 100 / total } else { 0 } ;",
+      "if rate < 80",
+      "{",
+      "m . mem_ok_flag = true ;",
+      "}",
       "Ok (())"
     ]
   },
   {
-    "name": "Initialize084",
+    "name": "allocate_mem",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AllocateMem >",
+      "amount: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let m = & mut ctx . accounts . memory ;",
+      "m . used_mem = m . used_mem . saturating_add (amount . min (m . total_mem - m . used_mem)) ;",
+      "let rate = if m . total_mem > 0 { m . used_mem * 100 / m . total_mem } else { 0 } ;",
+      "if rate >= 90",
+      "{",
+      "m . mem_ok_flag = false ;",
+      "} else",
+      "{",
+      "m . mem_ok_flag = true ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitMemory",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "memory",
+        "attribute": "# [account (init , payer = user , space = 8 + 4 * 2 + 1)]",
+        "field_type": "Account < 'info , MemoryMonitorData >"
       },
       {
-        "name": "authority",
-        "attribute": null,
+        "name": "user",
+        "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -35,13 +69,37 @@
     "body": null
   },
   {
-    "name": "DexAccountData",
+    "name": "AllocateMem",
     "node_type": "struct",
     "fields": [
       {
-        "name": "value",
+        "name": "memory",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , MemoryMonitorData >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MemoryMonitorData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "total_mem",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "u32"
+      },
+      {
+        "name": "used_mem",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "mem_ok_flag",
+        "attribute": null,
+        "field_type": "bool"
       }
     ],
     "inputs": null,

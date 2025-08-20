@@ -1,40 +1,185 @@
 [
   {
-    "name": "merge_accounts",
+    "name": "init_brew",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx042 >",
-      "amount: u64"
+      "ctx: Context < InitBrew >",
+      "base_q32: u64"
     ],
     "attributes": [],
     "body": [
-      "let src = & mut ctx . accounts . account_src ;",
-      "let dst = & mut ctx . accounts . account_dst ;",
-      "let before = * * src . to_account_info () . try_borrow_lamports () ? ;",
-      "* * src . to_account_info () . try_borrow_mut_lamports () ? = before . saturating_sub (amount) ;",
-      "* * dst . to_account_info () . try_borrow_mut_lamports () ? += amount ;",
+      "let a = & mut ctx . accounts ;",
+      "a . house . alchemist = a . alchemist . key () ;",
+      "a . house . base_q32 = base_q32 ;",
+      "a . house . stage = Mash ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx042",
+    "name": "infuse",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Infuse >",
+      "rounds: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let a = & mut ctx . accounts ;",
+      "for _ in 0 .. rounds",
+      "{",
+      "a . kettle . essence_q32 = a . kettle . essence_q32 . wrapping_add (a . house . base_q32 >> 6) ;",
+      "a . kettle . density_q32 = ((u128 :: from (a . kettle . density_q32) * 5) / 4) . min (u128 :: from (u64 :: MAX)) as u64 ;",
+      "a . ledger . casks = a . ledger . casks . wrapping_add (1) ;",
+      "}",
+      "if (a . kettle . essence_q32 >> 32) > 200",
+      "{",
+      "a . house . stage = Age ;",
+      "a . ledger . notes = a . ledger . notes . wrapping_add (3) ;",
+      "a . kettle . density_q32 = a . kettle . density_q32 + (1u64 << 31) ;",
+      "a . kettle . tint = a . kettle . tint . rotate_left (5) ^ 0x5A5A_7E7E ;",
+      "msg ! (\"aging: +notes, density+0.5, tint mix\") ;",
+      "} else",
+      "{",
+      "a . house . stage = Boil ;",
+      "a . ledger . casks = a . ledger . casks . wrapping_mul (2) ;",
+      "a . kettle . essence_q32 = a . kettle . essence_q32 + (1u64 << 32) ;",
+      "a . kettle . tint = a . kettle . tint . wrapping_add (17) ;",
+      "msg ! (\"boiling: casks*2, essence+1.0, tint+\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitBrew",
     "node_type": "struct",
     "fields": [
       {
-        "name": "account_src",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "house",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 8 + 1)]",
+        "field_type": "Account < 'info , BrewHouse >"
       },
       {
-        "name": "account_dst",
+        "name": "kettle",
+        "attribute": "# [account (init , payer = payer , space = 8 + 8 + 8 + 4)]",
+        "field_type": "Account < 'info , KettleQ32 >"
+      },
+      {
+        "name": "ledger",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4 + 4)]",
+        "field_type": "Account < 'info , BrewLedger >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "alchemist",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
       },
       {
         "name": "system_program",
         "attribute": null,
         "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Infuse",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "house",
+        "attribute": "# [account (mut , has_one = alchemist , constraint = house . key () != kettle . key () , error = PtfpErr :: Dup)]",
+        "field_type": "Account < 'info , BrewHouse >"
+      },
+      {
+        "name": "kettle",
+        "attribute": "# [account (mut , constraint = kettle . key () != ledger . key () , error = PtfpErr :: Dup)]",
+        "field_type": "Account < 'info , KettleQ32 >"
+      },
+      {
+        "name": "ledger",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , BrewLedger >"
+      },
+      {
+        "name": "alchemist",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BrewHouse",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "alchemist",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "base_q32",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "stage",
+        "attribute": null,
+        "field_type": "BrewStage"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "KettleQ32",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "essence_q32",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "density_q32",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "tint",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BrewLedger",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "casks",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "notes",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

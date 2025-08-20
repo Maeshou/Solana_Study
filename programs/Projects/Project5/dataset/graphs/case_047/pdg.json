@@ -1,8 +1,9 @@
 [
   {
-    "name": "refresh_reserve",
+    "name": "init_loom",
     "inputs": [
-      "ctx: Context < Ctx047 >"
+      "ctx: Context < InitLoomHash >",
+      "limit: u32"
     ],
     "nodes": [
       {
@@ -11,19 +12,19 @@
       },
       {
         "id": 1,
-        "label": "let a = & ctx . accounts . first ;"
+        "label": "let a = & mut ctx . accounts ;"
       },
       {
         "id": 2,
-        "label": "let b = & ctx . accounts . second ;"
+        "label": "a . loom . artist = a . artist . key () ;"
       },
       {
         "id": 3,
-        "label": "msg ! (\"Account A: {}\" , a . key ()) ;"
+        "label": "a . loom . limit = limit ;"
       },
       {
         "id": 4,
-        "label": "msg ! (\"Account B: {}\" , b . key ()) ;"
+        "label": "a . loom . state = Draft ;"
       },
       {
         "id": 5,
@@ -37,9 +38,442 @@
         "label": "def: a"
       },
       {
-        "from": 2,
+        "from": 1,
         "to": 2,
-        "label": "def: b"
+        "label": "data_dep: a"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: a"
+      }
+    ]
+  },
+  {
+    "name": "weave",
+    "inputs": [
+      "ctx: Context < DoWeave >",
+      "passes: u32"
+    ],
+    "nodes": [
+      {
+        "id": 6,
+        "label": "Entry"
+      },
+      {
+        "id": 7,
+        "label": "let a = & mut ctx . accounts ;"
+      },
+      {
+        "id": 8,
+        "label": "for i in 0 .. passes { let seed = [& a . loom . artist . as_ref () , & a . palette . hues . to_le_bytes () , & i . to_le_bytes ()] ; let h = hashv (& seed) ; let bump = u16 :: from_le_bytes ([h . 0 [0] , h . 0 [1]]) as u32 % 97 + 3 ; a . thread_a . strands = a . thread_a . strands . wrapping_add (bump) ; a . thread_b . strands = a . thread_b . strands . wrapping_add (bump ^ 0x55) ; a . palette . hues = a . palette . hues . rotate_left ((bump % 13) + 1) ; a . log . mixes = a . log . mixes . wrapping_add (1) ; }"
+      },
+      {
+        "id": 9,
+        "label": "let seed = [& a . loom . artist . as_ref () , & a . palette . hues . to_le_bytes () , & i . to_le_bytes ()] ;"
+      },
+      {
+        "id": 10,
+        "label": "let h = hashv (& seed) ;"
+      },
+      {
+        "id": 11,
+        "label": "let bump = u16 :: from_le_bytes ([h . 0 [0] , h . 0 [1]]) as u32 % 97 + 3 ;"
+      },
+      {
+        "id": 12,
+        "label": "a . thread_a . strands = a . thread_a . strands . wrapping_add (bump) ;"
+      },
+      {
+        "id": 13,
+        "label": "a . thread_b . strands = a . thread_b . strands . wrapping_add (bump ^ 0x55) ;"
+      },
+      {
+        "id": 14,
+        "label": "a . palette . hues = a . palette . hues . rotate_left ((bump % 13) + 1) ;"
+      },
+      {
+        "id": 15,
+        "label": "a . log . mixes = a . log . mixes . wrapping_add (1) ;"
+      },
+      {
+        "id": 16,
+        "label": "let sum = a . thread_a . strands . wrapping_add (a . thread_b . strands) ;"
+      },
+      {
+        "id": 17,
+        "label": "if sum > a . loom . limit { a . loom . state = Seal ; a . log . events = a . log . events . wrapping_add (2) ; a . palette . hues ^= 0xA5A5_5A5A ; a . thread_b . strands = a . thread_b . strands ^ (a . thread_a . strands >> 1) ; msg ! (\"sealed: events+2, palette xor, cross mask\") ; } else { a . loom . state = Flow ; a . thread_a . strands = a . thread_a . strands . rotate_left (2) ; a . thread_b . strands = a . thread_b . strands . rotate_right (3) ; a . log . mixes = a . log . mixes . wrapping_add (1) ; msg ! (\"flow: rotate strands, mixes+1\") ; }"
+      },
+      {
+        "id": 18,
+        "label": "a . loom . state = Seal ;"
+      },
+      {
+        "id": 19,
+        "label": "a . log . events = a . log . events . wrapping_add (2) ;"
+      },
+      {
+        "id": 20,
+        "label": "a . palette . hues ^= 0xA5A5_5A5A ;"
+      },
+      {
+        "id": 21,
+        "label": "a . thread_b . strands = a . thread_b . strands ^ (a . thread_a . strands >> 1) ;"
+      },
+      {
+        "id": 22,
+        "label": "msg ! (\"sealed: events+2, palette xor, cross mask\") ;"
+      },
+      {
+        "id": 23,
+        "label": "a . loom . state = Flow ;"
+      },
+      {
+        "id": 24,
+        "label": "a . thread_a . strands = a . thread_a . strands . rotate_left (2) ;"
+      },
+      {
+        "id": 25,
+        "label": "a . thread_b . strands = a . thread_b . strands . rotate_right (3) ;"
+      },
+      {
+        "id": 26,
+        "label": "a . log . mixes = a . log . mixes . wrapping_add (1) ;"
+      },
+      {
+        "id": 27,
+        "label": "msg ! (\"flow: rotate strands, mixes+1\") ;"
+      },
+      {
+        "id": 28,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 7,
+        "to": 7,
+        "label": "def: a"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 9,
+        "to": 9,
+        "label": "def: seed"
+      },
+      {
+        "from": 7,
+        "to": 9,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 9,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 10,
+        "to": 10,
+        "label": "def: h"
+      },
+      {
+        "from": 9,
+        "to": 10,
+        "label": "data_dep: seed"
+      },
+      {
+        "from": 11,
+        "to": 11,
+        "label": "def: bump"
+      },
+      {
+        "from": 10,
+        "to": 11,
+        "label": "data_dep: h"
+      },
+      {
+        "from": 10,
+        "to": 11,
+        "label": "data_dep: h"
+      },
+      {
+        "from": 7,
+        "to": 12,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 12,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 11,
+        "to": 12,
+        "label": "data_dep: bump"
+      },
+      {
+        "from": 7,
+        "to": 13,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 13,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 11,
+        "to": 13,
+        "label": "data_dep: bump"
+      },
+      {
+        "from": 7,
+        "to": 14,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 14,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 11,
+        "to": 14,
+        "label": "data_dep: bump"
+      },
+      {
+        "from": 7,
+        "to": 15,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 15,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 16,
+        "to": 16,
+        "label": "def: sum"
+      },
+      {
+        "from": 7,
+        "to": 16,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 16,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 16,
+        "to": 17,
+        "label": "data_dep: sum"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 18,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 19,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 19,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 20,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 21,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 21,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 21,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 23,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 24,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 24,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 25,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 25,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 26,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 7,
+        "to": 26,
+        "label": "data_dep: a"
       }
     ]
   }

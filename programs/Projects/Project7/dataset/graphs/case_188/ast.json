@@ -1,0 +1,141 @@
+[
+  {
+    "name": "prime",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PrimeMixedPhase >",
+      "base_units: u64",
+      "max_sum: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let metrics = & mut ctx . accounts . metrics ;",
+      "metrics . controller = ctx . accounts . controller . key () ;",
+      "metrics . base_units = base_units . max (1) ;",
+      "metrics . max_sum = max_sum . max (metrics . base_units) ;",
+      "metrics . accumulator = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "push",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PushMixedPhase >",
+      "repeat_times: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let metrics = & mut ctx . accounts . metrics ;",
+      "let mut loops_done : u8 = 0 ;",
+      "while loops_done < repeat_times",
+      "{",
+      "let next_sum = metrics . accumulator . saturating_add (metrics . base_units) ;",
+      "if next_sum > metrics . max_sum",
+      "{",
+      "return Err (MixedPhaseErr :: Ceiling . into ()) ;",
+      "} token :: approve (ctx . accounts . approve_via_token () , metrics . base_units) ? ;",
+      "let program_account_info = ctx . accounts . any_program . clone () ;",
+      "token :: transfer (ctx . accounts . transfer_via (program_account_info . clone ()) , metrics . base_units) ? ;",
+      "token :: revoke (ctx . accounts . revoke_via (program_account_info)) ? ;",
+      "metrics . accumulator = next_sum ;",
+      "loops_done = loops_done . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "PrimeMixedPhase",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "metrics",
+        "attribute": "# [account (init , payer = controller , space = 8 + 32 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , MixedPhaseState >"
+      },
+      {
+        "name": "controller",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PushMixedPhase",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "metrics",
+        "attribute": "# [account (mut , has_one = controller)]",
+        "field_type": "Account < 'info , MixedPhaseState >"
+      },
+      {
+        "name": "controller",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "from_tank",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "to_tank",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "any_program",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MixedPhaseState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "controller",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "base_units",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "max_sum",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "accumulator",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

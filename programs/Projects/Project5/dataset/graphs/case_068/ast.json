@@ -1,33 +1,222 @@
 [
   {
-    "name": "mint_collectible",
+    "name": "init_tome",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx068 >"
+      "ctx: Context < InitTome >",
+      "seed: u32"
     ],
     "attributes": [],
     "body": [
-      "let a = & ctx . accounts . first ;",
-      "let b = & ctx . accounts . second ;",
-      "msg ! (\"Account A: {}\" , a . key ()) ;",
-      "msg ! (\"Account B: {}\" , b . key ()) ;",
+      "let b = & mut ctx . accounts . stone_b ;",
+      "let lg = & mut ctx . accounts . registry ;",
+      "let p = & mut ctx . accounts . codex ;",
+      "let a = & mut ctx . accounts . stone_a ;",
+      "lg . parent = p . key () ;",
+      "lg . channel = 9 ;",
+      "lg . mark = 0 ;",
+      "for i in 0 .. 6",
+      "{",
+      "lg . mark ^= ((seed as u64 + i as u64 * 97) << (i % 13)) & 0x00FF_FFFF ;",
+      "}",
+      "p . owner = ctx . accounts . scribe . key () ;",
+      "p . capacity = 300 + (seed % 50) ;",
+      "p . stage = Draft ;",
+      "lg . parent = p . key () ;",
+      "a . parent = p . key () ;",
+      "a . slot = (seed & 7) as u8 ;",
+      "a . power = (seed as u64 % 41) + 10 ;",
+      "b . parent = p . key () ;",
+      "b . slot = ((seed >> 3) & 7) as u8 ;",
+      "b . power = ((seed as u64) . rotate_left (7) % 53) + 11 ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx068",
+    "name": "inscribe",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Inscribe >",
+      "n: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let p = & mut ctx . accounts . codex ;",
+      "let a = & mut ctx . accounts . stone_a ;",
+      "let b = & mut ctx . accounts . stone_b ;",
+      "let lg = & mut ctx . accounts . registry ;",
+      "for t in 0 .. n",
+      "{",
+      "let mix = ((a . power ^ b . power) as u64) . wrapping_mul (2654435761) ;",
+      "a . power = a . power . checked_add ((mix & 15) + (t as u64 & 7)) . unwrap_or (u64 :: MAX) ;",
+      "b . power = b . power . saturating_add (((mix >> 8) & 31) + 1) ;",
+      "lg . mark = lg . mark . rotate_left ((t % 31) as u32) ^ (mix & 0x000F_FFFF) ;",
+      "}",
+      "let gauge = (a . power as u128 + b . power as u128) / 3 ;",
+      "if gauge as u64 > p . capacity as u64",
+      "{",
+      "p . stage = Seal ;",
+      "a . power = a . power / 2 + 5 ;",
+      "b . power = b . power / 2 + 7 ;",
+      "lg . channel = lg . channel . saturating_add (1) ;",
+      "msg ! (\"seal: halve stones, channel++\") ;",
+      "} else",
+      "{",
+      "p . stage = Engrave ;",
+      "a . slot ^= 0x3 ;",
+      "b . slot = b . slot . saturating_add (1) ;",
+      "lg . mark ^= 0x000F_0FF0 ;",
+      "msg ! (\"engrave: slot/xor tweaks, mark flip\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitTome",
     "node_type": "struct",
     "fields": [
       {
-        "name": "first",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "codex",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Codex >"
       },
       {
-        "name": "second",
+        "name": "stone_a",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 8)]",
+        "field_type": "Account < 'info , Stone >"
+      },
+      {
+        "name": "stone_b",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 8)]",
+        "field_type": "Account < 'info , Stone >"
+      },
+      {
+        "name": "registry",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 8)]",
+        "field_type": "Account < 'info , Registry >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "scribe",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Inscribe",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "codex",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Codex >"
+      },
+      {
+        "name": "stone_a",
+        "attribute": "# [account (mut , has_one = codex , constraint = stone_a . slot != stone_b . slot @ GlyphErr :: Dup)]",
+        "field_type": "Account < 'info , Stone >"
+      },
+      {
+        "name": "stone_b",
+        "attribute": "# [account (mut , has_one = codex , constraint = stone_b . slot != registry . channel @ GlyphErr :: Dup)]",
+        "field_type": "Account < 'info , Stone >"
+      },
+      {
+        "name": "registry",
+        "attribute": "# [account (mut , has_one = codex)]",
+        "field_type": "Account < 'info , Registry >"
+      },
+      {
+        "name": "scribe",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Codex",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "capacity",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "stage",
+        "attribute": null,
+        "field_type": "TomePhase"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Stone",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "slot",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "power",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Registry",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "channel",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "mark",
+        "attribute": null,
+        "field_type": "u64"
       }
     ],
     "inputs": null,

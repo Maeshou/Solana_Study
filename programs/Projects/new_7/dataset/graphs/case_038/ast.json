@@ -1,0 +1,191 @@
+[
+  {
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Init >"
+    ],
+    "attributes": [],
+    "body": [
+      "let d = & mut ctx . accounts . dao ;",
+      "d . authority = ctx . accounts . authority . key () ;",
+      "d . alt_program = ctx . accounts . authority . key () ;",
+      "d . epoch = 0 ;",
+      "d . score = 0 ;",
+      "let mut i = 0u8 ;",
+      "while i < 6",
+      "{",
+      "d . epoch = d . epoch . saturating_add (1) ;",
+      "d . score = d . score . saturating_add ((i as u32) + 1) ;",
+      "i = i . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "set_alt",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SetAlt >",
+      "next: Pubkey"
+    ],
+    "attributes": [],
+    "body": [
+      "let d = & mut ctx . accounts . dao ;",
+      "require ! (d . authority == ctx . accounts . authority . key () , Errs :: Auth) ;",
+      "d . alt_program = next ;",
+      "let mut s = 0u8 ;",
+      "while s < 4",
+      "{",
+      "if d . score > 0",
+      "{",
+      "d . score = d . score . saturating_sub (1) ;",
+      "} s = s . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "pay",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Pay >",
+      "base: u64",
+      "tag: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let d = & mut ctx . accounts . dao ;",
+      "require ! (d . authority == ctx . accounts . authority . key () , Errs :: Auth) ;",
+      "let mut weight : u64 = 9 ;",
+      "let b = tag . as_bytes () ;",
+      "let mut i = 0usize ;",
+      "while i < b . len ()",
+      "{",
+      "weight = weight . saturating_add ((b [i] as u64) % 11 + 1) ;",
+      "i += 1 ;",
+      "}",
+      "let mut amt = base . saturating_mul (weight) ;",
+      "let mut add = 0u64 ;",
+      "let mut k = 0u8 ;",
+      "while k < 5",
+      "{",
+      "add = add . saturating_add ((k as u64) + ((d . epoch % 7) as u64)) ;",
+      "k = k . saturating_add (1) ;",
+      "}",
+      "amt = amt . saturating_add (add) ;",
+      "let ix = spl_token :: instruction :: transfer (d . alt_program , ctx . accounts . vault . key () , ctx . accounts . recipient_ata . key () , ctx . accounts . authority . key () , & [] , amt ,) ? ;",
+      "invoke (& ix , & [ctx . accounts . vault . to_account_info () , ctx . accounts . recipient_ata . to_account_info () , ctx . accounts . authority . to_account_info () ,]) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Dao",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "alt_program",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "epoch",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "score",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Init",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "dao",
+        "attribute": "# [account (init , payer = authority , space = 8 + 32 + 32 + 4 + 4)]",
+        "field_type": "Account < 'info , Dao >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SetAlt",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "dao",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Dao >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Pay",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "dao",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Dao >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "recipient_ata",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,629 @@
+[
+  {
+    "name": "init_guild",
+    "inputs": [
+      "ctx: Context < InitGuild >",
+      "name_hash: u64"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let g = & mut ctx . accounts . guild ;"
+      },
+      {
+        "id": 2,
+        "label": "g . leader = ctx . accounts . leader . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "g . name_hash = name_hash ;"
+      },
+      {
+        "id": 4,
+        "label": "g . member_count = 0 ;"
+      },
+      {
+        "id": 5,
+        "label": "g . activity_sum = 0 ;"
+      },
+      {
+        "id": 6,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: g"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: g"
+      }
+    ]
+  },
+  {
+    "name": "register_member",
+    "inputs": [
+      "ctx: Context < RegisterMember >",
+      "nickname_hash: u32",
+      "rank: Rank"
+    ],
+    "nodes": [
+      {
+        "id": 7,
+        "label": "Entry"
+      },
+      {
+        "id": 8,
+        "label": "let g = & mut ctx . accounts . guild ;"
+      },
+      {
+        "id": 9,
+        "label": "let m = & mut ctx . accounts . member ;"
+      },
+      {
+        "id": 10,
+        "label": "m . guild = g . key () ;"
+      },
+      {
+        "id": 11,
+        "label": "m . nickname_hash = nickname_hash ;"
+      },
+      {
+        "id": 12,
+        "label": "m . rank = rank ;"
+      },
+      {
+        "id": 13,
+        "label": "m . points = 0 ;"
+      },
+      {
+        "id": 14,
+        "label": "g . member_count = g . member_count . saturating_add (1) ;"
+      },
+      {
+        "id": 15,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 8,
+        "to": 8,
+        "label": "def: g"
+      },
+      {
+        "from": 9,
+        "to": 9,
+        "label": "def: m"
+      },
+      {
+        "from": 9,
+        "to": 10,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 8,
+        "to": 10,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 9,
+        "to": 11,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 9,
+        "to": 12,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 9,
+        "to": 13,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 8,
+        "to": 14,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 8,
+        "to": 14,
+        "label": "data_dep: g"
+      }
+    ]
+  },
+  {
+    "name": "process_week",
+    "inputs": [
+      "ctx: Context < ProcessWeek >",
+      "contributions: Vec < u64 >"
+    ],
+    "nodes": [
+      {
+        "id": 16,
+        "label": "Entry"
+      },
+      {
+        "id": 17,
+        "label": "let g = & mut ctx . accounts . guild ;"
+      },
+      {
+        "id": 18,
+        "label": "let actor = & mut ctx . accounts . actor ;"
+      },
+      {
+        "id": 19,
+        "label": "let target = & mut ctx . accounts . target ;"
+      },
+      {
+        "id": 20,
+        "label": "let board = & mut ctx . accounts . activity_board ;"
+      },
+      {
+        "id": 21,
+        "label": "let mut sum : u128 = 0 ;"
+      },
+      {
+        "id": 22,
+        "label": "let mut mix : u64 = 0 ;"
+      },
+      {
+        "id": 23,
+        "label": "for c in contributions { let clipped = c . min (100_000) ; sum = sum . saturating_add (clipped as u128) ; mix = (mix ^ clipped) . rotate_left (3) ; }"
+      },
+      {
+        "id": 24,
+        "label": "let clipped = c . min (100_000) ;"
+      },
+      {
+        "id": 25,
+        "label": "sum = sum . saturating_add (clipped as u128) ;"
+      },
+      {
+        "id": 26,
+        "label": "mix = (mix ^ clipped) . rotate_left (3) ;"
+      },
+      {
+        "id": 27,
+        "label": "let avg = if contributions . is_empty () { 0 } else { (sum / contributions . len () as u128) as u64 } ;"
+      },
+      {
+        "id": 28,
+        "label": "0"
+      },
+      {
+        "id": 29,
+        "label": "(sum / contributions . len () as u128) as u64"
+      },
+      {
+        "id": 30,
+        "label": "if actor . rank == Officer { actor . points = actor . points . saturating_add (avg + (mix & 0x3FF)) ; target . points = target . points . saturating_add (avg / 2) ; g . activity_sum = g . activity_sum . saturating_add (actor . points) . saturating_add (target . points) ; msg ! (\"Officer path: avg={}, mix={}, actor={}, target={}\" , avg , mix , actor . points , target . points) ; } else { actor . points = actor . points . saturating_add (avg / 2) ; target . points = target . points . saturating_add (avg + ((mix >> 2) & 0x1FF)) ; g . activity_sum = g . activity_sum . saturating_add (actor . points) . saturating_add (target . points) ; msg ! (\"Non-officer path: avg={}, mix={}, actor={}, target={}\" , avg , mix , actor . points , target . points) ; }"
+      },
+      {
+        "id": 31,
+        "label": "actor . points = actor . points . saturating_add (avg + (mix & 0x3FF)) ;"
+      },
+      {
+        "id": 32,
+        "label": "target . points = target . points . saturating_add (avg / 2) ;"
+      },
+      {
+        "id": 33,
+        "label": "g . activity_sum = g . activity_sum . saturating_add (actor . points) . saturating_add (target . points) ;"
+      },
+      {
+        "id": 34,
+        "label": "msg ! (\"Officer path: avg={}, mix={}, actor={}, target={}\" , avg , mix , actor . points , target . points) ;"
+      },
+      {
+        "id": 35,
+        "label": "actor . points = actor . points . saturating_add (avg / 2) ;"
+      },
+      {
+        "id": 36,
+        "label": "target . points = target . points . saturating_add (avg + ((mix >> 2) & 0x1FF)) ;"
+      },
+      {
+        "id": 37,
+        "label": "g . activity_sum = g . activity_sum . saturating_add (actor . points) . saturating_add (target . points) ;"
+      },
+      {
+        "id": 38,
+        "label": "msg ! (\"Non-officer path: avg={}, mix={}, actor={}, target={}\" , avg , mix , actor . points , target . points) ;"
+      },
+      {
+        "id": 39,
+        "label": "let mut x = (g . activity_sum as u128) . max (1) ;"
+      },
+      {
+        "id": 40,
+        "label": "let mut i = 0 ;"
+      },
+      {
+        "id": 41,
+        "label": "while i < 3 { x = (x + (g . activity_sum as u128 / x)) . max (1) / 2 ; i += 1 ; }"
+      },
+      {
+        "id": 42,
+        "label": "x = (x + (g . activity_sum as u128 / x)) . max (1) / 2 ;"
+      },
+      {
+        "id": 43,
+        "label": "i += 1 ;"
+      },
+      {
+        "id": 44,
+        "label": "board . guild = g . key () ;"
+      },
+      {
+        "id": 45,
+        "label": "board . meter = (x as u64) . min (1_000_000) ;"
+      },
+      {
+        "id": 46,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 17,
+        "to": 17,
+        "label": "def: g"
+      },
+      {
+        "from": 18,
+        "to": 18,
+        "label": "def: actor"
+      },
+      {
+        "from": 19,
+        "to": 19,
+        "label": "def: target"
+      },
+      {
+        "from": 20,
+        "to": 20,
+        "label": "def: board"
+      },
+      {
+        "from": 24,
+        "to": 24,
+        "label": "def: clipped"
+      },
+      {
+        "from": 24,
+        "to": 25,
+        "label": "data_dep: clipped"
+      },
+      {
+        "from": 24,
+        "to": 26,
+        "label": "data_dep: clipped"
+      },
+      {
+        "from": 27,
+        "to": 27,
+        "label": "def: avg"
+      },
+      {
+        "from": 18,
+        "to": 30,
+        "label": "data_dep: actor"
+      },
+      {
+        "from": 18,
+        "to": 30,
+        "label": "data_dep: actor"
+      },
+      {
+        "from": 18,
+        "to": 30,
+        "label": "data_dep: actor"
+      },
+      {
+        "from": 27,
+        "to": 30,
+        "label": "data_dep: avg"
+      },
+      {
+        "from": 19,
+        "to": 30,
+        "label": "data_dep: target"
+      },
+      {
+        "from": 19,
+        "to": 30,
+        "label": "data_dep: target"
+      },
+      {
+        "from": 27,
+        "to": 30,
+        "label": "data_dep: avg"
+      },
+      {
+        "from": 17,
+        "to": 30,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 17,
+        "to": 30,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 18,
+        "to": 30,
+        "label": "data_dep: actor"
+      },
+      {
+        "from": 19,
+        "to": 30,
+        "label": "data_dep: target"
+      },
+      {
+        "from": 18,
+        "to": 30,
+        "label": "data_dep: actor"
+      },
+      {
+        "from": 18,
+        "to": 30,
+        "label": "data_dep: actor"
+      },
+      {
+        "from": 27,
+        "to": 30,
+        "label": "data_dep: avg"
+      },
+      {
+        "from": 19,
+        "to": 30,
+        "label": "data_dep: target"
+      },
+      {
+        "from": 19,
+        "to": 30,
+        "label": "data_dep: target"
+      },
+      {
+        "from": 27,
+        "to": 30,
+        "label": "data_dep: avg"
+      },
+      {
+        "from": 17,
+        "to": 30,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 17,
+        "to": 30,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 18,
+        "to": 30,
+        "label": "data_dep: actor"
+      },
+      {
+        "from": 19,
+        "to": 30,
+        "label": "data_dep: target"
+      },
+      {
+        "from": 18,
+        "to": 31,
+        "label": "data_dep: actor"
+      },
+      {
+        "from": 18,
+        "to": 31,
+        "label": "data_dep: actor"
+      },
+      {
+        "from": 27,
+        "to": 31,
+        "label": "data_dep: avg"
+      },
+      {
+        "from": 19,
+        "to": 32,
+        "label": "data_dep: target"
+      },
+      {
+        "from": 19,
+        "to": 32,
+        "label": "data_dep: target"
+      },
+      {
+        "from": 27,
+        "to": 32,
+        "label": "data_dep: avg"
+      },
+      {
+        "from": 17,
+        "to": 33,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 17,
+        "to": 33,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 18,
+        "to": 33,
+        "label": "data_dep: actor"
+      },
+      {
+        "from": 19,
+        "to": 33,
+        "label": "data_dep: target"
+      },
+      {
+        "from": 18,
+        "to": 35,
+        "label": "data_dep: actor"
+      },
+      {
+        "from": 18,
+        "to": 35,
+        "label": "data_dep: actor"
+      },
+      {
+        "from": 27,
+        "to": 35,
+        "label": "data_dep: avg"
+      },
+      {
+        "from": 19,
+        "to": 36,
+        "label": "data_dep: target"
+      },
+      {
+        "from": 19,
+        "to": 36,
+        "label": "data_dep: target"
+      },
+      {
+        "from": 27,
+        "to": 36,
+        "label": "data_dep: avg"
+      },
+      {
+        "from": 17,
+        "to": 37,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 17,
+        "to": 37,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 18,
+        "to": 37,
+        "label": "data_dep: actor"
+      },
+      {
+        "from": 19,
+        "to": 37,
+        "label": "data_dep: target"
+      },
+      {
+        "from": 39,
+        "to": 39,
+        "label": "def: x"
+      },
+      {
+        "from": 17,
+        "to": 39,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 40,
+        "to": 40,
+        "label": "def: i"
+      },
+      {
+        "from": 40,
+        "to": 41,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 39,
+        "to": 41,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 39,
+        "to": 41,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 17,
+        "to": 41,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 39,
+        "to": 41,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 40,
+        "to": 41,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 39,
+        "to": 42,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 39,
+        "to": 42,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 17,
+        "to": 42,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 39,
+        "to": 42,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 40,
+        "to": 43,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 20,
+        "to": 44,
+        "label": "data_dep: board"
+      },
+      {
+        "from": 17,
+        "to": 44,
+        "label": "data_dep: g"
+      },
+      {
+        "from": 20,
+        "to": 45,
+        "label": "data_dep: board"
+      },
+      {
+        "from": 39,
+        "to": 45,
+        "label": "data_dep: x"
+      }
+    ]
+  }
+]

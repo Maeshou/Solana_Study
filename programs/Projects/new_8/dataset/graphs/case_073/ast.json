@@ -1,0 +1,185 @@
+[
+  {
+    "name": "init_escrow",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitEscrow >",
+      "base: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let e = & mut ctx . accounts . escrow ;",
+      "e . merchant = ctx . accounts . merchant . key () ;",
+      "e . bump_main = * ctx . bumps . get (\"escrow\") . ok_or (error ! (E :: MissingBump)) ? ;",
+      "e . stock = base % 5_000 + 500 ;",
+      "e . score = 0 ;",
+      "if e . stock & 3 == 1",
+      "{",
+      "e . stock = e . stock . rotate_left (1) . wrapping_add (37) ;",
+      "e . score = e . score . saturating_add (((e . stock % 29) as u32) + 7) ;",
+      "e . stock = e . stock . wrapping_mul (2) . wrapping_add (19) ;",
+      "e . score = e . score . saturating_add (5) ;",
+      "} else",
+      "{",
+      "e . stock = e . stock . rotate_right (2) . wrapping_add (41) ;",
+      "e . score = e . score . saturating_add (((e . stock % 23) as u32) + 11) ;",
+      "e . stock = e . stock . wrapping_add (77) ;",
+      "e . score = e . score . saturating_add (3) ;",
+      "}",
+      "let mut r = 0u8 ;",
+      "while r < 4",
+      "{",
+      "e . stock = e . stock . wrapping_add (13 + r as u64 * 9) ;",
+      "e . score = e . score . saturating_add (((e . stock % 17) as u32) + r as u32 + 4) ;",
+      "e . stock = e . stock . rotate_left (2) . wrapping_add (15 + r as u64) ;",
+      "e . score = e . score . saturating_add (2) ;",
+      "r = r . saturating_add (1) ;",
+      "}",
+      "for i in 0 .. 3",
+      "{",
+      "e . stock = e . stock . wrapping_mul (2) . wrapping_add (21 + i as u64) ;",
+      "e . score = e . score . saturating_add (((e . stock % 31) as u32) + 8) ;",
+      "e . stock = e . stock . rotate_right (1) . wrapping_add (25) ;",
+      "e . score = e . score . saturating_add (6) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "redeem_coupon",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RedeemCoupon >",
+      "code: [u8 ; 8]",
+      "user_bump: u8",
+      "lamports: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let e = & mut ctx . accounts . escrow ;",
+      "let mut k = 0u8 ;",
+      "while k < 3",
+      "{",
+      "e . stock = e . stock . wrapping_add ((code [k as usize] as u64) + 17 + k as u64) ;",
+      "e . score = e . score . saturating_add (((lamports % 37) as u32) + 5 + k as u32) ;",
+      "e . stock = e . stock . rotate_left (1) . wrapping_add (11 + k as u64) ;",
+      "e . score = e . score . saturating_add (4) ;",
+      "k = k . saturating_add (1) ;",
+      "}",
+      "if e . score & 1 == 0",
+      "{",
+      "e . stock = e . stock . rotate_right (2) . wrapping_add (33) ;",
+      "e . score = e . score . saturating_add (9) ;",
+      "e . stock = e . stock . wrapping_mul (2) . wrapping_add (27) ;",
+      "e . score = e . score . saturating_add (7) ;",
+      "} else",
+      "{",
+      "e . stock = e . stock . rotate_left (2) . wrapping_add (29) ;",
+      "e . score = e . score . saturating_add (12) ;",
+      "e . stock = e . stock . wrapping_add (55) ;",
+      "e . score = e . score . saturating_add (5) ;",
+      "}",
+      "for t in 0 .. 2",
+      "{",
+      "e . stock = e . stock . wrapping_add (19 + t as u64 * 13) ;",
+      "e . score = e . score . saturating_add (((e . stock % 13) as u32) + 6) ;",
+      "e . stock = e . stock . rotate_right (1) . wrapping_add (9) ;",
+      "e . score = e . score . saturating_add (3) ;",
+      "}",
+      "let seeds = & [b\"coupon_vault\" . as_ref () , e . merchant . as_ref () , & code , core :: slice :: from_ref (& user_bump) ,] ;",
+      "let vault = Pubkey :: create_program_address (& [b\"coupon_vault\" , e . merchant . as_ref () , & code , & [user_bump]] , ctx . program_id ,) . map_err (| _ | error ! (E :: SeedCompute)) ? ;",
+      "let ix = system_instruction :: transfer (& vault , & ctx . accounts . redeemer . key () , lamports) ;",
+      "invoke_signed (& ix , & [ctx . accounts . coupon_vault_hint . to_account_info () , ctx . accounts . redeemer . to_account_info () , ctx . accounts . system_program . to_account_info () ,] , & [seeds] ,) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitEscrow",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "escrow",
+        "attribute": "# [account (init , payer = merchant , space = 8 + 32 + 8 + 4 + 1 , seeds = [b\"escrow\" , merchant . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Escrow >"
+      },
+      {
+        "name": "merchant",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RedeemCoupon",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "escrow",
+        "attribute": "# [account (mut , seeds = [b\"escrow\" , merchant . key () . as_ref ()] , bump = escrow . bump_main)]",
+        "field_type": "Account < 'info , Escrow >"
+      },
+      {
+        "name": "coupon_vault_hint",
+        "attribute": "# [doc = \" CHECK\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "redeemer",
+        "attribute": "# [doc = \" CHECK\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "merchant",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Escrow",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "merchant",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "stock",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "score",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "bump_main",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

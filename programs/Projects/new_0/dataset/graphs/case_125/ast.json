@@ -1,0 +1,133 @@
+[
+  {
+    "name": "create_goal",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateGoal >",
+      "target: u64",
+      "description: String"
+    ],
+    "attributes": [
+      "# [doc = \" 新しい貯蓄目標を作成\"]"
+    ],
+    "body": [
+      "if target == 0",
+      "{",
+      "return Err (ErrorCode :: InvalidTarget . into ()) ;",
+      "}",
+      "if description . len () > 128",
+      "{",
+      "return Err (ErrorCode :: DescriptionTooLong . into ()) ;",
+      "}",
+      "let goal = & mut ctx . accounts . goal ;",
+      "goal . owner = ctx . accounts . user . key () ;",
+      "goal . target = target ;",
+      "goal . saved = 0 ;",
+      "goal . description = description ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "add_savings",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AddSavings >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 貯蓄を追加\"]"
+    ],
+    "body": [
+      "if amount == 0",
+      "{",
+      "return Err (ErrorCode :: InvalidAmount . into ()) ;",
+      "}",
+      "let goal = & mut ctx . accounts . goal ;",
+      "if goal . owner != ctx . accounts . user . key ()",
+      "{",
+      "return Err (ErrorCode :: Unauthorized . into ()) ;",
+      "}",
+      "let new_saved = goal . saved . checked_add (amount) . ok_or (ErrorCode :: Overflow) ? ;",
+      "if new_saved > goal . target",
+      "{",
+      "return Err (ErrorCode :: TargetExceeded . into ()) ;",
+      "}",
+      "goal . saved = new_saved ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CreateGoal",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "goal",
+        "attribute": "# [doc = \" 同一アカウントを二度初期化できない（Reinit Attack）\"] # [account (init , payer = user , space = 8 + 32 + 8 + 8 + 4 + 128)]",
+        "field_type": "Account < 'info , GoalAccount >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 貯蓄目標作成者（署名必須）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AddSavings",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "goal",
+        "attribute": "# [doc = \" 型チェック＆所有者チェック (Owner Check / Type Cosplay)\"] # [account (mut)]",
+        "field_type": "Account < 'info , GoalAccount >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 貯蓄を追加するユーザー（Signer Authorization）\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GoalAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" この目標を操作できるユーザー\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "target",
+        "attribute": "# [doc = \" 目標金額 (Lamports 単位)\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "saved",
+        "attribute": "# [doc = \" 現在の貯蓄額\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "description",
+        "attribute": "# [doc = \" 目標の説明（最大128文字）\"]",
+        "field_type": "String"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,162 @@
+[
+  {
+    "name": "init_chain",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitChain >",
+      "base_reward: u64",
+      "chain_length: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let ch = & mut ctx . accounts . chain ;",
+      "ch . admin = ctx . accounts . admin . key () ;",
+      "ch . base_reward = if base_reward < 2 { 2 } else { base_reward } ;",
+      "ch . chain_length = if chain_length < 3 { 3 } else { chain_length } ;",
+      "ch . completed_steps = 0 ;",
+      "ch . total_issued = base_reward / 2 + 1 ;",
+      "ch . mode = ChainMode :: Standard ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_progress",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActProgress >",
+      "steps_done: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let ch = & mut ctx . accounts . chain ;",
+      "let mut add_units = 0u64 ;",
+      "let mut s : u8 = 0 ;",
+      "while s < steps_done",
+      "{",
+      "add_units = add_units + ((s as u64 % 3) + 1) ;",
+      "s = s + 1 ;",
+      "}",
+      "let mut grant = ch . base_reward + add_units ;",
+      "if ch . mode == ChainMode :: Hard",
+      "{",
+      "grant = grant + grant / 4 ;",
+      "}",
+      "if ch . mode == ChainMode :: Easy",
+      "{",
+      "grant = grant - grant / 6 ;",
+      "}",
+      "let next_steps = ch . completed_steps + steps_done as u64 ;",
+      "if next_steps >= ch . chain_length as u64",
+      "{",
+      "grant = grant + 5 ;",
+      "ch . completed_steps = 0 ;",
+      "}",
+      "if next_steps < ch . chain_length as u64",
+      "{",
+      "ch . completed_steps = next_steps ;",
+      "}",
+      "token :: mint_to (ctx . accounts . mint_ctx () , grant) ? ;",
+      "ch . total_issued = ch . total_issued + grant ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitChain",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "chain",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 8 + 1 + 8 + 1)]",
+        "field_type": "Account < 'info , ChainState >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActProgress",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "chain",
+        "attribute": "# [account (mut , has_one = admin)]",
+        "field_type": "Account < 'info , ChainState >"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "reward_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "player_reward_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ChainState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "base_reward",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "chain_length",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "completed_steps",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_issued",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "mode",
+        "attribute": null,
+        "field_type": "ChainMode"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

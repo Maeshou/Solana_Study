@@ -1,0 +1,158 @@
+[
+  {
+    "name": "init_deal",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitDeal >",
+      "base_bps: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let deal = & mut ctx . accounts . deal ;",
+      "deal . manager = ctx . accounts . manager . key () ;",
+      "deal . base_bps = clamp_u16 (base_bps , 500 , 9000) ;",
+      "deal . depth_limit = 2 ;",
+      "deal . round = 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_distribute",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActDistribute >",
+      "revenue_units: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let deal = & mut ctx . accounts . deal ;",
+      "let level1_bps = deal . base_bps as u64 ;",
+      "let level2_bps = level1_bps / 2 ;",
+      "let l1_share = revenue_units * level1_bps / 10_000 ;",
+      "let l2_share = revenue_units * level2_bps / 10_000 ;",
+      "let remainder = revenue_units - l1_share - l2_share ;",
+      "token :: transfer (ctx . accounts . revenue_to_level1 () , l1_share) ? ;",
+      "token :: transfer (ctx . accounts . revenue_to_level2 () , l2_share) ? ;",
+      "token :: transfer (ctx . accounts . revenue_to_manager () , remainder) ? ;",
+      "deal . round = deal . round + 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitDeal",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "deal",
+        "attribute": "# [account (init , payer = manager , space = 8 + 32 + 2 + 1 + 8)]",
+        "field_type": "Account < 'info , ReferralDeal >"
+      },
+      {
+        "name": "manager",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActDistribute",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "deal",
+        "attribute": "# [account (mut , has_one = manager)]",
+        "field_type": "Account < 'info , ReferralDeal >"
+      },
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "revenue_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "referrer1_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "referrer2_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ReferralDeal",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "base_bps",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "depth_limit",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "round",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "clamp_u16",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "v: u16",
+      "lo: u16",
+      "hi: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut o = v ;",
+      "if o < lo",
+      "{",
+      "o = lo ;",
+      "}",
+      "if o > hi",
+      "{",
+      "o = hi ;",
+      "}",
+      "o"
+    ]
+  }
+]

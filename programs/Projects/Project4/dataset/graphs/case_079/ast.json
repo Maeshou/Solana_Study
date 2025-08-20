@@ -1,33 +1,69 @@
 [
   {
-    "name": "initialize_pool_governance",
+    "name": "init_bandwidth",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Initialize079 >",
-      "param: u64"
+      "ctx: Context < InitBandwidth >",
+      "max_bw: u32"
     ],
     "attributes": [],
     "body": [
-      "let mut data = PoolGovernanceData :: try_from_slice (& ctx . accounts . data_account . data . borrow ()) ? ;",
-      "data . value = param ;",
-      "data . serialize (& mut * ctx . accounts . data_account . data . borrow_mut ()) ? ;",
+      "let b = & mut ctx . accounts . bw ;",
+      "b . max_bandwidth = max_bw ;",
+      "b . used_bandwidth = 0 ;",
+      "b . throttle_flag = false ;",
+      "if max_bw > 1000",
+      "{",
+      "b . throttle_flag = true ;",
+      "}",
       "Ok (())"
     ]
   },
   {
-    "name": "Initialize079",
+    "name": "consume_bw",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ConsumeBw >",
+      "amount: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let b = & mut ctx . accounts . bw ;",
+      "if amount > 500",
+      "{",
+      "b . used_bandwidth = b . used_bandwidth . saturating_add (300) ;",
+      "}",
+      "b . used_bandwidth = b . used_bandwidth . saturating_add (amount . min (b . max_bandwidth - b . used_bandwidth)) ;",
+      "if b . used_bandwidth * 100 / b . max_bandwidth > 80",
+      "{",
+      "b . throttle_flag = true ;",
+      "} else",
+      "{",
+      "b . throttle_flag = false ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitBandwidth",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "bw",
+        "attribute": "# [account (init , payer = user , space = 8 + 4 + 4 + 1)]",
+        "field_type": "Account < 'info , BandwidthData >"
       },
       {
-        "name": "authority",
-        "attribute": null,
+        "name": "user",
+        "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -35,13 +71,37 @@
     "body": null
   },
   {
-    "name": "PoolGovernanceData",
+    "name": "ConsumeBw",
     "node_type": "struct",
     "fields": [
       {
-        "name": "value",
+        "name": "bw",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , BandwidthData >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BandwidthData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "max_bandwidth",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "u32"
+      },
+      {
+        "name": "used_bandwidth",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "throttle_flag",
+        "attribute": null,
+        "field_type": "bool"
       }
     ],
     "inputs": null,

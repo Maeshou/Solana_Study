@@ -1,0 +1,182 @@
+[
+  {
+    "name": "withdraw_protected",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ProtectedCtx >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" フルガード：has_one + signer で所有権と署名を検証\"]"
+    ],
+    "body": [
+      "let vault_info = ctx . accounts . vault_account . to_account_info () ;",
+      "let initial = * * vault_info . try_borrow_lamports () ? ;",
+      "* * vault_info . try_borrow_mut_lamports () ? = initial . saturating_sub (amount) ;",
+      "msg ! (\"withdraw_protected: {}→{}\" , initial , initial - amount) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "withdraw_assert",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AssertCtx >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 手動チェック：assert_eq! マクロで vault.owner と caller を検証\"]"
+    ],
+    "body": [
+      "let vault_data = & ctx . accounts . vault_data ;",
+      "assert_eq ! (vault_data . owner , ctx . accounts . user . key ()) ;",
+      "let info = vault_data . to_account_info () ;",
+      "let before = * * info . try_borrow_lamports () ? ;",
+      "* * info . try_borrow_mut_lamports () ? = before . saturating_sub (amount) ;",
+      "msg ! (\"withdraw_assert: {}\" , before - amount) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "withdraw_signonly",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SignedCtx >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 署名のみ：Signer 指定あり、所有権チェックは行わない\"]"
+    ],
+    "body": [
+      "let raw = & ctx . accounts . raw_vault ;",
+      "let current = * * raw . try_borrow_lamports () ? ;",
+      "* * raw . try_borrow_mut_lamports () ? = current . saturating_sub (amount) ;",
+      "msg ! (\"withdraw_signonly: {}\" , current - amount) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "withdraw_generic",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < GenericCtx >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 未検証：任意の追加アカウントにアクセス可能\"]"
+    ],
+    "body": [
+      "for acct in ctx . remaining_accounts . iter ()",
+      "{",
+      "let bal = acct . lamports () ;",
+      "* * acct . try_borrow_mut_lamports () ? = bal . saturating_sub (amount) ;",
+      "}",
+      "msg ! (\"withdraw_generic completed\") ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "ProtectedCtx",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault_account",
+        "attribute": "# [account (mut , has_one = authority)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AssertCtx",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault_data",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SignedCtx",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "raw_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "signer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GenericCtx",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Vault",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

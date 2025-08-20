@@ -1,0 +1,272 @@
+[
+  {
+    "name": "init_cauldron",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitCauldron >",
+      "seed: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let c = & mut ctx . accounts . cauldron ;",
+      "c . owner = ctx . accounts . owner . key () ;",
+      "c . seed = seed ;",
+      "c . brews = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "enroll_caster",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < EnrollCaster >",
+      "kind: Caster",
+      "sigil: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let c = & mut ctx . accounts . cauldron ;",
+      "let a = & mut ctx . accounts . adept ;",
+      "a . cauldron = c . key () ;",
+      "a . kind = kind ;",
+      "a . sigil = sigil ;",
+      "a . power = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "brew",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Brew >",
+      "shards: Vec < u16 >"
+    ],
+    "attributes": [],
+    "body": [
+      "let c = & mut ctx . accounts . cauldron ;",
+      "let x = & mut ctx . accounts . actor ;",
+      "let y = & mut ctx . accounts . partner ;",
+      "let v = & mut ctx . accounts . vessel ;",
+      "let l = & mut ctx . accounts . brew_log ;",
+      "let mut s : u32 = 0 ;",
+      "let mut mix : u16 = 0 ;",
+      "for sh in shards",
+      "{",
+      "let q = (sh & 0x3FF) as u32 ;",
+      "s = s . saturating_add (q) ;",
+      "mix ^= (sh . rotate_left (2)) ^ 0x0F0F ;",
+      "}",
+      "let base = s + (mix as u32 & 0xFF) ;",
+      "if x . kind == Arch",
+      "{",
+      "x . power = x . power . saturating_add ((base / 2) as u16) ;",
+      "y . power = y . power . saturating_add (((mix >> 3) & 0x3F) as u16) ;",
+      "v . quality = v . quality . saturating_add ((base / 4) as u16) ;",
+      "c . brews = c . brews . saturating_add (1) ;",
+      "msg ! (\"Arch branch: base=",
+      "{",
+      "}, xP={}, yP={}, q={}\" , base , x . power , y . power , v . quality) ;",
+      "} else",
+      "{",
+      "x . power = x . power . saturating_add ((base / 3) as u16) ;",
+      "y . power = y . power . saturating_add (((mix >> 1) & 0x7F) as u16) ;",
+      "v . quality = v . quality . saturating_add ((base / 5) as u16) ;",
+      "c . brews = c . brews . saturating_add (1) ;",
+      "msg ! (\"Mage/Novice branch: base=",
+      "{",
+      "}, xP={}, yP={}, q={}\" , base , x . power , y . power , v . quality) ;",
+      "}",
+      "let mut t = (c . brews as u128) . max (1) ;",
+      "let mut i = 0 ;",
+      "while i < 3",
+      "{",
+      "t = (t + (c . brews as u128 / t)) . max (1) / 2 ;",
+      "i += 1 ;",
+      "}",
+      "l . cauldron = c . key () ;",
+      "l . index = (t as u32) . min (1_000_000) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitCauldron",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "cauldron",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 4)]",
+        "field_type": "Account < 'info , Cauldron >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EnrollCaster",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "cauldron",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Cauldron >"
+      },
+      {
+        "name": "adept",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 2 + 2)]",
+        "field_type": "Account < 'info , AdeptCard >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Brew",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "cauldron",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Cauldron >"
+      },
+      {
+        "name": "brew_log",
+        "attribute": "# [account (mut , has_one = cauldron)]",
+        "field_type": "Account < 'info , BrewLog >"
+      },
+      {
+        "name": "actor",
+        "attribute": "# [account (mut , has_one = cauldron , constraint = actor . kind != partner . kind @ ErrCode :: CosplayBlocked)]",
+        "field_type": "Account < 'info , AdeptCard >"
+      },
+      {
+        "name": "partner",
+        "attribute": "# [account (mut , has_one = cauldron)]",
+        "field_type": "Account < 'info , AdeptCard >"
+      },
+      {
+        "name": "vessel",
+        "attribute": "# [account (mut , has_one = cauldron)]",
+        "field_type": "Account < 'info , Vessel >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Cauldron",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "seed",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "brews",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AdeptCard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "cauldron",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "kind",
+        "attribute": null,
+        "field_type": "Caster"
+      },
+      {
+        "name": "sigil",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "power",
+        "attribute": null,
+        "field_type": "u16"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Vessel",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "cauldron",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "quality",
+        "attribute": null,
+        "field_type": "u16"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BrewLog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "cauldron",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "index",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,294 @@
+[
+  {
+    "name": "init_track",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitTrack >",
+      "title: String",
+      "lanes_mask: u32",
+      "seed: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let t = & mut ctx . accounts . track ;",
+      "t . owner = ctx . accounts . marshal . key () ;",
+      "let mut tt = title ;",
+      "if tt . len () > 64",
+      "{",
+      "tt . truncate (64) ;",
+      "}",
+      "t . title = tt ;",
+      "t . lanes_mask = lanes_mask ;",
+      "let mut s = seed ^ 0xD6E8FEB86659FD93u64 ;",
+      "for i in 0 .. t . wind . len ()",
+      "{",
+      "s = s . rotate_left (13) ^ (lanes_mask as u64) ;",
+      "t . wind [i] = ((s >> (i * 5)) as u16) & 0x3FFF ;",
+      "}",
+      "t . epoch = ((seed as u32) % 997 + 1) as u16 ;",
+      "t . mix = (lanes_mask ^ (seed as u32)) & 0xFFFF_FFFF ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_craft",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitCraft >",
+      "craft: Craft",
+      "lane: u8",
+      "bias: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let c = & mut ctx . accounts . craft_card ;",
+      "c . track = ctx . accounts . track . key () ;",
+      "require ! (lane < 32 , ErrCode :: LaneOutOfRange) ;",
+      "let allowed = (ctx . accounts . track . lanes_mask >> lane) & 1 ;",
+      "require ! (allowed == 1 , ErrCode :: LaneDisabled) ;",
+      "c . kind = craft ;",
+      "c . lane = lane ;",
+      "c . energy = 500 + (bias as u32 % 300) ;",
+      "for i in 0 .. c . telemetry . len ()",
+      "{",
+      "c . telemetry [i] = ((c . energy as u16) ^ ((i as u16) * 123)) & 0x7FFF ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "fly_epoch",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < FlyEpoch >",
+      "drift: u16",
+      "factor: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let tr = & mut ctx . accounts . track ;",
+      "let a = & mut ctx . accounts . actor ;",
+      "let r = & mut ctx . accounts . rival ;",
+      "let l = & mut ctx . accounts . log ;",
+      "let mut acc : u32 = 0 ;",
+      "for i in 0 .. tr . wind . len ()",
+      "{",
+      "let local = ((tr . wind [i] as u32) ^ (drift as u32) . rotate_left ((i as u32) & 15)) . wrapping_add ((factor as u32) * ((i as u32) + 1)) ;",
+      "a . telemetry [i % a . telemetry . len ()] = (a . telemetry [i % a . telemetry . len ()] as u32 ^ (local & 0x7FFF)) as u16 ;",
+      "acc = acc . wrapping_add (local & 0x3FFF) ;",
+      "}",
+      "if a . kind == Falcon",
+      "{",
+      "a . energy = a . energy . saturating_add ((acc & 0x1FFF) + (factor as u32)) ;",
+      "tr . mix = tr . mix . rotate_left (5) ^ ((a . lane as u32) << 7) ;",
+      "l . rounds = l . rounds . saturating_add (1) ;",
+      "l . hash = l . hash . wrapping_add ((acc as u64) . rotate_left (17)) ;",
+      "msg ! (\"Falcon path: energy boosted and track mixed\") ;",
+      "} else",
+      "{",
+      "r . energy = r . energy . saturating_add (((acc >> 2) & 0x0FFF) + (drift as u32)) ;",
+      "tr . mix = tr . mix . rotate_right (3) ^ ((r . lane as u32) << 9) ;",
+      "l . rounds = l . rounds . saturating_add (2) ;",
+      "l . hash = l . hash ^ ((acc as u64) . rotate_right (11)) ;",
+      "msg ! (\"Non-Falcon path: rival boosted and track mixed differently\") ;",
+      "}",
+      "for i in 0 .. l . trace . len ()",
+      "{",
+      "l . trace [i] = l . trace [i] . rotate_left ((i as u32) & 7) ^ (tr . mix & 0xFFFF) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitTrack",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "track",
+        "attribute": "# [account (init , payer = marshal , space = 8 + Track :: MAX)]",
+        "field_type": "Account < 'info , Track >"
+      },
+      {
+        "name": "marshal",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitCraft",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "track",
+        "attribute": "# [account (mut , has_one = owner , owner = crate :: ID)]",
+        "field_type": "Account < 'info , Track >"
+      },
+      {
+        "name": "craft_card",
+        "attribute": "# [account (init , payer = pilot , space = 8 + CraftCard :: MAX)]",
+        "field_type": "Account < 'info , CraftCard >"
+      },
+      {
+        "name": "pilot",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "FlyEpoch",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "track",
+        "attribute": "# [account (mut , has_one = owner , owner = crate :: ID)]",
+        "field_type": "Account < 'info , Track >"
+      },
+      {
+        "name": "log",
+        "attribute": "# [account (mut , has_one = track , owner = crate :: ID)]",
+        "field_type": "Account < 'info , FlightLog >"
+      },
+      {
+        "name": "actor",
+        "attribute": "# [account (mut , has_one = track , owner = crate :: ID)]",
+        "field_type": "Account < 'info , CraftCard >"
+      },
+      {
+        "name": "rival",
+        "attribute": "# [account (mut , has_one = track , owner = crate :: ID , constraint = actor . lane != rival . lane @ ErrCode :: CosplayBlocked)]",
+        "field_type": "Account < 'info , CraftCard >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Track",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "title",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "lanes_mask",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "epoch",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "mix",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "wind",
+        "attribute": null,
+        "field_type": "[u16 ; 12]"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CraftCard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "track",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "kind",
+        "attribute": null,
+        "field_type": "Craft"
+      },
+      {
+        "name": "lane",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "energy",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "telemetry",
+        "attribute": null,
+        "field_type": "[u16 ; 16]"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "FlightLog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "track",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "hash",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "rounds",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "trace",
+        "attribute": null,
+        "field_type": "[u32 ; 6]"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

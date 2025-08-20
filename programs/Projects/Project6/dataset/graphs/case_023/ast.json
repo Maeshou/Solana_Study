@@ -1,0 +1,252 @@
+[
+  {
+    "name": "init_guild",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitGuild >",
+      "name: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let g = & mut ctx . accounts . guild ;",
+      "g . authority = ctx . accounts . owner . key () ;",
+      "g . name = name ;",
+      "g . total = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_member",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitMember >",
+      "tier: Tier"
+    ],
+    "attributes": [],
+    "body": [
+      "let m = & mut ctx . accounts . member ;",
+      "m . parent = ctx . accounts . guild . key () ;",
+      "m . tier = tier ;",
+      "m . score = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "award",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Award >",
+      "bonus: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "require ! (ctx . accounts . badge_ta . mint == ctx . accounts . badge_mint . key () , BadgeErr :: MintMismatch) ;",
+      "require ! (ctx . accounts . badge_ta . owner == ctx . accounts . owner . key () , BadgeErr :: OwnerMismatch) ;",
+      "let g = & mut ctx . accounts . guild ;",
+      "let a = & mut ctx . accounts . member_a ;",
+      "let b = & mut ctx . accounts . member_b ;",
+      "let r = & mut ctx . accounts . report ;",
+      "let mut acc = 0u32 ;",
+      "for i in 0 .. 5",
+      "{",
+      "let inc = ((bonus as u32) ^ (i as u32 * 13)) & 0x3FF ;",
+      "r . hist [i] = r . hist [i] . saturating_add (inc) ;",
+      "acc = acc . saturating_add (inc) ;",
+      "}",
+      "if acc & 1 == 0",
+      "{",
+      "a . score = a . score . saturating_add ((acc / 5) as u64) ;",
+      "g . total = g . total . saturating_add (a . score / 10) ;",
+      "r . ok += 1 ;",
+      "} else",
+      "{",
+      "b . score = b . score . saturating_add ((acc / 4) as u64) ;",
+      "g . total = g . total . saturating_add (b . score / 12) ;",
+      "r . ng += 1 ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitGuild",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 64 + 8)]",
+        "field_type": "Account < 'info , Guild >"
+      },
+      {
+        "name": "report",
+        "attribute": "# [account (init , payer = owner , space = 8 + 4 * 5 + 4 + 4)]",
+        "field_type": "Account < 'info , Report >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitMember",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Guild >"
+      },
+      {
+        "name": "member",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 1 + 8)]",
+        "field_type": "Account < 'info , Member >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Award",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Guild >"
+      },
+      {
+        "name": "member_a",
+        "attribute": "# [account (mut , has_one = parent , constraint = member_a . tier as u8 != member_b . tier as u8 @ BadgeErr :: CosplayBlocked)]",
+        "field_type": "Account < 'info , Member >"
+      },
+      {
+        "name": "member_b",
+        "attribute": "# [account (mut , has_one = parent)]",
+        "field_type": "Account < 'info , Member >"
+      },
+      {
+        "name": "report",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Report >"
+      },
+      {
+        "name": "badge_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "badge_ta",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Guild",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "total",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Member",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "tier",
+        "attribute": null,
+        "field_type": "Tier"
+      },
+      {
+        "name": "score",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Report",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "hist",
+        "attribute": null,
+        "field_type": "[u32 ; 5]"
+      },
+      {
+        "name": "ok",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "ng",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

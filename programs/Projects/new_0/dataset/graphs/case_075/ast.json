@@ -1,0 +1,114 @@
+[
+  {
+    "name": "register",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Register >",
+      "total_amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 初回登録時にのみアカウントを初期化し、配布量を設定します。\"]"
+    ],
+    "body": [
+      "let rec = & mut ctx . accounts . airdrop_record ;",
+      "rec . user = ctx . accounts . user . key () ;",
+      "rec . registered = 1 ;",
+      "rec . total_amount = total_amount ;",
+      "rec . claimed_amount = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "claim",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Claim >"
+    ],
+    "attributes": [
+      "# [doc = \" 登録済みユーザーは、設定された総配布量を一度だけ請求できます。\"]"
+    ],
+    "body": [
+      "let rec = & mut ctx . accounts . airdrop_record ;",
+      "let can = rec . registered . saturating_sub (1) ;",
+      "let to_pay = rec . total_amount . saturating_mul (can as u64) ;",
+      "let pay = to_pay . saturating_sub (rec . claimed_amount) ;",
+      "rec . claimed_amount = rec . claimed_amount . saturating_add (pay) ;",
+      "msg ! (\"Airdropped {} tokens to {:?}\" , pay , rec . user) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Register",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "airdrop_record",
+        "attribute": "# [doc = \" 初回のみ PDA を生成して初期化\"] # [account (init , payer = user , space = 8 + 32 + 1 + 8 + 8 , seeds = [b\"airdrop\" , user . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , AirdropRecord >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Claim",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "airdrop_record",
+        "attribute": "# [doc = \" PDA と所有者チェックで不正アクセス防止\"] # [account (seeds = [b\"airdrop\" , user . key () . as_ref ()] , bump , has_one = user)]",
+        "field_type": "Account < 'info , AirdropRecord >"
+      },
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AirdropRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "registered",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "total_amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "claimed_amount",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

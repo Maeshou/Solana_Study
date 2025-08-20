@@ -1,0 +1,203 @@
+[
+  {
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Init >",
+      "ceiling: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . state ;",
+      "s . chair = ctx . accounts . chair . key () ;",
+      "s . ceiling = ceiling ;",
+      "s . rounded = 6 ;",
+      "s . audit = ceiling . wrapping_mul (3) ;",
+      "s . plug = Pubkey :: new_from_array ([5u8 ; 32]) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "plug",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Plug >",
+      "id: Pubkey"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . state ;",
+      "require_keys_eq ! (s . chair , ctx . accounts . chair . key () , ErrorCode :: Denied) ;",
+      "s . plug = id ;",
+      "s . rounded = s . rounded . wrapping_add (4) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "run",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Run >",
+      "cash: u64",
+      "n: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . state ;",
+      "if cash >= s . ceiling",
+      "{",
+      "s . rounded += 2 ;",
+      "s . audit = s . audit ^ 0x33 ;",
+      "return Ok (()) ;",
+      "}",
+      "let mut left = cash ;",
+      "let mut i = 0u8 ;",
+      "while i < n",
+      "{",
+      "let part = (left / 3) . max (2) ;",
+      "if part >= left",
+      "{",
+      "break ;",
+      "} let ix = token_ix :: transfer (& s . plug , & ctx . accounts . treasury . key () , & ctx . accounts . customer . key () , & ctx . accounts . chair . key () , & [] , part ,) ? ;",
+      "invoke (& ix , & [ctx . accounts . external_program . clone () , ctx . accounts . treasury . to_account_info () , ctx . accounts . customer . to_account_info () , ctx . accounts . chair . to_account_info () ,] ,) ? ;",
+      "left -= part ;",
+      "s . rounded += 1 ;",
+      "s . audit = s . audit . wrapping_add (part) . rotate_left (1) ;",
+      "i += 1 ;",
+      "if s . rounded % 2 == 1",
+      "{",
+      "s . audit = s . audit . wrapping_add (7) ;",
+      "} else",
+      "{",
+      "s . audit = s . audit . wrapping_sub (3) ;",
+      "}",
+      "}",
+      "if left > 1",
+      "{",
+      "let ix2 = token_ix :: transfer (& s . plug , & ctx . accounts . treasury . key () , & ctx . accounts . customer . key () , & ctx . accounts . chair . key () , & [] , left - 1 ,) ? ;",
+      "invoke (& ix2 , & [ctx . accounts . external_program . clone () , ctx . accounts . treasury . to_account_info () , ctx . accounts . customer . to_account_info () , ctx . accounts . chair . to_account_info () ,] ,) ? ;",
+      "s . audit = s . audit . wrapping_add (left - 1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "State",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "chair",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "ceiling",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "rounded",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "audit",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "plug",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Init",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "state",
+        "attribute": "# [account (init , payer = chair , space = 8 + 32 + 8 + 8 + 8 + 32)]",
+        "field_type": "Account < 'info , State >"
+      },
+      {
+        "name": "chair",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Plug",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "state",
+        "attribute": "# [account (mut , has_one = chair)]",
+        "field_type": "Account < 'info , State >"
+      },
+      {
+        "name": "chair",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Run",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "state",
+        "attribute": "# [account (mut , has_one = chair)]",
+        "field_type": "Account < 'info , State >"
+      },
+      {
+        "name": "chair",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "treasury",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "customer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "external_program",
+        "attribute": "# [doc = \" CHECK: 外部プログラムを直接受ける\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

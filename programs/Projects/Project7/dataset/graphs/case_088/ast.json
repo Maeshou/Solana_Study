@@ -1,0 +1,183 @@
+[
+  {
+    "name": "init_staking_pool",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitStakingPool >",
+      "reward_rate: u64",
+      "min_stake_amount: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let pool = & mut ctx . accounts . staking_pool ;",
+      "pool . authority = ctx . accounts . authority . key () ;",
+      "pool . reward_token_mint = ctx . accounts . reward_mint . key () ;",
+      "pool . stake_token_mint = ctx . accounts . stake_mint . key () ;",
+      "pool . reward_rate = reward_rate ;",
+      "pool . min_stake_amount = min_stake_amount ;",
+      "pool . total_staked = 0 ;",
+      "pool . last_update_slot = Clock :: get () ? . slot ;",
+      "pool . pool_status = PoolStatus :: Active ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "distribute_rewards",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < DistributeRewards >"
+    ],
+    "attributes": [],
+    "body": [
+      "let pool = & mut ctx . accounts . staking_pool ;",
+      "let current_slot = Clock :: get () ? . slot ;",
+      "let slot_diff = current_slot - pool . last_update_slot ;",
+      "if pool . pool_status == PoolStatus :: Paused",
+      "{",
+      "return Ok (()) ;",
+      "}",
+      "if slot_diff > 0",
+      "{",
+      "let reward_per_slot = pool . reward_rate ;",
+      "let mut total_rewards = reward_per_slot * slot_diff ;",
+      "let max_rewards = 1_000_000 * 10u64 . pow (6) ;",
+      "if total_rewards > max_rewards",
+      "{",
+      "total_rewards = max_rewards ;",
+      "} let stakers = & mut ctx . remaining_accounts ;",
+      "if ! stakers . is_empty ()",
+      "{",
+      "let reward_per_staker = total_rewards / stakers . len () as u64 ;",
+      "for i in (0 .. stakers . len ()) . step_by (2)",
+      "{",
+      "let staker_account = & stakers [i] ;",
+      "let staker_token_account = & stakers [i + 1] ;",
+      "if reward_per_staker >= pool . min_stake_amount",
+      "{",
+      "mint_to (ctx . accounts . mint_rewards_ctx () . with_signer (& [& [b\"pool\" , pool . authority . as_ref () , & [ctx . bumps . staking_pool]]]) , reward_per_staker ,) ? ;",
+      "} } pool . last_update_slot = current_slot ;",
+      "}",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitStakingPool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "authority",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "staking_pool",
+        "attribute": "# [account (init , payer = authority , space = 8 + StakingPool :: INIT_SPACE , seeds = [b\"pool\" , authority . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , StakingPool >"
+      },
+      {
+        "name": "reward_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "stake_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DistributeRewards",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "staking_pool",
+        "attribute": "# [account (mut , seeds = [b\"pool\" , staking_pool . authority . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , StakingPool >"
+      },
+      {
+        "name": "reward_mint",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "reward_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "StakingPool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "reward_token_mint",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "stake_token_mint",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "reward_rate",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "min_stake_amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_staked",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "last_update_slot",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "pool_status",
+        "attribute": null,
+        "field_type": "PoolStatus"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

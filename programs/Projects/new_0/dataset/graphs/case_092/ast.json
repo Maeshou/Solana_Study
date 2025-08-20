@@ -1,0 +1,164 @@
+[
+  {
+    "name": "initialize_campaign",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeCampaign >",
+      "goal: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 新しいキャンペーンを初期化（管理者が署名）\"]"
+    ],
+    "body": [
+      "let camp = & mut ctx . accounts . campaign ;",
+      "camp . organizer = ctx . accounts . organizer . key () ;",
+      "camp . goal = goal ;",
+      "camp . raised = 0 ;",
+      "msg ! (\"Campaign initialized by {}, goal = {}\" , camp . organizer , camp . goal) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "contribute",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Contribute >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 支援 (誰でも可／署名必須)\"]"
+    ],
+    "body": [
+      "require ! (ctx . accounts . contributor . is_signer , ErrorCode :: Unauthorized) ;",
+      "* * ctx . accounts . contributor . to_account_info () . try_borrow_mut_lamports () ? -= amount ;",
+      "* * ctx . accounts . vault . to_account_info () . try_borrow_mut_lamports () ? += amount ;",
+      "let camp = & mut ctx . accounts . campaign ;",
+      "camp . raised = camp . raised . checked_add (amount) . unwrap () ;",
+      "msg ! (\"{} contributed {} lamports (total raised = {})\" , ctx . accounts . contributor . key () , amount , camp . raised) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "withdraw_funds",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < WithdrawFunds >"
+    ],
+    "attributes": [
+      "# [doc = \" 目標達成後に資金を引き出し（主催者のみ）\"]"
+    ],
+    "body": [
+      "require ! (ctx . accounts . organizer . is_signer , ErrorCode :: Unauthorized) ;",
+      "let camp_balance = * * ctx . accounts . vault . to_account_info () . lamports . borrow () ;",
+      "require ! (camp_balance >= ctx . accounts . campaign . goal , ErrorCode :: GoalNotReached) ;",
+      "* * ctx . accounts . vault . to_account_info () . try_borrow_mut_lamports () ? -= camp_balance ;",
+      "* * ctx . accounts . organizer . to_account_info () . try_borrow_mut_lamports () ? += camp_balance ;",
+      "msg ! (\"Organizer {} withdrew {} lamports\" , ctx . accounts . organizer . key () , camp_balance) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializeCampaign",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "campaign",
+        "attribute": "# [account (init , payer = organizer , space = 8 + 32 + 8 + 8 , seeds = [b\"camp\" , organizer . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Campaign >"
+      },
+      {
+        "name": "organizer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Contribute",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "campaign",
+        "attribute": "# [account (mut , seeds = [b\"camp\" , campaign . organizer . as_ref ()] , bump ,)]",
+        "field_type": "Account < 'info , Campaign >"
+      },
+      {
+        "name": "contributor",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "vault",
+        "attribute": "# [account (mut , seeds = [b\"vault\" , campaign . key () . as_ref ()] , bump , init_if_needed , payer = contributor , space = 8)]",
+        "field_type": "SystemAccount < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "WithdrawFunds",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "campaign",
+        "attribute": "# [account (mut , seeds = [b\"camp\" , organizer . key () . as_ref ()] , bump , has_one = organizer)]",
+        "field_type": "Account < 'info , Campaign >"
+      },
+      {
+        "name": "organizer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "vault",
+        "attribute": "# [account (mut , seeds = [b\"vault\" , campaign . key () . as_ref ()] , bump)]",
+        "field_type": "SystemAccount < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Campaign",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "organizer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "goal",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "raised",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

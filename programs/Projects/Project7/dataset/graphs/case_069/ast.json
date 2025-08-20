@@ -1,0 +1,178 @@
+[
+  {
+    "name": "init_field",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitField >",
+      "daily_cap_input: u64",
+      "base_yield_input: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let field = & mut ctx . accounts . field ;",
+      "field . manager = ctx . accounts . manager . key () ;",
+      "field . daily_cap = daily_cap_input ;",
+      "if field . daily_cap < 10",
+      "{",
+      "field . daily_cap = 10 ;",
+      "}",
+      "field . base_yield = base_yield_input ;",
+      "if field . base_yield < 1",
+      "{",
+      "field . base_yield = 1 ;",
+      "}",
+      "field . issued_today = 1 ;",
+      "field . streak_days = 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_harvest",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActHarvest >",
+      "fertilizer_units: u64",
+      "days_since_last: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let field = & mut ctx . accounts . field ;",
+      "let mut burn_amount : u64 = fertilizer_units ;",
+      "if burn_amount < 1",
+      "{",
+      "burn_amount = 1 ;",
+      "}",
+      "token :: burn (ctx . accounts . burn_ctx () , burn_amount) ? ;",
+      "let mut multiplier_percent : u64 = 100 ;",
+      "let mut day_counter : u8 = 0 ;",
+      "while day_counter < days_since_last",
+      "{",
+      "if (day_counter + 1) % 2 == 0",
+      "{",
+      "multiplier_percent = multiplier_percent + 2 ;",
+      "} day_counter = day_counter + 1 ;",
+      "}",
+      "let base_units : u64 = field . base_yield + burn_amount / 5 + 1 ;",
+      "let scaled_units : u64 = (base_units as u128 * multiplier_percent as u128 / 100u128) as u64 ;",
+      "let projected_total : u64 = field . issued_today + scaled_units ;",
+      "if projected_total > field . daily_cap",
+      "{",
+      "let mint_now = field . daily_cap - field . issued_today ;",
+      "if mint_now > 0",
+      "{",
+      "token :: mint_to (ctx . accounts . mint_ctx () , mint_now) ? ;",
+      "} field . issued_today = field . daily_cap ;",
+      "field . streak_days = 1 ;",
+      "return Err (FieldErr :: DailyCap . into ()) ;",
+      "}",
+      "token :: mint_to (ctx . accounts . mint_ctx () , scaled_units) ? ;",
+      "field . issued_today = projected_total ;",
+      "field . streak_days = field . streak_days + 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitField",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "field",
+        "attribute": "# [account (init , payer = manager , space = 8 + 32 + 8 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , FieldState >"
+      },
+      {
+        "name": "manager",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActHarvest",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "field",
+        "attribute": "# [account (mut , has_one = manager)]",
+        "field_type": "Account < 'info , FieldState >"
+      },
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "fertilizer_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "user_fertilizer_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "crop_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "user_crop_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "FieldState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "daily_cap",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "base_yield",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "issued_today",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "streak_days",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

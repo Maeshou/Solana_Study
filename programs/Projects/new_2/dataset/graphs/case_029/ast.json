@@ -1,0 +1,92 @@
+[
+  {
+    "name": "GiftData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "nft_key",
+        "attribute": null,
+        "field_type": "[u8 ; 32]"
+      },
+      {
+        "name": "sender_key",
+        "attribute": null,
+        "field_type": "[u8 ; 32]"
+      },
+      {
+        "name": "recipient_key",
+        "attribute": null,
+        "field_type": "[u8 ; 32]"
+      },
+      {
+        "name": "timestamp",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "gift_nft",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < GiftNft >"
+    ],
+    "attributes": [
+      "# [doc = \" `gift_account` の owner チェックを行っていないため、\"]",
+      "# [doc = \" 攻撃者が任意のアカウントを指定し、他人の NFT を\"]",
+      "# [doc = \" 自分宛に「贈与」したことにできます。\"]"
+    ],
+    "body": [
+      "let acct = & mut ctx . accounts . gift_account . to_account_info () ;",
+      "let data = & mut acct . data . borrow_mut () ;",
+      "let size = std :: mem :: size_of :: < GiftData > () ;",
+      "if data . len () < size",
+      "{",
+      "return err ! (ErrorCode :: DataTooShort) ;",
+      "}",
+      "let now_ts = Clock :: get () ? . unix_timestamp as u64 ;",
+      "let mut gift = GiftData :: zeroed () ;",
+      "gift . nft_key = ctx . accounts . nft_mint . key () . to_bytes () ;",
+      "gift . sender_key = ctx . accounts . sender . key () . to_bytes () ;",
+      "gift . recipient_key = ctx . accounts . recipient . key () . to_bytes () ;",
+      "gift . timestamp = now_ts ;",
+      "let bytes = bytemuck :: bytes_of (& gift) ;",
+      "data [.. size] . copy_from_slice (bytes) ;",
+      "msg ! (\"NFT {} gifted from {} to {} at {}\" , ctx . accounts . nft_mint . key () , ctx . accounts . sender . key () , ctx . accounts . recipient . key () , now_ts) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "GiftNft",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "gift_account",
+        "attribute": "# [doc = \" CHECK: owner フィールドの検証を全く行っていない AccountInfo\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "nft_mint",
+        "attribute": "# [doc = \" 贈与対象 NFT の Mint アカウント（所有者チェックなし）\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "sender",
+        "attribute": "# [doc = \" 贈与者（署名のみ検証）\"]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "recipient",
+        "attribute": "# [doc = \" 受贈者アカウント（受取先 Pubkey を記録するのみ）\"]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

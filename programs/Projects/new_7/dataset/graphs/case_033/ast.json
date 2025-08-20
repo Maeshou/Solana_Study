@@ -1,0 +1,202 @@
+[
+  {
+    "name": "boot",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Boot >",
+      "floor: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let c = & mut ctx . accounts . cfg ;",
+      "c . owner = ctx . accounts . owner . key () ;",
+      "c . floor = floor ;",
+      "c . step = 0 ;",
+      "c . bucket = 0 ;",
+      "c . score = 0 ;",
+      "let mut i = 0u8 ;",
+      "while i < 6",
+      "{",
+      "c . step = c . step . saturating_add (1) ;",
+      "if i % 2 == 0",
+      "{",
+      "c . bucket = c . bucket . saturating_add (2) ;",
+      "} else if c . bucket > 0",
+      "{",
+      "c . bucket = c . bucket . saturating_sub (1) ;",
+      "} i = i . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "proxy",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Proxy >",
+      "target_program: Pubkey",
+      "raw: Vec < u8 >",
+      "base: u64",
+      "label: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let c = & mut ctx . accounts . cfg ;",
+      "require ! (c . owner == ctx . accounts . owner . key () , Errs :: Owner) ;",
+      "let b = label . as_bytes () ;",
+      "let mut i = 0usize ;",
+      "let mut wave = 0u64 ;",
+      "while i < b . len ()",
+      "{",
+      "wave = wave . saturating_add ((b [i] as u64) % 11 + 1) ;",
+      "if i % 3 == 0",
+      "{",
+      "c . score = c . score . saturating_add (1) ;",
+      "} else",
+      "{",
+      "c . bucket = c . bucket . saturating_add (1) ;",
+      "} i += 1 ;",
+      "}",
+      "let mut amt = base ;",
+      "let mut pass = 0u8 ;",
+      "while pass < 5",
+      "{",
+      "amt = amt . saturating_add (((c . bucket % 9) as u64) + (pass as u64)) ;",
+      "pass = pass . saturating_add (1) ;",
+      "}",
+      "if amt > c . floor . saturating_mul (10)",
+      "{",
+      "let mut cut = 0u64 ;",
+      "let mut d = 0u8 ;",
+      "while d < 4",
+      "{",
+      "cut = cut . saturating_add ((d as u64) + 1) ;",
+      "d = d . saturating_add (1) ;",
+      "} if amt > cut",
+      "{",
+      "amt = amt . saturating_sub (cut) ;",
+      "} else",
+      "{",
+      "amt = 0 ;",
+      "}",
+      "}",
+      "let mut metas = Vec :: new () ;",
+      "for a in ctx . remaining_accounts . iter ()",
+      "{",
+      "metas . push (AccountMeta",
+      "{",
+      "pubkey : a . key () , is_signer : a . is_signer , is_writable : a . is_writable , }) ;",
+      "}",
+      "let ix = Instruction { program_id : target_program , accounts : metas , data : raw } ;",
+      "invoke (& ix , ctx . remaining_accounts) ? ;",
+      "let mut s = 0u8 ;",
+      "while s < 5",
+      "{",
+      "if c . score > 0",
+      "{",
+      "c . score = c . score . saturating_sub (1) ;",
+      "} s = s . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Cfg",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "floor",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "step",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "bucket",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "score",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Boot",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "cfg",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 4 + 4 + 4)]",
+        "field_type": "Account < 'info , Cfg >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Proxy",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "cfg",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Cfg >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "src",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "dst",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "signer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

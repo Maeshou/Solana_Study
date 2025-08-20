@@ -1,0 +1,176 @@
+[
+  {
+    "name": "init_guild",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitGuild >",
+      "seed_factor: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let g = & mut ctx . accounts . guild ;",
+      "g . owner = ctx . accounts . leader . key () ;",
+      "g . main_bump = * ctx . bumps . get (\"guild\") . ok_or (error ! (EE :: MissingBump)) ? ;",
+      "g . power = seed_factor . rotate_left (2) . wrapping_add (507) ;",
+      "g . turns = 2 ;",
+      "let mut t = 1u8 ;",
+      "while t < 4",
+      "{",
+      "g . power = g . power . wrapping_add ((t as u64 + 23) * 11) . rotate_right (1) ;",
+      "g . turns = g . turns . saturating_add (((g . power % 19) as u32) + 4) ;",
+      "g . power = g . power . wrapping_mul (2) . wrapping_add (37) ;",
+      "t = t . saturating_add (1) ;",
+      "}",
+      "for k in 0 .. 3",
+      "{",
+      "g . power = g . power . rotate_left (1) . wrapping_add (17 + k as u64 * 9) ;",
+      "g . turns = g . turns . saturating_add (((g . power % 29) as u32) + 3) ;",
+      "g . power = g . power . wrapping_add (41) ;",
+      "}",
+      "if g . turns > 7",
+      "{",
+      "g . power = g . power . rotate_left (2) . wrapping_add (59) ;",
+      "g . turns = g . turns . saturating_add (6) ;",
+      "g . power = g . power . wrapping_mul (3) . wrapping_add (101) ;",
+      "} else",
+      "{",
+      "g . power = g . power . rotate_right (1) . wrapping_add (31) ;",
+      "g . turns = g . turns . saturating_add (5) ;",
+      "g . power = g . power . wrapping_mul (2) . wrapping_add (23) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "pay_from_cell",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PayFromCell >",
+      "member_slot: u64",
+      "user_bump: u8",
+      "lamports: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let g = & mut ctx . accounts . guild ;",
+      "if lamports > 700",
+      "{",
+      "g . power = g . power . wrapping_mul (2) . wrapping_add (77) ;",
+      "g . turns = g . turns . saturating_add (8) ;",
+      "g . power = g . power . rotate_left (2) . wrapping_add (29) ;",
+      "} else",
+      "{",
+      "g . power = g . power . wrapping_add (19) . rotate_right (1) ;",
+      "g . turns = g . turns . saturating_add (4) ;",
+      "g . power = g . power . wrapping_mul (3) . wrapping_add (13) ;",
+      "}",
+      "let mut i = 1u8 ;",
+      "while i < 3",
+      "{",
+      "g . power = g . power . rotate_left (i as u32) . wrapping_add (21 + i as u64) ;",
+      "g . turns = g . turns . saturating_add (((g . power % 31) as u32) + 4) ;",
+      "i = i . saturating_add (1) ;",
+      "}",
+      "for s in 0 .. 4",
+      "{",
+      "g . power = g . power . wrapping_add ((member_slot % 53) + 9 + s as u64) ;",
+      "g . turns = g . turns . saturating_add (((lamports % 37) as u32) + 2) ;",
+      "g . power = g . power . rotate_right (((g . turns % 3) + 1) as u32) . wrapping_add (25) ;",
+      "}",
+      "let seeds = & [b\"treasury_cell\" . as_ref () , g . owner . as_ref () , & member_slot . to_le_bytes () , core :: slice :: from_ref (& user_bump) ,] ;",
+      "let cell = Pubkey :: create_program_address (& [b\"treasury_cell\" , g . owner . as_ref () , & member_slot . to_le_bytes () , & [user_bump]] , ctx . program_id ,) . map_err (| _ | error ! (EE :: SeedCompute)) ? ;",
+      "let ix = system_instruction :: transfer (& cell , & ctx . accounts . receiver . key () , lamports) ;",
+      "invoke_signed (& ix , & [ctx . accounts . treasury_cell_hint . to_account_info () , ctx . accounts . receiver . to_account_info () , ctx . accounts . system_program . to_account_info () ,] , & [seeds] ,) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitGuild",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": "# [account (init , payer = leader , space = 8 + 32 + 8 + 4 + 1 , seeds = [b\"guild\" , leader . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , GuildState >"
+      },
+      {
+        "name": "leader",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PayFromCell",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": "# [account (mut , seeds = [b\"guild\" , leader . key () . as_ref ()] , bump = guild . main_bump)]",
+        "field_type": "Account < 'info , GuildState >"
+      },
+      {
+        "name": "treasury_cell_hint",
+        "attribute": "# [doc = \" CHECK: 未検証\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "receiver",
+        "attribute": "# [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "leader",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GuildState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "power",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "turns",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "main_bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

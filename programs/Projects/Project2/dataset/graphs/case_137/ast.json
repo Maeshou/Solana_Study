@@ -1,0 +1,118 @@
+[
+  {
+    "name": "initialize",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Initialize >",
+      "mint: Pubkey"
+    ],
+    "attributes": [
+      "# [doc = \" ロガーアカウントを初期化：所有者と監視対象のミントを設定\"]"
+    ],
+    "body": [
+      "let tracker = & mut ctx . accounts . tracker ;",
+      "tracker . owner = ctx . accounts . authority . key () ;",
+      "tracker . mint = mint ;",
+      "tracker . history . clear () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "record",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Record >"
+    ],
+    "attributes": [
+      "# [doc = \" トークンアカウントの残高を履歴に追加  \"]",
+      "# [doc = \" — token_account は `token::mint`／`token::authority` 属性で検証済み\"]"
+    ],
+    "body": [
+      "let tracker = & mut ctx . accounts . tracker ;",
+      "let token_acc = & ctx . accounts . token_account ;",
+      "let now = ctx . accounts . clock . unix_timestamp ;",
+      "let amount = token_acc . amount ;",
+      "tracker . history . push ((now , amount)) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "TokenBalanceTracker",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "mint",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "history",
+        "attribute": null,
+        "field_type": "Vec < (i64 , u64) >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Initialize",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "tracker",
+        "attribute": "# [doc = \" ロガーアカウント（PDAまたは通常アカウントどちらでも可）\"] # [account (init_zeroed , payer = authority , seeds = [b\"tb_tracker\" , authority . key () . as_ref ()] , bump , space = 8 + 32 + 32 + 4 + 10 * (8 + 8))]",
+        "field_type": "Account < 'info , TokenBalanceTracker >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [doc = \" 初期化を行う権限\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Record",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "tracker",
+        "attribute": "# [doc = \" 既存のロガー、ownerフィールドとの一致をチェック\"] # [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , TokenBalanceTracker >"
+      },
+      {
+        "name": "token_account",
+        "attribute": "# [doc = \" 監視対象のトークンアカウント  \"] # [doc = \" — 所有者が SPL Token プログラム  \"] # [doc = \" — mint が tracker.mint  \"] # [doc = \" — authority が tracker.owner  \"] # [account (mut , token :: mint = tracker . mint , token :: authority = tracker . owner)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" tracker.owner 署名チェック\"] # [account (signer)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": "# [doc = \" 現在時刻取得用\"]",
+        "field_type": "Sysvar < 'info , Clock >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

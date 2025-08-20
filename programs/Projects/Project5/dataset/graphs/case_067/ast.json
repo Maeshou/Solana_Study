@@ -1,43 +1,234 @@
 [
   {
-    "name": "init_collectibles",
+    "name": "init_table",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx067 >",
-      "amount: u64"
+      "ctx: Context < InitTable >",
+      "pot_seed: u64"
     ],
     "attributes": [],
     "body": [
-      "let cpi_accounts = Transfer { from : ctx . accounts . from_token . to_account_info () , to : ctx . accounts . to_token . to_account_info () , authority : ctx . accounts . authority . to_account_info () , } ;",
-      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
-      "token :: transfer (cpi_ctx , amount) ? ;",
+      "let t = & mut ctx . accounts . parent ;",
+      "let a = & mut ctx . accounts . seat_a ;",
+      "let b = & mut ctx . accounts . seat_b ;",
+      "let l = & mut ctx . accounts . ledger ;",
+      "t . owner = ctx . accounts . owner . key () ;",
+      "t . pot = pot_seed ;",
+      "t . mode = Closed ;",
+      "a . parent = t . key () ;",
+      "a . seat_id = 1 ;",
+      "a . chips = 100 ;",
+      "a . phase = 0 ;",
+      "b . parent = t . key () ;",
+      "b . seat_id = 2 ;",
+      "b . chips = 120 ;",
+      "b . phase = 0 ;",
+      "l . parent = t . key () ;",
+      "l . ring = 9 ;",
+      "l . lfsr = 0xA5A5_1234 ;",
+      "l . check = 0 ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx067",
+    "name": "deal_round",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < DealRound >",
+      "rounds: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let t = & mut ctx . accounts . parent ;",
+      "let a = & mut ctx . accounts . seat_a ;",
+      "let b = & mut ctx . accounts . seat_b ;",
+      "let l = & mut ctx . accounts . ledger ;",
+      "for r in 0 .. rounds",
+      "{",
+      "let bit = ((l . lfsr >> 0) ^ (l . lfsr >> 2) ^ (l . lfsr >> 6) ^ (l . lfsr >> 7)) & 1 ;",
+      "l . lfsr = (l . lfsr >> 1) | (bit << 31) ;",
+      "let draw_a = (l . lfsr & 31) as u64 ;",
+      "let draw_b = ((l . lfsr >> 5) & 31) as u64 ;",
+      "a . chips = a . chips . checked_add (draw_a) . unwrap_or (u64 :: MAX) ;",
+      "b . chips = b . chips . saturating_sub (draw_b . min (b . chips)) ;",
+      "t . pot = t . pot . saturating_add (draw_b) ;",
+      "l . check = l . check . wrapping_add (((a . chips ^ b . chips) as u64) . wrapping_mul (1315423911)) ;",
+      "}",
+      "let swing = (a . chips as i128 - b . chips as i128) . unsigned_abs () ;",
+      "if swing > t . pot",
+      "{",
+      "t . mode = Settled ;",
+      "a . phase = a . phase . saturating_add (3) ;",
+      "b . phase = b . phase . saturating_add (1) ;",
+      "l . check ^= (t . pot . rotate_left (13)) as u64 ;",
+      "msg ! (\"settled: phases bumped, check mixed\") ;",
+      "} else",
+      "{",
+      "t . mode = Dealing ;",
+      "a . chips = a . chips . saturating_add (7) ;",
+      "b . chips = b . chips . saturating_add (5) ;",
+      "l . lfsr ^= 0x00FF_F0F0 ;",
+      "msg ! (\"dealing: small chip boosts, lfsr tweak\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitTable",
     "node_type": "struct",
     "fields": [
       {
-        "name": "from_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "parent",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 8 + 1)]",
+        "field_type": "Account < 'info , TableCore >"
       },
       {
-        "name": "to_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "seat_a",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 8 + 4)]",
+        "field_type": "Account < 'info , SeatBox >"
       },
       {
-        "name": "authority",
+        "name": "seat_b",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 8 + 4)]",
+        "field_type": "Account < 'info , SeatBox >"
+      },
+      {
+        "name": "ledger",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4 + 8)]",
+        "field_type": "Account < 'info , TableLedger >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "owner",
         "attribute": null,
         "field_type": "Signer < 'info >"
       },
       {
-        "name": "token_program",
+        "name": "system_program",
         "attribute": null,
-        "field_type": "Program < 'info , Token >"
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DealRound",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , TableCore >"
+      },
+      {
+        "name": "seat_a",
+        "attribute": "# [account (mut , has_one = parent , constraint = seat_a . seat_id != seat_b . seat_id @ CroupierErr :: Dup)]",
+        "field_type": "Account < 'info , SeatBox >"
+      },
+      {
+        "name": "seat_b",
+        "attribute": "# [account (mut , has_one = parent , constraint = seat_b . seat_id != ledger . ring @ CroupierErr :: Dup)]",
+        "field_type": "Account < 'info , SeatBox >"
+      },
+      {
+        "name": "ledger",
+        "attribute": "# [account (mut , has_one = parent)]",
+        "field_type": "Account < 'info , TableLedger >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TableCore",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "pot",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "mode",
+        "attribute": null,
+        "field_type": "TableMode"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SeatBox",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "seat_id",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "chips",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "phase",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TableLedger",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "ring",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "lfsr",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "check",
+        "attribute": null,
+        "field_type": "u64"
       }
     ],
     "inputs": null,

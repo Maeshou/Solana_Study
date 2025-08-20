@@ -1,0 +1,989 @@
+[
+  {
+    "name": "init_player",
+    "inputs": [
+      "ctx: Context < InitPlayer >"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let player = & mut ctx . accounts . player ;"
+      },
+      {
+        "id": 2,
+        "label": "player . authority = ctx . accounts . authority . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "player . level = 1 ;"
+      },
+      {
+        "id": 4,
+        "label": "player . exp = 0 ;"
+      },
+      {
+        "id": 5,
+        "label": "player . last_crafted = 0 ;"
+      },
+      {
+        "id": 6,
+        "label": "player . bump = * ctx . bumps . get (\"player\") . ok_or (error ! (GameErr :: MissingBump)) ? ;"
+      },
+      {
+        "id": 7,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: player"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: player"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: player"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: player"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: player"
+      },
+      {
+        "from": 1,
+        "to": 6,
+        "label": "data_dep: player"
+      }
+    ]
+  },
+  {
+    "name": "init_inventory",
+    "inputs": [
+      "ctx: Context < InitInventory >",
+      "slots: u16"
+    ],
+    "nodes": [
+      {
+        "id": 8,
+        "label": "Entry"
+      },
+      {
+        "id": 9,
+        "label": "let inv = & mut ctx . accounts . inventory ;"
+      },
+      {
+        "id": 10,
+        "label": "inv . owner = ctx . accounts . player . key () ;"
+      },
+      {
+        "id": 11,
+        "label": "inv . slots = slots ;"
+      },
+      {
+        "id": 12,
+        "label": "inv . seed_tag = * b\"inv_v1__\" ;"
+      },
+      {
+        "id": 13,
+        "label": "inv . bump = * ctx . bumps . get (\"inventory\") . ok_or (error ! (GameErr :: MissingBump)) ? ;"
+      },
+      {
+        "id": 14,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 9,
+        "to": 9,
+        "label": "def: inv"
+      },
+      {
+        "from": 9,
+        "to": 10,
+        "label": "data_dep: inv"
+      },
+      {
+        "from": 9,
+        "to": 11,
+        "label": "data_dep: inv"
+      },
+      {
+        "from": 9,
+        "to": 12,
+        "label": "data_dep: inv"
+      },
+      {
+        "from": 9,
+        "to": 13,
+        "label": "data_dep: inv"
+      }
+    ]
+  },
+  {
+    "name": "init_recipe",
+    "inputs": [
+      "ctx: Context < InitRecipe >",
+      "cost: u64",
+      "min_level: u32"
+    ],
+    "nodes": [
+      {
+        "id": 15,
+        "label": "Entry"
+      },
+      {
+        "id": 16,
+        "label": "let recipe = & mut ctx . accounts . recipe ;"
+      },
+      {
+        "id": 17,
+        "label": "recipe . mint = ctx . accounts . item_mint . key () ;"
+      },
+      {
+        "id": 18,
+        "label": "recipe . cost = cost ;"
+      },
+      {
+        "id": 19,
+        "label": "recipe . min_level = min_level ;"
+      },
+      {
+        "id": 20,
+        "label": "recipe . bump = * ctx . bumps . get (\"recipe\") . ok_or (error ! (GameErr :: MissingBump)) ? ;"
+      },
+      {
+        "id": 21,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 16,
+        "to": 16,
+        "label": "def: recipe"
+      },
+      {
+        "from": 16,
+        "to": 17,
+        "label": "data_dep: recipe"
+      },
+      {
+        "from": 16,
+        "to": 18,
+        "label": "data_dep: recipe"
+      },
+      {
+        "from": 16,
+        "to": 19,
+        "label": "data_dep: recipe"
+      },
+      {
+        "from": 16,
+        "to": 20,
+        "label": "data_dep: recipe"
+      }
+    ]
+  },
+  {
+    "name": "craft_item",
+    "inputs": [
+      "ctx: Context < CraftItem >",
+      "spend: u64"
+    ],
+    "nodes": [
+      {
+        "id": 22,
+        "label": "Entry"
+      },
+      {
+        "id": 23,
+        "label": "let player = & mut ctx . accounts . player ;"
+      },
+      {
+        "id": 24,
+        "label": "let inv = & mut ctx . accounts . inventory ;"
+      },
+      {
+        "id": 25,
+        "label": "let recipe = & ctx . accounts . recipe ;"
+      },
+      {
+        "id": 26,
+        "label": "let now = Clock :: get () ? . unix_timestamp ;"
+      },
+      {
+        "id": 27,
+        "label": "if player . level < recipe . min_level { player . exp = player . exp . saturating_add ((recipe . min_level as u64) . saturating_mul (3)) ; }"
+      },
+      {
+        "id": 28,
+        "label": "player . exp = player . exp . saturating_add ((recipe . min_level as u64) . saturating_mul (3)) ;"
+      },
+      {
+        "id": 29,
+        "label": "if spend > recipe . cost { let surplus = spend . saturating_sub (recipe . cost) ; player . exp = player . exp . saturating_add (surplus . rotate_left (1)) ; }"
+      },
+      {
+        "id": 30,
+        "label": "let surplus = spend . saturating_sub (recipe . cost) ;"
+      },
+      {
+        "id": 31,
+        "label": "player . exp = player . exp . saturating_add (surplus . rotate_left (1)) ;"
+      },
+      {
+        "id": 32,
+        "label": "let delta = now . saturating_sub (player . last_crafted) ;"
+      },
+      {
+        "id": 33,
+        "label": "if delta < 5 { if inv . slots > 0 { inv . slots = inv . slots . saturating_sub (1) ; } }"
+      },
+      {
+        "id": 34,
+        "label": "if inv . slots > 0 { inv . slots = inv . slots . saturating_sub (1) ; }"
+      },
+      {
+        "id": 35,
+        "label": "inv . slots = inv . slots . saturating_sub (1) ;"
+      },
+      {
+        "id": 36,
+        "label": "player . last_crafted = now ;"
+      },
+      {
+        "id": 37,
+        "label": "if spend > 0 { let cpi_accounts = Transfer { from : ctx . accounts . user_token . to_account_info () , to : ctx . accounts . vault_token . to_account_info () , authority : ctx . accounts . authority . to_account_info () , } ; let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ; token :: transfer (cpi_ctx , spend) ? ; }"
+      },
+      {
+        "id": 38,
+        "label": "let cpi_accounts = Transfer { from : ctx . accounts . user_token . to_account_info () , to : ctx . accounts . vault_token . to_account_info () , authority : ctx . accounts . authority . to_account_info () , } ;"
+      },
+      {
+        "id": 39,
+        "label": "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;"
+      },
+      {
+        "id": 40,
+        "label": "token :: transfer (cpi_ctx , spend) ? ;"
+      },
+      {
+        "id": 41,
+        "label": "let mut step = 0u8 ;"
+      },
+      {
+        "id": 42,
+        "label": "while step < 3 { let threshold = 50u64 . saturating_mul ((step as u64) . saturating_add (1)) ; if player . exp >= threshold { player . level = player . level . saturating_add (1) ; player . exp = player . exp . saturating_sub (threshold / 2) ; } step = step . saturating_add (1) ; }"
+      },
+      {
+        "id": 43,
+        "label": "let threshold = 50u64 . saturating_mul ((step as u64) . saturating_add (1)) ;"
+      },
+      {
+        "id": 44,
+        "label": "if player . exp >= threshold { player . level = player . level . saturating_add (1) ; player . exp = player . exp . saturating_sub (threshold / 2) ; }"
+      },
+      {
+        "id": 45,
+        "label": "player . level = player . level . saturating_add (1) ;"
+      },
+      {
+        "id": 46,
+        "label": "player . exp = player . exp . saturating_sub (threshold / 2) ;"
+      },
+      {
+        "id": 47,
+        "label": "step = step . saturating_add (1) ;"
+      },
+      {
+        "id": 48,
+        "label": "let mut rolled = [0u8 ; 8] ;"
+      },
+      {
+        "id": 49,
+        "label": "let mut i = 0usize ;"
+      },
+      {
+        "id": 50,
+        "label": "while i < 8 { let v = inv . seed_tag [i] ; rolled [i] = v . rotate_left ((i as u32) & 3) ; i += 1 ; }"
+      },
+      {
+        "id": 51,
+        "label": "let v = inv . seed_tag [i] ;"
+      },
+      {
+        "id": 52,
+        "label": "rolled [i] = v . rotate_left ((i as u32) & 3) ;"
+      },
+      {
+        "id": 53,
+        "label": "i += 1 ;"
+      },
+      {
+        "id": 54,
+        "label": "inv . seed_tag = rolled ;"
+      },
+      {
+        "id": 55,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 23,
+        "to": 23,
+        "label": "def: player"
+      },
+      {
+        "from": 24,
+        "to": 24,
+        "label": "def: inv"
+      },
+      {
+        "from": 25,
+        "to": 25,
+        "label": "def: recipe"
+      },
+      {
+        "from": 26,
+        "to": 26,
+        "label": "def: now"
+      },
+      {
+        "from": 23,
+        "to": 27,
+        "label": "data_dep: player"
+      },
+      {
+        "from": 25,
+        "to": 27,
+        "label": "data_dep: recipe"
+      },
+      {
+        "from": 23,
+        "to": 27,
+        "label": "data_dep: player"
+      },
+      {
+        "from": 23,
+        "to": 27,
+        "label": "data_dep: player"
+      },
+      {
+        "from": 25,
+        "to": 27,
+        "label": "data_dep: recipe"
+      },
+      {
+        "from": 23,
+        "to": 28,
+        "label": "data_dep: player"
+      },
+      {
+        "from": 23,
+        "to": 28,
+        "label": "data_dep: player"
+      },
+      {
+        "from": 25,
+        "to": 28,
+        "label": "data_dep: recipe"
+      },
+      {
+        "from": 25,
+        "to": 29,
+        "label": "data_dep: recipe"
+      },
+      {
+        "from": 25,
+        "to": 29,
+        "label": "data_dep: recipe"
+      },
+      {
+        "from": 23,
+        "to": 29,
+        "label": "data_dep: player"
+      },
+      {
+        "from": 23,
+        "to": 29,
+        "label": "data_dep: player"
+      },
+      {
+        "from": 30,
+        "to": 30,
+        "label": "def: surplus"
+      },
+      {
+        "from": 25,
+        "to": 30,
+        "label": "data_dep: recipe"
+      },
+      {
+        "from": 23,
+        "to": 31,
+        "label": "data_dep: player"
+      },
+      {
+        "from": 23,
+        "to": 31,
+        "label": "data_dep: player"
+      },
+      {
+        "from": 30,
+        "to": 31,
+        "label": "data_dep: surplus"
+      },
+      {
+        "from": 32,
+        "to": 32,
+        "label": "def: delta"
+      },
+      {
+        "from": 26,
+        "to": 32,
+        "label": "data_dep: now"
+      },
+      {
+        "from": 23,
+        "to": 32,
+        "label": "data_dep: player"
+      },
+      {
+        "from": 32,
+        "to": 33,
+        "label": "data_dep: delta"
+      },
+      {
+        "from": 24,
+        "to": 33,
+        "label": "data_dep: inv"
+      },
+      {
+        "from": 24,
+        "to": 33,
+        "label": "data_dep: inv"
+      },
+      {
+        "from": 24,
+        "to": 33,
+        "label": "data_dep: inv"
+      },
+      {
+        "from": 24,
+        "to": 34,
+        "label": "data_dep: inv"
+      },
+      {
+        "from": 24,
+        "to": 34,
+        "label": "data_dep: inv"
+      },
+      {
+        "from": 24,
+        "to": 34,
+        "label": "data_dep: inv"
+      },
+      {
+        "from": 24,
+        "to": 35,
+        "label": "data_dep: inv"
+      },
+      {
+        "from": 24,
+        "to": 35,
+        "label": "data_dep: inv"
+      },
+      {
+        "from": 23,
+        "to": 36,
+        "label": "data_dep: player"
+      },
+      {
+        "from": 26,
+        "to": 36,
+        "label": "data_dep: now"
+      },
+      {
+        "from": 38,
+        "to": 38,
+        "label": "def: cpi_accounts"
+      },
+      {
+        "from": 39,
+        "to": 39,
+        "label": "def: cpi_ctx"
+      },
+      {
+        "from": 38,
+        "to": 39,
+        "label": "data_dep: cpi_accounts"
+      },
+      {
+        "from": 39,
+        "to": 40,
+        "label": "data_dep: cpi_ctx"
+      },
+      {
+        "from": 41,
+        "to": 41,
+        "label": "def: step"
+      },
+      {
+        "from": 41,
+        "to": 42,
+        "label": "data_dep: step"
+      },
+      {
+        "from": 41,
+        "to": 42,
+        "label": "data_dep: step"
+      },
+      {
+        "from": 23,
+        "to": 42,
+        "label": "data_dep: player"
+      },
+      {
+        "from": 23,
+        "to": 42,
+        "label": "data_dep: player"
+      },
+      {
+        "from": 23,
+        "to": 42,
+        "label": "data_dep: player"
+      },
+      {
+        "from": 23,
+        "to": 42,
+        "label": "data_dep: player"
+      },
+      {
+        "from": 23,
+        "to": 42,
+        "label": "data_dep: player"
+      },
+      {
+        "from": 41,
+        "to": 42,
+        "label": "data_dep: step"
+      },
+      {
+        "from": 41,
+        "to": 42,
+        "label": "data_dep: step"
+      },
+      {
+        "from": 43,
+        "to": 43,
+        "label": "def: threshold"
+      },
+      {
+        "from": 41,
+        "to": 43,
+        "label": "data_dep: step"
+      },
+      {
+        "from": 23,
+        "to": 44,
+        "label": "data_dep: player"
+      },
+      {
+        "from": 43,
+        "to": 44,
+        "label": "data_dep: threshold"
+      },
+      {
+        "from": 23,
+        "to": 44,
+        "label": "data_dep: player"
+      },
+      {
+        "from": 23,
+        "to": 44,
+        "label": "data_dep: player"
+      },
+      {
+        "from": 23,
+        "to": 44,
+        "label": "data_dep: player"
+      },
+      {
+        "from": 23,
+        "to": 44,
+        "label": "data_dep: player"
+      },
+      {
+        "from": 43,
+        "to": 44,
+        "label": "data_dep: threshold"
+      },
+      {
+        "from": 23,
+        "to": 45,
+        "label": "data_dep: player"
+      },
+      {
+        "from": 23,
+        "to": 45,
+        "label": "data_dep: player"
+      },
+      {
+        "from": 23,
+        "to": 46,
+        "label": "data_dep: player"
+      },
+      {
+        "from": 23,
+        "to": 46,
+        "label": "data_dep: player"
+      },
+      {
+        "from": 43,
+        "to": 46,
+        "label": "data_dep: threshold"
+      },
+      {
+        "from": 41,
+        "to": 47,
+        "label": "data_dep: step"
+      },
+      {
+        "from": 41,
+        "to": 47,
+        "label": "data_dep: step"
+      },
+      {
+        "from": 48,
+        "to": 48,
+        "label": "def: rolled"
+      },
+      {
+        "from": 49,
+        "to": 49,
+        "label": "def: i"
+      },
+      {
+        "from": 49,
+        "to": 50,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 24,
+        "to": 50,
+        "label": "data_dep: inv"
+      },
+      {
+        "from": 49,
+        "to": 50,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 48,
+        "to": 50,
+        "label": "data_dep: rolled"
+      },
+      {
+        "from": 49,
+        "to": 50,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 49,
+        "to": 50,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 49,
+        "to": 50,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 51,
+        "to": 51,
+        "label": "def: v"
+      },
+      {
+        "from": 24,
+        "to": 51,
+        "label": "data_dep: inv"
+      },
+      {
+        "from": 49,
+        "to": 51,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 48,
+        "to": 52,
+        "label": "data_dep: rolled"
+      },
+      {
+        "from": 49,
+        "to": 52,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 51,
+        "to": 52,
+        "label": "data_dep: v"
+      },
+      {
+        "from": 49,
+        "to": 52,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 49,
+        "to": 53,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 24,
+        "to": 54,
+        "label": "data_dep: inv"
+      },
+      {
+        "from": 48,
+        "to": 54,
+        "label": "data_dep: rolled"
+      }
+    ]
+  },
+  {
+    "name": "bind_untyped_inventory",
+    "inputs": [
+      "ctx: Context < BindUntypedInventory >"
+    ],
+    "nodes": [
+      {
+        "id": 56,
+        "label": "Entry"
+      },
+      {
+        "id": 57,
+        "label": "let ai = & ctx . accounts . untyped_inventory ;"
+      },
+      {
+        "id": 58,
+        "label": "assert_account_type :: < Inventory > (ai) . map_err (| _ | error ! (GameErr :: AccountTypeMismatch)) ? ;"
+      },
+      {
+        "id": 59,
+        "label": "let mut inv : Account < Inventory > = Account :: < Inventory > :: try_from (ai) ? ;"
+      },
+      {
+        "id": 60,
+        "label": "if inv . slots < 10 { inv . slots = inv . slots . saturating_add (2) ; }"
+      },
+      {
+        "id": 61,
+        "label": "inv . slots = inv . slots . saturating_add (2) ;"
+      },
+      {
+        "id": 62,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 57,
+        "to": 57,
+        "label": "def: ai"
+      },
+      {
+        "from": 57,
+        "to": 58,
+        "label": "data_dep: ai"
+      },
+      {
+        "from": 57,
+        "to": 59,
+        "label": "data_dep: ai"
+      }
+    ]
+  },
+  {
+    "name": "assert_account_type",
+    "inputs": [
+      "acc: & AccountInfo"
+    ],
+    "nodes": [
+      {
+        "id": 63,
+        "label": "Entry"
+      },
+      {
+        "id": 64,
+        "label": "let data = acc . try_borrow_data () ? ;"
+      },
+      {
+        "id": 65,
+        "label": "if data . len () < 8 { return Err (error ! (GameErr :: AccountDataTooSmall)) ; }"
+      },
+      {
+        "id": 66,
+        "label": "return Err (error ! (GameErr :: AccountDataTooSmall)) ;"
+      },
+      {
+        "id": 67,
+        "label": "let expected = T :: discriminator () ;"
+      },
+      {
+        "id": 68,
+        "label": "let mut same = true ;"
+      },
+      {
+        "id": 69,
+        "label": "let mut i = 0usize ;"
+      },
+      {
+        "id": 70,
+        "label": "while i < 8 { if data [i] != expected [i] { same = false ; } i += 1 ; }"
+      },
+      {
+        "id": 71,
+        "label": "if data [i] != expected [i] { same = false ; }"
+      },
+      {
+        "id": 72,
+        "label": "same = false ;"
+      },
+      {
+        "id": 73,
+        "label": "i += 1 ;"
+      },
+      {
+        "id": 74,
+        "label": "if ! same { return Err (error ! (GameErr :: AccountTypeMismatch)) ; }"
+      },
+      {
+        "id": 75,
+        "label": "return Err (error ! (GameErr :: AccountTypeMismatch)) ;"
+      },
+      {
+        "id": 76,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 64,
+        "to": 64,
+        "label": "def: data"
+      },
+      {
+        "from": 64,
+        "to": 65,
+        "label": "data_dep: data"
+      },
+      {
+        "from": 67,
+        "to": 67,
+        "label": "def: expected"
+      },
+      {
+        "from": 68,
+        "to": 68,
+        "label": "def: same"
+      },
+      {
+        "from": 69,
+        "to": 69,
+        "label": "def: i"
+      },
+      {
+        "from": 69,
+        "to": 70,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 64,
+        "to": 70,
+        "label": "data_dep: data"
+      },
+      {
+        "from": 69,
+        "to": 70,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 67,
+        "to": 70,
+        "label": "data_dep: expected"
+      },
+      {
+        "from": 69,
+        "to": 70,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 68,
+        "to": 70,
+        "label": "data_dep: same"
+      },
+      {
+        "from": 69,
+        "to": 70,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 64,
+        "to": 71,
+        "label": "data_dep: data"
+      },
+      {
+        "from": 69,
+        "to": 71,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 67,
+        "to": 71,
+        "label": "data_dep: expected"
+      },
+      {
+        "from": 69,
+        "to": 71,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 68,
+        "to": 71,
+        "label": "data_dep: same"
+      },
+      {
+        "from": 68,
+        "to": 72,
+        "label": "data_dep: same"
+      },
+      {
+        "from": 69,
+        "to": 73,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 68,
+        "to": 74,
+        "label": "data_dep: same"
+      }
+    ]
+  }
+]

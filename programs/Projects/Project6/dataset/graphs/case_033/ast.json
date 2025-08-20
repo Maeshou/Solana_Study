@@ -1,0 +1,235 @@
+[
+  {
+    "name": "initiate_guild_war",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitiateGuildWar >"
+    ],
+    "attributes": [],
+    "body": [
+      "let attacking_guild = & mut ctx . accounts . attacking_guild ;",
+      "let defending_guild = & mut ctx . accounts . defending_guild ;",
+      "let battle_arena = & mut ctx . accounts . battle_arena ;",
+      "require ! (attacking_guild . member_count >= 10 , BattleError :: InsufficientMembers) ;",
+      "require ! (defending_guild . member_count >= 10 , BattleError :: InsufficientMembers) ;",
+      "require ! (attacking_guild . guild_level >= 5 , BattleError :: GuildLevelTooLow) ;",
+      "let current_time = Clock :: get () ? . unix_timestamp ;",
+      "let last_battle_time = attacking_guild . last_battle_time ;",
+      "let cooldown_period = 86400 ;",
+      "require ! (current_time >= last_battle_time + cooldown_period , BattleError :: CooldownActive) ;",
+      "battle_arena . battle_id = battle_arena . total_battles + 1 ;",
+      "battle_arena . attacking_guild_id = attacking_guild . guild_id ;",
+      "battle_arena . defending_guild_id = defending_guild . guild_id ;",
+      "battle_arena . battle_status = BattleStatus :: Preparation ;",
+      "battle_arena . preparation_end_time = current_time + 3600 ;",
+      "let max_participants = std :: cmp :: min (attacking_guild . member_count , defending_guild . member_count) ;",
+      "let actual_participants = std :: cmp :: min (max_participants , 20) ;",
+      "let mut attacking_power = 0u64 ;",
+      "let mut defending_power = 0u64 ;",
+      "for member_index in 0 .. actual_participants",
+      "{",
+      "let member_level = attacking_guild . member_levels . get (member_index) . unwrap_or (& 1) ;",
+      "let equipment_bonus = attacking_guild . equipment_scores . get (member_index) . unwrap_or (& 0) ;",
+      "let member_power = member_level . checked_mul (100) . unwrap () . checked_add (* equipment_bonus) . unwrap () ;",
+      "attacking_power = attacking_power . checked_add (member_power) . unwrap () ;",
+      "}",
+      "while defending_power < attacking_power",
+      "{",
+      "for member_index in 0 .. actual_participants",
+      "{",
+      "let member_level = defending_guild . member_levels . get (member_index) . unwrap_or (& 1) ;",
+      "let defense_bonus = defending_guild . fortress_level * 50 ;",
+      "let member_power = member_level . checked_mul (100) . unwrap () . checked_add (defense_bonus) . unwrap () ;",
+      "defending_power = defending_power . checked_add (member_power) . unwrap () ;",
+      "defending_power = defending_power . checked_mul (110) . unwrap () / 100 ;",
+      "break ;",
+      "} break ;",
+      "}",
+      "battle_arena . attacking_power = attacking_power ;",
+      "battle_arena . defending_power = defending_power ;",
+      "battle_arena . total_battles = battle_arena . total_battles . checked_add (1) . unwrap () ;",
+      "attacking_guild . last_battle_time = current_time ;",
+      "attacking_guild . total_wars_initiated = attacking_guild . total_wars_initiated . checked_add (1) . unwrap () ;",
+      "defending_guild . total_wars_defended = defending_guild . total_wars_defended . checked_add (1) . unwrap () ;",
+      "emit ! (GuildWarInitiated { attacking_guild : attacking_guild . guild_id , defending_guild : defending_guild . guild_id , battle_id : battle_arena . battle_id , participants : actual_participants , }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Guild",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "guild_master",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "guild_name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "member_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "guild_level",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "total_wars_initiated",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_wars_defended",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "fortress_level",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "last_battle_time",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "member_levels",
+        "attribute": null,
+        "field_type": "Vec < u64 >"
+      },
+      {
+        "name": "equipment_scores",
+        "attribute": null,
+        "field_type": "Vec < u64 >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BattleArena",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "arena_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "battle_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "attacking_guild_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "defending_guild_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "battle_status",
+        "attribute": null,
+        "field_type": "BattleStatus"
+      },
+      {
+        "name": "attacking_power",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "defending_power",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "preparation_end_time",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "total_battles",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitiateGuildWar",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "attacking_guild",
+        "attribute": "# [account (mut , has_one = guild_master @ BattleError :: NotGuildMaster , constraint = attacking_guild . guild_level >= 5 @ BattleError :: GuildLevelTooLow)]",
+        "field_type": "Account < 'info , Guild >"
+      },
+      {
+        "name": "defending_guild",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Guild >"
+      },
+      {
+        "name": "battle_arena",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , BattleArena >"
+      },
+      {
+        "name": "guild_master",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GuildWarInitiated",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "attacking_guild",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "defending_guild",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "battle_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "participants",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

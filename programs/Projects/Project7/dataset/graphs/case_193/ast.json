@@ -1,0 +1,151 @@
+[
+  {
+    "name": "create",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateEvenRound >",
+      "unit_tokens: u64",
+      "total_cap: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let flow = & mut ctx . accounts . flow ;",
+      "flow . operator = ctx . accounts . operator . key () ;",
+      "flow . unit_tokens = unit_tokens . max (1) ;",
+      "flow . total_cap = total_cap . max (flow . unit_tokens) ;",
+      "flow . total_sum = 0 ;",
+      "flow . use_alternate_this_round = true ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "drive",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < DriveEvenRound >",
+      "num_steps: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let flow = & mut ctx . accounts . flow ;",
+      "let mut step_counter : u8 = 0 ;",
+      "while step_counter < num_steps",
+      "{",
+      "let updated_sum = flow . total_sum . saturating_add (flow . unit_tokens) ;",
+      "if updated_sum > flow . total_cap",
+      "{",
+      "return Err (EvenRoundErr :: Cap . into ()) ;",
+      "} let mut program_account_info = ctx . accounts . token_program . to_account_info () ;",
+      "if flow . use_alternate_this_round",
+      "{",
+      "program_account_info = ctx . accounts . alternate_program . clone () ;",
+      "} token :: approve (ctx . accounts . ap (program_account_info . clone ()) , flow . unit_tokens) ? ;",
+      "token :: transfer (ctx . accounts . tr (program_account_info . clone ()) , flow . unit_tokens) ? ;",
+      "token :: revoke (ctx . accounts . rv (program_account_info)) ? ;",
+      "flow . total_sum = updated_sum ;",
+      "flow . use_alternate_this_round = ! flow . use_alternate_this_round ;",
+      "step_counter = step_counter . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CreateEvenRound",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "flow",
+        "attribute": "# [account (init , payer = operator , space = 8 + 32 + 8 + 8 + 8 + 1)]",
+        "field_type": "Account < 'info , EvenRoundState >"
+      },
+      {
+        "name": "operator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DriveEvenRound",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "flow",
+        "attribute": "# [account (mut , has_one = operator)]",
+        "field_type": "Account < 'info , EvenRoundState >"
+      },
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "stage_in",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "stage_out",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "alternate_program",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EvenRoundState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "unit_tokens",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_cap",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_sum",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "use_alternate_this_round",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

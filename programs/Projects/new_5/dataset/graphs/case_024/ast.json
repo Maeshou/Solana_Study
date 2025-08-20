@@ -1,0 +1,236 @@
+[
+  {
+    "name": "init_competition",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitCompetition >",
+      "comp_id: u32",
+      "comp_name: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let competition = & mut ctx . accounts . competition ;",
+      "competition . organizer = ctx . accounts . organizer . key () ;",
+      "competition . comp_id = comp_id ;",
+      "competition . comp_name = comp_name ;",
+      "competition . entry_count = 0 ;",
+      "competition . is_open = true ;",
+      "msg ! (\"Competition '{}' initialized.\" , competition . comp_name) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_entry",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitEntry >",
+      "entry_id: u64",
+      "initial_score: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let entry = & mut ctx . accounts . entry ;",
+      "let competition = & mut ctx . accounts . competition ;",
+      "entry . competition = competition . key () ;",
+      "entry . entry_id = entry_id ;",
+      "entry . player = ctx . accounts . player . key () ;",
+      "entry . score = initial_score ;",
+      "entry . is_final = false ;",
+      "competition . entry_count = competition . entry_count . saturating_add (1) ;",
+      "msg ! (\"Entry {} created for competition {}.\" , entry . entry_id , competition . comp_name) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "process_entries",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ProcessEntries >",
+      "bonuses: Vec < u32 >"
+    ],
+    "attributes": [],
+    "body": [
+      "let entry_a = & mut ctx . accounts . entry_a ;",
+      "let entry_b = & mut ctx . accounts . entry_b ;",
+      "let mut a_bonuses_sum : u64 = 0 ;",
+      "let mut b_bonuses_sum : u64 = 0 ;",
+      "let mut loops_run = 0 ;",
+      "while loops_run < bonuses . len ()",
+      "{",
+      "let bonus = bonuses [loops_run] as u64 ;",
+      "if entry_a . score > entry_b . score",
+      "{",
+      "entry_a . score = entry_a . score . saturating_add ((bonus * 2) as u32) ;",
+      "entry_b . score = entry_b . score . checked_sub ((bonus / 2) as u32) . unwrap_or (0) ;",
+      "a_bonuses_sum = a_bonuses_sum . saturating_add (bonus * 2) ;",
+      "b_bonuses_sum = b_bonuses_sum . saturating_sub (bonus / 2) ;",
+      "msg ! (\"A had higher score, applying bonus to A and penalty to B.\") ;",
+      "} else",
+      "{",
+      "entry_b . score = entry_b . score . saturating_add ((bonus * 2) as u32) ;",
+      "entry_a . score = entry_a . score . checked_sub ((bonus / 2) as u32) . unwrap_or (0) ;",
+      "b_bonuses_sum = b_bonuses_sum . saturating_add (bonus * 2) ;",
+      "a_bonuses_sum = a_bonuses_sum . saturating_sub (bonus / 2) ;",
+      "msg ! (\"B had higher or equal score, applying bonus to B and penalty to A.\") ;",
+      "} loops_run += 1 ;",
+      "}",
+      "if a_bonuses_sum > b_bonuses_sum",
+      "{",
+      "entry_a . is_final = true ;",
+      "} else",
+      "{",
+      "entry_b . is_final = true ;",
+      "}",
+      "msg ! (\"Processed {} bonuses. A's score change: {}, B's score change: {}.\" , loops_run , a_bonuses_sum , b_bonuses_sum) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitCompetition",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "competition",
+        "attribute": "# [account (init , payer = organizer , space = 8 + 32 + 4 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Competition >"
+      },
+      {
+        "name": "organizer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitEntry",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "competition",
+        "attribute": "# [account (mut , has_one = competition)]",
+        "field_type": "Account < 'info , Competition >"
+      },
+      {
+        "name": "entry",
+        "attribute": "# [account (init , payer = player , space = 8 + 32 + 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , CompetitionEntry >"
+      },
+      {
+        "name": "player",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ProcessEntries",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "competition",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Competition >"
+      },
+      {
+        "name": "entry_a",
+        "attribute": "# [account (mut , has_one = competition)]",
+        "field_type": "Account < 'info , CompetitionEntry >"
+      },
+      {
+        "name": "entry_b",
+        "attribute": "# [account (mut , has_one = competition)]",
+        "field_type": "Account < 'info , CompetitionEntry >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Competition",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "organizer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "comp_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "comp_name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "entry_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "is_open",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CompetitionEntry",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "competition",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "entry_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "player",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "score",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "is_final",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

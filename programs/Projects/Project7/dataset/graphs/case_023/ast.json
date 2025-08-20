@@ -1,0 +1,156 @@
+[
+  {
+    "name": "init_deal",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitDeal >",
+      "base_bps: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let d = & mut ctx . accounts . deal ;",
+      "d . manager = ctx . accounts . manager . key () ;",
+      "d . scholar_base_bps = base_bps . min (9000) . max (500) ;",
+      "d . round_index = 4 ;",
+      "d . total_revenue_seen = 11 ;",
+      "d . dynamic_mode = false ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_split",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActSplit >",
+      "revenue: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let d = & mut ctx . accounts . deal ;",
+      "let mut add_bps = 0u64 ;",
+      "let mut i = 1u64 ;",
+      "while i <= d . round_index",
+      "{",
+      "if i % 5 == 0",
+      "{",
+      "add_bps = add_bps . saturating_add (100) ;",
+      "} i = i . saturating_add (1) ;",
+      "}",
+      "let avg = d . total_revenue_seen . saturating_div (d . round_index . max (1)) ;",
+      "if revenue > avg",
+      "{",
+      "d . dynamic_mode = true ;",
+      "}",
+      "if revenue <= avg",
+      "{",
+      "d . dynamic_mode = false ;",
+      "}",
+      "let scholar_cut = if d . dynamic_mode { let base = revenue . saturating_mul (60) / 100 ; base . saturating_add (revenue . saturating_mul (add_bps) / 10_000) } else { revenue . saturating_mul ((d . scholar_base_bps as u64) . saturating_add (add_bps)) / 10_000 } ;",
+      "let manager_cut = revenue . saturating_sub (scholar_cut) ;",
+      "token :: transfer (ctx . accounts . revenue_to_scholar () , scholar_cut) ? ;",
+      "token :: transfer (ctx . accounts . revenue_to_manager () , manager_cut) ? ;",
+      "d . total_revenue_seen = d . total_revenue_seen . saturating_add (revenue) ;",
+      "d . round_index = d . round_index . saturating_add (1) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitDeal",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "deal",
+        "attribute": "# [account (init , payer = manager , space = 8 + 32 + 2 + 8 + 8 + 1)]",
+        "field_type": "Account < 'info , DealState >"
+      },
+      {
+        "name": "manager",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActSplit",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "deal",
+        "attribute": "# [account (mut , has_one = manager)]",
+        "field_type": "Account < 'info , DealState >"
+      },
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "revenue_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "scholar_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "manager_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DealState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "scholar_base_bps",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "round_index",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_revenue_seen",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "dynamic_mode",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,9 +1,9 @@
 [
   {
-    "name": "freeze_account",
+    "name": "list_nft",
     "inputs": [
-      "ctx: Context < FreezeAccountCtxqnrf >",
-      "amount: u64"
+      "ctx: Context < ListNft >",
+      "price: u64"
     ],
     "nodes": [
       {
@@ -12,50 +12,159 @@
       },
       {
         "id": 1,
-        "label": "let acct = & mut ctx . accounts . account ;"
+        "label": "require ! (ctx . accounts . nft_token_account . owner == & token :: ID , ErrorCode :: InvalidNftTokenOwner) ;"
       },
       {
         "id": 2,
-        "label": "let temp = acct . data ;"
+        "label": "require ! (ctx . accounts . nft_mint . owner == & token :: ID , ErrorCode :: InvalidMintOwner) ;"
       },
       {
         "id": 3,
-        "label": "acct . data = temp . checked_mul (2) . unwrap () ;"
+        "label": "let listing_info = ctx . accounts . listing . to_account_info () ;"
       },
       {
         "id": 4,
-        "label": "msg ! (\"Executed freeze_account logic\") ;"
+        "label": "require ! (listing_info . owner == ctx . program_id , ErrorCode :: InvalidListingOwner) ;"
       },
       {
         "id": 5,
+        "label": "let listing = & mut ctx . accounts . listing ;"
+      },
+      {
+        "id": 6,
+        "label": "listing . seller = ctx . accounts . seller . key () ;"
+      },
+      {
+        "id": 7,
+        "label": "listing . nft_mint = ctx . accounts . nft_mint . key () ;"
+      },
+      {
+        "id": 8,
+        "label": "listing . price = price ;"
+      },
+      {
+        "id": 9,
+        "label": "listing . is_active = true ;"
+      },
+      {
+        "id": 10,
         "label": "Ok (())"
       }
     ],
     "edges": [
       {
-        "from": 1,
-        "to": 1,
-        "label": "def: acct"
-      },
-      {
-        "from": 2,
-        "to": 2,
-        "label": "def: temp"
-      },
-      {
-        "from": 1,
-        "to": 2,
-        "label": "data_dep: acct"
-      },
-      {
-        "from": 1,
+        "from": 3,
         "to": 3,
-        "label": "data_dep: acct"
+        "label": "def: listing_info"
       },
       {
-        "from": 2,
-        "to": 3,
-        "label": "data_dep: temp"
+        "from": 5,
+        "to": 5,
+        "label": "def: listing"
+      },
+      {
+        "from": 5,
+        "to": 6,
+        "label": "data_dep: listing"
+      },
+      {
+        "from": 5,
+        "to": 7,
+        "label": "data_dep: listing"
+      },
+      {
+        "from": 5,
+        "to": 8,
+        "label": "data_dep: listing"
+      },
+      {
+        "from": 5,
+        "to": 9,
+        "label": "data_dep: listing"
+      }
+    ]
+  },
+  {
+    "name": "buy_nft",
+    "inputs": [
+      "ctx: Context < BuyNft >"
+    ],
+    "nodes": [
+      {
+        "id": 11,
+        "label": "Entry"
+      },
+      {
+        "id": 12,
+        "label": "require ! (ctx . accounts . listing . to_account_info () . owner == ctx . program_id , ErrorCode :: InvalidListingOwner) ;"
+      },
+      {
+        "id": 13,
+        "label": "require ! (ctx . accounts . seller_nft_account . owner == & token :: ID , ErrorCode :: InvalidSellerNftOwner) ;"
+      },
+      {
+        "id": 14,
+        "label": "require ! (ctx . accounts . buyer_nft_account . owner == & token :: ID , ErrorCode :: InvalidBuyerNftOwner) ;"
+      },
+      {
+        "id": 15,
+        "label": "let listing = & mut ctx . accounts . listing ;"
+      },
+      {
+        "id": 16,
+        "label": "require ! (listing . is_active , ErrorCode :: ListingNotActive) ;"
+      },
+      {
+        "id": 17,
+        "label": "let transfer_instruction = Transfer { from : ctx . accounts . seller_nft_account . to_account_info () , to : ctx . accounts . buyer_nft_account . to_account_info () , authority : ctx . accounts . seller . to_account_info () , } ;"
+      },
+      {
+        "id": 18,
+        "label": "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , transfer_instruction ,) ;"
+      },
+      {
+        "id": 19,
+        "label": "token :: transfer (cpi_ctx , 1) ? ;"
+      },
+      {
+        "id": 20,
+        "label": "listing . is_active = false ;"
+      },
+      {
+        "id": 21,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 15,
+        "to": 15,
+        "label": "def: listing"
+      },
+      {
+        "from": 17,
+        "to": 17,
+        "label": "def: transfer_instruction"
+      },
+      {
+        "from": 18,
+        "to": 18,
+        "label": "def: cpi_ctx"
+      },
+      {
+        "from": 17,
+        "to": 18,
+        "label": "data_dep: transfer_instruction"
+      },
+      {
+        "from": 18,
+        "to": 19,
+        "label": "data_dep: cpi_ctx"
+      },
+      {
+        "from": 15,
+        "to": 20,
+        "label": "data_dep: listing"
       }
     ]
   }

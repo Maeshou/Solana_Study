@@ -1,0 +1,238 @@
+[
+  {
+    "name": "initialize_event",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeEvent >",
+      "event_id: u64",
+      "name: String",
+      "total_seats: u64",
+      "duration_secs: i64"
+    ],
+    "attributes": [
+      "# [doc = \" イベント作成：名前・総座席数・継続時間を受け取り、主要フィールドだけセット\"]"
+    ],
+    "body": [
+      "let ev = & mut ctx . accounts . event ;",
+      "let now = ctx . accounts . clock . unix_timestamp ;",
+      "* ev = EventReservation { owner : ctx . accounts . organizer . key () , bump : * ctx . bumps . get (\"event\") . unwrap () , event_id , name , total_seats , end_ts : now + duration_secs , last_action_ts : now , .. Default :: default () } ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "reserve_seat",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyEvent >"
+    ],
+    "attributes": [
+      "# [doc = \" 座席予約：期限切れ判定＋空き席があれば reservation を反映\"]"
+    ],
+    "body": [
+      "let ev = & mut ctx . accounts . event ;",
+      "let now = ctx . accounts . clock . unix_timestamp ;",
+      "if now >= ev . end_ts",
+      "{",
+      "ev . closed = true ;",
+      "}",
+      "if ! ev . closed && ev . available_seats > 0",
+      "{",
+      "ev . available_seats = ev . available_seats . wrapping_sub (1) ;",
+      "ev . reserved_count = ev . reserved_count . wrapping_add (1) ;",
+      "}",
+      "ev . last_action_ts = now ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "cancel_reservation",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyEvent >"
+    ],
+    "attributes": [
+      "# [doc = \" 予約キャンセル：既存予約があれば取消し\"]"
+    ],
+    "body": [
+      "let ev = & mut ctx . accounts . event ;",
+      "let now = ctx . accounts . clock . unix_timestamp ;",
+      "if ev . reserved_count > 0",
+      "{",
+      "ev . reserved_count = ev . reserved_count . wrapping_sub (1) ;",
+      "ev . available_seats = ev . available_seats . wrapping_add (1) ;",
+      "}",
+      "ev . last_action_ts = now ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "finalize_event",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < FinalizeEvent >"
+    ],
+    "attributes": [
+      "# [doc = \" イベント終了処理：期限到来で閉鎖\"]"
+    ],
+    "body": [
+      "let ev = & mut ctx . accounts . event ;",
+      "let now = ctx . accounts . clock . unix_timestamp ;",
+      "if ! ev . closed && now >= ev . end_ts",
+      "{",
+      "ev . closed = true ;",
+      "ev . last_action_ts = now ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializeEvent",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "event",
+        "attribute": "# [doc = \" ゼロクリア後、Defaultで補完可能\"] # [account (init_zeroed , payer = organizer , seeds = [b\"event\" , organizer . key () . as_ref () , & event_id . to_le_bytes ()] , bump , space = 8 + 32 + 1 + 8 + 4 + 64 + 8 + 8 + 8 + 8 + 1 + 8)]",
+        "field_type": "Account < 'info , EventReservation >"
+      },
+      {
+        "name": "organizer",
+        "attribute": "# [doc = \" イベント主催者（署名必須）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": "# [doc = \" 時刻取得用\"]",
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ModifyEvent",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "event",
+        "attribute": "# [doc = \" 既存の EventReservation（PDA 検証のみ、誰でも予約／取消可能）\"] # [account (mut , seeds = [b\"event\" , event . owner . as_ref () , & event . event_id . to_le_bytes ()] , bump = event . bump ,)]",
+        "field_type": "Account < 'info , EventReservation >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 操作を行うユーザー（署名必須）\"] # [account (signer)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": "# [doc = \" 時刻取得用\"]",
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "FinalizeEvent",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "event",
+        "attribute": "# [doc = \" Event 主催者のみ閉鎖可能\"] # [account (mut , seeds = [b\"event\" , owner . key () . as_ref () , & event . event_id . to_le_bytes ()] , bump = event . bump , has_one = owner)]",
+        "field_type": "Account < 'info , EventReservation >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 主催者（署名必須）\"] # [account (signer)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": "# [doc = \" 時刻取得用\"]",
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EventReservation",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "event_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "total_seats",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "available_seats",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "reserved_count",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "end_ts",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "closed",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "last_action_ts",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

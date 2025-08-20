@@ -1,0 +1,143 @@
+[
+  {
+    "name": "init_shop",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitShop >",
+      "catalog: Pubkey"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . shop ;",
+      "s . owner = ctx . accounts . owner . key () ;",
+      "s . catalog = catalog ;",
+      "s . salt = 41u64 . rotate_left (2) . wrapping_add (9) ;",
+      "for k in 0 .. 3u8",
+      "{",
+      "let x = (s . salt ^ (k as u64 * 23)) . rotate_left (1) ;",
+      "s . salt = s . salt . wrapping_add (x) . wrapping_mul (2) . wrapping_add (5) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "settle_refund",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SettleRefund >",
+      "lamports: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let ix = system_instruction :: transfer (& ctx . accounts . shop . key () , & ctx . accounts . customer . key () , lamports) ;",
+      "let bump = * ctx . bumps . get (\"shop\") . ok_or (error ! (ShopErr :: MissingBump)) ? ;",
+      "let seeds : & [& [u8]] = & [b\"shop\" , ctx . accounts . owner . key . as_ref () , ctx . accounts . shop . catalog . as_ref () , & [bump] ,] ;",
+      "invoke_signed (& ix , & [ctx . accounts . shop . to_account_info () , ctx . accounts . customer . to_account_info () , ctx . accounts . system_program . to_account_info () ,] , & [seeds] ,) ? ;",
+      "emit ! (RefundSettled { to : ctx . accounts . customer . key () , amount : lamports }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "RefundSettled",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "to",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "amount",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitShop",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "shop",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 32 + 8 , seeds = [b\"shop\" , owner . key () . as_ref () , catalog . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , ShopState >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "catalog",
+        "attribute": "# [doc = \" CHECK: 実運用は適切な型で検証\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SettleRefund",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "shop",
+        "attribute": "# [account (mut , seeds = [b\"shop\" , owner . key () . as_ref () , shop . catalog . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , ShopState >"
+      },
+      {
+        "name": "customer",
+        "attribute": "# [account (mut)]",
+        "field_type": "SystemAccount < 'info >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ShopState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "catalog",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "salt",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

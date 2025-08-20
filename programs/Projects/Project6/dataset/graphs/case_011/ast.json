@@ -1,0 +1,198 @@
+[
+  {
+    "name": "initialize_guild",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeGuild >",
+      "guild_name: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let guild_account = & mut ctx . accounts . guild_account ;",
+      "guild_account . name = guild_name ;",
+      "guild_account . member_count = 0 ;",
+      "guild_account . is_active = true ;",
+      "guild_account . owner = ctx . accounts . owner . key () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "register_member_and_log_raid_damage",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RegisterMemberAndLogRaidDamage >",
+      "member_tag: u64",
+      "raid_id: u32",
+      "damage_dealt: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let member = & mut ctx . accounts . guild_member ;",
+      "let raid_log = & mut ctx . accounts . raid_log ;",
+      "let guild = & mut ctx . accounts . guild_account ;",
+      "if member . tag == 0",
+      "{",
+      "member . tag = member_tag ;",
+      "member . guild = guild . key () ;",
+      "member . damage_dealt_total = 0 ;",
+      "member . raid_count = 0 ;",
+      "guild . member_count = guild . member_count . checked_add (1) . unwrap () ;",
+      "}",
+      "let current_damage = raid_log . damage_entries [raid_id as usize] . checked_add (damage_dealt) . unwrap_or (u64 :: MAX) ;",
+      "raid_log . damage_entries [raid_id as usize] = current_damage ;",
+      "let total_damage = member . damage_dealt_total . checked_add (damage_dealt) . unwrap_or (u64 :: MAX) ;",
+      "member . damage_dealt_total = total_damage ;",
+      "member . raid_count = member . raid_count . wrapping_add (1) ;",
+      "if total_damage > 1_000_000",
+      "{",
+      "msg ! (\"Member has reached a high damage milestone!\") ;",
+      "} else",
+      "{",
+      "msg ! (\"Member continues to fight.\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializeGuild",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild_account",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 4 + 8 + 1 + 32 + 8 , owner = crate :: ID ,)]",
+        "field_type": "Account < 'info , Guild >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RegisterMemberAndLogRaidDamage",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild_account",
+        "attribute": "# [account (mut , has_one = owner ,)]",
+        "field_type": "Account < 'info , Guild >"
+      },
+      {
+        "name": "guild_member",
+        "attribute": "# [account (init_if_needed , payer = owner , space = 8 + 8 + 32 + 8 + 8 + 4 , owner = crate :: ID , constraint = guild_account . key () != guild_member . key () @ ErrorCode :: CosplayBlocked ,)]",
+        "field_type": "Account < 'info , GuildMember >"
+      },
+      {
+        "name": "raid_log",
+        "attribute": "# [account (init_if_needed , payer = owner , space = 8 + 32 + 8 + 20 * 8 , owner = crate :: ID , has_one = guild_account ,)]",
+        "field_type": "Account < 'info , RaidLog >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Guild",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "member_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "is_active",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GuildMember",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "tag",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "guild",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "damage_dealt_total",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "raid_count",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RaidLog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild_account",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "raid_boss_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "damage_entries",
+        "attribute": null,
+        "field_type": "[u64 ; 20]"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

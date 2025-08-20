@@ -1,0 +1,1062 @@
+[
+  {
+    "name": "init_tournament_bracket",
+    "inputs": [
+      "ctx: Context < InitTournamentBracket >",
+      "game_type: u8",
+      "max_players: u32",
+      "entry_fee: u64"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let bracket = & mut ctx . accounts . tournament_bracket ;"
+      },
+      {
+        "id": 2,
+        "label": "bracket . organizer = ctx . accounts . organizer . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "bracket . game_type = game_type ;"
+      },
+      {
+        "id": 4,
+        "label": "bracket . max_players = max_players ;"
+      },
+      {
+        "id": 5,
+        "label": "bracket . entry_fee = entry_fee ;"
+      },
+      {
+        "id": 6,
+        "label": "bracket . current_round = 1 ;"
+      },
+      {
+        "id": 7,
+        "label": "bracket . tournament_status = 0 ;"
+      },
+      {
+        "id": 8,
+        "label": "bracket . total_prize_pool = 0 ;"
+      },
+      {
+        "id": 9,
+        "label": "bracket . registered_players = 0 ;"
+      },
+      {
+        "id": 10,
+        "label": "bracket . eliminated_players = 0 ;"
+      },
+      {
+        "id": 11,
+        "label": "bracket . start_time = 0 ;"
+      },
+      {
+        "id": 12,
+        "label": "bracket . registration_deadline = Clock :: get () ? . unix_timestamp + 86400 ;"
+      },
+      {
+        "id": 13,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: bracket"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 1,
+        "to": 6,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 1,
+        "to": 7,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 1,
+        "to": 8,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 1,
+        "to": 9,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 1,
+        "to": 10,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 1,
+        "to": 11,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 1,
+        "to": 12,
+        "label": "data_dep: bracket"
+      }
+    ]
+  },
+  {
+    "name": "manage_tournament_flow",
+    "inputs": [
+      "ctx: Context < ManageTournamentFlow >",
+      "action: u8",
+      "player_results: Vec < (Pubkey , u32 , bool) >"
+    ],
+    "nodes": [
+      {
+        "id": 14,
+        "label": "Entry"
+      },
+      {
+        "id": 15,
+        "label": "let bracket = & mut ctx . accounts . tournament_bracket ;"
+      },
+      {
+        "id": 16,
+        "label": "let match_data = & mut ctx . accounts . match_data ;"
+      },
+      {
+        "id": 17,
+        "label": "let manager = & ctx . accounts . manager ;"
+      },
+      {
+        "id": 18,
+        "label": "let current_time = Clock :: get () ? . unix_timestamp ;"
+      },
+      {
+        "id": 19,
+        "label": "match action { 0 => { if bracket . registered_players >= 4 { bracket . tournament_status = 1 ; bracket . start_time = current_time ; let matches_in_round = bracket . registered_players / 2 ; match_data . current_round_matches = matches_in_round ; match_data . matches_completed = 0 ; } } , 1 => { for (i , (player , score , winner)) in player_results . iter () . enumerate () . take (16) { match_data . match_results [i] = MatchResult { player : * player , score : * score , is_winner : * winner , match_time : current_time , } ; if * winner { match_data . round_winners [match_data . matches_completed as usize] = * player ; } else { bracket . eliminated_players += 1 ; let consolation = (bracket . total_prize_pool * 5) / 100 ; match_data . consolation_prizes [i] = consolation ; } } match_data . matches_completed += player_results . len () as u32 ; } , 2 => { if match_data . matches_completed >= match_data . current_round_matches { bracket . current_round += 1 ; let remaining_players = bracket . registered_players - bracket . eliminated_players ; if remaining_players <= 1 { bracket . tournament_status = 3 ; bracket . end_time = current_time ; let winner_prize = (bracket . total_prize_pool * 60) / 100 ; let runner_up_prize = (bracket . total_prize_pool * 25) / 100 ; let third_place_prize = (bracket . total_prize_pool * 15) / 100 ; match_data . final_prizes = [winner_prize , runner_up_prize , third_place_prize] ; } else { match_data . current_round_matches = remaining_players / 2 ; match_data . matches_completed = 0 ; for i in 0 .. remaining_players . min (32) { bracket . active_players [i as usize] = match_data . round_winners [i as usize] ; } } } } , 3 => { bracket . tournament_status = 4 ; bracket . pause_reason = if player_results . len () > 0 { 1 } else { 2 } ; bracket . paused_at = current_time ; } , _ => { } }"
+      },
+      {
+        "id": 20,
+        "label": "if bracket . registered_players >= 4 { bracket . tournament_status = 1 ; bracket . start_time = current_time ; let matches_in_round = bracket . registered_players / 2 ; match_data . current_round_matches = matches_in_round ; match_data . matches_completed = 0 ; }"
+      },
+      {
+        "id": 21,
+        "label": "bracket . tournament_status = 1 ;"
+      },
+      {
+        "id": 22,
+        "label": "bracket . start_time = current_time ;"
+      },
+      {
+        "id": 23,
+        "label": "let matches_in_round = bracket . registered_players / 2 ;"
+      },
+      {
+        "id": 24,
+        "label": "match_data . current_round_matches = matches_in_round ;"
+      },
+      {
+        "id": 25,
+        "label": "match_data . matches_completed = 0 ;"
+      },
+      {
+        "id": 26,
+        "label": "for (i , (player , score , winner)) in player_results . iter () . enumerate () . take (16) { match_data . match_results [i] = MatchResult { player : * player , score : * score , is_winner : * winner , match_time : current_time , } ; if * winner { match_data . round_winners [match_data . matches_completed as usize] = * player ; } else { bracket . eliminated_players += 1 ; let consolation = (bracket . total_prize_pool * 5) / 100 ; match_data . consolation_prizes [i] = consolation ; } }"
+      },
+      {
+        "id": 27,
+        "label": "match_data . match_results [i] = MatchResult { player : * player , score : * score , is_winner : * winner , match_time : current_time , } ;"
+      },
+      {
+        "id": 28,
+        "label": "if * winner { match_data . round_winners [match_data . matches_completed as usize] = * player ; } else { bracket . eliminated_players += 1 ; let consolation = (bracket . total_prize_pool * 5) / 100 ; match_data . consolation_prizes [i] = consolation ; }"
+      },
+      {
+        "id": 29,
+        "label": "match_data . round_winners [match_data . matches_completed as usize] = * player ;"
+      },
+      {
+        "id": 30,
+        "label": "bracket . eliminated_players += 1 ;"
+      },
+      {
+        "id": 31,
+        "label": "let consolation = (bracket . total_prize_pool * 5) / 100 ;"
+      },
+      {
+        "id": 32,
+        "label": "match_data . consolation_prizes [i] = consolation ;"
+      },
+      {
+        "id": 33,
+        "label": "match_data . matches_completed += player_results . len () as u32 ;"
+      },
+      {
+        "id": 34,
+        "label": "if match_data . matches_completed >= match_data . current_round_matches { bracket . current_round += 1 ; let remaining_players = bracket . registered_players - bracket . eliminated_players ; if remaining_players <= 1 { bracket . tournament_status = 3 ; bracket . end_time = current_time ; let winner_prize = (bracket . total_prize_pool * 60) / 100 ; let runner_up_prize = (bracket . total_prize_pool * 25) / 100 ; let third_place_prize = (bracket . total_prize_pool * 15) / 100 ; match_data . final_prizes = [winner_prize , runner_up_prize , third_place_prize] ; } else { match_data . current_round_matches = remaining_players / 2 ; match_data . matches_completed = 0 ; for i in 0 .. remaining_players . min (32) { bracket . active_players [i as usize] = match_data . round_winners [i as usize] ; } } }"
+      },
+      {
+        "id": 35,
+        "label": "bracket . current_round += 1 ;"
+      },
+      {
+        "id": 36,
+        "label": "let remaining_players = bracket . registered_players - bracket . eliminated_players ;"
+      },
+      {
+        "id": 37,
+        "label": "if remaining_players <= 1 { bracket . tournament_status = 3 ; bracket . end_time = current_time ; let winner_prize = (bracket . total_prize_pool * 60) / 100 ; let runner_up_prize = (bracket . total_prize_pool * 25) / 100 ; let third_place_prize = (bracket . total_prize_pool * 15) / 100 ; match_data . final_prizes = [winner_prize , runner_up_prize , third_place_prize] ; } else { match_data . current_round_matches = remaining_players / 2 ; match_data . matches_completed = 0 ; for i in 0 .. remaining_players . min (32) { bracket . active_players [i as usize] = match_data . round_winners [i as usize] ; } }"
+      },
+      {
+        "id": 38,
+        "label": "bracket . tournament_status = 3 ;"
+      },
+      {
+        "id": 39,
+        "label": "bracket . end_time = current_time ;"
+      },
+      {
+        "id": 40,
+        "label": "let winner_prize = (bracket . total_prize_pool * 60) / 100 ;"
+      },
+      {
+        "id": 41,
+        "label": "let runner_up_prize = (bracket . total_prize_pool * 25) / 100 ;"
+      },
+      {
+        "id": 42,
+        "label": "let third_place_prize = (bracket . total_prize_pool * 15) / 100 ;"
+      },
+      {
+        "id": 43,
+        "label": "match_data . final_prizes = [winner_prize , runner_up_prize , third_place_prize] ;"
+      },
+      {
+        "id": 44,
+        "label": "match_data . current_round_matches = remaining_players / 2 ;"
+      },
+      {
+        "id": 45,
+        "label": "match_data . matches_completed = 0 ;"
+      },
+      {
+        "id": 46,
+        "label": "for i in 0 .. remaining_players . min (32) { bracket . active_players [i as usize] = match_data . round_winners [i as usize] ; }"
+      },
+      {
+        "id": 47,
+        "label": "bracket . active_players [i as usize] = match_data . round_winners [i as usize] ;"
+      },
+      {
+        "id": 48,
+        "label": "bracket . tournament_status = 4 ;"
+      },
+      {
+        "id": 49,
+        "label": "bracket . pause_reason = if player_results . len () > 0 { 1 } else { 2 } ;"
+      },
+      {
+        "id": 50,
+        "label": "1"
+      },
+      {
+        "id": 51,
+        "label": "2"
+      },
+      {
+        "id": 52,
+        "label": "bracket . paused_at = current_time ;"
+      },
+      {
+        "id": 53,
+        "label": "for (player , score , winner) in player_results . iter () { if let Some (player_index) = bracket . active_players . iter () . position (| & p | p == * player) { bracket . player_scores [player_index] += * score ; if * winner { bracket . player_wins [player_index] += 1 ; } bracket . player_matches [player_index] += 1 ; } }"
+      },
+      {
+        "id": 54,
+        "label": "if let Some (player_index) = bracket . active_players . iter () . position (| & p | p == * player) { bracket . player_scores [player_index] += * score ; if * winner { bracket . player_wins [player_index] += 1 ; } bracket . player_matches [player_index] += 1 ; }"
+      },
+      {
+        "id": 55,
+        "label": "bracket . player_scores [player_index] += * score ;"
+      },
+      {
+        "id": 56,
+        "label": "if * winner { bracket . player_wins [player_index] += 1 ; }"
+      },
+      {
+        "id": 57,
+        "label": "bracket . player_wins [player_index] += 1 ;"
+      },
+      {
+        "id": 58,
+        "label": "bracket . player_matches [player_index] += 1 ;"
+      },
+      {
+        "id": 59,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 15,
+        "to": 15,
+        "label": "def: bracket"
+      },
+      {
+        "from": 16,
+        "to": 16,
+        "label": "def: match_data"
+      },
+      {
+        "from": 17,
+        "to": 17,
+        "label": "def: manager"
+      },
+      {
+        "from": 18,
+        "to": 18,
+        "label": "def: current_time"
+      },
+      {
+        "from": 15,
+        "to": 19,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 15,
+        "to": 19,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 15,
+        "to": 19,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 18,
+        "to": 19,
+        "label": "data_dep: current_time"
+      },
+      {
+        "from": 15,
+        "to": 19,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 16,
+        "to": 19,
+        "label": "data_dep: match_data"
+      },
+      {
+        "from": 16,
+        "to": 19,
+        "label": "data_dep: match_data"
+      },
+      {
+        "from": 16,
+        "to": 19,
+        "label": "data_dep: match_data"
+      },
+      {
+        "from": 18,
+        "to": 19,
+        "label": "data_dep: current_time"
+      },
+      {
+        "from": 16,
+        "to": 19,
+        "label": "data_dep: match_data"
+      },
+      {
+        "from": 16,
+        "to": 19,
+        "label": "data_dep: match_data"
+      },
+      {
+        "from": 15,
+        "to": 19,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 15,
+        "to": 19,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 16,
+        "to": 19,
+        "label": "data_dep: match_data"
+      },
+      {
+        "from": 16,
+        "to": 19,
+        "label": "data_dep: match_data"
+      },
+      {
+        "from": 16,
+        "to": 19,
+        "label": "data_dep: match_data"
+      },
+      {
+        "from": 16,
+        "to": 19,
+        "label": "data_dep: match_data"
+      },
+      {
+        "from": 15,
+        "to": 19,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 15,
+        "to": 19,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 15,
+        "to": 19,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 15,
+        "to": 19,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 15,
+        "to": 19,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 18,
+        "to": 19,
+        "label": "data_dep: current_time"
+      },
+      {
+        "from": 15,
+        "to": 19,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 15,
+        "to": 19,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 15,
+        "to": 19,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 16,
+        "to": 19,
+        "label": "data_dep: match_data"
+      },
+      {
+        "from": 16,
+        "to": 19,
+        "label": "data_dep: match_data"
+      },
+      {
+        "from": 16,
+        "to": 19,
+        "label": "data_dep: match_data"
+      },
+      {
+        "from": 15,
+        "to": 19,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 16,
+        "to": 19,
+        "label": "data_dep: match_data"
+      },
+      {
+        "from": 15,
+        "to": 19,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 15,
+        "to": 19,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 15,
+        "to": 19,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 18,
+        "to": 19,
+        "label": "data_dep: current_time"
+      },
+      {
+        "from": 15,
+        "to": 20,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 15,
+        "to": 20,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 15,
+        "to": 20,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 18,
+        "to": 20,
+        "label": "data_dep: current_time"
+      },
+      {
+        "from": 15,
+        "to": 20,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 16,
+        "to": 20,
+        "label": "data_dep: match_data"
+      },
+      {
+        "from": 16,
+        "to": 20,
+        "label": "data_dep: match_data"
+      },
+      {
+        "from": 15,
+        "to": 21,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 15,
+        "to": 22,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 18,
+        "to": 22,
+        "label": "data_dep: current_time"
+      },
+      {
+        "from": 23,
+        "to": 23,
+        "label": "def: matches_in_round"
+      },
+      {
+        "from": 15,
+        "to": 23,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 16,
+        "to": 24,
+        "label": "data_dep: match_data"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "data_dep: matches_in_round"
+      },
+      {
+        "from": 16,
+        "to": 25,
+        "label": "data_dep: match_data"
+      },
+      {
+        "from": 16,
+        "to": 26,
+        "label": "data_dep: match_data"
+      },
+      {
+        "from": 18,
+        "to": 26,
+        "label": "data_dep: current_time"
+      },
+      {
+        "from": 16,
+        "to": 26,
+        "label": "data_dep: match_data"
+      },
+      {
+        "from": 16,
+        "to": 26,
+        "label": "data_dep: match_data"
+      },
+      {
+        "from": 15,
+        "to": 26,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 15,
+        "to": 26,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 16,
+        "to": 26,
+        "label": "data_dep: match_data"
+      },
+      {
+        "from": 16,
+        "to": 27,
+        "label": "data_dep: match_data"
+      },
+      {
+        "from": 18,
+        "to": 27,
+        "label": "data_dep: current_time"
+      },
+      {
+        "from": 16,
+        "to": 28,
+        "label": "data_dep: match_data"
+      },
+      {
+        "from": 16,
+        "to": 28,
+        "label": "data_dep: match_data"
+      },
+      {
+        "from": 15,
+        "to": 28,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 15,
+        "to": 28,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 16,
+        "to": 28,
+        "label": "data_dep: match_data"
+      },
+      {
+        "from": 16,
+        "to": 29,
+        "label": "data_dep: match_data"
+      },
+      {
+        "from": 16,
+        "to": 29,
+        "label": "data_dep: match_data"
+      },
+      {
+        "from": 15,
+        "to": 30,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 31,
+        "to": 31,
+        "label": "def: consolation"
+      },
+      {
+        "from": 15,
+        "to": 31,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 16,
+        "to": 32,
+        "label": "data_dep: match_data"
+      },
+      {
+        "from": 31,
+        "to": 32,
+        "label": "data_dep: consolation"
+      },
+      {
+        "from": 16,
+        "to": 33,
+        "label": "data_dep: match_data"
+      },
+      {
+        "from": 16,
+        "to": 34,
+        "label": "data_dep: match_data"
+      },
+      {
+        "from": 16,
+        "to": 34,
+        "label": "data_dep: match_data"
+      },
+      {
+        "from": 15,
+        "to": 34,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 15,
+        "to": 34,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 15,
+        "to": 34,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 15,
+        "to": 34,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 15,
+        "to": 34,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 18,
+        "to": 34,
+        "label": "data_dep: current_time"
+      },
+      {
+        "from": 15,
+        "to": 34,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 15,
+        "to": 34,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 15,
+        "to": 34,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 16,
+        "to": 34,
+        "label": "data_dep: match_data"
+      },
+      {
+        "from": 16,
+        "to": 34,
+        "label": "data_dep: match_data"
+      },
+      {
+        "from": 16,
+        "to": 34,
+        "label": "data_dep: match_data"
+      },
+      {
+        "from": 15,
+        "to": 34,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 16,
+        "to": 34,
+        "label": "data_dep: match_data"
+      },
+      {
+        "from": 15,
+        "to": 35,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 36,
+        "to": 36,
+        "label": "def: remaining_players"
+      },
+      {
+        "from": 15,
+        "to": 36,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 15,
+        "to": 36,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 36,
+        "to": 37,
+        "label": "data_dep: remaining_players"
+      },
+      {
+        "from": 15,
+        "to": 37,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 15,
+        "to": 37,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 18,
+        "to": 37,
+        "label": "data_dep: current_time"
+      },
+      {
+        "from": 15,
+        "to": 37,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 15,
+        "to": 37,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 15,
+        "to": 37,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 16,
+        "to": 37,
+        "label": "data_dep: match_data"
+      },
+      {
+        "from": 16,
+        "to": 37,
+        "label": "data_dep: match_data"
+      },
+      {
+        "from": 36,
+        "to": 37,
+        "label": "data_dep: remaining_players"
+      },
+      {
+        "from": 16,
+        "to": 37,
+        "label": "data_dep: match_data"
+      },
+      {
+        "from": 36,
+        "to": 37,
+        "label": "data_dep: remaining_players"
+      },
+      {
+        "from": 15,
+        "to": 37,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 16,
+        "to": 37,
+        "label": "data_dep: match_data"
+      },
+      {
+        "from": 15,
+        "to": 38,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 15,
+        "to": 39,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 18,
+        "to": 39,
+        "label": "data_dep: current_time"
+      },
+      {
+        "from": 40,
+        "to": 40,
+        "label": "def: winner_prize"
+      },
+      {
+        "from": 15,
+        "to": 40,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 41,
+        "to": 41,
+        "label": "def: runner_up_prize"
+      },
+      {
+        "from": 15,
+        "to": 41,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 42,
+        "to": 42,
+        "label": "def: third_place_prize"
+      },
+      {
+        "from": 15,
+        "to": 42,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 16,
+        "to": 43,
+        "label": "data_dep: match_data"
+      },
+      {
+        "from": 40,
+        "to": 43,
+        "label": "data_dep: winner_prize"
+      },
+      {
+        "from": 41,
+        "to": 43,
+        "label": "data_dep: runner_up_prize"
+      },
+      {
+        "from": 42,
+        "to": 43,
+        "label": "data_dep: third_place_prize"
+      },
+      {
+        "from": 16,
+        "to": 44,
+        "label": "data_dep: match_data"
+      },
+      {
+        "from": 36,
+        "to": 44,
+        "label": "data_dep: remaining_players"
+      },
+      {
+        "from": 16,
+        "to": 45,
+        "label": "data_dep: match_data"
+      },
+      {
+        "from": 36,
+        "to": 46,
+        "label": "data_dep: remaining_players"
+      },
+      {
+        "from": 15,
+        "to": 46,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 16,
+        "to": 46,
+        "label": "data_dep: match_data"
+      },
+      {
+        "from": 15,
+        "to": 47,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 16,
+        "to": 47,
+        "label": "data_dep: match_data"
+      },
+      {
+        "from": 15,
+        "to": 48,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 15,
+        "to": 49,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 15,
+        "to": 52,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 18,
+        "to": 52,
+        "label": "data_dep: current_time"
+      },
+      {
+        "from": 15,
+        "to": 53,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 15,
+        "to": 53,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 15,
+        "to": 53,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 15,
+        "to": 53,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 15,
+        "to": 54,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 15,
+        "to": 54,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 15,
+        "to": 54,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 15,
+        "to": 54,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 15,
+        "to": 55,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 15,
+        "to": 56,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 15,
+        "to": 57,
+        "label": "data_dep: bracket"
+      },
+      {
+        "from": 15,
+        "to": 58,
+        "label": "data_dep: bracket"
+      }
+    ]
+  }
+]

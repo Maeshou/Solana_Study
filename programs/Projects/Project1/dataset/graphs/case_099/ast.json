@@ -1,0 +1,166 @@
+[
+  {
+    "name": "register_user",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RegisterUser >"
+    ],
+    "attributes": [
+      "# [doc = \" ユーザープロファイルを初期化。初期レートは100/100 = 100%。\"]"
+    ],
+    "body": [
+      "let prof = & mut ctx . accounts . profile ;",
+      "prof . user = ctx . accounts . user . key () ;",
+      "prof . admin = ctx . accounts . admin . key () ;",
+      "prof . rate_num = 100 ;",
+      "prof . rate_den = 100 ;",
+      "prof . balance = 0 ;",
+      "msg ! (\"Registered {} with 100% earning rate\" , prof . user) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "penalize_user",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PenalizeUser >",
+      "penalty: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 管理者がユーザーにペナルティを課し、earning rate の分子を減少させる。\"]"
+    ],
+    "body": [
+      "let prof = & mut ctx . accounts . profile ;",
+      "prof . rate_num = prof . rate_num . saturating_sub (penalty) . max (1) ;",
+      "msg ! (\"Penalized {}: new rate {}/{}\" , prof . user , prof . rate_num , prof . rate_den) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "earn",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Earn >",
+      "base_amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" ユーザーが基本報酬を獲得。ペナルティに応じて実際の付与量を調整する。\"]"
+    ],
+    "body": [
+      "let prof = & mut ctx . accounts . profile ;",
+      "let adjusted = base_amount . checked_mul (prof . rate_num) . unwrap () . checked_div (prof . rate_den) . unwrap () ;",
+      "prof . balance = prof . balance . checked_add (adjusted) . unwrap () ;",
+      "msg ! (\"{} earned {} (base {})\" , prof . user , adjusted , base_amount) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Profile",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "rate_num",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "rate_den",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "balance",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RegisterUser",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "profile",
+        "attribute": "# [account (init , payer = user , space = 8 + 32 * 2 + 8 * 3 + 1 , seeds = [b\"profile\" , user . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Profile >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [doc = \" プロファイル登録の権限を持つ管理者\"]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PenalizeUser",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "profile",
+        "attribute": "# [account (mut , seeds = [b\"profile\" , profile . user . as_ref ()] , bump = profile . bump , has_one = admin @ ErrorCode :: Unauthorized)]",
+        "field_type": "Account < 'info , Profile >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut , signer)]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Earn",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "profile",
+        "attribute": "# [account (mut , seeds = [b\"profile\" , profile . user . as_ref ()] , bump = profile . bump , has_one = user @ ErrorCode :: Unauthorized)]",
+        "field_type": "Account < 'info , Profile >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (signer)]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,20 +1,86 @@
 [
   {
-    "name": "TransferCtxlcas",
+    "name": "list_item",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ListItem >",
+      "price: u64",
+      "name: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let listing = & mut ctx . accounts . listing ;",
+      "listing . seller = ctx . accounts . seller . key () ;",
+      "listing . price = price ;",
+      "listing . name = name ;",
+      "listing . is_active = true ;",
+      "listing . bump = * ctx . bumps . get (\"listing\") . unwrap () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "purchase_item",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PurchaseItem >"
+    ],
+    "attributes": [],
+    "body": [
+      "let listing = & mut ctx . accounts . listing ;",
+      "let lamports = listing . price ;",
+      "* * ctx . accounts . buyer . lamports . borrow_mut () -= lamports ;",
+      "* * ctx . accounts . seller . lamports . borrow_mut () += lamports ;",
+      "listing . is_active = false ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Listing",
     "node_type": "struct",
     "fields": [
       {
-        "name": "source_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
+        "name": "seller",
+        "attribute": null,
+        "field_type": "Pubkey"
       },
       {
-        "name": "dest_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
+        "name": "price",
+        "attribute": null,
+        "field_type": "u64"
       },
       {
-        "name": "authority",
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "is_active",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ListItem",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "listing",
+        "attribute": "# [account (init , payer = seller , space = 8 + 32 + 8 + 4 + name . len () + 1 + 1 , seeds = [b\"listing\" , seller . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Listing >"
+      },
+      {
+        "name": "seller",
         "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
       },
@@ -29,33 +95,27 @@
     "body": null
   },
   {
-    "name": "DataAccount",
+    "name": "PurchaseItem",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data",
-        "attribute": null,
-        "field_type": "u64"
+        "name": "listing",
+        "attribute": "# [account (mut , seeds = [b\"listing\" , seller . key () . as_ref ()] , bump = listing . bump , constraint = listing . seller == seller . key () , constraint = listing . is_active @ MarketplaceError :: ListingNotActive)]",
+        "field_type": "Account < 'info , Listing >"
+      },
+      {
+        "name": "buyer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "seller",
+        "attribute": "# [doc = \" CHECK: This account is verified through the listing's seller field\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
       }
     ],
     "inputs": null,
     "attributes": null,
     "body": null
-  },
-  {
-    "name": "transfer",
-    "node_type": "function",
-    "fields": null,
-    "inputs": [
-      "ctx: Context < TransferCtxlcas >",
-      "amount: u64"
-    ],
-    "attributes": [],
-    "body": [
-      "let acct = & mut ctx . accounts . source_account ;",
-      "acct . data = acct . data . checked_add (amount) . unwrap () ;",
-      "msg ! (\"Executed transfer logic\") ;",
-      "Ok (())"
-    ]
   }
 ]

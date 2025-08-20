@@ -1,0 +1,222 @@
+[
+  {
+    "name": "init_void",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitVoid >",
+      "void_seed: u64",
+      "max_echoes: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let void = & mut ctx . accounts . void_core ;",
+      "void . void_seed = void_seed . checked_sub (123456) . unwrap_or (1) ;",
+      "void . max_echoes = max_echoes . checked_mul (2) . unwrap_or (u32 :: MAX) ;",
+      "void . active_echoes = 0 ;",
+      "void . void_state = VoidState :: Initial ;",
+      "msg ! (\"Void initialized with seed {}.\" , void . void_seed) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_echo",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitEcho >",
+      "echo_id: u64",
+      "base_intensity: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let echo = & mut ctx . accounts . echo_data ;",
+      "echo . parent_void = ctx . accounts . void_core . key () ;",
+      "echo . echo_id = echo_id . rotate_right (2) ;",
+      "echo . intensity = base_intensity . checked_add (10) . unwrap_or (u32 :: MAX) ;",
+      "echo . life_span = 1000 ;",
+      "echo . is_stable = true ;",
+      "msg ! (\"New echo {} created with intensity {}.\" , echo . echo_id , echo . intensity) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "amplify_echoes",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AmplifyEchoes >",
+      "cycles: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let void = & mut ctx . accounts . void_core ;",
+      "let echo1 = & mut ctx . accounts . echo1 ;",
+      "let echo2 = & mut ctx . accounts . echo2 ;",
+      "let mut loop_counter = cycles ;",
+      "while loop_counter > 0",
+      "{",
+      "let intensity_gain1 = (void . void_seed as u32) . checked_add (echo1 . intensity) . unwrap_or (u32 :: MAX) ;",
+      "echo1 . intensity = echo1 . intensity . checked_add (intensity_gain1) . unwrap_or (u32 :: MAX) ;",
+      "echo1 . life_span = echo1 . life_span . checked_sub (1) . unwrap_or (0) ;",
+      "echo1 . is_stable = echo1 . life_span > 0 && echo1 . intensity < 5000 ;",
+      "let intensity_gain2 = (void . void_seed as u32) . checked_mul (2) . unwrap_or (u32 :: MAX) ;",
+      "echo2 . intensity = echo2 . intensity . checked_add (intensity_gain2) . unwrap_or (u32 :: MAX) ;",
+      "echo2 . life_span = echo2 . life_span . checked_sub (1) . unwrap_or (0) ;",
+      "echo2 . is_stable = echo2 . life_span > 0 && echo2 . intensity < 8000 ;",
+      "void . void_state = if echo1 . is_stable && echo2 . is_stable",
+      "{",
+      "VoidState :: Amplifying } else { VoidState :: Unstable } ;",
+      "void . active_echoes = (echo1 . is_stable as u32) . checked_add (echo2 . is_stable as u32) . unwrap_or (0) ;",
+      "loop_counter = loop_counter . checked_sub (1) . unwrap_or (0) ;",
+      "}",
+      "msg ! (\"Echoes amplified for {} cycles. Void state is now {:?}.\" , cycles , void . void_state) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitVoid",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "void_core",
+        "attribute": "# [account (init , payer = signer , space = 8 + 8 + 4 + 4 + 4)]",
+        "field_type": "Account < 'info , VoidCore >"
+      },
+      {
+        "name": "signer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitEcho",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "echo_data",
+        "attribute": "# [account (init , payer = signer , space = 8 + 32 + 8 + 4 + 4 + 1)]",
+        "field_type": "Account < 'info , EchoData >"
+      },
+      {
+        "name": "void_core",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , VoidCore >"
+      },
+      {
+        "name": "signer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AmplifyEchoes",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "void_core",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , VoidCore >"
+      },
+      {
+        "name": "echo1",
+        "attribute": "# [account (mut , has_one = parent_void)]",
+        "field_type": "Account < 'info , EchoData >"
+      },
+      {
+        "name": "echo2",
+        "attribute": "# [account (mut , has_one = parent_void)]",
+        "field_type": "Account < 'info , EchoData >"
+      },
+      {
+        "name": "signer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "VoidCore",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "void_seed",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "max_echoes",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "active_echoes",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "void_state",
+        "attribute": null,
+        "field_type": "VoidState"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EchoData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent_void",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "echo_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "intensity",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "life_span",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "is_stable",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

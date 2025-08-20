@@ -1,0 +1,174 @@
+[
+  {
+    "name": "init_pool",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitPool >",
+      "base_pool_input: u64",
+      "coach_bps_input: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let p = & mut ctx . accounts . pool ;",
+      "p . manager = ctx . accounts . manager . key () ;",
+      "p . base_pool = base_pool_input ;",
+      "if p . base_pool < 30",
+      "{",
+      "p . base_pool = 30 ;",
+      "}",
+      "p . coach_bps = clamp_u16 (coach_bps_input , 500 , 3000) ;",
+      "p . round = 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_bonus",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActBonus >",
+      "player_count: u8",
+      "top_finish: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let p = & mut ctx . accounts . pool ;",
+      "let mut performance = p . base_pool / 10 + 1 ;",
+      "let mut step : u8 = 0 ;",
+      "while step < top_finish",
+      "{",
+      "performance = performance + 2 ;",
+      "step = step + 1 ;",
+      "}",
+      "let mut team_payout = p . base_pool + performance ;",
+      "let mut m : u8 = 1 ;",
+      "while m < player_count",
+      "{",
+      "team_payout = team_payout + 1 ;",
+      "m = m + 1 ;",
+      "}",
+      "let coach_cut = team_payout * p . coach_bps as u64 / 10_000 ;",
+      "let player_cut = team_payout - coach_cut ;",
+      "token :: transfer (ctx . accounts . pool_to_players () , player_cut) ? ;",
+      "token :: transfer (ctx . accounts . pool_to_coach () , coach_cut) ? ;",
+      "p . round = p . round + 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitPool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": "# [account (init , payer = manager , space = 8 + 32 + 8 + 2 + 8)]",
+        "field_type": "Account < 'info , EsportsPool >"
+      },
+      {
+        "name": "manager",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActBonus",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": "# [account (mut , has_one = manager)]",
+        "field_type": "Account < 'info , EsportsPool >"
+      },
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "prize_pool_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "players_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "coach_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EsportsPool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "base_pool",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "coach_bps",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "round",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "clamp_u16",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "v: u16",
+      "lo: u16",
+      "hi: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut o = v ;",
+      "if o < lo",
+      "{",
+      "o = lo ;",
+      "}",
+      "if o > hi",
+      "{",
+      "o = hi ;",
+      "}",
+      "o"
+    ]
+  }
+]

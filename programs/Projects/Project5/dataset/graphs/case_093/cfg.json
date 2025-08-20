@@ -1,6 +1,6 @@
 [
   {
-    "name": "subscribe",
+    "name": "init_plant",
     "nodes": [
       {
         "id": 0,
@@ -8,26 +8,78 @@
       },
       {
         "id": 1,
-        "label": "let src = & mut ctx . accounts . account_src ;"
+        "label": "let p = & mut ctx . accounts . plant ;"
       },
       {
         "id": 2,
-        "label": "let dst = & mut ctx . accounts . account_dst ;"
+        "label": "p . owner = ctx . accounts . overseer . key () ;"
       },
       {
         "id": 3,
-        "label": "let before = * * src . to_account_info () . try_borrow_lamports () ? ;"
+        "label": "p . quota = (minerals as u64) * 5 + 1_000 ;"
       },
       {
         "id": 4,
-        "label": "* * src . to_account_info () . try_borrow_mut_lamports () ? = before . saturating_sub (amount) ;"
+        "label": "p . state = Prime ;"
       },
       {
         "id": 5,
-        "label": "* * dst . to_account_info () . try_borrow_mut_lamports () ? += amount ;"
+        "label": "let v1 = & mut ctx . accounts . valve_a ;"
       },
       {
         "id": 6,
+        "label": "let v2 = & mut ctx . accounts . valve_b ;"
+      },
+      {
+        "id": 7,
+        "label": "let g = & mut ctx . accounts . gauge ;"
+      },
+      {
+        "id": 8,
+        "label": "let r = (minerals % 97 + 1) as u64 ;"
+      },
+      {
+        "id": 9,
+        "label": "v1 . plant = p . key () ;"
+      },
+      {
+        "id": 10,
+        "label": "v1 . gate = (minerals & 7) as u8 ;"
+      },
+      {
+        "id": 11,
+        "label": "v1 . flow = ((r * 300) / 97) as u32 + 20 ;"
+      },
+      {
+        "id": 12,
+        "label": "v2 . plant = p . key () ;"
+      },
+      {
+        "id": 13,
+        "label": "v2 . gate = ((minerals >> 2) & 7) as u8 ;"
+      },
+      {
+        "id": 14,
+        "label": "v2 . flow = ((r * 450) / 97) as u32 + 25 ;"
+      },
+      {
+        "id": 15,
+        "label": "g . plant = p . key () ;"
+      },
+      {
+        "id": 16,
+        "label": "g . gate = 9 ;"
+      },
+      {
+        "id": 17,
+        "label": "g . total = 0 ;"
+      },
+      {
+        "id": 18,
+        "label": "g . salt = minerals ^ 0x1357_ABCD ;"
+      },
+      {
+        "id": 19,
         "label": "Ok (())"
       }
     ],
@@ -60,7 +112,349 @@
       {
         "from": 5,
         "to": 6,
-        "label": "call"
+        "label": "next"
+      },
+      {
+        "from": 6,
+        "to": 7,
+        "label": "next"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "next"
+      },
+      {
+        "from": 8,
+        "to": 9,
+        "label": "next"
+      },
+      {
+        "from": 9,
+        "to": 10,
+        "label": "next"
+      },
+      {
+        "from": 10,
+        "to": 11,
+        "label": "next"
+      },
+      {
+        "from": 11,
+        "to": 12,
+        "label": "next"
+      },
+      {
+        "from": 12,
+        "to": 13,
+        "label": "next"
+      },
+      {
+        "from": 13,
+        "to": 14,
+        "label": "next"
+      },
+      {
+        "from": 14,
+        "to": 15,
+        "label": "next"
+      },
+      {
+        "from": 15,
+        "to": 16,
+        "label": "next"
+      },
+      {
+        "from": 16,
+        "to": 17,
+        "label": "next"
+      },
+      {
+        "from": 17,
+        "to": 18,
+        "label": "next"
+      },
+      {
+        "from": 18,
+        "to": 19,
+        "label": "next"
+      }
+    ]
+  },
+  {
+    "name": "run",
+    "nodes": [
+      {
+        "id": 20,
+        "label": "Entry"
+      },
+      {
+        "id": 21,
+        "label": "let p = & mut ctx . accounts . plant ;"
+      },
+      {
+        "id": 22,
+        "label": "let a = & mut ctx . accounts . valve_a ;"
+      },
+      {
+        "id": 23,
+        "label": "let b = & mut ctx . accounts . valve_b ;"
+      },
+      {
+        "id": 24,
+        "label": "let g = & mut ctx . accounts . gauge ;"
+      },
+      {
+        "id": 25,
+        "label": "Loop Start"
+      },
+      {
+        "id": 26,
+        "label": "let mix = ((a . flow ^ b . flow) as u64) . wrapping_mul (2654435761) ;"
+      },
+      {
+        "id": 27,
+        "label": "a . flow = a . flow . checked_add (((mix & 31) as u32) + 2) . unwrap_or (u32 :: MAX) ;"
+      },
+      {
+        "id": 28,
+        "label": "b . flow = b . flow . saturating_add ((((mix >> 5) & 31) as u32) + 3) ;"
+      },
+      {
+        "id": 29,
+        "label": "g . total = g . total . saturating_add ((a . flow as u64 + b . flow as u64) & 127) ;"
+      },
+      {
+        "id": 30,
+        "label": "g . salt ^= (mix as u32) . rotate_left ((i % 13) as u32) ;"
+      },
+      {
+        "id": 31,
+        "label": "Loop End"
+      },
+      {
+        "id": 32,
+        "label": "let sum = a . flow as u64 + b . flow as u64 + g . total ;"
+      },
+      {
+        "id": 33,
+        "label": "if statement"
+      },
+      {
+        "id": 34,
+        "label": "predicate"
+      },
+      {
+        "id": 35,
+        "label": "sum > p . quota"
+      },
+      {
+        "id": 36,
+        "label": "True body"
+      },
+      {
+        "id": 37,
+        "label": "p . state = Drain ;"
+      },
+      {
+        "id": 38,
+        "label": "a . gate ^= 1 ;"
+      },
+      {
+        "id": 39,
+        "label": "b . gate = b . gate . saturating_add (1) ;"
+      },
+      {
+        "id": 40,
+        "label": "g . gate = g . gate . saturating_add (1) ;"
+      },
+      {
+        "id": 41,
+        "label": "msg ! (\"drain: gate tweaks & gauge move\") ;"
+      },
+      {
+        "id": 42,
+        "label": "False body"
+      },
+      {
+        "id": 43,
+        "label": "p . state = Pump ;"
+      },
+      {
+        "id": 44,
+        "label": "a . flow = a . flow . saturating_add (9) ;"
+      },
+      {
+        "id": 45,
+        "label": "b . flow = b . flow / 2 + 11 ;"
+      },
+      {
+        "id": 46,
+        "label": "g . salt ^= 0x0F0F_F0F0 ;"
+      },
+      {
+        "id": 47,
+        "label": "msg ! (\"pump: flow adjust & salt flip\") ;"
+      },
+      {
+        "id": 48,
+        "label": "merge"
+      },
+      {
+        "id": 49,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 20,
+        "to": 21,
+        "label": "next"
+      },
+      {
+        "from": 21,
+        "to": 22,
+        "label": "next"
+      },
+      {
+        "from": 22,
+        "to": 23,
+        "label": "next"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "next"
+      },
+      {
+        "from": 24,
+        "to": 25,
+        "label": "next"
+      },
+      {
+        "from": 25,
+        "to": 26,
+        "label": "next"
+      },
+      {
+        "from": 26,
+        "to": 27,
+        "label": "next"
+      },
+      {
+        "from": 27,
+        "to": 28,
+        "label": "next"
+      },
+      {
+        "from": 28,
+        "to": 29,
+        "label": "next"
+      },
+      {
+        "from": 29,
+        "to": 30,
+        "label": "next"
+      },
+      {
+        "from": 25,
+        "to": 31,
+        "label": "for"
+      },
+      {
+        "from": 31,
+        "to": 32,
+        "label": "next"
+      },
+      {
+        "from": 32,
+        "to": 33,
+        "label": "next"
+      },
+      {
+        "from": 33,
+        "to": 34,
+        "label": "predicate"
+      },
+      {
+        "from": 34,
+        "to": 35,
+        "label": "next"
+      },
+      {
+        "from": 33,
+        "to": 36,
+        "label": "true"
+      },
+      {
+        "from": 36,
+        "to": 37,
+        "label": "next"
+      },
+      {
+        "from": 37,
+        "to": 38,
+        "label": "next"
+      },
+      {
+        "from": 38,
+        "to": 39,
+        "label": "next"
+      },
+      {
+        "from": 39,
+        "to": 40,
+        "label": "next"
+      },
+      {
+        "from": 40,
+        "to": 41,
+        "label": "next"
+      },
+      {
+        "from": 33,
+        "to": 42,
+        "label": "false"
+      },
+      {
+        "from": 42,
+        "to": 43,
+        "label": "next"
+      },
+      {
+        "from": 43,
+        "to": 44,
+        "label": "next"
+      },
+      {
+        "from": 44,
+        "to": 45,
+        "label": "next"
+      },
+      {
+        "from": 45,
+        "to": 46,
+        "label": "next"
+      },
+      {
+        "from": 46,
+        "to": 47,
+        "label": "next"
+      },
+      {
+        "from": 41,
+        "to": 48,
+        "label": "next"
+      },
+      {
+        "from": 47,
+        "to": 48,
+        "label": "next"
+      },
+      {
+        "from": 48,
+        "to": 49,
+        "label": "next"
       }
     ]
   }

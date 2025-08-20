@@ -72,7 +72,7 @@ def check_field_updates(pdg_data, all_pdg_files, all_has_one_relations, init_str
         struct_name = struct_name_match.group(1) if struct_name_match else None
         
         for st_dict in structs:#関数の入力値となる構造体を探す
-            print(f"st_dict['struct_name']:{st_dict['struct_name']}")
+            print(f"st_dict{st_dict}:struct_name{struct_name}")
             if struct_name == st_dict["struct_name"]:
                 fields = st_dict["fields"]
                 print(f"fields(動作確認): {fields}")

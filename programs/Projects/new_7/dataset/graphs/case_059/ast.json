@@ -1,0 +1,141 @@
+[
+  {
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Init >",
+      "route_a: Pubkey",
+      "route_b: Pubkey"
+    ],
+    "attributes": [],
+    "body": [
+      "let payout_state = & mut ctx . accounts . payout_state ;",
+      "payout_state . admin = ctx . accounts . admin . key () ;",
+      "payout_state . route_a = route_a ;",
+      "payout_state . route_b = route_b ;",
+      "payout_state . note = 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "pay",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Pay >",
+      "total: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let payout_state = & mut ctx . accounts . payout_state ;",
+      "let first = total / 2 ;",
+      "let second = total . saturating_sub (first) ;",
+      "let ix1 = token_ix :: transfer (& payout_state . route_a , & ctx . accounts . vault . key () , & ctx . accounts . user . key () , & ctx . accounts . admin . key () , & [] , first ,) ? ;",
+      "let program_a = ctx . remaining_accounts . get (0) . expect (\"program A missing\") ;",
+      "invoke (& ix1 , & [program_a . clone () , ctx . accounts . vault . to_account_info () , ctx . accounts . user . to_account_info () , ctx . accounts . admin . to_account_info () ,] ,) ? ;",
+      "let ix2 = token_ix :: transfer (& payout_state . route_b , & ctx . accounts . vault . key () , & ctx . accounts . user . key () , & ctx . accounts . admin . key () , & [] , second ,) ? ;",
+      "let program_b = ctx . remaining_accounts . get (1) . expect (\"program B missing\") ;",
+      "invoke (& ix2 , & [program_b . clone () , ctx . accounts . vault . to_account_info () , ctx . accounts . user . to_account_info () , ctx . accounts . admin . to_account_info () ,] ,) ? ;",
+      "payout_state . note = payout_state . note . wrapping_add (total) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "PayoutState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "route_a",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "route_b",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "note",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Init",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "payout_state",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 32 + 32 + 8)]",
+        "field_type": "Account < 'info , PayoutState >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Pay",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "payout_state",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , PayoutState >"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

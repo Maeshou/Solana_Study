@@ -1,0 +1,204 @@
+[
+  {
+    "name": "create_escrow",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateEscrow >",
+      "bump: u8",
+      "escrow_id: u64",
+      "buyer: Pubkey",
+      "amount: u64",
+      "deadline: i64"
+    ],
+    "attributes": [
+      "# [doc = \" エスクロー初期化：売り手・買い手・金額・期限を受け取り、状態・タイムスタンプをまとめて設定\"]"
+    ],
+    "body": [
+      "* ctx . accounts . escrow = Escrow { seller : ctx . accounts . seller . key () , bump , escrow_id , buyer , amount , deposited : false , state : String :: from (\"created\") , deadline , updated_ts : ctx . accounts . clock . unix_timestamp , } ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "deposit_funds",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < DepositFunds >"
+    ],
+    "attributes": [
+      "# [doc = \" 入金処理：買い手の署名チェック後、入金フラグとタイムスタンプを更新\"]"
+    ],
+    "body": [
+      "let e = & mut ctx . accounts . escrow ;",
+      "e . deposited = true ;",
+      "e . updated_ts = ctx . accounts . clock . unix_timestamp ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "release_funds",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyEscrow >"
+    ],
+    "attributes": [
+      "# [doc = \" 売り手による支払い完了：状態とタイムスタンプを更新\"]"
+    ],
+    "body": [
+      "let e = & mut ctx . accounts . escrow ;",
+      "e . state = String :: from (\"released\") ;",
+      "e . updated_ts = ctx . accounts . clock . unix_timestamp ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "refund_funds",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyEscrow >"
+    ],
+    "attributes": [
+      "# [doc = \" 売り手による返金：状態とタイムスタンプを更新\"]"
+    ],
+    "body": [
+      "let e = & mut ctx . accounts . escrow ;",
+      "e . state = String :: from (\"refunded\") ;",
+      "e . updated_ts = ctx . accounts . clock . unix_timestamp ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CreateEscrow",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "escrow",
+        "attribute": "# [doc = \" PDA で生成する Escrow アカウント\"] # [account (init , payer = seller , space = 8 + 32 + 1 + 8 + 32 + 8 + 1 + 4 + 10 + 8 + 8 , seeds = [b\"escrow\" , seller . key () . as_ref () , & escrow_id . to_le_bytes ()] , bump)]",
+        "field_type": "Account < 'info , Escrow >"
+      },
+      {
+        "name": "seller",
+        "attribute": "# [doc = \" 売り手（署名必須）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": "# [doc = \" 現在のブロック時間を取得\"]",
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DepositFunds",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "escrow",
+        "attribute": "# [doc = \" 既存の Escrow（PDA 検証 + has_one = buyer）\"] # [account (mut , seeds = [b\"escrow\" , escrow . seller . as_ref () , & escrow . escrow_id . to_le_bytes ()] , bump = escrow . bump , has_one = buyer)]",
+        "field_type": "Account < 'info , Escrow >"
+      },
+      {
+        "name": "buyer",
+        "attribute": "# [doc = \" 買い手（署名必須）\"] # [account (signer)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Clock >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ModifyEscrow",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "escrow",
+        "attribute": "# [doc = \" 既存の Escrow（PDA 検証 + has_one = seller）\"] # [account (mut , seeds = [b\"escrow\" , escrow . seller . as_ref () , & escrow . escrow_id . to_le_bytes ()] , bump = escrow . bump , has_one = seller)]",
+        "field_type": "Account < 'info , Escrow >"
+      },
+      {
+        "name": "seller",
+        "attribute": "# [doc = \" 売り手（署名必須）\"] # [account (signer)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Clock >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Escrow",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "seller",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "escrow_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "buyer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "deposited",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "state",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "deadline",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "updated_ts",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

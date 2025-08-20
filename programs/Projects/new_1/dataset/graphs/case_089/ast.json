@@ -1,0 +1,112 @@
+[
+  {
+    "name": "set_tip_rate",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SetTipRate >",
+      "lamports_per_tip: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 1. 配布レート設定：1回あたりのチップ報酬を設定  \"]",
+      "# [doc = \"    返り値はなく、パニック前提で動作します\"]"
+    ],
+    "body": [
+      "let cfg = & mut ctx . accounts . config ;",
+      "cfg . lamports_per_tip = lamports_per_tip ;"
+    ]
+  },
+  {
+    "name": "send_tips",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SendTips >",
+      "count: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 2. チップ送信：指定回数分の lamports を vault から recipient へ移動  \"]",
+      "# [doc = \"    オーバーフローや残高不足はすべて `unwrap()` によるパニックで扱う\"]"
+    ],
+    "body": [
+      "let cfg = & ctx . accounts . config ;",
+      "let vault_info = ctx . accounts . vault . to_account_info () ;",
+      "let recipient_info = ctx . accounts . recipient . to_account_info () ;",
+      "let total = cfg . lamports_per_tip . checked_mul (count) . unwrap () ;",
+      "* * vault_info . lamports . borrow_mut () -= total ;",
+      "* * recipient_info . lamports . borrow_mut () += total ;"
+    ]
+  },
+  {
+    "name": "Config",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "lamports_per_tip",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SetTipRate",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "config",
+        "attribute": "# [doc = \" レート設定用アカウント\"] # [account (init , payer = payer , space = 8 + 8)]",
+        "field_type": "Account < 'info , Config >"
+      },
+      {
+        "name": "initializer",
+        "attribute": "# [doc = \" CHECK: 設定実行者の署名チェックなし\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SendTips",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "config",
+        "attribute": "# [doc = \" レート設定アカウント\"] # [account (mut)]",
+        "field_type": "Account < 'info , Config >"
+      },
+      {
+        "name": "sender",
+        "attribute": "# [doc = \" CHECK: チップ送信者の検証なし\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "vault",
+        "attribute": "# [doc = \" lamports 保管用 vault\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "recipient",
+        "attribute": "# [doc = \" チップ受取先アカウント\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

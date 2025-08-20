@@ -1,40 +1,223 @@
 [
   {
-    "name": "claim_airdrop",
+    "name": "init_market",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx066 >",
-      "amount: u64"
+      "ctx: Context < InitMarket >",
+      "fee: u16"
     ],
     "attributes": [],
     "body": [
-      "let src = & mut ctx . accounts . account_src ;",
-      "let dst = & mut ctx . accounts . account_dst ;",
-      "let before = * * src . to_account_info () . try_borrow_lamports () ? ;",
-      "* * src . to_account_info () . try_borrow_mut_lamports () ? = before . saturating_sub (amount) ;",
-      "* * dst . to_account_info () . try_borrow_mut_lamports () ? += amount ;",
+      "let m = & mut ctx . accounts . market ;",
+      "let l1 = & mut ctx . accounts . list_a ;",
+      "let l2 = & mut ctx . accounts . list_b ;",
+      "let e = & mut ctx . accounts . escrow ;",
+      "m . owner = ctx . accounts . operator . key () ;",
+      "m . fee_bps = fee ;",
+      "m . state = Dormant ;",
+      "l1 . parent = m . key () ;",
+      "l1 . channel = 3 ;",
+      "l1 . price = 120 ;",
+      "l2 . parent = m . key () ;",
+      "l2 . channel = 5 ;",
+      "l2 . price = 140 ;",
+      "e . parent = m . key () ;",
+      "e . channel = 9 ;",
+      "e . locked = 0 ;",
+      "e . volume = 0 ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx066",
+    "name": "rotate_books",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RotateBooks >",
+      "turns: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let m = & mut ctx . accounts . market ;",
+      "let l1 = & mut ctx . accounts . list_a ;",
+      "let l2 = & mut ctx . accounts . list_b ;",
+      "let e = & mut ctx . accounts . escrow ;",
+      "for t in 0 .. turns",
+      "{",
+      "let spread = (l2 . price as i64 - l1 . price as i64) . unsigned_abs () ;",
+      "e . locked = e . locked . checked_add (spread) . unwrap_or (u64 :: MAX) ;",
+      "l1 . price = l1 . price . saturating_add ((t % 7) as u32 + 2) ;",
+      "l2 . price = l2 . price . saturating_sub (((t * 3) % 11) as u32) ;",
+      "e . volume ^= ((l1 . price ^ l2 . price) as u64) << (t % 8) ;",
+      "}",
+      "if l1 . price > l2 . price",
+      "{",
+      "m . state = Halt ;",
+      "e . locked = e . locked . saturating_add (100) ;",
+      "l1 . price = (l1 . price / 2) + 33 ;",
+      "l2 . price = (l2 . price / 2) + 21 ;",
+      "msg ! (\"halt: compress prices, add locked\") ;",
+      "} else",
+      "{",
+      "m . state = Open ;",
+      "e . volume = e . volume . saturating_add (55) ;",
+      "l1 . price = l1 . price . checked_add (13) . unwrap_or (u32 :: MAX) ;",
+      "l2 . price ^= 0x0F0F_F0F0 ;",
+      "msg ! (\"open: price tweak & xor\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitMarket",
     "node_type": "struct",
     "fields": [
       {
-        "name": "account_src",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "market",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 2 + 1)]",
+        "field_type": "Account < 'info , MarketCore >"
       },
       {
-        "name": "account_dst",
+        "name": "list_a",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Listing >"
+      },
+      {
+        "name": "list_b",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Listing >"
+      },
+      {
+        "name": "escrow",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 8 + 8)]",
+        "field_type": "Account < 'info , EscrowBox >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
       },
       {
         "name": "system_program",
         "attribute": null,
         "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RotateBooks",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "market",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , MarketCore >"
+      },
+      {
+        "name": "list_a",
+        "attribute": "# [account (mut , has_one = market , constraint = list_a . channel != list_b . channel @ MarketErr :: Dup)]",
+        "field_type": "Account < 'info , Listing >"
+      },
+      {
+        "name": "list_b",
+        "attribute": "# [account (mut , has_one = market , constraint = list_b . channel != escrow . channel @ MarketErr :: Dup)]",
+        "field_type": "Account < 'info , Listing >"
+      },
+      {
+        "name": "escrow",
+        "attribute": "# [account (mut , has_one = market)]",
+        "field_type": "Account < 'info , EscrowBox >"
+      },
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MarketCore",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "fee_bps",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "state",
+        "attribute": null,
+        "field_type": "MarketState"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Listing",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "channel",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "price",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EscrowBox",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "channel",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "locked",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "volume",
+        "attribute": null,
+        "field_type": "u64"
       }
     ],
     "inputs": null,

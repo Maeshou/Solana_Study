@@ -1,0 +1,161 @@
+[
+  {
+    "name": "submit_content",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SubmitContent >",
+      "content_hash: [u8 ; 32]"
+    ],
+    "attributes": [],
+    "body": [
+      "let content = & mut ctx . accounts . content_item ;",
+      "content . submitter = ctx . accounts . submitter . key () ;",
+      "content . content_hash = content_hash ;",
+      "content . status = ReviewStatus :: Pending ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "review_content",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ReviewContent >",
+      "new_status: ReviewStatus"
+    ],
+    "attributes": [],
+    "body": [
+      "let content = & mut ctx . accounts . content_item ;",
+      "let review_record = & mut ctx . accounts . review_record ;",
+      "review_record . reviewer = ctx . accounts . reviewer . key () ;",
+      "review_record . content_item = content . key () ;",
+      "review_record . timestamp = Clock :: get () ? . unix_timestamp ;",
+      "let mut old_status = content . status ;",
+      "content . status = new_status ;",
+      "if old_status == ReviewStatus :: Pending",
+      "{",
+      "msg ! (\"Content review started.\") ;",
+      "} else",
+      "{",
+      "msg ! (\"Content review status updated.\") ;",
+      "}",
+      "let mut score = 0u32 ;",
+      "score = (score << 2) | (score >> 30) ;",
+      "score = score . wrapping_add (10) ;",
+      "msg ! (\"New score after bitwise operation: {}\" , score) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "SubmitContent",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "content_item",
+        "attribute": "# [account (init , payer = submitter , space = 8 + 32 + 32 + 1 + 8 , owner = crate :: ID ,)]",
+        "field_type": "Account < 'info , ContentItem >"
+      },
+      {
+        "name": "submitter",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ReviewContent",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "content_item",
+        "attribute": "# [account (mut , has_one = submitter , constraint = submitter . key () != reviewer . key () @ ErrorCode :: CosplayBlocked ,)]",
+        "field_type": "Account < 'info , ContentItem >"
+      },
+      {
+        "name": "review_record",
+        "attribute": "# [account (init , payer = reviewer , space = 8 + 32 + 32 + 8 , owner = crate :: ID , has_one = content_item ,)]",
+        "field_type": "Account < 'info , ReviewRecord >"
+      },
+      {
+        "name": "submitter",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Signer >"
+      },
+      {
+        "name": "reviewer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ContentItem",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "submitter",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "content_hash",
+        "attribute": null,
+        "field_type": "[u8 ; 32]"
+      },
+      {
+        "name": "status",
+        "attribute": null,
+        "field_type": "ReviewStatus"
+      },
+      {
+        "name": "score",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ReviewRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "reviewer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "content_item",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "timestamp",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

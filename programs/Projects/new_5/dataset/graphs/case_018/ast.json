@@ -1,0 +1,227 @@
+[
+  {
+    "name": "init_inventory",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitInventory >",
+      "owner: Pubkey",
+      "capacity: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let inventory = & mut ctx . accounts . inventory ;",
+      "inventory . owner = owner ;",
+      "inventory . capacity = capacity ;",
+      "inventory . slot_count = 0 ;",
+      "inventory . last_update = Clock :: get () ? . unix_timestamp ;",
+      "msg ! (\"Inventory for {} initialized.\" , inventory . owner) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_slot",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitSlot >",
+      "slot_id: u8",
+      "item_id: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let slot = & mut ctx . accounts . slot ;",
+      "let inventory = & mut ctx . accounts . inventory ;",
+      "slot . inventory = inventory . key () ;",
+      "slot . slot_id = slot_id ;",
+      "slot . item_id = item_id ;",
+      "slot . quantity = 1 ;",
+      "slot . is_equipped = false ;",
+      "inventory . slot_count = inventory . slot_count . saturating_add (1) ;",
+      "msg ! (\"Slot {} created with item {}.\" , slot . slot_id , slot . item_id) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "swap_slots",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SwapSlots >"
+    ],
+    "attributes": [],
+    "body": [
+      "let slot_a = & mut ctx . accounts . slot_a ;",
+      "let slot_b = & mut ctx . accounts . slot_b ;",
+      "let mut item_a_id = slot_a . item_id ;",
+      "let mut item_a_qty = slot_a . quantity ;",
+      "let mut item_a_equipped = slot_a . is_equipped ;",
+      "let mut item_b_id = slot_b . item_id ;",
+      "let mut item_b_qty = slot_b . quantity ;",
+      "let mut item_b_equipped = slot_b . is_equipped ;",
+      "let mut loops_run = 0 ;",
+      "while loops_run < 3",
+      "{",
+      "if item_a_qty > item_b_qty",
+      "{",
+      "item_a_qty = item_a_qty . checked_sub (item_b_qty) . unwrap_or (0) ;",
+      "item_b_qty = item_b_qty . saturating_add (item_b_qty) ;",
+      "msg ! (\"A had more, reduced A, doubled B.\") ;",
+      "} else",
+      "{",
+      "item_b_qty = item_b_qty . checked_sub (item_a_qty) . unwrap_or (0) ;",
+      "item_a_qty = item_a_qty . saturating_add (item_a_qty) ;",
+      "msg ! (\"B had more, reduced B, doubled A.\") ;",
+      "} loops_run += 1 ;",
+      "}",
+      "slot_a . quantity = item_b_qty ;",
+      "slot_b . quantity = item_a_qty ;",
+      "slot_a . item_id = item_b_id ;",
+      "slot_b . item_id = item_a_id ;",
+      "slot_a . is_equipped = item_b_equipped ;",
+      "slot_b . is_equipped = item_a_equipped ;",
+      "msg ! (\"Swapped contents of slot {} and {}.\" , slot_a . slot_id , slot_b . slot_id) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitInventory",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "inventory",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 32 + 1 + 4 + 8)]",
+        "field_type": "Account < 'info , Inventory >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitSlot",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "inventory",
+        "attribute": "# [account (mut , has_one = inventory)]",
+        "field_type": "Account < 'info , Inventory >"
+      },
+      {
+        "name": "slot",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 1 + 4 + 4 + 1)]",
+        "field_type": "Account < 'info , InventorySlot >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SwapSlots",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "inventory",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Inventory >"
+      },
+      {
+        "name": "slot_a",
+        "attribute": "# [account (mut , has_one = inventory)]",
+        "field_type": "Account < 'info , InventorySlot >"
+      },
+      {
+        "name": "slot_b",
+        "attribute": "# [account (mut , has_one = inventory)]",
+        "field_type": "Account < 'info , InventorySlot >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Inventory",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "capacity",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "slot_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "last_update",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InventorySlot",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "inventory",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "slot_id",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "item_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "quantity",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "is_equipped",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

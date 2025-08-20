@@ -1,0 +1,155 @@
+[
+  {
+    "name": "TimeCapsule",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "",
+        "attribute": null,
+        "field_type": "Vec < (i64 , Vec < u8 >) >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "initialize",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Initialize >"
+    ],
+    "attributes": [
+      "# [doc = \" TimeCapsule アカウント初期化\"]"
+    ],
+    "body": [
+      "let cap = & mut ctx . accounts . capsule ;",
+      "cap . 0 = * ctx . bumps . get (\"capsule\") . unwrap () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "deposit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyCapsule >",
+      "unlock_ts: i64",
+      "data: Vec < u8 >"
+    ],
+    "attributes": [
+      "# [doc = \" データ預け入れ：unlock_ts と生データを登録\"]"
+    ],
+    "body": [
+      "let cap = & mut ctx . accounts . capsule . 1 ;",
+      "cap . push ((unlock_ts , data)) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "purge_expired",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyCapsule >"
+    ],
+    "attributes": [
+      "# [doc = \" 期限到来分の一括削除：now より古いエントリをフィルタ\"]"
+    ],
+    "body": [
+      "let entries = & mut ctx . accounts . capsule . 1 ;",
+      "let now = ctx . accounts . clock . unix_timestamp ;",
+      "entries . retain (| & (ts , _) | ts > now) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "count_ready",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyCapsule >"
+    ],
+    "attributes": [
+      "# [doc = \" 利用可能分のカウント報告：期限到来分を数えてログ出力\"]"
+    ],
+    "body": [
+      "let entries = & ctx . accounts . capsule . 1 ;",
+      "let now = ctx . accounts . clock . unix_timestamp ;",
+      "let mut cnt = 0u64 ;",
+      "for & (ts , _) in entries . iter ()",
+      "{",
+      "if now >= ts",
+      "{",
+      "cnt = cnt . wrapping_add (1) ;",
+      "}",
+      "}",
+      "msg ! (\"Ready entries: {}\" , cnt) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Initialize",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "capsule",
+        "attribute": "# [account (init_zeroed , payer = authority , seeds = [b\"capsule\" , authority . key () . as_ref ()] , bump , space = 8 + 1 + 4 + 10 * (8 + 4 + 100))]",
+        "field_type": "Account < 'info , TimeCapsule >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ModifyCapsule",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "capsule",
+        "attribute": "# [account (mut , seeds = [b\"capsule\" , authority . key () . as_ref ()] , bump = capsule . 0 ,)]",
+        "field_type": "Account < 'info , TimeCapsule >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [doc = \" 操作主体（署名必須）\"] # [account (signer)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

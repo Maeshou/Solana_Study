@@ -1,0 +1,158 @@
+[
+  {
+    "name": "claim_daily_quest_reward",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ClaimDailyQuestReward >",
+      "quest_id: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let quest_progress = & mut ctx . accounts . quest_progress ;",
+      "let player_inventory = & mut ctx . accounts . player_inventory ;",
+      "let mut target_quest_index = 1000 ;",
+      "for (index , quest) in quest_progress . daily_quests . iter () . enumerate ()",
+      "{",
+      "if quest . quest_id == quest_id",
+      "{",
+      "target_quest_index = index ;",
+      "}",
+      "}",
+      "require ! (target_quest_index != 1000 , GameError :: QuestNotFound) ;",
+      "let quest = & mut quest_progress . daily_quests [target_quest_index] ;",
+      "require ! (quest . progress >= quest . target_count , GameError :: QuestNotCompleted) ;",
+      "require ! (! quest . reward_claimed , GameError :: RewardAlreadyClaimed) ;",
+      "for reward in quest . rewards . iter ()",
+      "{",
+      "let mut item_found = false ;",
+      "for inventory_item in player_inventory . items . iter_mut ()",
+      "{",
+      "if inventory_item . item_id == reward . item_id { inventory_item . quantity += reward . quantity ;",
+      "item_found = true ;",
+      "} } if ! item_found",
+      "{",
+      "player_inventory . items . push (InventoryItem { item_id : reward . item_id , quantity : reward . quantity , }) ;",
+      "}",
+      "}",
+      "quest . reward_claimed = true ;",
+      "msg ! (\"Quest {} reward claimed successfully!\" , quest_id) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "ClaimDailyQuestReward",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "quest_progress",
+        "attribute": "# [account (mut , seeds = [b\"quest_progress\" , player . key () . as_ref ()] , bump = quest_progress . bump)]",
+        "field_type": "Account < 'info , QuestProgress >"
+      },
+      {
+        "name": "player_inventory",
+        "attribute": "# [account (mut , seeds = [b\"inventory\" , player . key () . as_ref ()] , bump = player_inventory . bump)]",
+        "field_type": "Account < 'info , PlayerInventory >"
+      },
+      {
+        "name": "player",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "QuestProgress",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "daily_quests",
+        "attribute": null,
+        "field_type": "Vec < Quest >"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Quest",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "quest_id",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "progress",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "target_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "reward_claimed",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "rewards",
+        "attribute": null,
+        "field_type": "Vec < InventoryItem >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PlayerInventory",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "items",
+        "attribute": null,
+        "field_type": "Vec < InventoryItem >"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InventoryItem",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "item_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "quantity",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,98 @@
+[
+  {
+    "name": "update_level",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < UpdateLevel >",
+      "threshold: u64"
+    ],
+    "attributes": [
+      "# [doc = \" NFT 保有数に応じてレベルを更新します。\"]",
+      "# [doc = \" - `threshold` : 何枚でレベルが 1 上がるか\"]",
+      "# [doc = \" ※ 署名チェックを `user: AccountInfo<'info>` のまま省略\"]"
+    ],
+    "body": [
+      "let count = ctx . accounts . hold_acc . amount ;",
+      "let level = count . checked_div (threshold) . unwrap () ;",
+      "let now = ctx . accounts . clock . unix_timestamp ;",
+      "let lvl_data = & mut ctx . accounts . level_data ;",
+      "lvl_data . level = level ;",
+      "lvl_data . total_nfts = count ;",
+      "lvl_data . updated_at = now ;"
+    ]
+  },
+  {
+    "name": "UpdateLevel",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "fee_payer",
+        "attribute": "# [doc = \" 手数料支払い用アカウント（署名必須）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 利用者（署名チェックを省略）\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "hold_acc",
+        "attribute": "# [doc = \" 保有数を参照する TokenAccount\"] # [account (constraint = hold_acc . owner == * user . key , constraint = hold_acc . mint == nft_mint . key ())]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "nft_mint",
+        "attribute": "# [doc = \" 対象 NFT Mint（制約チェック用）\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "level_data",
+        "attribute": "# [doc = \" レベル情報を保持する PDA\"] # [account (init_if_needed , payer = fee_payer , seeds = [b\"level\" , user . key () . as_ref ()] , bump , space = 8 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , LevelData >"
+      },
+      {
+        "name": "clock",
+        "attribute": "# [doc = \" 時刻参照用\"]",
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "rent",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Rent >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "LevelData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "level",
+        "attribute": "# [doc = \" 現在のレベル（保有数 ÷ threshold）\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "total_nfts",
+        "attribute": "# [doc = \" 最後に参照した NFT 保有数\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "updated_at",
+        "attribute": "# [doc = \" 最終更新時刻\"]",
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

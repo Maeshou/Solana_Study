@@ -1,43 +1,226 @@
 [
   {
-    "name": "revoke_license",
+    "name": "init_loft",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx097 >",
-      "amount: u64"
+      "ctx: Context < InitLoft >",
+      "salt: u16"
     ],
     "attributes": [],
     "body": [
-      "let cpi_accounts = Transfer { from : ctx . accounts . from_token . to_account_info () , to : ctx . accounts . to_token . to_account_info () , authority : ctx . accounts . authority . to_account_info () , } ;",
-      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
-      "token :: transfer (cpi_ctx , amount) ? ;",
+      "let lf = & mut ctx . accounts . loft ;",
+      "lf . owner = ctx . accounts . keeper . key () ;",
+      "lf . cap = (salt as u32) * 6 + 300 ;",
+      "lf . stage = Nest ;",
+      "let lg = & mut ctx . accounts . ledger ;",
+      "lg . loft = lf . key () ;",
+      "lg . perch = 9 ;",
+      "lg . hops = 0 ;",
+      "lg . mix = salt as u64 ^ 0xAA55 ;",
+      "let mut s = salt as u32 ;",
+      "let step = | s : & mut u32 | { let b = ((* s >> 0) ^ (* s >> 2) ^ (* s >> 3) ^ (* s >> 5)) & 1 ; * s = (* s >> 1) | (b << 15) ; * s } ;",
+      "let a = & mut ctx . accounts . bird_a ;",
+      "a . loft = lf . key () ;",
+      "a . perch = (s as u8) & 7 ;",
+      "a . stamina = (step (& mut s) & 511) + 50 ;",
+      "let b = & mut ctx . accounts . bird_b ;",
+      "b . loft = lf . key () ;",
+      "b . perch = ((s >> 3) as u8) & 7 ;",
+      "b . stamina = (step (& mut s) & 511) + 45 ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx097",
+    "name": "fly",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < FlyOut >",
+      "laps: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let lf = & mut ctx . accounts . loft ;",
+      "let a = & mut ctx . accounts . bird_a ;",
+      "let b = & mut ctx . accounts . bird_b ;",
+      "let lg = & mut ctx . accounts . ledger ;",
+      "for i in 0 .. laps",
+      "{",
+      "let mix = ((a . stamina ^ b . stamina) as u64) . wrapping_mul (2654435761) ;",
+      "a . stamina = a . stamina . checked_add (((mix & 31) as u32) + 2) . unwrap_or (u32 :: MAX) ;",
+      "b . stamina = b . stamina . saturating_add ((((mix >> 5) & 31) as u32) + 3) ;",
+      "lg . hops = lg . hops . saturating_add (1) ;",
+      "lg . mix ^= mix . rotate_left ((i % 13) as u32) ;",
+      "}",
+      "let sum = a . stamina + b . stamina + (lg . hops as u32 & 0x1FF) ;",
+      "if sum > lf . cap",
+      "{",
+      "lf . stage = Roost ;",
+      "a . perch ^= 1 ;",
+      "b . perch = b . perch . saturating_add (1) ;",
+      "lg . perch = lg . perch . saturating_add (1) ;",
+      "msg ! (\"roost: perch tweaks & ledger move\") ;",
+      "} else",
+      "{",
+      "lf . stage = Flight ;",
+      "a . stamina = a . stamina . saturating_add (9) ;",
+      "b . stamina = b . stamina / 2 + 11 ;",
+      "lg . mix ^= 0x0F0F_F0F0 ;",
+      "msg ! (\"flight: stamina adjust & mix flip\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitLoft",
     "node_type": "struct",
     "fields": [
       {
-        "name": "from_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "loft",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Loft >"
       },
       {
-        "name": "to_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "ledger",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 8 + 8)]",
+        "field_type": "Account < 'info , LoftLog >"
       },
       {
-        "name": "authority",
+        "name": "bird_a",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Bird >"
+      },
+      {
+        "name": "bird_b",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Bird >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "keeper",
         "attribute": null,
         "field_type": "Signer < 'info >"
       },
       {
-        "name": "token_program",
+        "name": "system_program",
         "attribute": null,
-        "field_type": "Program < 'info , Token >"
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "FlyOut",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "loft",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Loft >"
+      },
+      {
+        "name": "bird_a",
+        "attribute": "# [account (mut , has_one = loft , constraint = bird_a . perch != bird_b . perch @ LoftErr :: Dup)]",
+        "field_type": "Account < 'info , Bird >"
+      },
+      {
+        "name": "bird_b",
+        "attribute": "# [account (mut , has_one = loft , constraint = bird_b . perch != ledger . perch @ LoftErr :: Dup)]",
+        "field_type": "Account < 'info , Bird >"
+      },
+      {
+        "name": "ledger",
+        "attribute": "# [account (mut , has_one = loft)]",
+        "field_type": "Account < 'info , LoftLog >"
+      },
+      {
+        "name": "keeper",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Loft",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "cap",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "stage",
+        "attribute": null,
+        "field_type": "LoftStage"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Bird",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "loft",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "perch",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "stamina",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "LoftLog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "loft",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "perch",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "hops",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "mix",
+        "attribute": null,
+        "field_type": "u64"
       }
     ],
     "inputs": null,

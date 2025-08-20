@@ -1,0 +1,245 @@
+[
+  {
+    "name": "init_catalog",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitCatalog >"
+    ],
+    "attributes": [],
+    "body": [
+      "let c = & mut ctx . accounts . catalog ;",
+      "c . owner = ctx . accounts . owner . key () ;",
+      "c . index = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_card",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitCard >",
+      "kind: Kind"
+    ],
+    "attributes": [],
+    "body": [
+      "let cd = & mut ctx . accounts . card ;",
+      "cd . parent = ctx . accounts . catalog . key () ;",
+      "cd . kind = kind ;",
+      "cd . score = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "settle",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Settle >",
+      "fee_bps: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "require ! (ctx . accounts . pay_ta . mint == ctx . accounts . pay_mint . key () , CatErr :: MintMismatch) ;",
+      "require ! (ctx . accounts . pay_ta . owner == ctx . accounts . owner . key () , CatErr :: OwnerMismatch) ;",
+      "let c = & mut ctx . accounts . catalog ;",
+      "let buyer = & mut ctx . accounts . buyer ;",
+      "let seller = & mut ctx . accounts . seller ;",
+      "let r = & mut ctx . accounts . rec ;",
+      "let mut tot = 0u32 ;",
+      "for i in 0 .. r . hist . len ()",
+      "{",
+      "r . hist [i] = r . hist [i] . wrapping_add ((i as u32) . rotate_left ((fee_bps % 16) as u32)) ;",
+      "tot = tot . saturating_add (r . hist [i]) ;",
+      "}",
+      "if buyer . kind as u8 != seller . kind as u8",
+      "{",
+      "let fee = (buyer . score * (fee_bps as u64)) / 10_000 ;",
+      "buyer . score = buyer . score . saturating_sub (fee) ;",
+      "seller . score = seller . score . saturating_add (fee) ;",
+      "r . ok = r . ok . saturating_add (1) ;",
+      "c . index = c . index . wrapping_add (1) ;",
+      "msg ! (\"buyer->seller fee moved\") ;",
+      "} else",
+      "{",
+      "let penalty = (tot as u64) & 0xFFFF ;",
+      "buyer . score = buyer . score . saturating_add (penalty) ;",
+      "seller . score = seller . score . saturating_sub (penalty / 2) ;",
+      "r . ng = r . ng . saturating_add (1) ;",
+      "c . index = c . index . rotate_left (3) ;",
+      "msg ! (\"same kind penalty applied\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitCatalog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "catalog",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 4)]",
+        "field_type": "Account < 'info , Catalog >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitCard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "card",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 1 + 8)]",
+        "field_type": "Account < 'info , Card >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "catalog",
+        "attribute": null,
+        "field_type": "Account < 'info , Catalog >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Settle",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "catalog",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Catalog >"
+      },
+      {
+        "name": "buyer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Card >"
+      },
+      {
+        "name": "seller",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Card >"
+      },
+      {
+        "name": "rec",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Record >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "pay_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "pay_ta",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Catalog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "index",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Card",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "kind",
+        "attribute": null,
+        "field_type": "Kind"
+      },
+      {
+        "name": "score",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Record",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "hist",
+        "attribute": null,
+        "field_type": "Vec < u32 >"
+      },
+      {
+        "name": "ok",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "ng",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

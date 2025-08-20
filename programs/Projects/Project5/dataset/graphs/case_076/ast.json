@@ -1,43 +1,232 @@
 [
   {
-    "name": "init_loans",
+    "name": "init_dock",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx076 >",
-      "amount: u64"
+      "ctx: Context < InitDock >",
+      "n: u32"
     ],
     "attributes": [],
     "body": [
-      "let cpi_accounts = Transfer { from : ctx . accounts . from_token . to_account_info () , to : ctx . accounts . to_token . to_account_info () , authority : ctx . accounts . authority . to_account_info () , } ;",
-      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
-      "token :: transfer (cpi_ctx , amount) ? ;",
+      "let d = & mut ctx . accounts . dock ;",
+      "d . owner = ctx . accounts . controller . key () ;",
+      "d . maxq = n * 4 + 50 ;",
+      "d . state = Queue ;",
+      "let a = & mut ctx . accounts . berth_a ;",
+      "let b = & mut ctx . accounts . berth_b ;",
+      "let q = & mut ctx . accounts . quay ;",
+      "let mut crc = 0xFFFF_FFFFu32 ^ n ;",
+      "for _ in 0 .. 4",
+      "{",
+      "let bit = (crc ^ (n >> 5)) & 1 ;",
+      "crc = (crc >> 1) ^ (if bit == 1",
+      "{",
+      "0x1EDC6F41 } else { 0 }) ;",
+      "}",
+      "a . parent = d . key () ;",
+      "a . dock = (n & 7) as u8 ;",
+      "a . load = (crc & 0x7FFF) + 20 ;",
+      "b . parent = d . key () ;",
+      "b . dock = ((n >> 2) & 7) as u8 ;",
+      "b . load = ((crc >> 7) & 0x7FFF) + 25 ;",
+      "q . parent = d . key () ;",
+      "q . bay = 9 ;",
+      "q . queue = 0 ;",
+      "q . tag = crc as u64 ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx076",
+    "name": "service",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ServiceRun >",
+      "k: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let d = & mut ctx . accounts . dock ;",
+      "let a = & mut ctx . accounts . berth_a ;",
+      "let b = & mut ctx . accounts . berth_b ;",
+      "let q = & mut ctx . accounts . quay ;",
+      "for i in 0 .. k",
+      "{",
+      "let r = ((a . load ^ b . load) as u64) . wrapping_mul (780291637) ;",
+      "a . load = a . load . checked_add (((r & 63) as u32) + 4) . unwrap_or (u32 :: MAX) ;",
+      "b . load = b . load . saturating_add ((((r >> 6) & 63) as u32) + 3) ;",
+      "q . queue = q . queue . saturating_add ((r & 31) as u64) ;",
+      "q . tag ^= r . rotate_left ((i % 23) as u32) ;",
+      "}",
+      "let sum = a . load + b . load ;",
+      "if sum > d . maxq",
+      "{",
+      "d . state = Freeze ;",
+      "a . dock ^= 1 ;",
+      "b . dock = b . dock . saturating_add (1) ;",
+      "q . bay = q . bay . saturating_add (1) ;",
+      "msg ! (\"freeze: bay++ & dock tweaks\") ;",
+      "} else",
+      "{",
+      "d . state = Service ;",
+      "a . load = a . load . saturating_add (9) ;",
+      "b . load = b . load / 2 + 11 ;",
+      "q . tag ^= 0x00FF_F0F0 ;",
+      "msg ! (\"service: adjust load & tag flip\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitDock",
     "node_type": "struct",
     "fields": [
       {
-        "name": "from_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "dock",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Dock >"
       },
       {
-        "name": "to_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "berth_a",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Berth >"
       },
       {
-        "name": "authority",
+        "name": "berth_b",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Berth >"
+      },
+      {
+        "name": "quay",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 8 + 8)]",
+        "field_type": "Account < 'info , Quay >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "controller",
         "attribute": null,
         "field_type": "Signer < 'info >"
       },
       {
-        "name": "token_program",
+        "name": "system_program",
         "attribute": null,
-        "field_type": "Program < 'info , Token >"
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ServiceRun",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "dock",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Dock >"
+      },
+      {
+        "name": "berth_a",
+        "attribute": "# [account (mut , has_one = dock , constraint = berth_a . dock != berth_b . dock @ DockErr :: Dup)]",
+        "field_type": "Account < 'info , Berth >"
+      },
+      {
+        "name": "berth_b",
+        "attribute": "# [account (mut , has_one = dock , constraint = berth_b . dock != quay . bay @ DockErr :: Dup)]",
+        "field_type": "Account < 'info , Berth >"
+      },
+      {
+        "name": "quay",
+        "attribute": "# [account (mut , has_one = dock)]",
+        "field_type": "Account < 'info , Quay >"
+      },
+      {
+        "name": "controller",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Dock",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "maxq",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "state",
+        "attribute": null,
+        "field_type": "BayState"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Berth",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "dock",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "load",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Quay",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "bay",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "queue",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "tag",
+        "attribute": null,
+        "field_type": "u64"
       }
     ],
     "inputs": null,

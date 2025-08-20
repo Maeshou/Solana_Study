@@ -1,0 +1,62 @@
+[
+  {
+    "name": "claim_insurance",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ClaimInsurance >"
+    ],
+    "attributes": [
+      "# [doc = \" NFT保険金を請求する  \"]",
+      "# [doc = \" （`insurance_account` の owner チェックを一切行っていないため、  \"]",
+      "# [doc = \"  攻撃者が他人のNFTを指定して無制限に保険金を請求できます）\"]"
+    ],
+    "body": [
+      "let ins_acc = & mut ctx . accounts . insurance_account . to_account_info () ;",
+      "let pool = & mut ctx . accounts . insurance_pool . to_account_info () ;",
+      "let user = & mut ctx . accounts . user . to_account_info () ;",
+      "let data = & mut ins_acc . data . borrow_mut () ;",
+      "if data . len () < 16",
+      "{",
+      "return err ! (ErrorCode :: DataTooShort) ;",
+      "}",
+      "let max_claim = u64 :: from_le_bytes (data [0 .. 8] . try_into () . unwrap ()) ;",
+      "let last_ts = u64 :: from_le_bytes (data [8 .. 16] . try_into () . unwrap ()) ;",
+      "let now = Clock :: get () ? . unix_timestamp as u64 ;",
+      "if now < last_ts . saturating_add (86400)",
+      "{",
+      "return err ! (ErrorCode :: TooSoon) ;",
+      "}",
+      "let amount = max_claim ;",
+      "* * pool . lamports . borrow_mut () = pool . lamports () . checked_sub (amount) . ok_or (ErrorCode :: InsufficientPool) ? ;",
+      "* * user . lamports . borrow_mut () = user . lamports () . checked_add (amount) . unwrap () ;",
+      "data [8 .. 16] . copy_from_slice (& now . to_le_bytes ()) ;",
+      "msg ! (\"Insurance claimed {} lamports from pool {} by {}\" , amount , pool . key () , user . key ()) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "ClaimInsurance",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "insurance_account",
+        "attribute": "# [doc = \" CHECK: owner == program_id の検証を一切行っていない AccountInfo  \"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "insurance_pool",
+        "attribute": "# [doc = \" 保険金プールアカウント（owner チェックなし）  \"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 保険を請求するユーザー（署名のみ検証）  \"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,43 +1,181 @@
 [
   {
-    "name": "claim_rewards",
+    "name": "init_loom",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx034 >",
-      "amount: u64"
+      "ctx: Context < InitLoom >",
+      "modulo: u32"
     ],
     "attributes": [],
     "body": [
-      "let cpi_accounts = Transfer { from : ctx . accounts . from_token . to_account_info () , to : ctx . accounts . to_token . to_account_info () , authority : ctx . accounts . authority . to_account_info () , } ;",
-      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
-      "token :: transfer (cpi_ctx , amount) ? ;",
+      "let p = & mut ctx . accounts ;",
+      "p . loom . weaver = p . weaver . key () ;",
+      "p . loom . modulo = modulo . max (17) ;",
+      "p . loom . phase = LoomPhase :: Warp ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx034",
+    "name": "weave",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Weave >",
+      "steps: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let p = & mut ctx . accounts ;",
+      "assert_ne ! (p . loom . key () , p . log . key () , \"loom/log must differ\") ;",
+      "for k in 0 .. steps",
+      "{",
+      "p . sheet . pos = p . sheet . pos . wrapping_mul (1664525) . wrapping_add (1013904223) ;",
+      "let pat = (p . sheet . pos ^ p . sheet . pos . rotate_left (9)) & 0x00FF_FFFF ;",
+      "let inc = (pat as u64 % p . loom . modulo as u64) + (k as u64 % 3) ;",
+      "p . sheet . weight = (u128 :: from (p . sheet . weight) + u128 :: from (inc) * 3u128) . min (u128 :: from (u64 :: MAX)) as u64 ;",
+      "p . log . rows = p . log . rows . wrapping_add ((pat & 0xFF) as u32) ;",
+      "}",
+      "if p . sheet . weight % 2 == 0",
+      "{",
+      "p . loom . phase = LoomPhase :: Weft ;",
+      "p . log . flags = p . log . flags . wrapping_add (5) ;",
+      "p . sheet . pos ^= 0x5A5A_A5A5 ;",
+      "msg ! (\"even weight: Weft, flags+=5, pos xored\") ;",
+      "} else",
+      "{",
+      "p . loom . phase = LoomPhase :: Rest ;",
+      "p . log . rows = p . log . rows . wrapping_mul (2) . wrapping_add (1) ;",
+      "p . sheet . weight = p . sheet . weight / 2 + 7 ;",
+      "msg ! (\"odd weight: Rest, rows=2x+1, weight halved+7\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitLoom",
     "node_type": "struct",
     "fields": [
       {
-        "name": "from_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "loom",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Loom >"
       },
       {
-        "name": "to_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "sheet",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4 + 8)]",
+        "field_type": "Account < 'info , Sheet >"
       },
       {
-        "name": "authority",
+        "name": "log",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4 + 4)]",
+        "field_type": "Account < 'info , LoomLog >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "weaver",
         "attribute": null,
         "field_type": "Signer < 'info >"
       },
       {
-        "name": "token_program",
+        "name": "system_program",
         "attribute": null,
-        "field_type": "Program < 'info , Token >"
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Weave",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "loom",
+        "attribute": "# [account (mut , has_one = weaver , constraint = loom . key () != sheet . key () , error = LoomErr :: Dup)]",
+        "field_type": "Account < 'info , Loom >"
+      },
+      {
+        "name": "sheet",
+        "attribute": "# [account (mut , constraint = sheet . key () != log . key () , error = LoomErr :: Dup)]",
+        "field_type": "Account < 'info , Sheet >"
+      },
+      {
+        "name": "log",
+        "attribute": "# [account (mut , constraint = loom . key () != log . key () , error = LoomErr :: Dup)]",
+        "field_type": "Account < 'info , LoomLog >"
+      },
+      {
+        "name": "weaver",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Loom",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "weaver",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "modulo",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "phase",
+        "attribute": null,
+        "field_type": "LoomPhase"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Sheet",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pos",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "weight",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "LoomLog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "rows",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "flags",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

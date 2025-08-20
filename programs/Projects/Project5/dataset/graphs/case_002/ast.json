@@ -1,33 +1,195 @@
 [
   {
-    "name": "swap_tokens",
+    "name": "init_inventory",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx002 >"
+      "ctx: Context < InitInventory >"
     ],
     "attributes": [],
     "body": [
-      "let a = & ctx . accounts . first ;",
-      "let b = & ctx . accounts . second ;",
-      "msg ! (\"Account A: {}\" , a . key ()) ;",
-      "msg ! (\"Account B: {}\" , b . key ()) ;",
+      "ctx . accounts . inventory_record . sku = * ctx . accounts . manager . key ;",
+      "ctx . accounts . inventory_record . stock = 100 ;",
+      "ctx . accounts . inventory_record . active = true ;",
+      "ctx . accounts . stock_metrics . total_in = 100 ;",
+      "ctx . accounts . stock_metrics . total_out = 0 ;",
+      "ctx . accounts . stock_metrics . bump = * ctx . bumps . get (\"inventory_record\") . unwrap () ;",
+      "ctx . accounts . reorder_policy . threshold = 20 ;",
+      "ctx . accounts . reorder_policy . lead_time = 7 ;",
+      "ctx . accounts . reorder_policy . enabled = true ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx002",
+    "name": "adjust_stock",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AdjustStock >",
+      "used: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "require_keys_neq ! (ctx . accounts . inventory_record . key () , ctx . accounts . stock_metrics . key () , InventoryError :: DuplicateAccounts) ;",
+      "let mut available = ctx . accounts . inventory_record . stock ;",
+      "for _ in 0 .. used",
+      "{",
+      "available -= 1 ;",
+      "}",
+      "if available < ctx . accounts . reorder_policy . threshold as u64",
+      "{",
+      "ctx . accounts . stock_metrics . total_out += used ;",
+      "msg ! (\"Stock low:",
+      "{",
+      "}\" , available) ;",
+      "ctx . accounts . reorder_policy . enabled = false ;",
+      "ctx . accounts . stock_metrics . total_in -= used ;",
+      "} else",
+      "{",
+      "ctx . accounts . stock_metrics . total_out -= used ;",
+      "msg ! (\"Stock sufficient:",
+      "{",
+      "}\" , available) ;",
+      "ctx . accounts . reorder_policy . enabled = true ;",
+      "ctx . accounts . stock_metrics . total_in += used ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitInventory",
     "node_type": "struct",
     "fields": [
       {
-        "name": "first",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "inventory_record",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 8 + 1)]",
+        "field_type": "Account < 'info , InventoryRecord >"
       },
       {
-        "name": "second",
+        "name": "stock_metrics",
+        "attribute": "# [account (init , payer = payer , space = 8 + 8 + 8 + 1)]",
+        "field_type": "Account < 'info , StockMetrics >"
+      },
+      {
+        "name": "reorder_policy",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4 + 4 + 1)]",
+        "field_type": "Account < 'info , ReorderPolicy >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AdjustStock",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "inventory_record",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , InventoryRecord >"
+      },
+      {
+        "name": "stock_metrics",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , StockMetrics >"
+      },
+      {
+        "name": "reorder_policy",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , ReorderPolicy >"
+      },
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InventoryRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "sku",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "stock",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "active",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "StockMetrics",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "total_in",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_out",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ReorderPolicy",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "threshold",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "lead_time",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "enabled",
+        "attribute": null,
+        "field_type": "bool"
       }
     ],
     "inputs": null,

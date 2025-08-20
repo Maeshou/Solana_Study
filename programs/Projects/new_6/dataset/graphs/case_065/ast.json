@@ -1,0 +1,235 @@
+[
+  {
+    "name": "init_guild",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitGuild >",
+      "name: String",
+      "max_members: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let g = & mut ctx . accounts . guild ;",
+      "g . name = name ;",
+      "g . creator = ctx . accounts . creator . key () ;",
+      "g . max_members = max_members ;",
+      "g . member_count = 0 ;",
+      "g . total_funds = 0 ;",
+      "g . rank_points = 0 ;",
+      "g . last_ops = vec ! [] ;",
+      "g . threshold = 10_000 ;",
+      "g . penalty_pool = 0 ;",
+      "g . version = 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_contribute_and_reweight",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ContribAndReweight >",
+      "amount: u64",
+      "memo: String",
+      "wave: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let g = & mut ctx . accounts . guild ;",
+      "let p = & mut ctx . accounts . member_like ;",
+      "let actor = & ctx . accounts . actor ;",
+      "let ts = Clock :: get () ? . unix_timestamp ;",
+      "g . last_ops . push (format ! (\"t={} m={} a={}\" , ts , memo , amount)) ;",
+      "if g . last_ops . len () > 24",
+      "{",
+      "g . last_ops . remove (0) ;",
+      "}",
+      "let mut credit = amount ;",
+      "if amount > g . threshold",
+      "{",
+      "credit = credit . saturating_add (amount / 20) ;",
+      "p . flags ^= 0b0001 ;",
+      "g . penalty_pool = g . penalty_pool . saturating_add (3) ;",
+      "}",
+      "if wave % 2 == 0",
+      "{",
+      "credit = credit . rotate_left ((wave % 8) as u32) ;",
+      "g . version = g . version . wrapping_add (1) ;",
+      "}",
+      "g . total_funds = g . total_funds . saturating_add (credit) ;",
+      "let idx = (wave % 5) as usize ;",
+      "if p . badges . len () <= idx",
+      "{",
+      "p . badges . resize (idx + 1 , 0) ;",
+      "}",
+      "let mix = ((amount as u32) ^ ((ts as u32) << (idx as u32 & 3))) & 0xFFFF ;",
+      "p . badges [idx] = p . badges [idx] . wrapping_add ((mix % 251) as u16) ;",
+      "if p . badges [idx] & 0b1 != 0",
+      "{",
+      "p . reputation = p . reputation . saturating_add (2) ;",
+      "p . flags ^= 0b0010 ;",
+      "}",
+      "if p . reputation > 200",
+      "{",
+      "p . reputation = p . reputation . rotate_right (1) ;",
+      "g . rank_points = g . rank_points . saturating_add ((p . reputation % 17) as u32) ;",
+      "}",
+      "p . notes . push (format ! (\"{}:{}:{}\" , wave , amount , memo)) ;",
+      "if p . notes . len () > 12",
+      "{",
+      "p . notes . reverse () ;",
+      "p . notes . truncate (10) ;",
+      "p . notes . sort () ;",
+      "}",
+      "if g . total_funds > 1_000_000",
+      "{",
+      "let mut decay = 0u64 ;",
+      "for i in 0 .. p . badges . len ()",
+      "{",
+      "p . badges [i] = p . badges [i] . reverse_bits () ;",
+      "decay = decay . saturating_add ((p . badges [i] as u64) & 7) ;",
+      "} g . total_funds = g . total_funds . saturating_sub (decay) ;",
+      "g . penalty_pool = g . penalty_pool . saturating_add ((decay % 29) as u64) ;",
+      "}",
+      "g . creator = actor . key () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitGuild",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": "# [account (init , payer = creator , space = 8 + 32 + 4 + 4 + 8 + 4 + 4 + 8 + 1 + 256)]",
+        "field_type": "Account < 'info , Guild >"
+      },
+      {
+        "name": "creator",
+        "attribute": "# [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ContribAndReweight",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Guild >"
+      },
+      {
+        "name": "member_like",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , MemberLike >"
+      },
+      {
+        "name": "actor",
+        "attribute": "# [doc = \" CHECK: だれでも actor になれる\"]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Guild",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "creator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "max_members",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "member_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "total_funds",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "rank_points",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "last_ops",
+        "attribute": null,
+        "field_type": "Vec < String >"
+      },
+      {
+        "name": "threshold",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "penalty_pool",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "version",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MemberLike",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "reputation",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "flags",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "badges",
+        "attribute": null,
+        "field_type": "Vec < u16 >"
+      },
+      {
+        "name": "notes",
+        "attribute": null,
+        "field_type": "Vec < String >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,20 +1,69 @@
 [
   {
-    "name": "CrossTransferCtxnunz",
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitTime >",
+      "end_unix: i64"
+    ],
+    "attributes": [
+      "# [doc = \" 初期化：終了時刻を設定\"]"
+    ],
+    "body": [
+      "let rec = & mut ctx . accounts . rec ;",
+      "rec . end_time = end_unix ;",
+      "rec . value = 0 ;",
+      "emit ! (TimeInitialized { end_unix }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "timed_update",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < UpdateTime >",
+      "val: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 現在時刻が終了前なら更新可能\"]"
+    ],
+    "body": [
+      "let clock = Clock :: get () ? ;",
+      "require ! (clock . unix_timestamp < ctx . accounts . rec . end_time , ErrorCode :: Expired) ;",
+      "let rec = & mut ctx . accounts . rec ;",
+      "rec . value = val ;",
+      "emit ! (TimeUpdated { by : ctx . accounts . user . key () , val }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "snapshot",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < View >"
+    ],
+    "attributes": [
+      "# [doc = \" 終了後のスナップショット取得（読み取りのみ）\"]"
+    ],
+    "body": [
+      "let rec = & ctx . accounts . rec ;",
+      "Ok (Snapshot { value : rec . value , end_time : rec . end_time , })"
+    ]
+  },
+  {
+    "name": "InitTime",
     "node_type": "struct",
     "fields": [
       {
-        "name": "from",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
+        "name": "rec",
+        "attribute": "# [account (init , payer = payer , space = 8 + 8 + 8)]",
+        "field_type": "Account < 'info , TimeRecord >"
       },
       {
-        "name": "to",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
-      },
-      {
-        "name": "user",
+        "name": "payer",
         "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
       },
@@ -29,11 +78,49 @@
     "body": null
   },
   {
-    "name": "DataAccount",
+    "name": "UpdateTime",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data",
+        "name": "rec",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TimeRecord >"
+      },
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "View",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "rec",
+        "attribute": null,
+        "field_type": "Account < 'info , TimeRecord >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TimeRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "end_time",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "value",
         "attribute": null,
         "field_type": "u64"
       }
@@ -43,20 +130,55 @@
     "body": null
   },
   {
-    "name": "cross_transfer",
-    "node_type": "function",
-    "fields": null,
-    "inputs": [
-      "ctx: Context < CrossTransferCtxnunz >",
-      "amount: u64"
+    "name": "TimeInitialized",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "end_unix",
+        "attribute": null,
+        "field_type": "i64"
+      }
     ],
-    "attributes": [],
-    "body": [
-      "let acct = & mut ctx . accounts . from ;",
-      "let temp = acct . data ;",
-      "acct . data = temp . checked_mul (2) . unwrap () ;",
-      "msg ! (\"Executed cross_transfer logic\") ;",
-      "Ok (())"
-    ]
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TimeUpdated",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "by",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "val",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Snapshot",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "value",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "end_time",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
   }
 ]

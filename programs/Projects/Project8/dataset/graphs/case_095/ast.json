@@ -1,0 +1,215 @@
+[
+  {
+    "name": "define_territory",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < DefineTerritory >",
+      "coords: TerritoryCoordinates",
+      "base_daily: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let atlas = & mut ctx . accounts . territory ;",
+      "let now = Clock :: get () ? . unix_timestamp ;",
+      "let area = coords . area () ;",
+      "require ! (area >= 100 , ErrorCode :: TooSmall) ;",
+      "require ! (area <= 10_000 , ErrorCode :: TooLarge) ;",
+      "atlas . owner = ctx . accounts . guild_master . key () ;",
+      "atlas . coords = coords . clone () ;",
+      "atlas . created_at = now ;",
+      "atlas . size = area ;",
+      "atlas . tier = tier_from_area (area) ;",
+      "atlas . daily_baseline = blended_daily (coords . clone () , base_daily , & atlas . tier) ;",
+      "atlas . shuffle_seed = mix_seed (now , area) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "tier_from_area",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "area: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut t = TerritoryTier :: Outpost ;",
+      "if area >= 2_000",
+      "{",
+      "t = TerritoryTier :: City ;",
+      "}",
+      "if area >= 5_000",
+      "{",
+      "t = TerritoryTier :: Capital ;",
+      "}",
+      "t"
+    ]
+  },
+  {
+    "name": "blended_daily",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "coords: TerritoryCoordinates",
+      "base: u32",
+      "tier: & TerritoryTier"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut daily = base . max (10) ;",
+      "daily = daily . saturating_add (coord_bias (coords)) ;",
+      "daily = daily . saturating_add (tier_bias (tier)) ;",
+      "daily"
+    ]
+  },
+  {
+    "name": "coord_bias",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "c: TerritoryCoordinates"
+    ],
+    "attributes": [],
+    "body": [
+      "let bias1 = (c . north_boundary as i64 - c . south_boundary as i64) . unsigned_abs () as u32 ;",
+      "let bias2 = (c . east_boundary as i64 - c . west_boundary as i64) . unsigned_abs () as u32 ;",
+      "(bias1 % 13) . saturating_add (bias2 % 7)"
+    ]
+  },
+  {
+    "name": "tier_bias",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "t: & TerritoryTier"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut s = 0u32 ;",
+      "if matches ! (t , TerritoryTier :: Capital)",
+      "{",
+      "s = s . saturating_add (200) ;",
+      "}",
+      "if matches ! (t , TerritoryTier :: City)",
+      "{",
+      "s = s . saturating_add (90) ;",
+      "}",
+      "if matches ! (t , TerritoryTier :: Outpost)",
+      "{",
+      "s = s . saturating_add (30) ;",
+      "}",
+      "s"
+    ]
+  },
+  {
+    "name": "mix_seed",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "now: i64",
+      "area: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "((now as u64) . rotate_left (11)) ^ ((area as u64) . rotate_left (3))"
+    ]
+  },
+  {
+    "name": "DefineTerritory",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "territory",
+        "attribute": "# [account (init , payer = guild_master , space = 8 + Territory :: MAX_SPACE , seeds = [b\"territory\" , guild_master . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Territory >"
+      },
+      {
+        "name": "guild_master",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Territory",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "coords",
+        "attribute": null,
+        "field_type": "TerritoryCoordinates"
+      },
+      {
+        "name": "size",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "tier",
+        "attribute": null,
+        "field_type": "TerritoryTier"
+      },
+      {
+        "name": "created_at",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "daily_baseline",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "shuffle_seed",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TerritoryCoordinates",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "north_boundary",
+        "attribute": null,
+        "field_type": "i32"
+      },
+      {
+        "name": "south_boundary",
+        "attribute": null,
+        "field_type": "i32"
+      },
+      {
+        "name": "east_boundary",
+        "attribute": null,
+        "field_type": "i32"
+      },
+      {
+        "name": "west_boundary",
+        "attribute": null,
+        "field_type": "i32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

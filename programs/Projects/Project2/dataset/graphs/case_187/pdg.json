@@ -1,0 +1,311 @@
+[
+  {
+    "name": "initialize",
+    "inputs": [
+      "ctx: Context < Initialize >"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let bump = * ctx . bumps . get (\"manager\") . unwrap () ;"
+      },
+      {
+        "id": 2,
+        "label": "ctx . accounts . manager . 0 = bump ;"
+      },
+      {
+        "id": 3,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: bump"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: bump"
+      }
+    ]
+  },
+  {
+    "name": "start_session",
+    "inputs": [
+      "ctx: Context < Modify >",
+      "user: Pubkey",
+      "expires_ts: i64"
+    ],
+    "nodes": [
+      {
+        "id": 4,
+        "label": "Entry"
+      },
+      {
+        "id": 5,
+        "label": "let list = & mut ctx . accounts . manager . 1 ;"
+      },
+      {
+        "id": 6,
+        "label": "if list . len () >= MAX_SESSIONS { return err ! (ErrorCode :: MaxSessionsReached) ; }"
+      },
+      {
+        "id": 7,
+        "label": "return err ! (ErrorCode :: MaxSessionsReached) ;"
+      },
+      {
+        "id": 8,
+        "label": "list . push ((user , expires_ts)) ;"
+      },
+      {
+        "id": 9,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 5,
+        "to": 5,
+        "label": "def: list"
+      },
+      {
+        "from": 5,
+        "to": 6,
+        "label": "data_dep: list"
+      },
+      {
+        "from": 5,
+        "to": 8,
+        "label": "data_dep: list"
+      }
+    ]
+  },
+  {
+    "name": "validate_session",
+    "inputs": [
+      "ctx: Context < Modify >",
+      "user: Pubkey"
+    ],
+    "nodes": [
+      {
+        "id": 10,
+        "label": "Entry"
+      },
+      {
+        "id": 11,
+        "label": "let list = & ctx . accounts . manager . 1 ;"
+      },
+      {
+        "id": 12,
+        "label": "let now = ctx . accounts . clock . unix_timestamp ;"
+      },
+      {
+        "id": 13,
+        "label": "for & (u , exp) in list . iter () { if u == user { if exp >= now { msg ! (\"Session for {} is valid\" , u) ; } else { msg ! (\"Session for {} has expired\" , u) ; } } }"
+      },
+      {
+        "id": 14,
+        "label": "if u == user { if exp >= now { msg ! (\"Session for {} is valid\" , u) ; } else { msg ! (\"Session for {} has expired\" , u) ; } }"
+      },
+      {
+        "id": 15,
+        "label": "if exp >= now { msg ! (\"Session for {} is valid\" , u) ; } else { msg ! (\"Session for {} has expired\" , u) ; }"
+      },
+      {
+        "id": 16,
+        "label": "msg ! (\"Session for {} is valid\" , u) ;"
+      },
+      {
+        "id": 17,
+        "label": "msg ! (\"Session for {} has expired\" , u) ;"
+      },
+      {
+        "id": 18,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 11,
+        "to": 11,
+        "label": "def: list"
+      },
+      {
+        "from": 12,
+        "to": 12,
+        "label": "def: now"
+      },
+      {
+        "from": 11,
+        "to": 13,
+        "label": "data_dep: list"
+      },
+      {
+        "from": 12,
+        "to": 13,
+        "label": "data_dep: now"
+      },
+      {
+        "from": 12,
+        "to": 14,
+        "label": "data_dep: now"
+      },
+      {
+        "from": 12,
+        "to": 15,
+        "label": "data_dep: now"
+      }
+    ]
+  },
+  {
+    "name": "purge_expired",
+    "inputs": [
+      "ctx: Context < Modify >"
+    ],
+    "nodes": [
+      {
+        "id": 19,
+        "label": "Entry"
+      },
+      {
+        "id": 20,
+        "label": "let now = ctx . accounts . clock . unix_timestamp ;"
+      },
+      {
+        "id": 21,
+        "label": "ctx . accounts . manager . 1 . retain (| & (_ , exp) | { if exp >= now { true } else { false } }) ;"
+      },
+      {
+        "id": 22,
+        "label": "if exp >= now { true } else { false }"
+      },
+      {
+        "id": 23,
+        "label": "true"
+      },
+      {
+        "id": 24,
+        "label": "false"
+      },
+      {
+        "id": 25,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 20,
+        "to": 20,
+        "label": "def: now"
+      },
+      {
+        "from": 20,
+        "to": 21,
+        "label": "data_dep: now"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: now"
+      }
+    ]
+  },
+  {
+    "name": "count_active",
+    "inputs": [
+      "ctx: Context < Modify >"
+    ],
+    "nodes": [
+      {
+        "id": 26,
+        "label": "Entry"
+      },
+      {
+        "id": 27,
+        "label": "let now = ctx . accounts . clock . unix_timestamp ;"
+      },
+      {
+        "id": 28,
+        "label": "let mut cnt = 0u64 ;"
+      },
+      {
+        "id": 29,
+        "label": "for & (_ , exp) in ctx . accounts . manager . 1 . iter () { if exp >= now { cnt = cnt . wrapping_add (1) ; } }"
+      },
+      {
+        "id": 30,
+        "label": "if exp >= now { cnt = cnt . wrapping_add (1) ; }"
+      },
+      {
+        "id": 31,
+        "label": "cnt = cnt . wrapping_add (1) ;"
+      },
+      {
+        "id": 32,
+        "label": "msg ! (\"Active sessions: {}\" , cnt) ;"
+      },
+      {
+        "id": 33,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 27,
+        "to": 27,
+        "label": "def: now"
+      },
+      {
+        "from": 28,
+        "to": 28,
+        "label": "def: cnt"
+      },
+      {
+        "from": 27,
+        "to": 29,
+        "label": "data_dep: now"
+      },
+      {
+        "from": 28,
+        "to": 29,
+        "label": "data_dep: cnt"
+      },
+      {
+        "from": 28,
+        "to": 29,
+        "label": "data_dep: cnt"
+      },
+      {
+        "from": 27,
+        "to": 30,
+        "label": "data_dep: now"
+      },
+      {
+        "from": 28,
+        "to": 30,
+        "label": "data_dep: cnt"
+      },
+      {
+        "from": 28,
+        "to": 30,
+        "label": "data_dep: cnt"
+      },
+      {
+        "from": 28,
+        "to": 31,
+        "label": "data_dep: cnt"
+      },
+      {
+        "from": 28,
+        "to": 31,
+        "label": "data_dep: cnt"
+      }
+    ]
+  }
+]

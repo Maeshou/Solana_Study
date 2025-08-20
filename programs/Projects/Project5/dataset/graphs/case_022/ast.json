@@ -1,43 +1,187 @@
 [
   {
-    "name": "open_margin_position",
+    "name": "init_atelier",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx022 >",
-      "amount: u64"
+      "ctx: Context < InitAtelier >",
+      "limit: u32"
     ],
     "attributes": [],
     "body": [
-      "let cpi_accounts = Transfer { from : ctx . accounts . from_token . to_account_info () , to : ctx . accounts . to_token . to_account_info () , authority : ctx . accounts . authority . to_account_info () , } ;",
-      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
-      "token :: transfer (cpi_ctx , amount) ? ;",
+      "ctx . accounts . atelier . artist = ctx . accounts . artist . key () ;",
+      "ctx . accounts . atelier . limit = limit ;",
+      "ctx . accounts . atelier . mode = DyeMode :: Gradient ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx022",
+    "name": "apply_dyes",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ApplyDyes >",
+      "passes: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "assert_ne ! (ctx . accounts . atelier . key () , ctx . accounts . palette . key () , \"atelier/palette must differ\") ;",
+      "for _ in 0 .. passes",
+      "{",
+      "ctx . accounts . avatar . layers = ctx . accounts . avatar . layers . saturating_add (2) ;",
+      "ctx . accounts . avatar . hue = ctx . accounts . avatar . hue . saturating_add (3) ;",
+      "ctx . accounts . palette . dyes = ctx . accounts . palette . dyes . saturating_add (5) ;",
+      "}",
+      "if ctx . accounts . avatar . hue > ctx . accounts . atelier . limit",
+      "{",
+      "ctx . accounts . atelier . mode = DyeMode :: Mono ;",
+      "ctx . accounts . palette . rarity = ctx . accounts . palette . rarity . saturating_add (4) ;",
+      "ctx . accounts . palette . temperature = ctx . accounts . palette . temperature . saturating_add (7) ;",
+      "msg ! (\"limit exceeded: switch to Mono, rarity/temperature boosted\") ;",
+      "} else",
+      "{",
+      "ctx . accounts . atelier . mode = DyeMode :: Prism ;",
+      "ctx . accounts . avatar . layers = ctx . accounts . avatar . layers . saturating_add (1) ;",
+      "ctx . accounts . palette . temperature = ctx . accounts . palette . temperature . saturating_add (2) ;",
+      "msg ! (\"within limit: switch to Prism, fine-tune layers & temperature\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitAtelier",
     "node_type": "struct",
     "fields": [
       {
-        "name": "from_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "atelier",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Atelier >"
       },
       {
-        "name": "to_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "avatar",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Avatar >"
       },
       {
-        "name": "authority",
+        "name": "palette",
+        "attribute": "# [account (init , payer = payer , space = 8 + 8 + 1 + 4 , seeds = [b\"palette\" , artist . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Palette >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "artist",
         "attribute": null,
         "field_type": "Signer < 'info >"
       },
       {
-        "name": "token_program",
+        "name": "system_program",
         "attribute": null,
-        "field_type": "Program < 'info , Token >"
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ApplyDyes",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "atelier",
+        "attribute": "# [account (mut , has_one = artist)]",
+        "field_type": "Account < 'info , Atelier >"
+      },
+      {
+        "name": "avatar",
+        "attribute": "# [account (mut , constraint = avatar . key () != palette . key () , error = DyeErr :: Dup)]",
+        "field_type": "Account < 'info , Avatar >"
+      },
+      {
+        "name": "palette",
+        "attribute": "# [account (mut , seeds = [b\"palette\" , artist . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Palette >"
+      },
+      {
+        "name": "artist",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Atelier",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "artist",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "limit",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "mode",
+        "attribute": null,
+        "field_type": "DyeMode"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Avatar",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "hue",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "layers",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Palette",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "dyes",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "rarity",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "temperature",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

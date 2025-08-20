@@ -1,0 +1,702 @@
+[
+  {
+    "name": "transfer_tokens",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "program: & Program < Token >",
+      "from: & Account < TokenAccount >",
+      "to: & Account < TokenAccount >",
+      "auth: & AccountInfo",
+      "amount: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "token :: transfer (CpiContext :: new (program . to_account_info () , Transfer { from : from . to_account_info () , to : to . to_account_info () , authority : auth . clone () , } ,) , amount ,)"
+    ]
+  },
+  {
+    "name": "reward_mix",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RewardMix >",
+      "stage: u64",
+      "payout: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 固定ID invoke + 動的CPI（任意差し替え経路）+ CpiContext(token::transfer)\"]"
+    ],
+    "body": [
+      "let fixed_ix = Instruction { program_id : FIXED_COUNTER_ID , accounts : vec ! [AccountMeta :: new (ctx . accounts . fixed_slot . key () , false) , AccountMeta :: new_readonly (ctx . accounts . actor . key () , false) ,] , data : stage . to_le_bytes () . to_vec () , } ;",
+      "invoke (& fixed_ix , & [ctx . accounts . fixed_hint . to_account_info () , ctx . accounts . fixed_slot . to_account_info () , ctx . accounts . actor . to_account_info () ,] ,) ? ;",
+      "let mut prog_ai = ctx . accounts . report_hint . to_account_info () ;",
+      "if ! ctx . remaining_accounts . is_empty ()",
+      "{",
+      "prog_ai = ctx . remaining_accounts [0] . clone () ;",
+      "ctx . accounts . note . routes = ctx . accounts . note . routes . saturating_add (1) ;",
+      "}",
+      "let mut tag = stage . rotate_left (7) ;",
+      "if tag < 10",
+      "{",
+      "tag = tag . wrapping_add (10) ;",
+      "}",
+      "let mut dyn_data = stage . to_le_bytes () . to_vec () ;",
+      "dyn_data . extend_from_slice (& tag . to_le_bytes ()) ;",
+      "let dyn_ix = Instruction { program_id : * prog_ai . key , accounts : vec ! [AccountMeta :: new (ctx . accounts . report_pad . key () , false) , AccountMeta :: new_readonly (ctx . accounts . actor . key () , false) ,] , data : dyn_data , } ;",
+      "invoke (& dyn_ix , & [prog_ai , ctx . accounts . report_pad . to_account_info () , ctx . accounts . actor . to_account_info () ,] ,) ? ;",
+      "token :: transfer (CpiContext :: new (ctx . accounts . token_program . to_account_info () , Transfer { from : ctx . accounts . treasury . to_account_info () , to : ctx . accounts . user_token . to_account_info () , authority : ctx . accounts . treasury_authority . to_account_info () , } ,) , payout ,) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "craft_mix",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CraftMix >",
+      "seed: u64",
+      "reward: u64"
+    ],
+    "attributes": [
+      "# [doc = \" impl メソッドで token::transfer、別途 動的CPI\"]"
+    ],
+    "body": [
+      "if seed > 100",
+      "{",
+      "ctx . accounts . state . rolls = ctx . accounts . state . rolls . saturating_add (1) ;",
+      "}",
+      "if seed % 2 != 0",
+      "{",
+      "ctx . accounts . state . odd = ctx . accounts . state . odd . wrapping_add (1) ;",
+      "}",
+      "let fixed_ix = Instruction { program_id : FIXED_COUNTER_ID , accounts : vec ! [AccountMeta :: new (ctx . accounts . counter_cell . key () , false) , AccountMeta :: new_readonly (ctx . accounts . crafter . key () , false) ,] , data : seed . to_le_bytes () . to_vec () , } ;",
+      "invoke (& fixed_ix , & [ctx . accounts . counter_hint . to_account_info () , ctx . accounts . counter_cell . to_account_info () , ctx . accounts . crafter . to_account_info () ,] ,) ? ;",
+      "let mut p = ctx . accounts . feed_hint . to_account_info () ;",
+      "if ! ctx . remaining_accounts . is_empty ()",
+      "{",
+      "p = ctx . remaining_accounts [0] . clone () ;",
+      "ctx . accounts . state . paths = ctx . accounts . state . paths . saturating_add (2) ;",
+      "}",
+      "let dyn_ix = Instruction { program_id : * p . key , accounts : vec ! [AccountMeta :: new (ctx . accounts . feed_board . key () , false) , AccountMeta :: new_readonly (ctx . accounts . crafter . key () , false) ,] , data : reward . rotate_left (5) . to_le_bytes () . to_vec () , } ;",
+      "invoke (& dyn_ix , & [p , ctx . accounts . feed_board . to_account_info () , ctx . accounts . crafter . to_account_info () ,] ,) ? ;",
+      "ctx . accounts . pay_with_tokens (reward)"
+    ]
+  },
+  {
+    "name": "patrol_mix",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PatrolMix >",
+      "turn: u64",
+      "credit: u64"
+    ],
+    "attributes": [
+      "# [doc = \" helper関数で CpiContext を構築、別途 動的CPI\"]"
+    ],
+    "body": [
+      "if turn % 3 != 0",
+      "{",
+      "ctx . accounts . snap . missed = ctx . accounts . snap . missed . saturating_add (1) ;",
+      "}",
+      "if turn > 50",
+      "{",
+      "ctx . accounts . snap . heavy = ctx . accounts . snap . heavy . wrapping_add (1) ;",
+      "}",
+      "let fixed_ix = Instruction { program_id : FIXED_COUNTER_ID , accounts : vec ! [AccountMeta :: new (ctx . accounts . sync_slot . key () , false) , AccountMeta :: new_readonly (ctx . accounts . agent . key () , false) ,] , data : turn . to_le_bytes () . to_vec () , } ;",
+      "invoke (& fixed_ix , & [ctx . accounts . sync_hint . to_account_info () , ctx . accounts . sync_slot . to_account_info () , ctx . accounts . agent . to_account_info () ,] ,) ? ;",
+      "let mut rprog = ctx . accounts . router_hint . to_account_info () ;",
+      "if ! ctx . remaining_accounts . is_empty ()",
+      "{",
+      "rprog = ctx . remaining_accounts [0] . clone () ;",
+      "}",
+      "let dyn_ix = Instruction { program_id : * rprog . key , accounts : vec ! [AccountMeta :: new (ctx . accounts . router_board . key () , false) , AccountMeta :: new_readonly (ctx . accounts . agent . key () , false) ,] , data : credit . wrapping_mul (7) . to_le_bytes () . to_vec () , } ;",
+      "invoke (& dyn_ix , & [rprog , ctx . accounts . router_board . to_account_info () , ctx . accounts . agent . to_account_info () ,] ,) ? ;",
+      "transfer_tokens (& ctx . accounts . token_program , & ctx . accounts . reserve , & ctx . accounts . agent_token , & ctx . accounts . reserve_authority , credit ,)"
+    ]
+  },
+  {
+    "name": "grade_mix",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < GradeMix >",
+      "score: u64",
+      "gift: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 固定ID + 動的CPI + CpiContext\"]"
+    ],
+    "body": [
+      "if score > 90",
+      "{",
+      "ctx . accounts . journal . gold = ctx . accounts . journal . gold . saturating_add (1) ;",
+      "}",
+      "if score < 60",
+      "{",
+      "ctx . accounts . journal . red = ctx . accounts . journal . red . wrapping_add (1) ;",
+      "}",
+      "let mut data = score . to_le_bytes () . to_vec () ;",
+      "let mix = score . rotate_right (9) ;",
+      "data . extend_from_slice (& mix . to_le_bytes ()) ;",
+      "let fixed_ix = Instruction { program_id : FIXED_COUNTER_ID , accounts : vec ! [AccountMeta :: new (ctx . accounts . gauge_cell . key () , false) , AccountMeta :: new_readonly (ctx . accounts . student . key () , false) ,] , data , } ;",
+      "invoke (& fixed_ix , & [ctx . accounts . gauge_hint . to_account_info () , ctx . accounts . gauge_cell . to_account_info () , ctx . accounts . student . to_account_info () ,] ,) ? ;",
+      "let mut sprog = ctx . accounts . signal_hint . to_account_info () ;",
+      "if ! ctx . remaining_accounts . is_empty ()",
+      "{",
+      "sprog = ctx . remaining_accounts [0] . clone () ;",
+      "ctx . accounts . journal . paths = ctx . accounts . journal . paths . saturating_add (3) ;",
+      "}",
+      "let dyn_ix = Instruction { program_id : * sprog . key , accounts : vec ! [AccountMeta :: new (ctx . accounts . signal_board . key () , false) , AccountMeta :: new_readonly (ctx . accounts . student . key () , false) ,] , data : gift . wrapping_add (111) . to_le_bytes () . to_vec () , } ;",
+      "invoke (& dyn_ix , & [sprog , ctx . accounts . signal_board . to_account_info () , ctx . accounts . student . to_account_info () ,] ,) ? ;",
+      "token :: transfer (CpiContext :: new (ctx . accounts . token_program . to_account_info () , Transfer { from : ctx . accounts . reward_pool . to_account_info () , to : ctx . accounts . student_token . to_account_info () , authority : ctx . accounts . pool_authority . to_account_info () , } ,) , gift ,) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "hatch_mix",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < HatchMix >",
+      "seed: u64",
+      "grant: u64"
+    ],
+    "attributes": [
+      "# [doc = \" implメソッド + 動的CPI\"]"
+    ],
+    "body": [
+      "if seed % 5 != 0",
+      "{",
+      "ctx . accounts . inc . note = ctx . accounts . inc . note . saturating_add (1) ;",
+      "}",
+      "if seed > 999",
+      "{",
+      "ctx . accounts . inc . large = ctx . accounts . inc . large . wrapping_add (1) ;",
+      "}",
+      "let fixed_ix = Instruction { program_id : FIXED_COUNTER_ID , accounts : vec ! [AccountMeta :: new (ctx . accounts . hatch_cell . key () , false) , AccountMeta :: new_readonly (ctx . accounts . owner . key () , false) ,] , data : seed . to_le_bytes () . to_vec () , } ;",
+      "invoke (& fixed_ix , & [ctx . accounts . hatch_hint . to_account_info () , ctx . accounts . hatch_cell . to_account_info () , ctx . accounts . owner . to_account_info () ,] ,) ? ;",
+      "let mut nprog = ctx . accounts . notice_hint . to_account_info () ;",
+      "if ! ctx . remaining_accounts . is_empty ()",
+      "{",
+      "nprog = ctx . remaining_accounts [0] . clone () ;",
+      "}",
+      "let dyn_ix = Instruction { program_id : * nprog . key , accounts : vec ! [AccountMeta :: new (ctx . accounts . notice_board . key () , false) , AccountMeta :: new_readonly (ctx . accounts . owner . key () , false) ,] , data : grant . rotate_left (11) . to_le_bytes () . to_vec () , } ;",
+      "invoke (& dyn_ix , & [nprog , ctx . accounts . notice_board . to_account_info () , ctx . accounts . owner . to_account_info () ,] ,) ? ;",
+      "ctx . accounts . pay_owner (grant)"
+    ]
+  },
+  {
+    "name": "rail_mix",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RailMix >",
+      "steps: u64",
+      "tip: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 固定ID + 動的CPI + helperでトークン送金\"]"
+    ],
+    "body": [
+      "if steps > 0",
+      "{",
+      "ctx . accounts . trail . progress = ctx . accounts . trail . progress . saturating_add (steps) ;",
+      "}",
+      "if steps % 4 != 0",
+      "{",
+      "ctx . accounts . trail . irregular = ctx . accounts . trail . irregular . wrapping_add (1) ;",
+      "}",
+      "let fixed_ix = Instruction { program_id : FIXED_COUNTER_ID , accounts : vec ! [AccountMeta :: new (ctx . accounts . step_slot . key () , false) , AccountMeta :: new_readonly (ctx . accounts . rider . key () , false) ,] , data : steps . to_le_bytes () . to_vec () , } ;",
+      "invoke (& fixed_ix , & [ctx . accounts . step_hint . to_account_info () , ctx . accounts . step_slot . to_account_info () , ctx . accounts . rider . to_account_info () ,] ,) ? ;",
+      "let mut cprog = ctx . accounts . cast_hint . to_account_info () ;",
+      "if ! ctx . remaining_accounts . is_empty ()",
+      "{",
+      "cprog = ctx . remaining_accounts [0] . clone () ;",
+      "ctx . accounts . trail . paths = ctx . accounts . trail . paths . saturating_add (2) ;",
+      "}",
+      "let dyn_ix = Instruction { program_id : * cprog . key , accounts : vec ! [AccountMeta :: new (ctx . accounts . stage_board . key () , false) , AccountMeta :: new_readonly (ctx . accounts . rider . key () , false) ,] , data : tip . to_le_bytes () . to_vec () , } ;",
+      "invoke (& dyn_ix , & [cprog , ctx . accounts . stage_board . to_account_info () , ctx . accounts . rider . to_account_info () ,] ,) ? ;",
+      "transfer_tokens (& ctx . accounts . token_program , & ctx . accounts . bank , & ctx . accounts . rider_token , & ctx . accounts . bank_authority , tip ,)"
+    ]
+  },
+  {
+    "name": "RewardMix",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "note",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , LocalNote >"
+      },
+      {
+        "name": "fixed_slot",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "actor",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "fixed_hint",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "report_pad",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "report_hint",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "treasury",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "user_token",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "treasury_authority",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "LocalNote",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "routes",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CraftMix",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "state",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , CraftState >"
+      },
+      {
+        "name": "counter_cell",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "crafter",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "counter_hint",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "feed_board",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "feed_hint",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "pool",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "user_token",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "pool_authority",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CraftState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "rolls",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "odd",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "paths",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PatrolMix",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "snap",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , PatrolSnap >"
+      },
+      {
+        "name": "sync_slot",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "agent",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "sync_hint",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "router_board",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "router_hint",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "reserve",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "agent_token",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "reserve_authority",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PatrolSnap",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "missed",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "heavy",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GradeMix",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "journal",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , GradeJournal >"
+      },
+      {
+        "name": "gauge_cell",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "student",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "gauge_hint",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "signal_board",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "signal_hint",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "reward_pool",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "student_token",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "pool_authority",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GradeJournal",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "gold",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "red",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "paths",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "HatchMix",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "inc",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , HatchNote >"
+      },
+      {
+        "name": "hatch_cell",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "hatch_hint",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "notice_board",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "notice_hint",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "chest",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "owner_token",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "chest_authority",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "HatchNote",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "note",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "large",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RailMix",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "trail",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , RailTrail >"
+      },
+      {
+        "name": "step_slot",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "rider",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "step_hint",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "stage_board",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "cast_hint",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "bank",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "rider_token",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "bank_authority",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RailTrail",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "progress",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "irregular",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "paths",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

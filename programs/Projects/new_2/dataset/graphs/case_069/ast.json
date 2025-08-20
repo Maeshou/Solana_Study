@@ -1,0 +1,109 @@
+[
+  {
+    "name": "add_member",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyGuild >",
+      "new_member: Pubkey"
+    ],
+    "attributes": [
+      "# [doc = \" ギルドにメンバーを追加する  \"]",
+      "# [doc = \" (`guild_account` の owner チェックを一切行っていないため、  \"]",
+      "# [doc = \"  悪意あるユーザーが他人のギルドアカウントを指定し、  \"]",
+      "# [doc = \"  勝手にメンバーを追加できます)\"]"
+    ],
+    "body": [
+      "let acct = & mut ctx . accounts . guild_account . to_account_info () ;",
+      "let data = & mut acct . data . borrow_mut () ;",
+      "const MAX_MEMBERS : usize = 16 ;",
+      "let required = 1 + 32 * MAX_MEMBERS ;",
+      "if data . len () < required",
+      "{",
+      "return err ! (ErrorCode :: DataTooShort) ;",
+      "}",
+      "let (count_slice , list) = data . split_at_mut (1) ;",
+      "let current = count_slice [0] as usize ;",
+      "if current >= MAX_MEMBERS",
+      "{",
+      "return err ! (ErrorCode :: GuildFull) ;",
+      "}",
+      "let start = 1 + current * 32 ;",
+      "list [current * 32 .. current * 32 + 32] . copy_from_slice (& new_member . to_bytes ()) ;",
+      "count_slice [0] = (current + 1) as u8 ;",
+      "msg ! (\"Added member {} to guild {} (now {} members)\" , new_member , acct . key () , current + 1) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "remove_member",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyGuild >",
+      "member: Pubkey"
+    ],
+    "attributes": [
+      "# [doc = \" ギルドからメンバーを削除する  \"]",
+      "# [doc = \" (`guild_account` の owner チェックを省略しているため、  \"]",
+      "# [doc = \"  悪意あるユーザーが他人のギルドアカウントを指定し、  \"]",
+      "# [doc = \"  勝手にメンバーを追放できます)\"]"
+    ],
+    "body": [
+      "let acct = & mut ctx . accounts . guild_account . to_account_info () ;",
+      "let data = & mut acct . data . borrow_mut () ;",
+      "const MAX_MEMBERS : usize = 16 ;",
+      "let required = 1 + 32 * MAX_MEMBERS ;",
+      "if data . len () < required",
+      "{",
+      "return err ! (ErrorCode :: DataTooShort) ;",
+      "}",
+      "let (count_slice , list) = data . split_at_mut (1) ;",
+      "let mut current = count_slice [0] as usize ;",
+      "let mut found = false ;",
+      "for i in 0 .. current",
+      "{",
+      "let offset = i * 32 ;",
+      "let pk = Pubkey :: new (& list [offset .. offset + 32]) ;",
+      "if pk == member",
+      "{",
+      "found = true ;",
+      "for j in i .. current - 1",
+      "{",
+      "let src_off = (j + 1) * 32 ;",
+      "let dst_off = j * 32 ;",
+      "list [dst_off .. dst_off + 32] . copy_from_slice (& list [src_off .. src_off + 32]) ;",
+      "} break ;",
+      "}",
+      "}",
+      "if ! found",
+      "{",
+      "return err ! (ErrorCode :: MemberNotFound) ;",
+      "}",
+      "let last_off = (current - 1) * 32 ;",
+      "list [last_off .. last_off + 32] . fill (0) ;",
+      "count_slice [0] = (current - 1) as u8 ;",
+      "msg ! (\"Removed member {} from guild {} (now {} members)\" , member , acct . key () , current - 1) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "ModifyGuild",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild_account",
+        "attribute": "# [doc = \" CHECK: owner == program_id の検証をまったく行っていない AccountInfo\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "operator",
+        "attribute": "# [doc = \" 操作実行者の署名のみ検証\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

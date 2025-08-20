@@ -1,0 +1,189 @@
+[
+  {
+    "name": "init_escrow",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitEscrow >",
+      "fee_bps: u16",
+      "deposit_units: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let es = & mut ctx . accounts . escrow ;",
+      "es . arbitrator = ctx . accounts . arbitrator . key () ;",
+      "es . fee_bps = clamp_u16 (fee_bps , 0 , 2000) ;",
+      "es . deposit_required = if deposit_units < 5 { 5 } else { deposit_units } ;",
+      "es . days_recorded = 1 ;",
+      "es . total_released = 2 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_release",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActRelease >",
+      "rent_days: u8",
+      "disputed: bool"
+    ],
+    "attributes": [],
+    "body": [
+      "let es = & mut ctx . accounts . escrow ;",
+      "let mut total_rent = es . deposit_required ;",
+      "let mut d : u8 = 1 ;",
+      "while d < rent_days",
+      "{",
+      "let mut per = es . deposit_required / 3 ;",
+      "if d >= 5",
+      "{",
+      "per = per + per / 5 ;",
+      "} total_rent = total_rent + per ;",
+      "d = d + 1 ;",
+      "}",
+      "let fee = total_rent * es . fee_bps as u64 / 10_000 ;",
+      "if disputed",
+      "{",
+      "let refund = total_rent / 2 ;",
+      "token :: transfer (ctx . accounts . escrow_to_renter () , refund) ? ;",
+      "token :: transfer (ctx . accounts . escrow_to_fee () , fee) ? ;",
+      "es . total_released = es . total_released + refund ;",
+      "}",
+      "if ! disputed",
+      "{",
+      "let payout = total_rent - fee ;",
+      "token :: transfer (ctx . accounts . escrow_to_landlord () , payout) ? ;",
+      "token :: transfer (ctx . accounts . escrow_to_fee () , fee) ? ;",
+      "es . total_released = es . total_released + payout ;",
+      "}",
+      "es . days_recorded = es . days_recorded + rent_days as u64 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitEscrow",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "escrow",
+        "attribute": "# [account (init , payer = arbitrator , space = 8 + 32 + 2 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , EscrowState >"
+      },
+      {
+        "name": "arbitrator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActRelease",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "escrow",
+        "attribute": "# [account (mut , has_one = arbitrator)]",
+        "field_type": "Account < 'info , EscrowState >"
+      },
+      {
+        "name": "arbitrator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "escrow_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "landlord_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "renter_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "fee_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EscrowState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "arbitrator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "fee_bps",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "deposit_required",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "days_recorded",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_released",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "clamp_u16",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "v: u16",
+      "lo: u16",
+      "hi: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut o = v ;",
+      "if o < lo",
+      "{",
+      "o = lo ;",
+      "}",
+      "if o > hi",
+      "{",
+      "o = hi ;",
+      "}",
+      "o"
+    ]
+  }
+]

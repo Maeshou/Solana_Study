@@ -1,0 +1,247 @@
+[
+  {
+    "name": "initialize_moderation_queue",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeModerationQueue >",
+      "queue_id: u64",
+      "name: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let queue = & mut ctx . accounts . moderation_queue ;",
+      "queue . admin = ctx . accounts . admin . key () ;",
+      "queue . queue_id = queue_id ;",
+      "queue . name = name ;",
+      "queue . pending_submissions = 0 ;",
+      "queue . queue_state = QueueState :: Active ;",
+      "msg ! (\"Moderation queue '{}' initialized. State is Active.\" , queue . name) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "submit_content_for_review",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SubmitContentForReview >",
+      "submission_id: u32",
+      "content_hash: [u8 ; 32]"
+    ],
+    "attributes": [],
+    "body": [
+      "let submission = & mut ctx . accounts . submission ;",
+      "let queue = & mut ctx . accounts . moderation_queue ;",
+      "if queue . queue_state != QueueState :: Active",
+      "{",
+      "return Err (error ! (ContentError :: QueueInactive)) ;",
+      "}",
+      "submission . queue = queue . key () ;",
+      "submission . submission_id = submission_id ;",
+      "submission . author = ctx . accounts . author . key () ;",
+      "submission . content_hash = content_hash ;",
+      "submission . review_status = ReviewStatus :: Pending ;",
+      "submission . review_score_sum = 0 ;",
+      "queue . pending_submissions = queue . pending_submissions . saturating_add (1) ;",
+      "msg ! (\"Content submission {} created and added to queue.\" , submission . submission_id) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "process_review_scores",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ProcessReviewScores >",
+      "scores: Vec < u8 >"
+    ],
+    "attributes": [],
+    "body": [
+      "let submission_one = & mut ctx . accounts . submission_one ;",
+      "let submission_two = & mut ctx . accounts . submission_two ;",
+      "if submission_one . review_status != ReviewStatus :: Pending || submission_two . review_status != ReviewStatus :: Pending",
+      "{",
+      "return Err (error ! (ContentError :: SubmissionNotPending)) ;",
+      "}",
+      "let mut total_score_one : u64 = 0 ;",
+      "let mut total_score_two : u64 = 0 ;",
+      "for (i , score) in scores . iter () . enumerate ()",
+      "{",
+      "if i % 2 == 0",
+      "{",
+      "submission_one . review_score_sum = submission_one . review_score_sum . saturating_add (* score as u64) ;",
+      "total_score_one = total_score_one . saturating_add (* score as u64) ;",
+      "} else",
+      "{",
+      "submission_two . review_score_sum = submission_two . review_score_sum . saturating_add (* score as u64) ;",
+      "total_score_two = total_score_two . saturating_add (* score as u64) ;",
+      "}",
+      "}",
+      "if submission_one . review_score_sum > 255",
+      "{",
+      "submission_one . review_status = ReviewStatus :: Approved ;",
+      "msg ! (\"Submission one approved with a total score of",
+      "{",
+      "}.\" , submission_one . review_score_sum) ;",
+      "} else",
+      "{",
+      "submission_one . review_status = ReviewStatus :: Rejected ;",
+      "msg ! (\"Submission one rejected with a total score of",
+      "{",
+      "}.\" , submission_one . review_score_sum) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializeModerationQueue",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "moderation_queue",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , ModerationQueue >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SubmitContentForReview",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "moderation_queue",
+        "attribute": "# [account (mut , has_one = queue)]",
+        "field_type": "Account < 'info , ModerationQueue >"
+      },
+      {
+        "name": "submission",
+        "attribute": "# [account (init , payer = author , space = 8 + 32 + 4 + 32 + 32 + 1 + 8)]",
+        "field_type": "Account < 'info , ContentSubmission >"
+      },
+      {
+        "name": "author",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ProcessReviewScores",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "moderation_queue",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , ModerationQueue >"
+      },
+      {
+        "name": "submission_one",
+        "attribute": "# [account (mut , has_one = queue)]",
+        "field_type": "Account < 'info , ContentSubmission >"
+      },
+      {
+        "name": "submission_two",
+        "attribute": "# [account (mut , has_one = queue)]",
+        "field_type": "Account < 'info , ContentSubmission >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ModerationQueue",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "queue_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "pending_submissions",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "queue_state",
+        "attribute": null,
+        "field_type": "QueueState"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ContentSubmission",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "queue",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "submission_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "author",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "content_hash",
+        "attribute": null,
+        "field_type": "[u8 ; 32]"
+      },
+      {
+        "name": "review_status",
+        "attribute": null,
+        "field_type": "ReviewStatus"
+      },
+      {
+        "name": "review_score_sum",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

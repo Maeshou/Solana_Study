@@ -1,6 +1,6 @@
 [
   {
-    "name": "join_tournament",
+    "name": "initialize_lottery",
     "nodes": [
       {
         "id": 0,
@@ -8,18 +8,34 @@
       },
       {
         "id": 1,
-        "label": "let acct = & mut ctx . accounts . tournament ;"
+        "label": "let lottery = & mut ctx . accounts . lottery ;"
       },
       {
         "id": 2,
-        "label": "* * ctx . accounts . tournament . to_account_info () . try_borrow_mut_lamports () ? += amount ;"
+        "label": "lottery . authority = ctx . accounts . authority . key () ;"
       },
       {
         "id": 3,
-        "label": "msg ! (\"Executed join_tournament logic\") ;"
+        "label": "lottery . ticket_price = ticket_price ;"
       },
       {
         "id": 4,
+        "label": "lottery . max_tickets = max_tickets ;"
+      },
+      {
+        "id": 5,
+        "label": "lottery . tickets_sold = 0 ;"
+      },
+      {
+        "id": 6,
+        "label": "lottery . is_active = true ;"
+      },
+      {
+        "id": 7,
+        "label": "lottery . winner = Pubkey :: default () ;"
+      },
+      {
+        "id": 8,
         "label": "Ok (())"
       }
     ],
@@ -42,7 +58,410 @@
       {
         "from": 3,
         "to": 4,
-        "label": "call"
+        "label": "next"
+      },
+      {
+        "from": 4,
+        "to": 5,
+        "label": "next"
+      },
+      {
+        "from": 5,
+        "to": 6,
+        "label": "next"
+      },
+      {
+        "from": 6,
+        "to": 7,
+        "label": "next"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "next"
+      }
+    ]
+  },
+  {
+    "name": "buy_ticket",
+    "nodes": [
+      {
+        "id": 9,
+        "label": "Entry"
+      },
+      {
+        "id": 10,
+        "label": "let lottery = & mut ctx . accounts . lottery ;"
+      },
+      {
+        "id": 11,
+        "label": "require ! (lottery . is_active , LotteryError :: LotteryInactive) ;"
+      },
+      {
+        "id": 12,
+        "label": "require ! (lottery . tickets_sold < lottery . max_tickets , LotteryError :: SoldOut) ;"
+      },
+      {
+        "id": 13,
+        "label": "let participant_key = ctx . accounts . participant . key () ;"
+      },
+      {
+        "id": 14,
+        "label": "let token_account = & ctx . accounts . participant_token_account ;"
+      },
+      {
+        "id": 15,
+        "label": "require ! (token_account . owner == participant_key , LotteryError :: InvalidTokenAccount) ;"
+      },
+      {
+        "id": 16,
+        "label": "require ! (token_account . amount >= lottery . ticket_price , LotteryError :: InsufficientFunds) ;"
+      },
+      {
+        "id": 17,
+        "label": "let cpi_accounts = anchor_spl :: token :: Transfer { from : ctx . accounts . participant_token_account . to_account_info () , to : ctx . accounts . lottery_pool . to_account_info () , authority : ctx . accounts . participant . to_account_info () , } ;"
+      },
+      {
+        "id": 18,
+        "label": "let cpi_program = ctx . accounts . token_program . to_account_info () ;"
+      },
+      {
+        "id": 19,
+        "label": "let cpi_ctx = CpiContext :: new (cpi_program , cpi_accounts) ;"
+      },
+      {
+        "id": 20,
+        "label": "anchor_spl :: token :: transfer (cpi_ctx , lottery . ticket_price) ? ;"
+      },
+      {
+        "id": 21,
+        "label": "lottery . tickets_sold += 1 ;"
+      },
+      {
+        "id": 22,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 9,
+        "to": 10,
+        "label": "next"
+      },
+      {
+        "from": 10,
+        "to": 11,
+        "label": "next"
+      },
+      {
+        "from": 11,
+        "to": 12,
+        "label": "next"
+      },
+      {
+        "from": 12,
+        "to": 13,
+        "label": "next"
+      },
+      {
+        "from": 13,
+        "to": 14,
+        "label": "next"
+      },
+      {
+        "from": 14,
+        "to": 15,
+        "label": "next"
+      },
+      {
+        "from": 15,
+        "to": 16,
+        "label": "next"
+      },
+      {
+        "from": 16,
+        "to": 17,
+        "label": "next"
+      },
+      {
+        "from": 17,
+        "to": 18,
+        "label": "next"
+      },
+      {
+        "from": 18,
+        "to": 19,
+        "label": "next"
+      },
+      {
+        "from": 19,
+        "to": 20,
+        "label": "next"
+      },
+      {
+        "from": 20,
+        "to": 21,
+        "label": "next"
+      },
+      {
+        "from": 21,
+        "to": 22,
+        "label": "next"
+      }
+    ]
+  },
+  {
+    "name": "draw_winner",
+    "nodes": [
+      {
+        "id": 23,
+        "label": "Entry"
+      },
+      {
+        "id": 24,
+        "label": "let lottery = & mut ctx . accounts . lottery ;"
+      },
+      {
+        "id": 25,
+        "label": "require ! (lottery . is_active , LotteryError :: LotteryInactive) ;"
+      },
+      {
+        "id": 26,
+        "label": "require ! (lottery . tickets_sold > 0 , LotteryError :: NoTicketsSold) ;"
+      },
+      {
+        "id": 27,
+        "label": "let clock = Clock :: get () ? ;"
+      },
+      {
+        "id": 28,
+        "label": "let mut seed = clock . unix_timestamp as u64 ;"
+      },
+      {
+        "id": 29,
+        "label": "Loop Start"
+      },
+      {
+        "id": 30,
+        "label": "if statement"
+      },
+      {
+        "id": 31,
+        "label": "predicate"
+      },
+      {
+        "id": 32,
+        "label": "account_info . owner == & crate :: ID"
+      },
+      {
+        "id": 33,
+        "label": "True body"
+      },
+      {
+        "id": 34,
+        "label": "seed = seed . wrapping_add (account_info . key () . to_bytes () [0] as u64) ;"
+      },
+      {
+        "id": 35,
+        "label": "False body"
+      },
+      {
+        "id": 36,
+        "label": "No-op"
+      },
+      {
+        "id": 37,
+        "label": "merge"
+      },
+      {
+        "id": 38,
+        "label": "Loop End"
+      },
+      {
+        "id": 39,
+        "label": "let winner_index = seed % lottery . tickets_sold ;"
+      },
+      {
+        "id": 40,
+        "label": "if statement"
+      },
+      {
+        "id": 41,
+        "label": "predicate"
+      },
+      {
+        "id": 42,
+        "label": "let Some (winner_account) = ctx . remaining_accounts . get (winner_index as usize)"
+      },
+      {
+        "id": 43,
+        "label": "True body"
+      },
+      {
+        "id": 44,
+        "label": "lottery . winner = winner_account . key () ;"
+      },
+      {
+        "id": 45,
+        "label": "False body"
+      },
+      {
+        "id": 46,
+        "label": "No-op"
+      },
+      {
+        "id": 47,
+        "label": "merge"
+      },
+      {
+        "id": 48,
+        "label": "lottery . is_active = false ;"
+      },
+      {
+        "id": 49,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 23,
+        "to": 24,
+        "label": "next"
+      },
+      {
+        "from": 24,
+        "to": 25,
+        "label": "next"
+      },
+      {
+        "from": 25,
+        "to": 26,
+        "label": "next"
+      },
+      {
+        "from": 26,
+        "to": 27,
+        "label": "next"
+      },
+      {
+        "from": 27,
+        "to": 28,
+        "label": "next"
+      },
+      {
+        "from": 28,
+        "to": 29,
+        "label": "next"
+      },
+      {
+        "from": 29,
+        "to": 30,
+        "label": "next"
+      },
+      {
+        "from": 30,
+        "to": 31,
+        "label": "predicate"
+      },
+      {
+        "from": 31,
+        "to": 32,
+        "label": "next"
+      },
+      {
+        "from": 30,
+        "to": 33,
+        "label": "true"
+      },
+      {
+        "from": 33,
+        "to": 34,
+        "label": "next"
+      },
+      {
+        "from": 30,
+        "to": 35,
+        "label": "false"
+      },
+      {
+        "from": 35,
+        "to": 36,
+        "label": "next"
+      },
+      {
+        "from": 34,
+        "to": 37,
+        "label": "next"
+      },
+      {
+        "from": 36,
+        "to": 37,
+        "label": "next"
+      },
+      {
+        "from": 29,
+        "to": 38,
+        "label": "for"
+      },
+      {
+        "from": 38,
+        "to": 39,
+        "label": "next"
+      },
+      {
+        "from": 39,
+        "to": 40,
+        "label": "next"
+      },
+      {
+        "from": 40,
+        "to": 41,
+        "label": "predicate"
+      },
+      {
+        "from": 41,
+        "to": 42,
+        "label": "next"
+      },
+      {
+        "from": 40,
+        "to": 43,
+        "label": "true"
+      },
+      {
+        "from": 43,
+        "to": 44,
+        "label": "next"
+      },
+      {
+        "from": 40,
+        "to": 45,
+        "label": "false"
+      },
+      {
+        "from": 45,
+        "to": 46,
+        "label": "next"
+      },
+      {
+        "from": 44,
+        "to": 47,
+        "label": "next"
+      },
+      {
+        "from": 46,
+        "to": 47,
+        "label": "next"
+      },
+      {
+        "from": 47,
+        "to": 48,
+        "label": "next"
+      },
+      {
+        "from": 48,
+        "to": 49,
+        "label": "next"
       }
     ]
   }

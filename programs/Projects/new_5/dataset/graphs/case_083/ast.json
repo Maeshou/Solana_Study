@@ -1,0 +1,219 @@
+[
+  {
+    "name": "init_relay",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitRelay >",
+      "relay_id: u64",
+      "max_packets: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let relay = & mut ctx . accounts . relay_core ;",
+      "relay . relay_id = relay_id ^ 0xABCDABCDABCDABCD ;",
+      "relay . max_packets = max_packets . checked_add (10) . unwrap_or (u32 :: MAX) ;",
+      "relay . total_packets_sent = 0 ;",
+      "relay . is_online = true ;",
+      "msg ! (\"Quantum Relay {} online with capacity for {} packets.\" , relay . relay_id , relay . max_packets) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_packet",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitPacket >",
+      "packet_id: u64",
+      "priority: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let packet = & mut ctx . accounts . packet_data ;",
+      "packet . parent_relay = ctx . accounts . relay_core . key () ;",
+      "packet . packet_id = packet_id . checked_add (999) . unwrap_or (u64 :: MAX) ;",
+      "packet . priority = priority . checked_add (10) . unwrap_or (u8 :: MAX) ;",
+      "packet . is_sent = false ;",
+      "packet . retries = 0 ;",
+      "msg ! (\"New packet {} created with priority {}.\" , packet . packet_id , packet . priority) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "transmit_packets",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < TransmitPackets >",
+      "cycles: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let relay = & mut ctx . accounts . relay_core ;",
+      "let packet1 = & mut ctx . accounts . packet1 ;",
+      "let packet2 = & mut ctx . accounts . packet2 ;",
+      "let mut loop_counter = cycles ;",
+      "while loop_counter > 0",
+      "{",
+      "let transmission_successful1 = packet1 . priority > 50 && relay . is_online ;",
+      "packet1 . is_sent = transmission_successful1 ;",
+      "packet1 . retries = (transmission_successful1 == false) as u8 ;",
+      "relay . total_packets_sent = relay . total_packets_sent . checked_add (transmission_successful1 as u64) . unwrap_or (u64 :: MAX) ;",
+      "let transmission_successful2 = packet2 . priority > 60 && relay . is_online ;",
+      "packet2 . is_sent = transmission_successful2 ;",
+      "packet2 . retries = (transmission_successful2 == false) as u8 ;",
+      "relay . total_packets_sent = relay . total_packets_sent . checked_add (transmission_successful2 as u64) . unwrap_or (u64 :: MAX) ;",
+      "relay . is_online = (packet1 . retries + packet2 . retries) < 5 ;",
+      "loop_counter = loop_counter . checked_sub (1) . unwrap_or (0) ;",
+      "}",
+      "msg ! (\"Transmitted packets for {} cycles. Total packets sent: {}.\" , cycles , relay . total_packets_sent) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitRelay",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "relay_core",
+        "attribute": "# [account (init , payer = signer , space = 8 + 8 + 4 + 8 + 1)]",
+        "field_type": "Account < 'info , RelayCore >"
+      },
+      {
+        "name": "signer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitPacket",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "packet_data",
+        "attribute": "# [account (init , payer = signer , space = 8 + 32 + 8 + 1 + 1 + 1)]",
+        "field_type": "Account < 'info , PacketData >"
+      },
+      {
+        "name": "relay_core",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , RelayCore >"
+      },
+      {
+        "name": "signer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TransmitPackets",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "relay_core",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , RelayCore >"
+      },
+      {
+        "name": "packet1",
+        "attribute": "# [account (mut , has_one = parent_relay)]",
+        "field_type": "Account < 'info , PacketData >"
+      },
+      {
+        "name": "packet2",
+        "attribute": "# [account (mut , has_one = parent_relay)]",
+        "field_type": "Account < 'info , PacketData >"
+      },
+      {
+        "name": "signer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RelayCore",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "relay_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "max_packets",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "total_packets_sent",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "is_online",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PacketData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent_relay",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "packet_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "priority",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "is_sent",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "retries",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

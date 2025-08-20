@@ -1,9 +1,10 @@
 [
   {
-    "name": "bid",
+    "name": "create_multisig",
     "inputs": [
-      "ctx: Context < BidCtxfdsg >",
-      "amount: u64"
+      "ctx: Context < CreateMultisig >",
+      "owners: Vec < Pubkey >",
+      "threshold: u8"
     ],
     "nodes": [
       {
@@ -12,22 +13,38 @@
       },
       {
         "id": 1,
-        "label": "let acct = & mut ctx . accounts . auction ;"
+        "label": "let multisig_info = ctx . accounts . multisig . to_account_info () ;"
       },
       {
         "id": 2,
-        "label": "let temp = acct . data ;"
+        "label": "require ! (multisig_info . owner == ctx . program_id , ErrorCode :: InvalidMultisigOwner) ;"
       },
       {
         "id": 3,
-        "label": "acct . data = temp . checked_mul (2) . unwrap () ;"
+        "label": "require ! (threshold > 0 , ErrorCode :: InvalidThreshold) ;"
       },
       {
         "id": 4,
-        "label": "msg ! (\"Executed bid logic\") ;"
+        "label": "require ! (threshold <= owners . len () as u8 , ErrorCode :: ThresholdTooHigh) ;"
       },
       {
         "id": 5,
+        "label": "let multisig = & mut ctx . accounts . multisig ;"
+      },
+      {
+        "id": 6,
+        "label": "multisig . owners = owners ;"
+      },
+      {
+        "id": 7,
+        "label": "multisig . threshold = threshold ;"
+      },
+      {
+        "id": 8,
+        "label": "multisig . nonce = 0 ;"
+      },
+      {
+        "id": 9,
         "label": "Ok (())"
       }
     ],
@@ -35,27 +52,423 @@
       {
         "from": 1,
         "to": 1,
-        "label": "def: acct"
+        "label": "def: multisig_info"
       },
       {
-        "from": 2,
-        "to": 2,
-        "label": "def: temp"
+        "from": 5,
+        "to": 5,
+        "label": "def: multisig"
       },
       {
-        "from": 1,
-        "to": 2,
-        "label": "data_dep: acct"
+        "from": 5,
+        "to": 6,
+        "label": "data_dep: multisig"
       },
       {
-        "from": 1,
-        "to": 3,
-        "label": "data_dep: acct"
+        "from": 5,
+        "to": 7,
+        "label": "data_dep: multisig"
       },
       {
-        "from": 2,
-        "to": 3,
-        "label": "data_dep: temp"
+        "from": 5,
+        "to": 8,
+        "label": "data_dep: multisig"
+      }
+    ]
+  },
+  {
+    "name": "create_transaction",
+    "inputs": [
+      "ctx: Context < CreateTransaction >",
+      "destination: Pubkey",
+      "amount: u64"
+    ],
+    "nodes": [
+      {
+        "id": 10,
+        "label": "Entry"
+      },
+      {
+        "id": 11,
+        "label": "let multisig_info = ctx . accounts . multisig . to_account_info () ;"
+      },
+      {
+        "id": 12,
+        "label": "require ! (multisig_info . owner == ctx . program_id , ErrorCode :: InvalidMultisigOwner) ;"
+      },
+      {
+        "id": 13,
+        "label": "let transaction_info = ctx . accounts . transaction . to_account_info () ;"
+      },
+      {
+        "id": 14,
+        "label": "require ! (transaction_info . owner == ctx . program_id , ErrorCode :: InvalidTransactionOwner) ;"
+      },
+      {
+        "id": 15,
+        "label": "let multisig = & ctx . accounts . multisig ;"
+      },
+      {
+        "id": 16,
+        "label": "require ! (multisig . owners . contains (& ctx . accounts . proposer . key ()) , ErrorCode :: NotAnOwner) ;"
+      },
+      {
+        "id": 17,
+        "label": "let transaction = & mut ctx . accounts . transaction ;"
+      },
+      {
+        "id": 18,
+        "label": "transaction . multisig = ctx . accounts . multisig . key () ;"
+      },
+      {
+        "id": 19,
+        "label": "transaction . destination = destination ;"
+      },
+      {
+        "id": 20,
+        "label": "transaction . amount = amount ;"
+      },
+      {
+        "id": 21,
+        "label": "transaction . executed = false ;"
+      },
+      {
+        "id": 22,
+        "label": "transaction . signers = vec ! [false ; multisig . owners . len ()] ;"
+      },
+      {
+        "id": 23,
+        "label": "let proposer_index = multisig . owners . iter () . position (| & owner | owner == ctx . accounts . proposer . key ()) . unwrap () ;"
+      },
+      {
+        "id": 24,
+        "label": "transaction . signers [proposer_index] = true ;"
+      },
+      {
+        "id": 25,
+        "label": "transaction . signature_count = 1 ;"
+      },
+      {
+        "id": 26,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 11,
+        "to": 11,
+        "label": "def: multisig_info"
+      },
+      {
+        "from": 13,
+        "to": 13,
+        "label": "def: transaction_info"
+      },
+      {
+        "from": 15,
+        "to": 15,
+        "label": "def: multisig"
+      },
+      {
+        "from": 17,
+        "to": 17,
+        "label": "def: transaction"
+      },
+      {
+        "from": 17,
+        "to": 18,
+        "label": "data_dep: transaction"
+      },
+      {
+        "from": 17,
+        "to": 19,
+        "label": "data_dep: transaction"
+      },
+      {
+        "from": 17,
+        "to": 20,
+        "label": "data_dep: transaction"
+      },
+      {
+        "from": 17,
+        "to": 21,
+        "label": "data_dep: transaction"
+      },
+      {
+        "from": 17,
+        "to": 22,
+        "label": "data_dep: transaction"
+      },
+      {
+        "from": 23,
+        "to": 23,
+        "label": "def: proposer_index"
+      },
+      {
+        "from": 15,
+        "to": 23,
+        "label": "data_dep: multisig"
+      },
+      {
+        "from": 17,
+        "to": 24,
+        "label": "data_dep: transaction"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "data_dep: proposer_index"
+      },
+      {
+        "from": 17,
+        "to": 25,
+        "label": "data_dep: transaction"
+      }
+    ]
+  },
+  {
+    "name": "approve_transaction",
+    "inputs": [
+      "ctx: Context < ApproveTransaction >"
+    ],
+    "nodes": [
+      {
+        "id": 27,
+        "label": "Entry"
+      },
+      {
+        "id": 28,
+        "label": "require ! (ctx . accounts . multisig . to_account_info () . owner == ctx . program_id , ErrorCode :: InvalidMultisigOwner) ;"
+      },
+      {
+        "id": 29,
+        "label": "require ! (ctx . accounts . transaction . to_account_info () . owner == ctx . program_id , ErrorCode :: InvalidTransactionOwner) ;"
+      },
+      {
+        "id": 30,
+        "label": "let multisig = & ctx . accounts . multisig ;"
+      },
+      {
+        "id": 31,
+        "label": "let transaction = & mut ctx . accounts . transaction ;"
+      },
+      {
+        "id": 32,
+        "label": "require ! (! transaction . executed , ErrorCode :: AlreadyExecuted) ;"
+      },
+      {
+        "id": 33,
+        "label": "require ! (multisig . owners . contains (& ctx . accounts . owner . key ()) , ErrorCode :: NotAnOwner) ;"
+      },
+      {
+        "id": 34,
+        "label": "let owner_index = multisig . owners . iter () . position (| & owner | owner == ctx . accounts . owner . key ()) . unwrap () ;"
+      },
+      {
+        "id": 35,
+        "label": "require ! (! transaction . signers [owner_index] , ErrorCode :: AlreadySigned) ;"
+      },
+      {
+        "id": 36,
+        "label": "transaction . signers [owner_index] = true ;"
+      },
+      {
+        "id": 37,
+        "label": "transaction . signature_count += 1 ;"
+      },
+      {
+        "id": 38,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 30,
+        "to": 30,
+        "label": "def: multisig"
+      },
+      {
+        "from": 31,
+        "to": 31,
+        "label": "def: transaction"
+      },
+      {
+        "from": 34,
+        "to": 34,
+        "label": "def: owner_index"
+      },
+      {
+        "from": 30,
+        "to": 34,
+        "label": "data_dep: multisig"
+      },
+      {
+        "from": 31,
+        "to": 36,
+        "label": "data_dep: transaction"
+      },
+      {
+        "from": 34,
+        "to": 36,
+        "label": "data_dep: owner_index"
+      },
+      {
+        "from": 31,
+        "to": 37,
+        "label": "data_dep: transaction"
+      }
+    ]
+  },
+  {
+    "name": "execute_transaction",
+    "inputs": [
+      "ctx: Context < ExecuteTransaction >"
+    ],
+    "nodes": [
+      {
+        "id": 39,
+        "label": "Entry"
+      },
+      {
+        "id": 40,
+        "label": "let multisig_info = ctx . accounts . multisig . to_account_info () ;"
+      },
+      {
+        "id": 41,
+        "label": "require ! (multisig_info . owner == ctx . program_id , ErrorCode :: InvalidMultisigOwner) ;"
+      },
+      {
+        "id": 42,
+        "label": "let transaction_info = ctx . accounts . transaction . to_account_info () ;"
+      },
+      {
+        "id": 43,
+        "label": "require ! (transaction_info . owner == ctx . program_id , ErrorCode :: InvalidTransactionOwner) ;"
+      },
+      {
+        "id": 44,
+        "label": "require ! (ctx . accounts . multisig_vault . owner == & token :: ID , ErrorCode :: InvalidVaultOwner) ;"
+      },
+      {
+        "id": 45,
+        "label": "let multisig = & ctx . accounts . multisig ;"
+      },
+      {
+        "id": 46,
+        "label": "let transaction = & mut ctx . accounts . transaction ;"
+      },
+      {
+        "id": 47,
+        "label": "require ! (! transaction . executed , ErrorCode :: AlreadyExecuted) ;"
+      },
+      {
+        "id": 48,
+        "label": "require ! (transaction . signature_count >= multisig . threshold , ErrorCode :: NotEnoughSignatures) ;"
+      },
+      {
+        "id": 49,
+        "label": "let seeds = & [b\"multisig\" , multisig . owners [0] . as_ref () , & [ctx . accounts . multisig . nonce] ,] ;"
+      },
+      {
+        "id": 50,
+        "label": "let signer = & [& seeds [..]] ;"
+      },
+      {
+        "id": 51,
+        "label": "let transfer_instruction = Transfer { from : ctx . accounts . multisig_vault . to_account_info () , to : ctx . accounts . destination_account . to_account_info () , authority : ctx . accounts . multisig . to_account_info () , } ;"
+      },
+      {
+        "id": 52,
+        "label": "let cpi_ctx = CpiContext :: new_with_signer (ctx . accounts . token_program . to_account_info () , transfer_instruction , signer ,) ;"
+      },
+      {
+        "id": 53,
+        "label": "token :: transfer (cpi_ctx , transaction . amount) ? ;"
+      },
+      {
+        "id": 54,
+        "label": "transaction . executed = true ;"
+      },
+      {
+        "id": 55,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 40,
+        "to": 40,
+        "label": "def: multisig_info"
+      },
+      {
+        "from": 42,
+        "to": 42,
+        "label": "def: transaction_info"
+      },
+      {
+        "from": 45,
+        "to": 45,
+        "label": "def: multisig"
+      },
+      {
+        "from": 46,
+        "to": 46,
+        "label": "def: transaction"
+      },
+      {
+        "from": 49,
+        "to": 49,
+        "label": "def: seeds"
+      },
+      {
+        "from": 45,
+        "to": 49,
+        "label": "data_dep: multisig"
+      },
+      {
+        "from": 50,
+        "to": 50,
+        "label": "def: signer"
+      },
+      {
+        "from": 49,
+        "to": 50,
+        "label": "data_dep: seeds"
+      },
+      {
+        "from": 51,
+        "to": 51,
+        "label": "def: transfer_instruction"
+      },
+      {
+        "from": 52,
+        "to": 52,
+        "label": "def: cpi_ctx"
+      },
+      {
+        "from": 51,
+        "to": 52,
+        "label": "data_dep: transfer_instruction"
+      },
+      {
+        "from": 50,
+        "to": 52,
+        "label": "data_dep: signer"
+      },
+      {
+        "from": 52,
+        "to": 53,
+        "label": "data_dep: cpi_ctx"
+      },
+      {
+        "from": 46,
+        "to": 53,
+        "label": "data_dep: transaction"
+      },
+      {
+        "from": 46,
+        "to": 54,
+        "label": "data_dep: transaction"
       }
     ]
   }

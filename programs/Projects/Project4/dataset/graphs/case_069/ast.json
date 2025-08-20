@@ -1,33 +1,168 @@
 [
   {
-    "name": "initialize_derivatives_contract",
+    "name": "init_metrics",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Initialize069 >",
-      "param: u64"
+      "ctx: Context < InitMetrics >",
+      "hits: u32",
+      "misses: u32"
     ],
-    "attributes": [],
+    "attributes": [
+      "# [doc = \" メトリックアカウントを初期化\"]"
+    ],
     "body": [
-      "let mut data = DerivativesContractData :: try_from_slice (& ctx . accounts . data_account . data . borrow ()) ? ;",
-      "data . value = param ;",
-      "data . serialize (& mut * ctx . accounts . data_account . data . borrow_mut ()) ? ;",
+      "let m = & mut ctx . accounts . metrics ;",
+      "m . hits = hits ;",
+      "m . misses = misses ;",
+      "let total = m . hits + m . misses ;",
+      "let mut accuracy : u8 = 0 ;",
+      "if total != 0",
+      "{",
+      "let rate = m . hits * 100 / total ;",
+      "msg ! (\"Computed raw rate:",
+      "{",
+      "}%\" , rate) ;",
+      "if rate > u8 :: MAX as u32",
+      "{",
+      "accuracy = u8 :: MAX ;",
+      "msg ! (\"Rate clipped to u8::MAX\") ;",
+      "} else",
+      "{",
+      "accuracy = rate as u8 ;",
+      "msg ! (\"Rate within u8 range\") ;",
+      "} let failure_rate = 100u32 . saturating_sub (rate) ;",
+      "msg ! (\"Failure rate:",
+      "{",
+      "}%\" , failure_rate) ;",
+      "let mut warn_flag = false ;",
+      "if failure_rate > 50",
+      "{",
+      "warn_flag = true ;",
+      "msg ! (\"Warning flag set: failure_rate > 50%\") ;",
+      "} else",
+      "{",
+      "msg ! (\"Failure rate acceptable\") ;",
+      "} if warn_flag",
+      "{",
+      "let penalty = 5u8 ;",
+      "accuracy = accuracy . saturating_sub (penalty) ;",
+      "msg ! (\"Applied penalty of",
+      "{",
+      "} → new accuracy: {}\" , penalty , accuracy) ;",
+      "} let average = total / 2 ;",
+      "msg ! (\"Total/2 midpoint:",
+      "{",
+      "}\" , average) ;",
+      "} else",
+      "{",
+      "msg ! (\"No records available, setting defaults\") ;",
+      "let mut default_flag = true ;",
+      "if default_flag",
+      "{",
+      "msg ! (\"Default flag is true\") ;",
+      "} accuracy = 0 ;",
+      "}",
+      "m . accuracy = accuracy ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Initialize069",
+    "name": "record",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Record >",
+      "success: bool"
+    ],
+    "attributes": [
+      "# [doc = \" 成否を記録して成功率を再計算\"]"
+    ],
+    "body": [
+      "let m = & mut ctx . accounts . metrics ;",
+      "if success",
+      "{",
+      "m . hits = m . hits . saturating_add (1) ;",
+      "msg ! (\"Recorded a hit → hits=",
+      "{",
+      "}\" , m . hits) ;",
+      "} else",
+      "{",
+      "m . misses = m . misses . saturating_add (1) ;",
+      "msg ! (\"Recorded a miss → misses=",
+      "{",
+      "}\" , m . misses) ;",
+      "}",
+      "let total = m . hits + m . misses ;",
+      "let mut accuracy : u8 = 0 ;",
+      "if total != 0",
+      "{",
+      "let rate = m . hits * 100 / total ;",
+      "msg ! (\"Recomputed raw rate:",
+      "{",
+      "}%\" , rate) ;",
+      "if rate > u8 :: MAX as u32",
+      "{",
+      "accuracy = u8 :: MAX ;",
+      "msg ! (\"Rate clipped on record\") ;",
+      "} else",
+      "{",
+      "accuracy = rate as u8 ;",
+      "msg ! (\"Rate within range on record\") ;",
+      "} let failure_rate = 100u32 . saturating_sub (rate) ;",
+      "msg ! (\"Recomputed failure rate:",
+      "{",
+      "}%\" , failure_rate) ;",
+      "let mut warn_flag = false ;",
+      "if failure_rate > 50",
+      "{",
+      "warn_flag = true ;",
+      "msg ! (\"Warning flag re-set: failure_rate > 50%\") ;",
+      "} else",
+      "{",
+      "msg ! (\"Failure rate still acceptable\") ;",
+      "} if warn_flag",
+      "{",
+      "let penalty = 3u8 ;",
+      "accuracy = accuracy . saturating_sub (penalty) ;",
+      "msg ! (\"Applied record penalty of",
+      "{",
+      "} → accuracy={}\" , penalty , accuracy) ;",
+      "} let average = total / 2 ;",
+      "msg ! (\"Record midpoint:",
+      "{",
+      "}\" , average) ;",
+      "} else",
+      "{",
+      "msg ! (\"After record: no data present\") ;",
+      "let mut default_flag = true ;",
+      "if default_flag",
+      "{",
+      "msg ! (\"Default flag still true after record\") ;",
+      "} accuracy = 0 ;",
+      "}",
+      "m . accuracy = accuracy ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitMetrics",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "metrics",
+        "attribute": "# [account (init , payer = user , space = 8 + 4 + 4 + 1)]",
+        "field_type": "Account < 'info , MetricsData >"
       },
       {
-        "name": "authority",
-        "attribute": null,
+        "name": "user",
+        "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -35,13 +170,37 @@
     "body": null
   },
   {
-    "name": "DerivativesContractData",
+    "name": "Record",
     "node_type": "struct",
     "fields": [
       {
-        "name": "value",
+        "name": "metrics",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , MetricsData >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MetricsData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "hits",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "u32"
+      },
+      {
+        "name": "misses",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "accuracy",
+        "attribute": null,
+        "field_type": "u8"
       }
     ],
     "inputs": null,

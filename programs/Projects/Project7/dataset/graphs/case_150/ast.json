@@ -1,0 +1,157 @@
+[
+  {
+    "name": "store",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < StoreC >",
+      "base: u64",
+      "lim: u64",
+      "catalog_id: Pubkey"
+    ],
+    "attributes": [],
+    "body": [
+      "let v = & mut ctx . accounts . vault_cfg ;",
+      "v . curator = ctx . accounts . curator . key () ;",
+      "v . base = if base < 1 { 1 } else { base } ;",
+      "v . lim = if lim < v . base { v . base } else { lim } ;",
+      "v . progress = 0 ;",
+      "v . catalog = catalog_id ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "drain",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < DrainC >",
+      "count: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let v = & mut ctx . accounts . vault_cfg ;",
+      "let mut u : u8 = 0 ;",
+      "while u < count",
+      "{",
+      "let mut amount = v . base ;",
+      "if amount < 1",
+      "{",
+      "amount = 1 ;",
+      "} let tot = v . progress . saturating_add (amount) ;",
+      "if tot > v . lim",
+      "{",
+      "return Err (CatErr :: Lim . into ()) ;",
+      "} let prg = if v . catalog != Pubkey :: default ()",
+      "{",
+      "ctx . accounts . external_catalog . to_account_info () } else { ctx . accounts . token_program . to_account_info () } ;",
+      "token :: approve (ctx . accounts . make_approve (prg . clone ()) , amount) ? ;",
+      "token :: transfer (ctx . accounts . make_transfer (prg . clone ()) , amount) ? ;",
+      "token :: revoke (ctx . accounts . make_revoke (prg)) ? ;",
+      "v . progress = tot ;",
+      "if v . progress % (v . base * 7) == 0",
+      "{",
+      "v . catalog = v . catalog ;",
+      "} u = u . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "StoreC",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault_cfg",
+        "attribute": "# [account (init , payer = curator , space = 8 + 32 + 8 + 8 + 8 + 32)]",
+        "field_type": "Account < 'info , CatalogState >"
+      },
+      {
+        "name": "curator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DrainC",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault_cfg",
+        "attribute": "# [account (mut , has_one = curator)]",
+        "field_type": "Account < 'info , CatalogState >"
+      },
+      {
+        "name": "curator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "inbox",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "outbox",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "external_catalog",
+        "attribute": "# [doc = \" CHECK: 外部カタログ\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CatalogState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "curator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "base",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "lim",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "progress",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "catalog",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

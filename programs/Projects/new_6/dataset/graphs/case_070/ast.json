@@ -1,0 +1,151 @@
+[
+  {
+    "name": "init_board",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitBoard >",
+      "season: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let b = & mut ctx . accounts . board ;",
+      "b . admin = ctx . accounts . admin . key () ;",
+      "b . season = season ;",
+      "b . entries = vec ! [] ;",
+      "b . snapshot = vec ! [] ;",
+      "b . flags = 0 ;",
+      "b . seed = 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_update",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < UpdateBoard >",
+      "scores: Vec < (Pubkey , u64) >",
+      "salt: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let b = & mut ctx . accounts . board ;",
+      "let updater = & ctx . accounts . updater ;",
+      "for (k , s) in scores . iter ()",
+      "{",
+      "b . entries . push ((* k , * s)) ;",
+      "}",
+      "if b . entries . len () > 64",
+      "{",
+      "b . entries . drain (0 .. (b . entries . len () - 64)) ;",
+      "}",
+      "let mut mixed = 0u64 ;",
+      "for i in 0 .. b . entries . len ()",
+      "{",
+      "mixed ^= b . entries [i] . 1 . rotate_left ((i % 17) as u32) ^ salt ;",
+      "}",
+      "b . seed = b . seed . rotate_left (((mixed % 31) as u32) + 1) ;",
+      "b . snapshot = b . entries . clone () ;",
+      "b . snapshot . sort_by (| a , b | b . 1 . cmp (& a . 1)) ;",
+      "if b . snapshot . len () > 20",
+      "{",
+      "b . snapshot . truncate (20) ;",
+      "}",
+      "if mixed % 9 == 0",
+      "{",
+      "b . flags ^= 0b001 ;",
+      "b . snapshot . reverse () ;",
+      "}",
+      "if mixed . trailing_zeros () > 6",
+      "{",
+      "b . flags ^= 0b010 ;",
+      "b . entries . rotate_left (3) ;",
+      "}",
+      "b . admin = updater . key () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitBoard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "board",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 2 + 256 + 256 + 1 + 8)]",
+        "field_type": "Account < 'info , Board >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "UpdateBoard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "board",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Board >"
+      },
+      {
+        "name": "updater",
+        "attribute": "# [doc = \" CHECK: 役割検証なし\"]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Board",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "season",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "entries",
+        "attribute": null,
+        "field_type": "Vec < (Pubkey , u64) >"
+      },
+      {
+        "name": "snapshot",
+        "attribute": null,
+        "field_type": "Vec < (Pubkey , u64) >"
+      },
+      {
+        "name": "flags",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "seed",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

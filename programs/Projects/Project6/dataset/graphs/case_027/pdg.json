@@ -1,0 +1,513 @@
+[
+  {
+    "name": "init_catalog",
+    "inputs": [
+      "ctx: Context < InitCatalog >"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let c = & mut ctx . accounts . catalog ;"
+      },
+      {
+        "id": 2,
+        "label": "c . owner = ctx . accounts . owner . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "c . index = 0 ;"
+      },
+      {
+        "id": 4,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: c"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: c"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: c"
+      }
+    ]
+  },
+  {
+    "name": "init_card",
+    "inputs": [
+      "ctx: Context < InitCard >",
+      "kind: Kind"
+    ],
+    "nodes": [
+      {
+        "id": 5,
+        "label": "Entry"
+      },
+      {
+        "id": 6,
+        "label": "let cd = & mut ctx . accounts . card ;"
+      },
+      {
+        "id": 7,
+        "label": "cd . parent = ctx . accounts . catalog . key () ;"
+      },
+      {
+        "id": 8,
+        "label": "cd . kind = kind ;"
+      },
+      {
+        "id": 9,
+        "label": "cd . score = 0 ;"
+      },
+      {
+        "id": 10,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 6,
+        "to": 6,
+        "label": "def: cd"
+      },
+      {
+        "from": 6,
+        "to": 7,
+        "label": "data_dep: cd"
+      },
+      {
+        "from": 6,
+        "to": 8,
+        "label": "data_dep: cd"
+      },
+      {
+        "from": 6,
+        "to": 9,
+        "label": "data_dep: cd"
+      }
+    ]
+  },
+  {
+    "name": "settle",
+    "inputs": [
+      "ctx: Context < Settle >",
+      "fee_bps: u16"
+    ],
+    "nodes": [
+      {
+        "id": 11,
+        "label": "Entry"
+      },
+      {
+        "id": 12,
+        "label": "require ! (ctx . accounts . pay_ta . mint == ctx . accounts . pay_mint . key () , CatErr :: MintMismatch) ;"
+      },
+      {
+        "id": 13,
+        "label": "require ! (ctx . accounts . pay_ta . owner == ctx . accounts . owner . key () , CatErr :: OwnerMismatch) ;"
+      },
+      {
+        "id": 14,
+        "label": "let c = & mut ctx . accounts . catalog ;"
+      },
+      {
+        "id": 15,
+        "label": "let buyer = & mut ctx . accounts . buyer ;"
+      },
+      {
+        "id": 16,
+        "label": "let seller = & mut ctx . accounts . seller ;"
+      },
+      {
+        "id": 17,
+        "label": "let r = & mut ctx . accounts . rec ;"
+      },
+      {
+        "id": 18,
+        "label": "let mut tot = 0u32 ;"
+      },
+      {
+        "id": 19,
+        "label": "for i in 0 .. r . hist . len () { r . hist [i] = r . hist [i] . wrapping_add ((i as u32) . rotate_left ((fee_bps % 16) as u32)) ; tot = tot . saturating_add (r . hist [i]) ; }"
+      },
+      {
+        "id": 20,
+        "label": "r . hist [i] = r . hist [i] . wrapping_add ((i as u32) . rotate_left ((fee_bps % 16) as u32)) ;"
+      },
+      {
+        "id": 21,
+        "label": "tot = tot . saturating_add (r . hist [i]) ;"
+      },
+      {
+        "id": 22,
+        "label": "if buyer . kind as u8 != seller . kind as u8 { let fee = (buyer . score * (fee_bps as u64)) / 10_000 ; buyer . score = buyer . score . saturating_sub (fee) ; seller . score = seller . score . saturating_add (fee) ; r . ok = r . ok . saturating_add (1) ; c . index = c . index . wrapping_add (1) ; msg ! (\"buyer->seller fee moved\") ; } else { let penalty = (tot as u64) & 0xFFFF ; buyer . score = buyer . score . saturating_add (penalty) ; seller . score = seller . score . saturating_sub (penalty / 2) ; r . ng = r . ng . saturating_add (1) ; c . index = c . index . rotate_left (3) ; msg ! (\"same kind penalty applied\") ; }"
+      },
+      {
+        "id": 23,
+        "label": "let fee = (buyer . score * (fee_bps as u64)) / 10_000 ;"
+      },
+      {
+        "id": 24,
+        "label": "buyer . score = buyer . score . saturating_sub (fee) ;"
+      },
+      {
+        "id": 25,
+        "label": "seller . score = seller . score . saturating_add (fee) ;"
+      },
+      {
+        "id": 26,
+        "label": "r . ok = r . ok . saturating_add (1) ;"
+      },
+      {
+        "id": 27,
+        "label": "c . index = c . index . wrapping_add (1) ;"
+      },
+      {
+        "id": 28,
+        "label": "msg ! (\"buyer->seller fee moved\") ;"
+      },
+      {
+        "id": 29,
+        "label": "let penalty = (tot as u64) & 0xFFFF ;"
+      },
+      {
+        "id": 30,
+        "label": "buyer . score = buyer . score . saturating_add (penalty) ;"
+      },
+      {
+        "id": 31,
+        "label": "seller . score = seller . score . saturating_sub (penalty / 2) ;"
+      },
+      {
+        "id": 32,
+        "label": "r . ng = r . ng . saturating_add (1) ;"
+      },
+      {
+        "id": 33,
+        "label": "c . index = c . index . rotate_left (3) ;"
+      },
+      {
+        "id": 34,
+        "label": "msg ! (\"same kind penalty applied\") ;"
+      },
+      {
+        "id": 35,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 14,
+        "to": 14,
+        "label": "def: c"
+      },
+      {
+        "from": 15,
+        "to": 15,
+        "label": "def: buyer"
+      },
+      {
+        "from": 16,
+        "to": 16,
+        "label": "def: seller"
+      },
+      {
+        "from": 17,
+        "to": 17,
+        "label": "def: r"
+      },
+      {
+        "from": 18,
+        "to": 18,
+        "label": "def: tot"
+      },
+      {
+        "from": 17,
+        "to": 19,
+        "label": "data_dep: r"
+      },
+      {
+        "from": 17,
+        "to": 19,
+        "label": "data_dep: r"
+      },
+      {
+        "from": 17,
+        "to": 19,
+        "label": "data_dep: r"
+      },
+      {
+        "from": 18,
+        "to": 19,
+        "label": "data_dep: tot"
+      },
+      {
+        "from": 18,
+        "to": 19,
+        "label": "data_dep: tot"
+      },
+      {
+        "from": 17,
+        "to": 19,
+        "label": "data_dep: r"
+      },
+      {
+        "from": 17,
+        "to": 20,
+        "label": "data_dep: r"
+      },
+      {
+        "from": 17,
+        "to": 20,
+        "label": "data_dep: r"
+      },
+      {
+        "from": 18,
+        "to": 21,
+        "label": "data_dep: tot"
+      },
+      {
+        "from": 18,
+        "to": 21,
+        "label": "data_dep: tot"
+      },
+      {
+        "from": 17,
+        "to": 21,
+        "label": "data_dep: r"
+      },
+      {
+        "from": 15,
+        "to": 22,
+        "label": "data_dep: buyer"
+      },
+      {
+        "from": 16,
+        "to": 22,
+        "label": "data_dep: seller"
+      },
+      {
+        "from": 15,
+        "to": 22,
+        "label": "data_dep: buyer"
+      },
+      {
+        "from": 15,
+        "to": 22,
+        "label": "data_dep: buyer"
+      },
+      {
+        "from": 15,
+        "to": 22,
+        "label": "data_dep: buyer"
+      },
+      {
+        "from": 16,
+        "to": 22,
+        "label": "data_dep: seller"
+      },
+      {
+        "from": 16,
+        "to": 22,
+        "label": "data_dep: seller"
+      },
+      {
+        "from": 17,
+        "to": 22,
+        "label": "data_dep: r"
+      },
+      {
+        "from": 17,
+        "to": 22,
+        "label": "data_dep: r"
+      },
+      {
+        "from": 14,
+        "to": 22,
+        "label": "data_dep: c"
+      },
+      {
+        "from": 14,
+        "to": 22,
+        "label": "data_dep: c"
+      },
+      {
+        "from": 18,
+        "to": 22,
+        "label": "data_dep: tot"
+      },
+      {
+        "from": 15,
+        "to": 22,
+        "label": "data_dep: buyer"
+      },
+      {
+        "from": 15,
+        "to": 22,
+        "label": "data_dep: buyer"
+      },
+      {
+        "from": 16,
+        "to": 22,
+        "label": "data_dep: seller"
+      },
+      {
+        "from": 16,
+        "to": 22,
+        "label": "data_dep: seller"
+      },
+      {
+        "from": 17,
+        "to": 22,
+        "label": "data_dep: r"
+      },
+      {
+        "from": 17,
+        "to": 22,
+        "label": "data_dep: r"
+      },
+      {
+        "from": 14,
+        "to": 22,
+        "label": "data_dep: c"
+      },
+      {
+        "from": 14,
+        "to": 22,
+        "label": "data_dep: c"
+      },
+      {
+        "from": 23,
+        "to": 23,
+        "label": "def: fee"
+      },
+      {
+        "from": 15,
+        "to": 23,
+        "label": "data_dep: buyer"
+      },
+      {
+        "from": 15,
+        "to": 24,
+        "label": "data_dep: buyer"
+      },
+      {
+        "from": 15,
+        "to": 24,
+        "label": "data_dep: buyer"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "data_dep: fee"
+      },
+      {
+        "from": 16,
+        "to": 25,
+        "label": "data_dep: seller"
+      },
+      {
+        "from": 16,
+        "to": 25,
+        "label": "data_dep: seller"
+      },
+      {
+        "from": 23,
+        "to": 25,
+        "label": "data_dep: fee"
+      },
+      {
+        "from": 17,
+        "to": 26,
+        "label": "data_dep: r"
+      },
+      {
+        "from": 17,
+        "to": 26,
+        "label": "data_dep: r"
+      },
+      {
+        "from": 14,
+        "to": 27,
+        "label": "data_dep: c"
+      },
+      {
+        "from": 14,
+        "to": 27,
+        "label": "data_dep: c"
+      },
+      {
+        "from": 29,
+        "to": 29,
+        "label": "def: penalty"
+      },
+      {
+        "from": 18,
+        "to": 29,
+        "label": "data_dep: tot"
+      },
+      {
+        "from": 15,
+        "to": 30,
+        "label": "data_dep: buyer"
+      },
+      {
+        "from": 15,
+        "to": 30,
+        "label": "data_dep: buyer"
+      },
+      {
+        "from": 29,
+        "to": 30,
+        "label": "data_dep: penalty"
+      },
+      {
+        "from": 16,
+        "to": 31,
+        "label": "data_dep: seller"
+      },
+      {
+        "from": 16,
+        "to": 31,
+        "label": "data_dep: seller"
+      },
+      {
+        "from": 29,
+        "to": 31,
+        "label": "data_dep: penalty"
+      },
+      {
+        "from": 17,
+        "to": 32,
+        "label": "data_dep: r"
+      },
+      {
+        "from": 17,
+        "to": 32,
+        "label": "data_dep: r"
+      },
+      {
+        "from": 14,
+        "to": 33,
+        "label": "data_dep: c"
+      },
+      {
+        "from": 14,
+        "to": 33,
+        "label": "data_dep: c"
+      }
+    ]
+  }
+]

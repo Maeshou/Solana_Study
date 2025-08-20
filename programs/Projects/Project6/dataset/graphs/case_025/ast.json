@@ -1,0 +1,245 @@
+[
+  {
+    "name": "init_arena",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitArena >"
+    ],
+    "attributes": [],
+    "body": [
+      "let a = & mut ctx . accounts . arena ;",
+      "a . manager = ctx . accounts . owner . key () ;",
+      "a . seed = 0xDEAD_BEEF ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "enroll",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Enroll >",
+      "side: Side"
+    ],
+    "attributes": [],
+    "body": [
+      "let t = & mut ctx . accounts . team ;",
+      "t . parent = ctx . accounts . arena . key () ;",
+      "t . side = side ;",
+      "t . power = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "tally",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Tally >",
+      "bias: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "require ! (ctx . accounts . badge_ta . mint == ctx . accounts . badge_mint . key () , ArenaErr :: MintMismatch) ;",
+      "require ! (ctx . accounts . badge_ta . owner == ctx . accounts . owner . key () , ArenaErr :: OwnerMismatch) ;",
+      "let a = & mut ctx . accounts . arena ;",
+      "let x = & mut ctx . accounts . team_x ;",
+      "let y = & mut ctx . accounts . team_y ;",
+      "let r = & mut ctx . accounts . record ;",
+      "let mut s = 0u32 ;",
+      "for i in 0 .. r . rings . len ()",
+      "{",
+      "let v = ((bias as u32) + (i as u32 * 23)) & 0x3FFF ;",
+      "r . rings [i] = r . rings [i] . saturating_add (v) ;",
+      "s = s . saturating_add (v) ;",
+      "}",
+      "if x . side as u8 != y . side as u8",
+      "{",
+      "x . power = x . power . saturating_add ((s / 8) as u64) ;",
+      "r . win = r . win . saturating_add (1) ;",
+      "a . seed = a . seed . rotate_left (3) ;",
+      "} else",
+      "{",
+      "y . power = y . power . saturating_add ((s / 7) as u64) ;",
+      "r . lose = r . lose . saturating_add (1) ;",
+      "a . seed = a . seed . rotate_right (4) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitArena",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "arena",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8)]",
+        "field_type": "Account < 'info , Arena >"
+      },
+      {
+        "name": "record",
+        "attribute": "# [account (init , payer = owner , space = 8 + 4 * 4 + 8 + 8)]",
+        "field_type": "Account < 'info , ARecord >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Enroll",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "arena",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Arena >"
+      },
+      {
+        "name": "team",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 1 + 8)]",
+        "field_type": "Account < 'info , Team >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Tally",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "arena",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Arena >"
+      },
+      {
+        "name": "team_x",
+        "attribute": "# [account (mut , has_one = parent , constraint = team_x . side as u8 != team_y . side as u8 @ ArenaErr :: CosplayBlocked)]",
+        "field_type": "Account < 'info , Team >"
+      },
+      {
+        "name": "team_y",
+        "attribute": "# [account (mut , has_one = parent)]",
+        "field_type": "Account < 'info , Team >"
+      },
+      {
+        "name": "record",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , ARecord >"
+      },
+      {
+        "name": "badge_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "badge_ta",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Arena",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "seed",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Team",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "side",
+        "attribute": null,
+        "field_type": "Side"
+      },
+      {
+        "name": "power",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ARecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "rings",
+        "attribute": null,
+        "field_type": "[u32 ; 4]"
+      },
+      {
+        "name": "win",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "lose",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

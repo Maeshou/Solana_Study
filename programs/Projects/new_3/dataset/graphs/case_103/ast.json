@@ -1,0 +1,111 @@
+[
+  {
+    "name": "release_vested",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ReleaseVested >"
+    ],
+    "attributes": [
+      "# [doc = \" ベスティング済みトークンを解放するが、\"]",
+      "# [doc = \" vesting_account.vesting_mint の照合のみで beneficiary の一致チェックがない\"]"
+    ],
+    "body": [
+      "let vest = & mut ctx . accounts . vesting_account ;",
+      "let amount = vest . total_amount . checked_sub (vest . released) . unwrap () ;",
+      "vest . released = vest . released . saturating_add (amount) ;",
+      "let cpi_accounts = Transfer { from : ctx . accounts . vault_token_account . to_account_info () , to : ctx . accounts . beneficiary_token_account . to_account_info () , authority : ctx . accounts . authority . to_account_info () , } ;",
+      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
+      "token :: transfer (cpi_ctx , amount) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "ReleaseVested",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vesting_account",
+        "attribute": "# [account (mut , has_one = vesting_mint , has_one = authority)] # [doc = \" 本来は `has_one = beneficiary` も指定して解放受取人の一致照合を行うべき\"]",
+        "field_type": "Account < 'info , VestingAccount >"
+      },
+      {
+        "name": "vesting_mint",
+        "attribute": "# [doc = \" ベスティング対象のトークン Mint\"]",
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "vault_token_account",
+        "attribute": "# [doc = \" Escrow 用のトークンアカウント\"] # [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "beneficiary_token_account",
+        "attribute": "# [doc = \" ベネフィシアリーの受取用トークンアカウント\"] # [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [doc = \" 解放操作を実行する権限を持つアカウント\"]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": "# [doc = \" SPL トークンプログラム\"]",
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "VestingAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 本来このベスティング契約を所有すべきユーザーの Pubkey\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "beneficiary",
+        "attribute": "# [doc = \" トークンを受け取るべきベネフィシアリーの Pubkey\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "vesting_mint",
+        "attribute": "# [doc = \" ベスティング対象のトークン Mint\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "total_amount",
+        "attribute": "# [doc = \" 総ベスティング量\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "released",
+        "attribute": "# [doc = \" 既に解放された量\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "start_time",
+        "attribute": "# [doc = \" 開始時刻 (UNIXタイム)\"]",
+        "field_type": "i64"
+      },
+      {
+        "name": "cliff_duration",
+        "attribute": "# [doc = \" クリフ期間 (秒)\"]",
+        "field_type": "i64"
+      },
+      {
+        "name": "vesting_duration",
+        "attribute": "# [doc = \" ベスティング期間 (秒)\"]",
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

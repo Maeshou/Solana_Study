@@ -1,0 +1,182 @@
+[
+  {
+    "name": "Schedule",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "doctor",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "total_slots",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Appointment",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "patient",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "schedule",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "time_slot",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreateSchedule",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "schedule",
+        "attribute": "# [account (init , payer = doctor , space = 8 + 32 + 8)]",
+        "field_type": "Account < 'info , Schedule >"
+      },
+      {
+        "name": "doctor",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BookAppointment",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "schedule",
+        "attribute": "# [doc = \" Schedule.doctor == doctor.key() は検証される\"] # [account (mut , has_one = doctor)]",
+        "field_type": "Account < 'info , Schedule >"
+      },
+      {
+        "name": "appointment",
+        "attribute": "# [doc = \" Appointment.schedule ⇔ schedule.key() の検証がないため、\"] # [doc = \" 任意の Appointment アカウントを渡しても通ってしまう\"] # [account (init , payer = patient , space = 8 + 32 + 32 + 8)]",
+        "field_type": "Account < 'info , Appointment >"
+      },
+      {
+        "name": "doctor",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "patient",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ConfirmAppointment",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "appointment",
+        "attribute": "# [doc = \" Appointment.patient == patient.key() は検証される\"] # [account (mut , has_one = patient)]",
+        "field_type": "Account < 'info , Appointment >"
+      },
+      {
+        "name": "schedule",
+        "attribute": "# [doc = \" schedule.key() と appointment.schedule の照合がない\"] # [account (mut)]",
+        "field_type": "Account < 'info , Schedule >"
+      },
+      {
+        "name": "patient",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "create_schedule",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateSchedule >",
+      "slots: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 診療スケジュールを作成\"]"
+    ],
+    "body": [
+      "let s = & mut ctx . accounts . schedule ;",
+      "s . doctor = ctx . accounts . doctor . key () ;",
+      "s . total_slots = slots ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "book_appointment",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < BookAppointment >",
+      "time_slot: i64"
+    ],
+    "attributes": [
+      "# [doc = \" 診療予約を行う\"]"
+    ],
+    "body": [
+      "let s = & mut ctx . accounts . schedule ;",
+      "let a = & mut ctx . accounts . appointment ;",
+      "a . patient = ctx . accounts . patient . key () ;",
+      "a . schedule = s . key () ;",
+      "a . time_slot = time_slot ;",
+      "s . total_slots = s . total_slots . checked_sub (1) . unwrap_or (s . total_slots) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "confirm_appointment",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ConfirmAppointment >"
+    ],
+    "attributes": [
+      "# [doc = \" 患者が予約を確定\"]"
+    ],
+    "body": [
+      "let s = & mut ctx . accounts . schedule ;",
+      "s . total_slots = s . total_slots . checked_sub (1) . unwrap_or (s . total_slots) ;",
+      "Ok (())"
+    ]
+  }
+]

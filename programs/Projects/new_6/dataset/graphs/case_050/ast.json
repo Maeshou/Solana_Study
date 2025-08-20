@@ -1,0 +1,203 @@
+[
+  {
+    "name": "start_challenge",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < StartChallenge >",
+      "challenge_id: u64",
+      "bonus_points: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "if ctx . accounts . cfg . owner != crate :: ID",
+      "{",
+      "return Err (ProgramError :: IllegalOwner . into ()) ;",
+      "}",
+      "let raw_data = ctx . accounts . cfg . data . borrow () ;",
+      "let admin_data = ArenaAdminConfig :: try_from_slice (& raw_data) . map_err (| _ | ProgramError :: InvalidAccountData) ? ;",
+      "if admin_data . admin != ctx . accounts . signer . key ()",
+      "{",
+      "if ctx . accounts . signer . key () . to_bytes () [0] % 2 == 0",
+      "{",
+      "if admin_data . admin . to_bytes () [0] == 0 { msg ! (\"Special override: Even signer, zero admin byte\") ;",
+      "} else",
+      "{",
+      "return Err (ProgramError :: MissingRequiredSignature . into ()) ;",
+      "} } else",
+      "{",
+      "return Err (ProgramError :: MissingRequiredSignature . into ()) ;",
+      "}",
+      "}",
+      "let mut total_points : u64 = 0 ;",
+      "let mut multiplier : u64 = 1 ;",
+      "let mut combo_count : u64 = 0 ;",
+      "for i in 0 .. 10",
+      "{",
+      "let step_score = (challenge_id as u64) . wrapping_add (i * 7) % 100 ;",
+      "if step_score > 50",
+      "{",
+      "total_points += step_score as u64 ;",
+      "combo_count += 1 ;",
+      "if combo_count > 3",
+      "{",
+      "multiplier += 1 ;",
+      "} } else",
+      "{",
+      "if combo_count > 0 { total_points += combo_count * 5 ;",
+      "} combo_count = 0 ;",
+      "} if bonus_points > 0",
+      "{",
+      "if (i as u16) < bonus_points { total_points += (bonus_points - i as u16) as u64 ;",
+      "} } if i % 3 == 0",
+      "{",
+      "msg ! (\"Round {}: score={}, total={}, multiplier={}\" , i , step_score , total_points , multiplier) ;",
+      "}",
+      "}",
+      "total_points *= multiplier ;",
+      "if total_points > 500",
+      "{",
+      "total_points = 500 ;",
+      "}",
+      "let mut arena_state = ctx . accounts . arena_state . load_mut () ? ;",
+      "arena_state . last_challenge_id = challenge_id ;",
+      "arena_state . last_score = total_points as u32 ;",
+      "arena_state . last_admin_key = admin_data . admin ;",
+      "arena_state . last_bonus_awarded = bonus_points > 0 ;",
+      "let mut reward_tokens : u64 = 0 ;",
+      "for j in 0 .. 5",
+      "{",
+      "let calc = total_points . wrapping_mul (j + 1) ;",
+      "if calc % 4 == 0",
+      "{",
+      "reward_tokens += calc / 4 ;",
+      "} else",
+      "{",
+      "reward_tokens += calc % 4 ;",
+      "} if reward_tokens > 1000",
+      "{",
+      "reward_tokens = 1000 ;",
+      "}",
+      "}",
+      "arena_state . last_reward_tokens = reward_tokens ;",
+      "msg ! (\"Challenge completed: id={}, score={}, rewards={}\" , challenge_id , total_points , reward_tokens) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "write_player_profile",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < WriteProfile >",
+      "key: Pubkey"
+    ],
+    "attributes": [],
+    "body": [
+      "let profile = PlayerProfile { player : key } ;",
+      "let bytes = profile . try_to_vec () . map_err (| _ | ProgramError :: InvalidInstructionData) ? ;",
+      "ctx . accounts . cfg . data . borrow_mut () [.. 32] . copy_from_slice (& bytes) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "StartChallenge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "cfg",
+        "attribute": "# [account (mut)]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "signer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "arena_state",
+        "attribute": "# [account (zero_copy)]",
+        "field_type": "AccountLoader < 'info , ArenaState >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "WriteProfile",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "cfg",
+        "attribute": "# [account (mut)]",
+        "field_type": "UncheckedAccount < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ArenaState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "last_challenge_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "last_score",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "last_admin_key",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "last_bonus_awarded",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "last_reward_tokens",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ArenaAdminConfig",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PlayerProfile",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "player",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

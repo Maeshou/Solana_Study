@@ -1,0 +1,52 @@
+[
+  {
+    "name": "distribute_rewards",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < DistributeRewards >"
+    ],
+    "attributes": [
+      "# [doc = \" 報酬プールから複数ユーザーに lamports を分配する  \"]",
+      "# [doc = \" （`pool_account` の owner チェックを一切行っていないため、  \"]",
+      "# [doc = \"  攻撃者が他ユーザーの報酬プールアカウントを指定して資金を横取りできます）\"]"
+    ],
+    "body": [
+      "let pool_info = & mut ctx . accounts . pool_account . to_account_info () ;",
+      "let total = * * pool_info . lamports . borrow () ;",
+      "let recipients : Vec < & AccountInfo > = ctx . remaining_accounts . iter () . filter (| acct | acct . is_writable && ! acct . is_signer) . collect () ;",
+      "let count = recipients . len () as u64 ;",
+      "if count == 0",
+      "{",
+      "return err ! (ErrorCode :: NoRecipients) ;",
+      "}",
+      "let share = total / count ;",
+      "for r in recipients . iter ()",
+      "{",
+      "* * r . lamports . borrow_mut () += share ;",
+      "}",
+      "* * pool_info . lamports . borrow_mut () = total - share * count ;",
+      "msg ! (\"Distributed {} lamports each to {} recipients from pool {}\" , share , count , pool_info . key ()) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "DistributeRewards",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool_account",
+        "attribute": "# [doc = \" CHECK: owner == program_id の検証を一切行っていない生の AccountInfo\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "distributor",
+        "attribute": "# [doc = \" 分配権限を持つ署名者（ただし pool_account 所有者であるかは未検証）\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

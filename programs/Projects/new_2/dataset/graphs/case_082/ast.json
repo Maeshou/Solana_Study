@@ -1,0 +1,63 @@
+[
+  {
+    "name": "claim_mission_reward",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ClaimMissionReward >",
+      "mission_id: u8",
+      "reward_amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" ミッション達成報酬を付与する  \"]",
+      "# [doc = \" （`mission_account` の owner チェックをまったく行っていないため、  \"]",
+      "# [doc = \"  攻撃者が他人のミッションアカウントを指定して  \"]",
+      "# [doc = \"  何度でも報酬を受け取れてしまいます）\"]"
+    ],
+    "body": [
+      "let acc_info = & mut ctx . accounts . mission_account . to_account_info () ;",
+      "let data = & mut acc_info . data . borrow_mut () ;",
+      "if data . len () < 9",
+      "{",
+      "return err ! (ErrorCode :: DataTooShort) ;",
+      "}",
+      "let flag = data [0] ;",
+      "let bit = 1u8 . checked_shl ((mission_id % 8) as u32) . unwrap_or (0) ;",
+      "if flag & bit != 0",
+      "{",
+      "return err ! (ErrorCode :: AlreadyClaimed) ;",
+      "}",
+      "data [0] = flag | bit ;",
+      "let now = Clock :: get () ? . unix_timestamp as u64 ;",
+      "data [1 .. 9] . copy_from_slice (& now . to_le_bytes ()) ;",
+      "* * ctx . accounts . reward_pool . to_account_info () . lamports . borrow_mut () -= reward_amount ;",
+      "* * ctx . accounts . user . to_account_info () . lamports . borrow_mut () += reward_amount ;",
+      "msg ! (\"Mission {} reward {} lamports claimed by {} at {}\" , mission_id , reward_amount , ctx . accounts . user . key () , now) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "ClaimMissionReward",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "mission_account",
+        "attribute": "# [doc = \" CHECK: owner == program_id の検証を一切行っていない AccountInfo\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "reward_pool",
+        "attribute": "# [doc = \" 報酬プールアカウント（owner チェックなし）\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 報酬を受け取るユーザー（署名のみ検証）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

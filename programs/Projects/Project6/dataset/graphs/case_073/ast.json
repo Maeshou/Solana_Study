@@ -1,0 +1,279 @@
+[
+  {
+    "name": "init_farm",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitFarm >",
+      "code: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let f = & mut ctx . accounts . farm ;",
+      "f . owner = ctx . accounts . owner . key () ;",
+      "f . code = code ;",
+      "f . harvests = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "recruit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Recruit >",
+      "w: Worker",
+      "tag: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let f = & mut ctx . accounts . farm ;",
+      "let a = & mut ctx . accounts . worker_a ;",
+      "a . farm = f . key () ;",
+      "a . kind = w ;",
+      "a . tag = tag ;",
+      "a . skill = 0 ;",
+      "let s = & mut ctx . accounts . silo ;",
+      "s . farm = f . key () ;",
+      "s . grain = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "harvest",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Harvest >",
+      "plots: Vec < u16 >"
+    ],
+    "attributes": [],
+    "body": [
+      "let f = & mut ctx . accounts . farm ;",
+      "let x = & mut ctx . accounts . actor ;",
+      "let y = & mut ctx . accounts . partner ;",
+      "let s = & mut ctx . accounts . silo ;",
+      "let l = & mut ctx . accounts . farm_log ;",
+      "let mut sum : u32 = 0 ;",
+      "let mut mix : u16 = 0 ;",
+      "for p in plots",
+      "{",
+      "sum = sum . saturating_add ((p & 0x3FF) as u32) ;",
+      "mix ^= p . rotate_left (1) ^ 0x3333 ;",
+      "}",
+      "let base = sum + (mix as u32 & 0xFF) ;",
+      "if x . kind == Harvester",
+      "{",
+      "x . skill = x . skill . saturating_add ((base / 2) as u16) ;",
+      "y . skill = y . skill . saturating_add (((mix >> 2) & 0x3F) as u16) ;",
+      "s . grain = s . grain . saturating_add ((base / 4) as u32) ;",
+      "f . harvests = f . harvests . saturating_add (1) ;",
+      "msg ! (\"Harvester: base=",
+      "{",
+      "}, xS={}, yS={}, grain={}\" , base , x . skill , y . skill , s . grain) ;",
+      "} else",
+      "{",
+      "x . skill = x . skill . saturating_add ((base / 3) as u16) ;",
+      "y . skill = y . skill . saturating_add (((mix >> 1) & 0x7F) as u16) ;",
+      "s . grain = s . grain . saturating_add ((base / 5) as u32) ;",
+      "f . harvests = f . harvests . saturating_add (1) ;",
+      "msg ! (\"Planter/Waterer: base=",
+      "{",
+      "}, xS={}, yS={}, grain={}\" , base , x . skill , y . skill , s . grain) ;",
+      "}",
+      "let mut t = (f . harvests as u128) . max (1) ;",
+      "let mut i = 0 ;",
+      "while i < 3",
+      "{",
+      "t = (t + (f . harvests as u128 / t)) . max (1) / 2 ;",
+      "i += 1 ;",
+      "}",
+      "l . farm = f . key () ;",
+      "l . index = (t as u32) . min (1_000_000) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitFarm",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "farm",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 4 + 4)]",
+        "field_type": "Account < 'info , Farm >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Recruit",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "farm",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Farm >"
+      },
+      {
+        "name": "worker_a",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 1 + 2)]",
+        "field_type": "Account < 'info , WorkerCard >"
+      },
+      {
+        "name": "silo",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4)]",
+        "field_type": "Account < 'info , Silo >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Harvest",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "farm",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Farm >"
+      },
+      {
+        "name": "farm_log",
+        "attribute": "# [account (mut , has_one = farm)]",
+        "field_type": "Account < 'info , FarmLog >"
+      },
+      {
+        "name": "actor",
+        "attribute": "# [account (mut , has_one = farm , constraint = actor . tag != partner . tag @ ErrCode :: CosplayBlocked)]",
+        "field_type": "Account < 'info , WorkerCard >"
+      },
+      {
+        "name": "partner",
+        "attribute": "# [account (mut , has_one = farm)]",
+        "field_type": "Account < 'info , WorkerCard >"
+      },
+      {
+        "name": "silo",
+        "attribute": "# [account (mut , has_one = farm)]",
+        "field_type": "Account < 'info , Silo >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Farm",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "code",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "harvests",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "WorkerCard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "farm",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "kind",
+        "attribute": null,
+        "field_type": "Worker"
+      },
+      {
+        "name": "tag",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "skill",
+        "attribute": null,
+        "field_type": "u16"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Silo",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "farm",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "grain",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "FarmLog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "farm",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "index",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

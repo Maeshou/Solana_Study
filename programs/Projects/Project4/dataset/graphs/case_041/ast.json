@@ -1,33 +1,56 @@
 [
   {
-    "name": "initialize_closing_state",
+    "name": "init_subscription",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Initialize041 >",
-      "param: u64"
+      "ctx: Context < InitSubscription >",
+      "duration_days: i64"
     ],
     "attributes": [],
     "body": [
-      "let mut data = ClosingStateData :: try_from_slice (& ctx . accounts . data_account . data . borrow ()) ? ;",
-      "data . value = param ;",
-      "data . serialize (& mut * ctx . accounts . data_account . data . borrow_mut ()) ? ;",
+      "let sub = & mut ctx . accounts . subscription ;",
+      "let now = Clock :: get () ? . unix_timestamp ;",
+      "sub . user = ctx . accounts . user . key () ;",
+      "sub . expires = now + duration_days * 86400 ;",
+      "sub . renewals = 0 ;",
+      "let billing = & mut ctx . accounts . billing_history ;",
+      "billing . entries = Vec :: new () ;",
+      "billing . entries . push ((now , 1_000)) ;",
+      "let audit = & mut ctx . accounts . audit_log ;",
+      "audit . events = Vec :: new () ;",
+      "audit . events . push (format ! (\"Subscription created at {}\" , now)) ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Initialize041",
+    "name": "InitSubscription",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "subscription",
+        "attribute": "# [account (init , payer = user , space = 8 + 32 + 8 + 4)]",
+        "field_type": "Account < 'info , SubscriptionData >"
       },
       {
-        "name": "authority",
-        "attribute": null,
+        "name": "billing_history",
+        "attribute": "# [account (init , payer = user , space = 8 + 4 + (12 * 8))]",
+        "field_type": "Account < 'info , BillingHistoryData >"
+      },
+      {
+        "name": "audit_log",
+        "attribute": "# [account (init , payer = user , space = 8 + 4 + (200 * 2))]",
+        "field_type": "Account < 'info , AuditLogData >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -35,13 +58,51 @@
     "body": null
   },
   {
-    "name": "ClosingStateData",
+    "name": "SubscriptionData",
     "node_type": "struct",
     "fields": [
       {
-        "name": "value",
+        "name": "user",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "expires",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "renewals",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BillingHistoryData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "entries",
+        "attribute": null,
+        "field_type": "Vec < (i64 , u64) >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AuditLogData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "events",
+        "attribute": null,
+        "field_type": "Vec < String >"
       }
     ],
     "inputs": null,

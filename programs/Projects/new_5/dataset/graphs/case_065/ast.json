@@ -1,0 +1,243 @@
+[
+  {
+    "name": "start_contest",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < StartContest >",
+      "contest_id: u64",
+      "judge_count: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let contest = & mut ctx . accounts . contest ;",
+      "contest . organizer = ctx . accounts . organizer . key () ;",
+      "contest . contest_id = contest_id ;",
+      "contest . judge_count = judge_count ;",
+      "contest . submission_count = 0 ;",
+      "contest . contest_status = ContestStatus :: AcceptingSubmissions ;",
+      "msg ! (\"Cooking contest {} started.\" , contest . contest_id) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "submit_recipe",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SubmitRecipe >",
+      "recipe_id: u32",
+      "ingredient_count: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let recipe = & mut ctx . accounts . recipe ;",
+      "let contest = & mut ctx . accounts . contest ;",
+      "if matches ! (contest . contest_status , ContestStatus :: AcceptingSubmissions)",
+      "{",
+      "recipe . total_score = 0 ;",
+      "recipe . is_finalized = false ;",
+      "msg ! (\"Recipe",
+      "{",
+      "} submitted with {} ingredients.\" , recipe . recipe_id , ingredient_count) ;",
+      "} else",
+      "{",
+      "recipe . is_finalized = true ;",
+      "msg ! (\"Contest is not accepting submissions. Recipe",
+      "{",
+      "} automatically finalized.\" , recipe . recipe_id) ;",
+      "}",
+      "recipe . contest = contest . key () ;",
+      "recipe . chef = ctx . accounts . chef . key () ;",
+      "recipe . recipe_id = recipe_id ;",
+      "recipe . ingredient_count = ingredient_count ;",
+      "contest . submission_count = contest . submission_count . saturating_add (1) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "judge_recipe",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < JudgeRecipe >",
+      "score: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let recipe1 = & mut ctx . accounts . recipe1 ;",
+      "let recipe2 = & mut ctx . accounts . recipe2 ;",
+      "if ! recipe1 . is_finalized && ! recipe2 . is_finalized",
+      "{",
+      "recipe1 . total_score = recipe1 . total_score . saturating_add (score as u32) ;",
+      "recipe2 . total_score = recipe2 . total_score . saturating_add (score as u32) ;",
+      "if recipe1 . total_score > 100",
+      "{",
+      "recipe1 . is_finalized = true ;",
+      "msg ! (\"Recipe 1 finalized with a score of",
+      "{",
+      "}\" , recipe1 . total_score) ;",
+      "} if recipe2 . total_score > 100",
+      "{",
+      "recipe2 . is_finalized = true ;",
+      "msg ! (\"Recipe 2 finalized with a score of",
+      "{",
+      "}\" , recipe2 . total_score) ;",
+      "} } else",
+      "{",
+      "msg ! (\"One or both recipes are already finalized.\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "StartContest",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "contest",
+        "attribute": "# [account (init , payer = organizer , space = 8 + 32 + 8 + 1 + 4 + 1)]",
+        "field_type": "Account < 'info , Contest >"
+      },
+      {
+        "name": "organizer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SubmitRecipe",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "contest",
+        "attribute": "# [account (mut , has_one = contest)]",
+        "field_type": "Account < 'info , Contest >"
+      },
+      {
+        "name": "recipe",
+        "attribute": "# [account (init , payer = chef , space = 8 + 32 + 4 + 32 + 4 + 4 + 1)]",
+        "field_type": "Account < 'info , Recipe >"
+      },
+      {
+        "name": "chef",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "JudgeRecipe",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "contest",
+        "attribute": "# [account (mut , has_one = contest)]",
+        "field_type": "Account < 'info , Contest >"
+      },
+      {
+        "name": "recipe1",
+        "attribute": "# [account (mut , has_one = contest)]",
+        "field_type": "Account < 'info , Recipe >"
+      },
+      {
+        "name": "recipe2",
+        "attribute": "# [account (mut , has_one = contest)]",
+        "field_type": "Account < 'info , Recipe >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Contest",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "organizer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "contest_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "judge_count",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "submission_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "contest_status",
+        "attribute": null,
+        "field_type": "ContestStatus"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Recipe",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "contest",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "chef",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "recipe_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "ingredient_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "total_score",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "is_finalized",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

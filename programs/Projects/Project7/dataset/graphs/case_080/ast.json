@@ -1,0 +1,156 @@
+[
+  {
+    "name": "init_registry",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitRegistry >",
+      "base_burn_input: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let r = & mut ctx . accounts . registry ;",
+      "r . authority = ctx . accounts . authority . key () ;",
+      "r . base_burn = base_burn_input ;",
+      "if r . base_burn < 1",
+      "{",
+      "r . base_burn = 1 ;",
+      "}",
+      "r . total_burned = 0 ;",
+      "r . badges_issued = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_retire",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActRetire >",
+      "burn_multiplier: u8",
+      "sustain_days: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let r = & mut ctx . accounts . registry ;",
+      "let mut burn_units = r . base_burn ;",
+      "let mut k : u8 = 0 ;",
+      "while k < burn_multiplier",
+      "{",
+      "burn_units = burn_units + r . base_burn / 4 + 1 ;",
+      "k = k + 1 ;",
+      "}",
+      "token :: burn (ctx . accounts . burn_ctx () , burn_units) ? ;",
+      "r . total_burned = r . total_burned + burn_units ;",
+      "let mut reward = burn_units / 10 + 1 ;",
+      "let mut d : u16 = 0 ;",
+      "while d < sustain_days",
+      "{",
+      "if (d + 1) % 30 == 0",
+      "{",
+      "reward = reward + 2 ;",
+      "} d = d + 1 ;",
+      "}",
+      "token :: mint_to (ctx . accounts . mint_ctx () , reward) ? ;",
+      "r . badges_issued = r . badges_issued + reward ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitRegistry",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "registry",
+        "attribute": "# [account (init , payer = authority , space = 8 + 32 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , CarbonRegistry >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActRetire",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "registry",
+        "attribute": "# [account (mut , has_one = authority)]",
+        "field_type": "Account < 'info , CarbonRegistry >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "credit_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "user_credit_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "badge_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "user_badge_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CarbonRegistry",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "base_burn",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_burned",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "badges_issued",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

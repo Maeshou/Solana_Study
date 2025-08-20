@@ -1,0 +1,150 @@
+[
+  {
+    "name": "init_pouch",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitPouch >",
+      "limit: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let pouch = & mut ctx . accounts . pouch ;",
+      "pouch . owner = ctx . accounts . user . key () ;",
+      "pouch . limit = limit + 20 ;",
+      "pouch . runes = 0 ;",
+      "pouch . count = 1 ;",
+      "let bump = * ctx . bumps . get (\"pouch\") . ok_or (error ! (PErr :: MissingBump)) ? ;",
+      "pouch . saved_bump = bump ;",
+      "let mut sum = pouch . limit ;",
+      "let mut i = 0 ;",
+      "while i < 4",
+      "{",
+      "if sum % 2 == 0",
+      "{",
+      "pouch . runes = pouch . runes . saturating_add (sum % 11 + 3) ;",
+      "} else",
+      "{",
+      "pouch . count = pouch . count . saturating_add ((sum % 5) + 1) ;",
+      "} sum = sum . wrapping_mul (7) . wrapping_add (9) ;",
+      "i = i + 1 ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "cast_spell",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CastSpell >",
+      "power: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let pouch = & mut ctx . accounts . pouch ;",
+      "let seeds = & [b\"spell_sink\" , pouch . owner . as_ref () , & [pouch . saved_bump]] ;",
+      "let expect = Pubkey :: create_program_address (seeds , ctx . program_id) . map_err (| _ | error ! (PErr :: SeedCompute)) ? ;",
+      "if expect != ctx . accounts . spell_sink . key ()",
+      "{",
+      "return Err (error ! (PErr :: KeyMismatch)) ;",
+      "}",
+      "let ix = Instruction { program_id : * ctx . program_id , accounts : vec ! [AccountMeta :: new (pouch . key () , false)] , data : power . to_le_bytes () . to_vec () , } ;",
+      "invoke_signed (& ix , & [pouch . to_account_info ()] , & [seeds]) ? ;",
+      "let mut remain = power as u32 ;",
+      "while remain > 0",
+      "{",
+      "if remain % 3 == 1",
+      "{",
+      "pouch . runes = pouch . runes . saturating_add (remain % 7 + 2) ;",
+      "} else",
+      "{",
+      "pouch . count = pouch . count . saturating_add (remain % 5 + 1) ;",
+      "} remain = remain . saturating_sub (4) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitPouch",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pouch",
+        "attribute": "# [account (init , payer = user , space = 8 + 32 + 4 + 4 + 4 + 1 , seeds = [b\"pouch\" , user . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Pouch >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CastSpell",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pouch",
+        "attribute": "# [account (mut , seeds = [b\"pouch\" , user . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Pouch >"
+      },
+      {
+        "name": "spell_sink",
+        "attribute": "# [doc = \" CHECK: 手動導出\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Pouch",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "limit",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "runes",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "saved_bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

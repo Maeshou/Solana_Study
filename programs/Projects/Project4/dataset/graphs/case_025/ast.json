@@ -1,33 +1,73 @@
 [
   {
-    "name": "initialize_flash_loan",
+    "name": "register_sensor",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Initialize025 >",
-      "param: u64"
+      "ctx: Context < RegisterSensor >",
+      "readings: Vec < u32 >"
     ],
     "attributes": [],
     "body": [
-      "let mut data = FlashLoanData :: try_from_slice (& ctx . accounts . data_account . data . borrow ()) ? ;",
-      "data . value = param ;",
-      "data . serialize (& mut * ctx . accounts . data_account . data . borrow_mut ()) ? ;",
+      "let mut sum = 0u32 ;",
+      "let mut count = 0u32 ;",
+      "let mut max = 0u32 ;",
+      "for & r in readings . iter ()",
+      "{",
+      "if r > 0",
+      "{",
+      "sum += r ;",
+      "count += 1 ;",
+      "if r > max",
+      "{",
+      "max = r ;",
+      "} }",
+      "}",
+      "let avg = if count > 0 { sum / count } else { 0 } ;",
+      "let sensor = & mut ctx . accounts . sensor ;",
+      "sensor . total = sum ;",
+      "sensor . count = count ;",
+      "sensor . max = max ;",
+      "sensor . avg = avg ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Initialize025",
+    "name": "reset_sensor",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ResetSensor >"
+    ],
+    "attributes": [],
+    "body": [
+      "let sensor = & mut ctx . accounts . sensor ;",
+      "sensor . total = 0 ;",
+      "sensor . count = 0 ;",
+      "sensor . max = 0 ;",
+      "sensor . avg = 0 ;",
+      "sensor . last_reset = Clock :: get () ? . unix_timestamp ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "RegisterSensor",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "sensor",
+        "attribute": "# [account (init , payer = user , space = 8 + 4 * 4 + 8)]",
+        "field_type": "Account < 'info , SensorData >"
       },
       {
-        "name": "authority",
-        "attribute": null,
+        "name": "user",
+        "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -35,13 +75,57 @@
     "body": null
   },
   {
-    "name": "FlashLoanData",
+    "name": "ResetSensor",
     "node_type": "struct",
     "fields": [
       {
-        "name": "value",
+        "name": "sensor",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "Account < 'info , SensorData >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SensorData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "total",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "max",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "avg",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "last_reset",
+        "attribute": null,
+        "field_type": "i64"
       }
     ],
     "inputs": null,

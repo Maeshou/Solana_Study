@@ -1,0 +1,150 @@
+[
+  {
+    "name": "contribute",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ManageCampaign >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 支援者がキャンペーンに資金を提供するが、\"]",
+      "# [doc = \" campaign_account.owner と ctx.accounts.user.key() の照合検証がない\"]"
+    ],
+    "body": [
+      "let campaign = & mut ctx . accounts . campaign_account ;",
+      "let user = & ctx . accounts . user ;",
+      "record_contribution (campaign , amount) ;",
+      "transfer_lamports (& user . to_account_info () , & ctx . accounts . pool , amount) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "withdraw",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ManageCampaign >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" キャンペーンオーナーが資金を引き出すが、\"]",
+      "# [doc = \" campaign_account.owner と ctx.accounts.user.key() の照合検証がない\"]"
+    ],
+    "body": [
+      "let campaign = & mut ctx . accounts . campaign_account ;",
+      "let user = & ctx . accounts . user ;",
+      "record_withdrawal (campaign , amount) ;",
+      "transfer_lamports (& ctx . accounts . pool , & user . to_account_info () , amount) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "record_contribution",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "c: & mut CampaignAccount",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" キャンペーンへの支援を記録するヘルパー関数\"]"
+    ],
+    "body": [
+      "c . total_raised = c . total_raised . saturating_add (amount) ;",
+      "c . contribution_count = c . contribution_count . saturating_add (1) ;"
+    ]
+  },
+  {
+    "name": "record_withdrawal",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "c: & mut CampaignAccount",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" キャンペーンからの引き出しを記録するヘルパー関数\"]"
+    ],
+    "body": [
+      "c . total_withdrawn = c . total_withdrawn . saturating_add (amount) ;",
+      "c . withdraw_count = c . withdraw_count . saturating_add (1) ;"
+    ]
+  },
+  {
+    "name": "transfer_lamports",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "from: & AccountInfo",
+      "to: & AccountInfo",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 直接 Lamports を移動するヘルパー関数\"]"
+    ],
+    "body": [
+      "* * from . lamports . borrow_mut () = from . lamports () . checked_sub (amount) . unwrap () ;",
+      "* * to . lamports . borrow_mut () = to . lamports () . checked_add (amount) . unwrap () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "ManageCampaign",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "campaign_account",
+        "attribute": "# [account (mut)] # [doc = \" 本来は `#[account(has_one = owner)]` を指定して所有者照合を行うべき\"]",
+        "field_type": "Account < 'info , CampaignAccount >"
+      },
+      {
+        "name": "pool",
+        "attribute": "# [doc = \" ラムポートを保管するキャンペーンプール\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 操作をリクエストするユーザー（署名者）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CampaignAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 本来このキャンペーンを所有するべきユーザーの Pubkey\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "total_raised",
+        "attribute": "# [doc = \" これまでに集めた総支援額\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "contribution_count",
+        "attribute": "# [doc = \" 支援トランザクション数\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "total_withdrawn",
+        "attribute": "# [doc = \" これまでに引き出した総額\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "withdraw_count",
+        "attribute": "# [doc = \" 引き出し回数\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

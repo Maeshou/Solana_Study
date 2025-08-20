@@ -1,0 +1,195 @@
+[
+  {
+    "name": "start_raid_battle",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < StartRaidBattle >"
+    ],
+    "attributes": [],
+    "body": [
+      "let raid_boss = & ctx . accounts . raid_boss_info ;",
+      "let raid_ticket = & mut ctx . accounts . raid_ticket ;",
+      "let player = & ctx . accounts . player ;",
+      "let raid_instance = & mut ctx . accounts . raid_instance ;",
+      "require ! (raid_ticket . is_used == false , GameError :: RaidTicketAlreadyUsed) ;",
+      "require ! (raid_ticket . boss_id == raid_boss . boss_id , GameError :: TicketNotForThisBoss) ;",
+      "let clock = Clock :: get () ? ;",
+      "let current_timestamp = clock . unix_timestamp ;",
+      "require ! (current_timestamp >= raid_boss . start_timestamp , GameError :: RaidNotStarted) ;",
+      "require ! (current_timestamp <= raid_boss . end_timestamp , GameError :: RaidHasEnded) ;",
+      "raid_ticket . is_used = true ;",
+      "raid_instance . boss_id = raid_boss . boss_id ;",
+      "raid_instance . challenger = player . key () ;",
+      "raid_instance . remaining_hp = raid_boss . total_hp ;",
+      "raid_instance . battle_start_timestamp = current_timestamp ;",
+      "raid_instance . is_active = true ;",
+      "let mut initial_contributors = Vec :: new () ;",
+      "for _ in 0 .. 5",
+      "{",
+      "initial_contributors . push (Contribution",
+      "{",
+      "player : Pubkey :: default () , damage : 0 }) ;",
+      "}",
+      "initial_contributors [0] = Contribution { player : player . key () , damage : 0 , } ;",
+      "raid_instance . contributors = initial_contributors ;",
+      "msg ! (\"Raid battle against boss {} has started!\" , raid_boss . boss_id) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "StartRaidBattle",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "raid_boss_info",
+        "attribute": "# [account (seeds = [b\"raid_boss\" , raid_boss_info . boss_id . to_le_bytes () . as_ref ()] , bump = raid_boss_info . bump)]",
+        "field_type": "Account < 'info , RaidBossInfo >"
+      },
+      {
+        "name": "raid_ticket",
+        "attribute": "# [account (mut , seeds = [b\"raid_ticket\" , player . key () . as_ref () , raid_ticket . mint . as_ref ()] , bump = raid_ticket . bump)]",
+        "field_type": "Account < 'info , RaidTicket >"
+      },
+      {
+        "name": "raid_instance",
+        "attribute": "# [account (init , payer = player , space = 8 + 4 + 32 + 8 + 8 + 1 + (32 + 8) * 5 , seeds = [b\"raid_instance\" , player . key () . as_ref () , raid_boss_info . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , RaidInstance >"
+      },
+      {
+        "name": "player",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RaidBossInfo",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "boss_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "total_hp",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "start_timestamp",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "end_timestamp",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RaidTicket",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "mint",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "boss_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "is_used",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RaidInstance",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "boss_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "challenger",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "remaining_hp",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "battle_start_timestamp",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "is_active",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "contributors",
+        "attribute": null,
+        "field_type": "Vec < Contribution >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Contribution",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "player",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "damage",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

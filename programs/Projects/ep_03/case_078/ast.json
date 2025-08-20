@@ -1,0 +1,145 @@
+[
+  {
+    "name": "enchant_artifact",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyArtifact >",
+      "power_boost: u64"
+    ],
+    "attributes": [
+      "# [doc = \" アーティファクトにエンチャントを付与するが、\"]",
+      "# [doc = \" artifact_account.owner と ctx.accounts.user.key() の照合チェックがない\"]"
+    ],
+    "body": [
+      "let artifact = & mut ctx . accounts . artifact_account ;",
+      "let cfg = & ctx . accounts . config ;",
+      "let boost = power_boost . checked_mul (cfg . boost_multiplier) . unwrap () ;",
+      "apply_enchantment (artifact , boost) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "disenchant_artifact",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyArtifact >"
+    ],
+    "attributes": [
+      "# [doc = \" エンチャントを取り除くが、\"]",
+      "# [doc = \" artifact_account.owner と ctx.accounts.user.key() の照合チェックがない\"]"
+    ],
+    "body": [
+      "let artifact = & mut ctx . accounts . artifact_account ;",
+      "let last_boost = artifact . last_boost ;",
+      "remove_enchantment (artifact , last_boost) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "apply_enchantment",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "artifact: & mut ArtifactAccount",
+      "boost: u64"
+    ],
+    "attributes": [
+      "# [doc = \" アーティファクトにブースト量を適用し、カウンタをインクリメント\"]"
+    ],
+    "body": [
+      "artifact . power = artifact . power . checked_add (boost) . unwrap () ;",
+      "artifact . last_boost = boost ;",
+      "artifact . enchant_count = artifact . enchant_count . checked_add (1) . unwrap () ;"
+    ]
+  },
+  {
+    "name": "remove_enchantment",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "artifact: & mut ArtifactAccount",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" エンチャントを取り除き、デクリメントとカウンタ更新\"]"
+    ],
+    "body": [
+      "artifact . power = artifact . power . checked_sub (amount) . unwrap () ;",
+      "artifact . disenchant_count = artifact . disenchant_count . checked_add (1) . unwrap () ;"
+    ]
+  },
+  {
+    "name": "ModifyArtifact",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "artifact_account",
+        "attribute": "# [account (mut)] # [doc = \" 本来は `#[account(has_one = owner)]` を指定して所有者照合を行うべき\"]",
+        "field_type": "Account < 'info , ArtifactAccount >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 操作をリクエストするユーザー（署名者）\"]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "config",
+        "attribute": "# [doc = \" ブースト係数などを保持する設定アカウント\"]",
+        "field_type": "Account < 'info , ArtifactConfig >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ArtifactAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 本来このアーティファクトを所有するべきユーザーの Pubkey\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "power",
+        "attribute": "# [doc = \" 現在のパワーステータス\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "last_boost",
+        "attribute": "# [doc = \" 最後に適用したブースト量\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "enchant_count",
+        "attribute": "# [doc = \" 累計エンチャント操作回数\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "disenchant_count",
+        "attribute": "# [doc = \" 累計ディスエンチャント操作回数\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ArtifactConfig",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "boost_multiplier",
+        "attribute": "# [doc = \" ブースト量に乗じる係数\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

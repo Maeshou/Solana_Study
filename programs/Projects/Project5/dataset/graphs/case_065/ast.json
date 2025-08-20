@@ -1,33 +1,214 @@
 [
   {
-    "name": "init_airdrop",
+    "name": "init_raid",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx065 >"
+      "ctx: Context < InitRaid >",
+      "weight: u64"
     ],
     "attributes": [],
     "body": [
-      "let a = & ctx . accounts . first ;",
-      "let b = & ctx . accounts . second ;",
-      "msg ! (\"Account A: {}\" , a . key ()) ;",
-      "msg ! (\"Account B: {}\" , b . key ()) ;",
+      "let p = & mut ctx . accounts . party ;",
+      "let b = & mut ctx . accounts . boss_note ;",
+      "let l = & mut ctx . accounts . battle_log ;",
+      "p . owner = ctx . accounts . leader . key () ;",
+      "p . weight = weight ;",
+      "p . mode = Prep ;",
+      "b . parent = p . key () ;",
+      "b . phase = 1 ;",
+      "b . hp = 1000 ;",
+      "l . parent = p . key () ;",
+      "l . phase = 9 ;",
+      "l . ticks = 0 ;",
+      "l . acc = 0 ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx065",
+    "name": "write_tick",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < WriteTick >",
+      "loops: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let p = & mut ctx . accounts . party ;",
+      "let b = & mut ctx . accounts . boss_note ;",
+      "let l = & mut ctx . accounts . battle_log ;",
+      "for i in 0 .. loops",
+      "{",
+      "let mut x = (b . hp as u64) . max (1) ;",
+      "let mut y = (x + 1) / 2 ;",
+      "while y < x",
+      "{",
+      "x = y ;",
+      "y = (x + (b . hp as u64 / x)) / 2 ;",
+      "} let root = x as u32 ;",
+      "b . hp = b . hp . saturating_sub ((i % 7) as u32 + (root % 5)) ;",
+      "l . ticks = l . ticks . saturating_add (1) ;",
+      "l . acc = l . acc . checked_add ((b . hp as u64) & 0xFFFF) . unwrap_or (u64 :: MAX) ;",
+      "}",
+      "let avg = if l . ticks == 0 { 0 } else { (l . acc / l . ticks as u64) as u32 } ;",
+      "if avg > p . weight as u32",
+      "{",
+      "p . mode = Recover ;",
+      "b . hp = b . hp . saturating_add (33) ;",
+      "l . phase = l . phase . saturating_add (1) ;",
+      "l . acc ^= 0x0FFF_FFFF ;",
+      "msg ! (\"recover: boss heal, phase+1\") ;",
+      "} else",
+      "{",
+      "p . mode = Assault ;",
+      "b . phase = b . phase . saturating_add (1) ;",
+      "l . ticks = l . ticks . saturating_add (3) ;",
+      "l . acc = l . acc . saturating_add ((avg as u64) << 2) ;",
+      "msg ! (\"assault: phase++ ticks+3\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitRaid",
     "node_type": "struct",
     "fields": [
       {
-        "name": "first",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "party",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 8 + 1)]",
+        "field_type": "Account < 'info , Party >"
       },
       {
-        "name": "second",
+        "name": "boss_note",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , BossNote >"
+      },
+      {
+        "name": "battle_log",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 8 + 8)]",
+        "field_type": "Account < 'info , BattleLog >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "leader",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "WriteTick",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "party",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Party >"
+      },
+      {
+        "name": "boss_note",
+        "attribute": "# [account (mut , has_one = party , constraint = boss_note . phase != battle_log . phase @ RaidErr :: Dup)]",
+        "field_type": "Account < 'info , BossNote >"
+      },
+      {
+        "name": "battle_log",
+        "attribute": "# [account (mut , has_one = party)]",
+        "field_type": "Account < 'info , BattleLog >"
+      },
+      {
+        "name": "leader",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Party",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "weight",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "mode",
+        "attribute": null,
+        "field_type": "RaidMode"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BossNote",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "phase",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "hp",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BattleLog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "phase",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "ticks",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "acc",
+        "attribute": null,
+        "field_type": "u64"
       }
     ],
     "inputs": null,

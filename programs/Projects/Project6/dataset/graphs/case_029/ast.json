@@ -1,0 +1,406 @@
+[
+  {
+    "name": "init_player",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitPlayer >"
+    ],
+    "attributes": [],
+    "body": [
+      "let player = & mut ctx . accounts . player ;",
+      "player . authority = ctx . accounts . authority . key () ;",
+      "player . level = 1 ;",
+      "player . exp = 0 ;",
+      "player . last_crafted = 0 ;",
+      "player . bump = * ctx . bumps . get (\"player\") . ok_or (error ! (GameErr :: MissingBump)) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_inventory",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitInventory >",
+      "slots: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let inv = & mut ctx . accounts . inventory ;",
+      "inv . owner = ctx . accounts . player . key () ;",
+      "inv . slots = slots ;",
+      "inv . seed_tag = * b\"inv_v1__\" ;",
+      "inv . bump = * ctx . bumps . get (\"inventory\") . ok_or (error ! (GameErr :: MissingBump)) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_recipe",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitRecipe >",
+      "cost: u64",
+      "min_level: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let recipe = & mut ctx . accounts . recipe ;",
+      "recipe . mint = ctx . accounts . item_mint . key () ;",
+      "recipe . cost = cost ;",
+      "recipe . min_level = min_level ;",
+      "recipe . bump = * ctx . bumps . get (\"recipe\") . ok_or (error ! (GameErr :: MissingBump)) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "craft_item",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CraftItem >",
+      "spend: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let player = & mut ctx . accounts . player ;",
+      "let inv = & mut ctx . accounts . inventory ;",
+      "let recipe = & ctx . accounts . recipe ;",
+      "let now = Clock :: get () ? . unix_timestamp ;",
+      "if player . level < recipe . min_level",
+      "{",
+      "player . exp = player . exp . saturating_add ((recipe . min_level as u64) . saturating_mul (3)) ;",
+      "}",
+      "if spend > recipe . cost",
+      "{",
+      "let surplus = spend . saturating_sub (recipe . cost) ;",
+      "player . exp = player . exp . saturating_add (surplus . rotate_left (1)) ;",
+      "}",
+      "let delta = now . saturating_sub (player . last_crafted) ;",
+      "if delta < 5",
+      "{",
+      "if inv . slots > 0",
+      "{",
+      "inv . slots = inv . slots . saturating_sub (1) ;",
+      "}",
+      "}",
+      "player . last_crafted = now ;",
+      "if spend > 0",
+      "{",
+      "let cpi_accounts = Transfer",
+      "{",
+      "from : ctx . accounts . user_token . to_account_info () , to : ctx . accounts . vault_token . to_account_info () , authority : ctx . accounts . authority . to_account_info () , } ;",
+      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
+      "token :: transfer (cpi_ctx , spend) ? ;",
+      "}",
+      "let mut step = 0u8 ;",
+      "while step < 3",
+      "{",
+      "let threshold = 50u64 . saturating_mul ((step as u64) . saturating_add (1)) ;",
+      "if player . exp >= threshold",
+      "{",
+      "player . level = player . level . saturating_add (1) ;",
+      "player . exp = player . exp . saturating_sub (threshold / 2) ;",
+      "} step = step . saturating_add (1) ;",
+      "}",
+      "let mut rolled = [0u8 ; 8] ;",
+      "let mut i = 0usize ;",
+      "while i < 8",
+      "{",
+      "let v = inv . seed_tag [i] ;",
+      "rolled [i] = v . rotate_left ((i as u32) & 3) ;",
+      "i += 1 ;",
+      "}",
+      "inv . seed_tag = rolled ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "bind_untyped_inventory",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < BindUntypedInventory >"
+    ],
+    "attributes": [],
+    "body": [
+      "let ai = & ctx . accounts . untyped_inventory ;",
+      "assert_account_type :: < Inventory > (ai) . map_err (| _ | error ! (GameErr :: AccountTypeMismatch)) ? ;",
+      "let mut inv : Account < Inventory > = Account :: < Inventory > :: try_from (ai) ? ;",
+      "if inv . slots < 10",
+      "{",
+      "inv . slots = inv . slots . saturating_add (2) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "assert_account_type",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "acc: & AccountInfo"
+    ],
+    "attributes": [],
+    "body": [
+      "let data = acc . try_borrow_data () ? ;",
+      "if data . len () < 8",
+      "{",
+      "return Err (error ! (GameErr :: AccountDataTooSmall)) ;",
+      "}",
+      "let expected = T :: discriminator () ;",
+      "let mut same = true ;",
+      "let mut i = 0usize ;",
+      "while i < 8",
+      "{",
+      "if data [i] != expected [i]",
+      "{",
+      "same = false ;",
+      "} i += 1 ;",
+      "}",
+      "if ! same",
+      "{",
+      "return Err (error ! (GameErr :: AccountTypeMismatch)) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "PlayerProfile",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "level",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "exp",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "last_crafted",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Inventory",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "slots",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "seed_tag",
+        "attribute": null,
+        "field_type": "[u8 ; 8]"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Recipe",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "mint",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "cost",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "min_level",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitPlayer",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "player",
+        "attribute": "# [account (init , payer = authority , seeds = [b\"player\" , authority . key () . as_ref ()] , bump , space = 8 + 32 + 4 + 8 + 8 + 1)]",
+        "field_type": "Account < 'info , PlayerProfile >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitInventory",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "player",
+        "attribute": "# [account (mut , has_one = authority)]",
+        "field_type": "Account < 'info , PlayerProfile >"
+      },
+      {
+        "name": "inventory",
+        "attribute": "# [account (init , payer = authority , seeds = [b\"inventory\" , player . key () . as_ref ()] , bump , space = 8 + 32 + 2 + 8 + 1)]",
+        "field_type": "Account < 'info , Inventory >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitRecipe",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "recipe",
+        "attribute": "# [account (init , payer = authority , seeds = [b\"recipe\" , item_mint . key () . as_ref ()] , bump , space = 8 + 32 + 8 + 4 + 1)]",
+        "field_type": "Account < 'info , Recipe >"
+      },
+      {
+        "name": "item_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CraftItem",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "player",
+        "attribute": "# [account (mut , has_one = authority)]",
+        "field_type": "Account < 'info , PlayerProfile >"
+      },
+      {
+        "name": "inventory",
+        "attribute": "# [account (mut , seeds = [b\"inventory\" , player . key () . as_ref ()] , bump = inventory . bump , constraint = inventory . owner == player . key ())]",
+        "field_type": "Account < 'info , Inventory >"
+      },
+      {
+        "name": "recipe",
+        "attribute": "# [account (seeds = [b\"recipe\" , item_mint . key () . as_ref ()] , bump = recipe . bump)]",
+        "field_type": "Account < 'info , Recipe >"
+      },
+      {
+        "name": "item_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "user_token",
+        "attribute": "# [account (mut , constraint = user_token . mint == item_mint . key () , constraint = user_token . owner == authority . key ())]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "vault_token",
+        "attribute": "# [account (mut , constraint = vault_token . mint == item_mint . key ())]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BindUntypedInventory",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "untyped_inventory",
+        "attribute": "# [doc = \" CHECK: 直後にディスクリミネータ検査を行うためUncheckedにしている\"]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

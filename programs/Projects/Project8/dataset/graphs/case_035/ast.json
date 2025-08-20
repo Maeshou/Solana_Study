@@ -1,0 +1,144 @@
+[
+  {
+    "name": "init_dungeon",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitDungeon >",
+      "shard: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let d = & mut ctx . accounts . dungeon ;",
+      "d . warden = ctx . accounts . warden . key () ;",
+      "d . shard = shard . rotate_left (3) . wrapping_add (33) ;",
+      "d . depth = 1 ;",
+      "let mut s = d . shard . rotate_right (1) . wrapping_add (5) ;",
+      "for _ in 0 .. 4",
+      "{",
+      "s = s . rotate_left (1) . wrapping_mul (2) . wrapping_add (7) ;",
+      "d . depth = d . depth . saturating_add (((s % 19) as u32) + 1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "loot_drop",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < LootDrop >",
+      "lamports: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let ix = system_instruction :: transfer (& ctx . accounts . dungeon . key () , & ctx . accounts . adventurer . key () , lamports) ;",
+      "let bump = * ctx . bumps . get (\"dungeon\") . ok_or (error ! (DungeonErr :: MissingBump)) ? ;",
+      "let seeds : & [& [u8]] = & [b\"dungeon\" , ctx . accounts . warden . key . as_ref () , & ctx . accounts . dungeon . shard . to_le_bytes () , & [bump] ,] ;",
+      "invoke_signed (& ix , & [ctx . accounts . dungeon . to_account_info () , ctx . accounts . adventurer . to_account_info () , ctx . accounts . system_program . to_account_info () ,] , & [seeds] ,) ? ;",
+      "emit ! (LootPaid { to : ctx . accounts . adventurer . key () , amount : lamports }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "LootPaid",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "to",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "amount",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitDungeon",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "dungeon",
+        "attribute": "# [account (init , payer = warden , space = 8 + 32 + 8 + 4 , seeds = [b\"dungeon\" , warden . key () . as_ref () , shard . to_le_bytes () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , DungeonState >"
+      },
+      {
+        "name": "warden",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "shard",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "LootDrop",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "dungeon",
+        "attribute": "# [account (mut , seeds = [b\"dungeon\" , warden . key () . as_ref () , dungeon . shard . to_le_bytes () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , DungeonState >"
+      },
+      {
+        "name": "adventurer",
+        "attribute": "# [account (mut)]",
+        "field_type": "SystemAccount < 'info >"
+      },
+      {
+        "name": "warden",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DungeonState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "warden",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "shard",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "depth",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

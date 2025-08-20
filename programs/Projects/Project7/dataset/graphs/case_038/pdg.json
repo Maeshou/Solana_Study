@@ -1,0 +1,425 @@
+[
+  {
+    "name": "init_guild",
+    "inputs": [
+      "ctx: Context < InitGuild >",
+      "monthly_due: u64",
+      "base_refund_bps: u16"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let ledger_state = & mut ctx . accounts . ledger_state ;"
+      },
+      {
+        "id": 2,
+        "label": "ledger_state . leader = ctx . accounts . leader . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "ledger_state . monthly_due = if monthly_due < 3 { 3 } else { monthly_due } ;"
+      },
+      {
+        "id": 4,
+        "label": "3"
+      },
+      {
+        "id": 5,
+        "label": "monthly_due"
+      },
+      {
+        "id": 6,
+        "label": "ledger_state . base_refund_bps = if base_refund_bps > 7000 { 7000 } else { base_refund_bps } ;"
+      },
+      {
+        "id": 7,
+        "label": "7000"
+      },
+      {
+        "id": 8,
+        "label": "base_refund_bps"
+      },
+      {
+        "id": 9,
+        "label": "ledger_state . period_counter = 2 ;"
+      },
+      {
+        "id": 10,
+        "label": "ledger_state . net_collected = monthly_due + 5 ;"
+      },
+      {
+        "id": 11,
+        "label": "ledger_state . rollover_units = 1 ;"
+      },
+      {
+        "id": 12,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: ledger_state"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: ledger_state"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: ledger_state"
+      },
+      {
+        "from": 1,
+        "to": 6,
+        "label": "data_dep: ledger_state"
+      },
+      {
+        "from": 1,
+        "to": 9,
+        "label": "data_dep: ledger_state"
+      },
+      {
+        "from": 1,
+        "to": 10,
+        "label": "data_dep: ledger_state"
+      },
+      {
+        "from": 1,
+        "to": 11,
+        "label": "data_dep: ledger_state"
+      }
+    ]
+  },
+  {
+    "name": "act_cycle",
+    "inputs": [
+      "ctx: Context < ActCycle >",
+      "months: u8",
+      "request_refund: bool"
+    ],
+    "nodes": [
+      {
+        "id": 13,
+        "label": "Entry"
+      },
+      {
+        "id": 14,
+        "label": "let ledger_state = & mut ctx . accounts . ledger_state ;"
+      },
+      {
+        "id": 15,
+        "label": "let mut aggregate_due : u64 = ledger_state . monthly_due ;"
+      },
+      {
+        "id": 16,
+        "label": "let mut month_cursor : u8 = 1 ;"
+      },
+      {
+        "id": 17,
+        "label": "while month_cursor < months { let mut period_due : u64 = ledger_state . monthly_due ; if month_cursor >= 3 { period_due = period_due - (period_due / 20) ; } if month_cursor >= 6 { period_due = period_due - (period_due / 20) ; } if month_cursor >= 9 { period_due = period_due - (period_due / 20) ; } aggregate_due = aggregate_due + period_due ; month_cursor = month_cursor + 1 ; }"
+      },
+      {
+        "id": 18,
+        "label": "let mut period_due : u64 = ledger_state . monthly_due ;"
+      },
+      {
+        "id": 19,
+        "label": "if month_cursor >= 3 { period_due = period_due - (period_due / 20) ; }"
+      },
+      {
+        "id": 20,
+        "label": "period_due = period_due - (period_due / 20) ;"
+      },
+      {
+        "id": 21,
+        "label": "if month_cursor >= 6 { period_due = period_due - (period_due / 20) ; }"
+      },
+      {
+        "id": 22,
+        "label": "period_due = period_due - (period_due / 20) ;"
+      },
+      {
+        "id": 23,
+        "label": "if month_cursor >= 9 { period_due = period_due - (period_due / 20) ; }"
+      },
+      {
+        "id": 24,
+        "label": "period_due = period_due - (period_due / 20) ;"
+      },
+      {
+        "id": 25,
+        "label": "aggregate_due = aggregate_due + period_due ;"
+      },
+      {
+        "id": 26,
+        "label": "month_cursor = month_cursor + 1 ;"
+      },
+      {
+        "id": 27,
+        "label": "if request_refund { let mut effective_bps : u64 = ledger_state . base_refund_bps as u64 ; if ledger_state . period_counter % 2 == 0 { effective_bps = effective_bps + 150 ; } let refund_total : u64 = (aggregate_due as u128 * effective_bps as u128 / 10_000u128) as u64 ; let rollover_part : u64 = refund_total / 10 ; let immediate_refund : u64 = refund_total - rollover_part ; token :: transfer (ctx . accounts . treasury_to_member_ctx () , immediate_refund) ? ; ledger_state . rollover_units = ledger_state . rollover_units + rollover_part ; ledger_state . net_collected = ledger_state . net_collected - immediate_refund ; } else { let mut charge_amount : u64 = aggregate_due ; if ledger_state . rollover_units > 0 { let apply_units = core :: cmp :: min (ledger_state . rollover_units , charge_amount) ; charge_amount = charge_amount - apply_units ; ledger_state . rollover_units = ledger_state . rollover_units - apply_units ; } token :: transfer (ctx . accounts . member_to_treasury_ctx () , charge_amount) ? ; ledger_state . net_collected = ledger_state . net_collected + charge_amount ; }"
+      },
+      {
+        "id": 28,
+        "label": "let mut effective_bps : u64 = ledger_state . base_refund_bps as u64 ;"
+      },
+      {
+        "id": 29,
+        "label": "if ledger_state . period_counter % 2 == 0 { effective_bps = effective_bps + 150 ; }"
+      },
+      {
+        "id": 30,
+        "label": "effective_bps = effective_bps + 150 ;"
+      },
+      {
+        "id": 31,
+        "label": "let refund_total : u64 = (aggregate_due as u128 * effective_bps as u128 / 10_000u128) as u64 ;"
+      },
+      {
+        "id": 32,
+        "label": "let rollover_part : u64 = refund_total / 10 ;"
+      },
+      {
+        "id": 33,
+        "label": "let immediate_refund : u64 = refund_total - rollover_part ;"
+      },
+      {
+        "id": 34,
+        "label": "token :: transfer (ctx . accounts . treasury_to_member_ctx () , immediate_refund) ? ;"
+      },
+      {
+        "id": 35,
+        "label": "ledger_state . rollover_units = ledger_state . rollover_units + rollover_part ;"
+      },
+      {
+        "id": 36,
+        "label": "ledger_state . net_collected = ledger_state . net_collected - immediate_refund ;"
+      },
+      {
+        "id": 37,
+        "label": "let mut charge_amount : u64 = aggregate_due ;"
+      },
+      {
+        "id": 38,
+        "label": "if ledger_state . rollover_units > 0 { let apply_units = core :: cmp :: min (ledger_state . rollover_units , charge_amount) ; charge_amount = charge_amount - apply_units ; ledger_state . rollover_units = ledger_state . rollover_units - apply_units ; }"
+      },
+      {
+        "id": 39,
+        "label": "let apply_units = core :: cmp :: min (ledger_state . rollover_units , charge_amount) ;"
+      },
+      {
+        "id": 40,
+        "label": "charge_amount = charge_amount - apply_units ;"
+      },
+      {
+        "id": 41,
+        "label": "ledger_state . rollover_units = ledger_state . rollover_units - apply_units ;"
+      },
+      {
+        "id": 42,
+        "label": "token :: transfer (ctx . accounts . member_to_treasury_ctx () , charge_amount) ? ;"
+      },
+      {
+        "id": 43,
+        "label": "ledger_state . net_collected = ledger_state . net_collected + charge_amount ;"
+      },
+      {
+        "id": 44,
+        "label": "ledger_state . period_counter = ledger_state . period_counter + 1 ;"
+      },
+      {
+        "id": 45,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 14,
+        "to": 14,
+        "label": "def: ledger_state"
+      },
+      {
+        "from": 14,
+        "to": 15,
+        "label": "data_dep: ledger_state"
+      },
+      {
+        "from": 14,
+        "to": 17,
+        "label": "data_dep: ledger_state"
+      },
+      {
+        "from": 14,
+        "to": 18,
+        "label": "data_dep: ledger_state"
+      },
+      {
+        "from": 14,
+        "to": 27,
+        "label": "data_dep: ledger_state"
+      },
+      {
+        "from": 14,
+        "to": 27,
+        "label": "data_dep: ledger_state"
+      },
+      {
+        "from": 14,
+        "to": 27,
+        "label": "data_dep: ledger_state"
+      },
+      {
+        "from": 14,
+        "to": 27,
+        "label": "data_dep: ledger_state"
+      },
+      {
+        "from": 14,
+        "to": 27,
+        "label": "data_dep: ledger_state"
+      },
+      {
+        "from": 14,
+        "to": 27,
+        "label": "data_dep: ledger_state"
+      },
+      {
+        "from": 14,
+        "to": 27,
+        "label": "data_dep: ledger_state"
+      },
+      {
+        "from": 14,
+        "to": 27,
+        "label": "data_dep: ledger_state"
+      },
+      {
+        "from": 14,
+        "to": 27,
+        "label": "data_dep: ledger_state"
+      },
+      {
+        "from": 14,
+        "to": 27,
+        "label": "data_dep: ledger_state"
+      },
+      {
+        "from": 14,
+        "to": 27,
+        "label": "data_dep: ledger_state"
+      },
+      {
+        "from": 14,
+        "to": 27,
+        "label": "data_dep: ledger_state"
+      },
+      {
+        "from": 14,
+        "to": 28,
+        "label": "data_dep: ledger_state"
+      },
+      {
+        "from": 14,
+        "to": 29,
+        "label": "data_dep: ledger_state"
+      },
+      {
+        "from": 14,
+        "to": 35,
+        "label": "data_dep: ledger_state"
+      },
+      {
+        "from": 14,
+        "to": 35,
+        "label": "data_dep: ledger_state"
+      },
+      {
+        "from": 14,
+        "to": 36,
+        "label": "data_dep: ledger_state"
+      },
+      {
+        "from": 14,
+        "to": 36,
+        "label": "data_dep: ledger_state"
+      },
+      {
+        "from": 14,
+        "to": 38,
+        "label": "data_dep: ledger_state"
+      },
+      {
+        "from": 14,
+        "to": 38,
+        "label": "data_dep: ledger_state"
+      },
+      {
+        "from": 14,
+        "to": 38,
+        "label": "data_dep: ledger_state"
+      },
+      {
+        "from": 14,
+        "to": 38,
+        "label": "data_dep: ledger_state"
+      },
+      {
+        "from": 39,
+        "to": 39,
+        "label": "def: apply_units"
+      },
+      {
+        "from": 14,
+        "to": 39,
+        "label": "data_dep: ledger_state"
+      },
+      {
+        "from": 39,
+        "to": 40,
+        "label": "data_dep: apply_units"
+      },
+      {
+        "from": 14,
+        "to": 41,
+        "label": "data_dep: ledger_state"
+      },
+      {
+        "from": 14,
+        "to": 41,
+        "label": "data_dep: ledger_state"
+      },
+      {
+        "from": 39,
+        "to": 41,
+        "label": "data_dep: apply_units"
+      },
+      {
+        "from": 14,
+        "to": 43,
+        "label": "data_dep: ledger_state"
+      },
+      {
+        "from": 14,
+        "to": 43,
+        "label": "data_dep: ledger_state"
+      },
+      {
+        "from": 14,
+        "to": 44,
+        "label": "data_dep: ledger_state"
+      },
+      {
+        "from": 14,
+        "to": 44,
+        "label": "data_dep: ledger_state"
+      }
+    ]
+  }
+]

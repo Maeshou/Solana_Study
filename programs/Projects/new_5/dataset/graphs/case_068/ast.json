@@ -1,0 +1,222 @@
+[
+  {
+    "name": "create_project",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateProject >",
+      "project_id: u64",
+      "member_count: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let project = & mut ctx . accounts . project ;",
+      "project . leader = ctx . accounts . leader . key () ;",
+      "project . project_id = project_id ;",
+      "project . member_count = member_count ;",
+      "project . data_point_count = 0 ;",
+      "project . project_status = ProjectStatus :: Ongoing ;",
+      "msg ! (\"Scientific project {} started with {} members.\" , project . project_id , project . member_count) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "record_data",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RecordData >",
+      "data_id: u32",
+      "value: u64",
+      "is_critical: bool"
+    ],
+    "attributes": [],
+    "body": [
+      "let data_point = & mut ctx . accounts . data_point ;",
+      "let project = & mut ctx . accounts . project ;",
+      "if matches ! (project . project_status , ProjectStatus :: Ongoing)",
+      "{",
+      "data_point . is_critical = is_critical ;",
+      "data_point . data_value = value ;",
+      "project . data_point_count = project . data_point_count . saturating_add (1) ;",
+      "msg ! (\"Data point",
+      "{",
+      "} recorded with value {}.\" , data_point . data_id , data_point . data_value) ;",
+      "} else",
+      "{",
+      "data_point . is_critical = false ;",
+      "data_point . data_value = 0 ;",
+      "msg ! (\"Project is not ongoing. Data point",
+      "{",
+      "} not recorded.\" , data_point . data_id) ;",
+      "}",
+      "data_point . project = project . key () ;",
+      "data_point . data_id = data_id ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "analyze_data",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AnalyzeData >",
+      "data_value_to_add: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let data1 = & mut ctx . accounts . data1 ;",
+      "let data2 = & mut ctx . accounts . data2 ;",
+      "if data1 . data_value > 1000 && data2 . data_value > 1000",
+      "{",
+      "data1 . data_value = data1 . data_value . saturating_add (data_value_to_add) ;",
+      "data2 . data_value = data2 . data_value . saturating_sub (data_value_to_add) ;",
+      "msg ! (\"Analyzed data points, transferred value between them.\") ;",
+      "} else",
+      "{",
+      "msg ! (\"Data values are too low for analysis.\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CreateProject",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "project",
+        "attribute": "# [account (init , payer = leader , space = 8 + 32 + 8 + 4 + 4 + 1)]",
+        "field_type": "Account < 'info , ResearchProject >"
+      },
+      {
+        "name": "leader",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RecordData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "project",
+        "attribute": "# [account (mut , has_one = project)]",
+        "field_type": "Account < 'info , ResearchProject >"
+      },
+      {
+        "name": "data_point",
+        "attribute": "# [account (init , payer = member , space = 8 + 32 + 4 + 8 + 1)]",
+        "field_type": "Account < 'info , DataPoint >"
+      },
+      {
+        "name": "member",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AnalyzeData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "project",
+        "attribute": "# [account (mut , has_one = project)]",
+        "field_type": "Account < 'info , ResearchProject >"
+      },
+      {
+        "name": "data1",
+        "attribute": "# [account (mut , has_one = project)]",
+        "field_type": "Account < 'info , DataPoint >"
+      },
+      {
+        "name": "data2",
+        "attribute": "# [account (mut , has_one = project)]",
+        "field_type": "Account < 'info , DataPoint >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ResearchProject",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "leader",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "project_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "member_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "data_point_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "project_status",
+        "attribute": null,
+        "field_type": "ProjectStatus"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DataPoint",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "project",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "data_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "data_value",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "is_critical",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

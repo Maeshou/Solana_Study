@@ -1,0 +1,204 @@
+[
+  {
+    "name": "register_guild",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RegisterGuild >",
+      "guild_name: String",
+      "difficulty: DifficultyLevel",
+      "initial_treasury: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let base = & mut ctx . accounts . guild_base ;",
+      "let now = Clock :: get () ? . unix_timestamp ;",
+      "require ! (guild_name . len () > 0 , ErrorCode :: EmptyName) ;",
+      "require ! (guild_name . len () <= 32 , ErrorCode :: NameTooLong) ;",
+      "require ! (initial_treasury > 0 , ErrorCode :: TreasuryTooLow) ;",
+      "base . guild_master = ctx . accounts . guild_master . key () ;",
+      "base . name = guild_name ;",
+      "base . established_at = now ;",
+      "base . members = 1 ;",
+      "base . treasury = initial_treasury ;",
+      "base . difficulty = difficulty . clone () ;",
+      "let mut exp = 100u32 ;",
+      "let mut res = 100u32 ;",
+      "let mut def = 100u32 ;",
+      "let mut atk = 100u32 ;",
+      "if matches_easy (& difficulty)",
+      "{",
+      "exp = exp . saturating_add (10) ;",
+      "res = res . saturating_add (5) ;",
+      "}",
+      "if matches_normal (& difficulty)",
+      "{",
+      "exp = exp . saturating_add (5) ;",
+      "def = def . saturating_add (5) ;",
+      "}",
+      "if matches_hard (& difficulty)",
+      "{",
+      "atk = atk . saturating_add (10) ;",
+      "def = def . saturating_add (10) ;",
+      "}",
+      "if matches_legend (& difficulty)",
+      "{",
+      "exp = exp . saturating_add (20) ;",
+      "res = res . saturating_add (15) ;",
+      "atk = atk . saturating_add (20) ;",
+      "}",
+      "let name_len = base . name . len () as u32 ;",
+      "let tick_bias = (now as u64) . rotate_left (7) as u32 % 9 ;",
+      "base . bonus . experience_multiplier = exp . saturating_add (name_len % 7) ;",
+      "base . bonus . resource_bonus = res . saturating_add (tick_bias % 5) ;",
+      "base . bonus . defense_bonus = def . saturating_add ((name_len ^ tick_bias) % 6) ;",
+      "base . bonus . attack_bonus = atk . saturating_add ((tick_bias ^ 3) % 7) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "matches_easy",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "d: & DifficultyLevel"
+    ],
+    "attributes": [],
+    "body": [
+      "matches ! (d , DifficultyLevel :: Easy)"
+    ]
+  },
+  {
+    "name": "matches_normal",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "d: & DifficultyLevel"
+    ],
+    "attributes": [],
+    "body": [
+      "matches ! (d , DifficultyLevel :: Normal)"
+    ]
+  },
+  {
+    "name": "matches_hard",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "d: & DifficultyLevel"
+    ],
+    "attributes": [],
+    "body": [
+      "matches ! (d , DifficultyLevel :: Hard)"
+    ]
+  },
+  {
+    "name": "matches_legend",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "d: & DifficultyLevel"
+    ],
+    "attributes": [],
+    "body": [
+      "matches ! (d , DifficultyLevel :: Legend)"
+    ]
+  },
+  {
+    "name": "RegisterGuild",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild_base",
+        "attribute": "# [account (init , payer = guild_master , space = 8 + GuildBase :: MAX_SPACE , seeds = [b\"guild-base\" , guild_master . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , GuildBase >"
+      },
+      {
+        "name": "guild_master",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GuildBase",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild_master",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "established_at",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "members",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "treasury",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "difficulty",
+        "attribute": null,
+        "field_type": "DifficultyLevel"
+      },
+      {
+        "name": "bonus",
+        "attribute": null,
+        "field_type": "GuildBonus"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GuildBonus",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "experience_multiplier",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "resource_bonus",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "defense_bonus",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "attack_bonus",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

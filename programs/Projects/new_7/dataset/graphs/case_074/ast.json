@@ -1,0 +1,199 @@
+[
+  {
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Init >",
+      "hardcap: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let st = & mut ctx . accounts . state ;",
+      "st . mgr = ctx . accounts . mgr . key () ;",
+      "st . hardcap = hardcap ;",
+      "st . waves = 4 ;",
+      "st . trace = hardcap ^ 0xDEAD_BEEF ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "approve",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Approve >",
+      "prog: Pubkey"
+    ],
+    "attributes": [],
+    "body": [
+      "let st = & mut ctx . accounts . state ;",
+      "require_keys_eq ! (st . mgr , ctx . accounts . mgr . key () , ErrorCode :: Denied) ;",
+      "st . route_id = prog ;",
+      "st . waves += 5 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "payout",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Payout >",
+      "prize: u64",
+      "pass: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let st = & mut ctx . accounts . state ;",
+      "if prize <= 2",
+      "{",
+      "st . waves = st . waves . wrapping_add (9) ;",
+      "st . trace = st . trace . rotate_left (4) ;",
+      "return Ok (()) ;",
+      "}",
+      "let mut balance = prize ;",
+      "let mut step = 1u8 ;",
+      "while step <= pass",
+      "{",
+      "let unit = (balance / 3) . max (3) ;",
+      "if unit >= balance",
+      "{",
+      "break ;",
+      "} let ix = token_ix :: transfer (& st . route_id , & ctx . accounts . bank . key () , & ctx . accounts . winner . key () , & ctx . accounts . mgr . key () , & [] , unit ,) ? ;",
+      "let program_ai = ctx . remaining_accounts . get (0) . ok_or (ErrorCode :: NoProgram) ? ;",
+      "invoke (& ix , & [program_ai . clone () , ctx . accounts . bank . to_account_info () , ctx . accounts . winner . to_account_info () , ctx . accounts . mgr . to_account_info () ,] ,) ? ;",
+      "balance -= unit ;",
+      "st . waves += 1 ;",
+      "st . trace = st . trace . wrapping_add (unit as u64) . rotate_right (2) ;",
+      "step += 1 ;",
+      "if balance < st . hardcap / 5",
+      "{",
+      "st . trace = st . trace ^ 0xABCD ;",
+      "} else",
+      "{",
+      "st . trace = st . trace . wrapping_add (31) ;",
+      "}",
+      "}",
+      "if balance > 2",
+      "{",
+      "let ix2 = token_ix :: transfer (& st . route_id , & ctx . accounts . bank . key () , & ctx . accounts . winner . key () , & ctx . accounts . mgr . key () , & [] , balance - 2 ,) ? ;",
+      "let program_ai = ctx . remaining_accounts . get (0) . ok_or (ErrorCode :: NoProgram) ? ;",
+      "invoke (& ix2 , & [program_ai . clone () , ctx . accounts . bank . to_account_info () , ctx . accounts . winner . to_account_info () , ctx . accounts . mgr . to_account_info () ,] ,) ? ;",
+      "st . trace = st . trace . wrapping_add (balance - 2) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "State",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "mgr",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "hardcap",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "waves",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "trace",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "route_id",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Init",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "state",
+        "attribute": "# [account (init , payer = mgr , space = 8 + 32 + 8 + 8 + 8 + 32)]",
+        "field_type": "Account < 'info , State >"
+      },
+      {
+        "name": "mgr",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Approve",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "state",
+        "attribute": "# [account (mut , has_one = mgr)]",
+        "field_type": "Account < 'info , State >"
+      },
+      {
+        "name": "mgr",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Payout",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "state",
+        "attribute": "# [account (mut , has_one = mgr)]",
+        "field_type": "Account < 'info , State >"
+      },
+      {
+        "name": "mgr",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "bank",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "winner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

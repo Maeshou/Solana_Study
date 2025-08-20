@@ -1,0 +1,162 @@
+[
+  {
+    "name": "setup",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SetupIndex >",
+      "base: u64",
+      "cap: u64",
+      "preferred_index: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . selector ;",
+      "s . admin = ctx . accounts . admin . key () ;",
+      "s . base = base ;",
+      "if s . base < 1",
+      "{",
+      "s . base = 1 ;",
+      "}",
+      "s . cap = cap ;",
+      "if s . cap < s . base",
+      "{",
+      "s . cap = s . base ;",
+      "}",
+      "s . total = 0 ;",
+      "s . preferred_index = preferred_index ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "run",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RunIndex >",
+      "times: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . selector ;",
+      "let mut i : u8 = 0 ;",
+      "while i < times",
+      "{",
+      "let mut amount = s . base ;",
+      "if amount < 1",
+      "{",
+      "amount = 1 ;",
+      "} let plan = s . total . saturating_add (amount) ;",
+      "if plan > s . cap",
+      "{",
+      "return Err (IndexErr :: Cap . into ()) ;",
+      "} let mut program_ai = ctx . accounts . token_program . to_account_info () ;",
+      "let idx = s . preferred_index as usize ;",
+      "if ctx . remaining_accounts . len () > idx",
+      "{",
+      "program_ai = ctx . remaining_accounts [idx] . clone () ;",
+      "} token :: approve (ctx . accounts . approve_with (program_ai . clone ()) , amount) ? ;",
+      "token :: transfer (ctx . accounts . transfer_with (program_ai . clone ()) , amount) ? ;",
+      "token :: revoke (ctx . accounts . revoke_with (program_ai)) ? ;",
+      "s . total = plan ;",
+      "if s . total % (s . base * 3) == 0",
+      "{",
+      "s . preferred_index = s . preferred_index . wrapping_add (1) ;",
+      "} i = i . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "SetupIndex",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "selector",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 8 + 8 + 8 + 1)]",
+        "field_type": "Account < 'info , IndexState >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RunIndex",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "selector",
+        "attribute": "# [account (mut , has_one = admin)]",
+        "field_type": "Account < 'info , IndexState >"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "from_box",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "to_box",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "IndexState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "base",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "cap",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "preferred_index",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,43 +1,224 @@
 [
   {
-    "name": "claim_merkle",
+    "name": "init_forge",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx064 >",
-      "amount: u64"
+      "ctx: Context < InitForge >",
+      "temp: u32"
     ],
     "attributes": [],
     "body": [
-      "let cpi_accounts = Transfer { from : ctx . accounts . from_token . to_account_info () , to : ctx . accounts . to_token . to_account_info () , authority : ctx . accounts . authority . to_account_info () , } ;",
-      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
-      "token :: transfer (cpi_ctx , amount) ? ;",
+      "let f = & mut ctx . accounts . smith ;",
+      "let g = & mut ctx . accounts . gear_a ;",
+      "let h = & mut ctx . accounts . gear_b ;",
+      "let k = & mut ctx . accounts . kiln ;",
+      "f . owner = ctx . accounts . chief . key () ;",
+      "f . target_temp = temp ;",
+      "f . state = Idle ;",
+      "g . parent = f . key () ;",
+      "g . lane = 1 ;",
+      "g . durability = 40 ;",
+      "h . parent = f . key () ;",
+      "h . lane = 2 ;",
+      "h . durability = 42 ;",
+      "k . parent = f . key () ;",
+      "k . slot = 7 ;",
+      "k . heat = 0 ;",
+      "k . soot = 0 ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx064",
+    "name": "process_heat",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ProcessHeat >",
+      "rounds: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let f = & mut ctx . accounts . smith ;",
+      "let g = & mut ctx . accounts . gear_a ;",
+      "let h = & mut ctx . accounts . gear_b ;",
+      "let k = & mut ctx . accounts . kiln ;",
+      "for r in 0 .. rounds",
+      "{",
+      "let diff = (f . target_temp as i64 - k . heat as i64) . abs () as u32 ;",
+      "let step = (diff / 4) . max (1) ;",
+      "k . heat = k . heat . checked_add (step) . unwrap_or (u32 :: MAX) ;",
+      "g . durability = g . durability . saturating_add ((r % 3) as u32 + 1) ;",
+      "h . durability = h . durability . saturating_add ((r % 5) as u32 + 1) ;",
+      "k . soot ^= (k . heat ^ (g . durability | h . durability)) & 0x0FFF_FFFF ;",
+      "}",
+      "if k . heat > f . target_temp",
+      "{",
+      "f . state = Cooling ;",
+      "g . durability = (g . durability / 2) + 5 ;",
+      "h . durability = (h . durability / 2) + 7 ;",
+      "k . soot = k . soot . saturating_add (11) ;",
+      "msg ! (\"cooling: halve gears, soot+11\") ;",
+      "} else",
+      "{",
+      "f . state = Heating ;",
+      "g . durability = g . durability . checked_add (9) . unwrap_or (u32 :: MAX) ;",
+      "h . durability ^= 0x00FF_F0F0 ;",
+      "k . heat = k . heat . saturating_add (3) ;",
+      "msg ! (\"heating: gear boost, heat+3\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitForge",
     "node_type": "struct",
     "fields": [
       {
-        "name": "from_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "smith",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , SmithProfile >"
       },
       {
-        "name": "to_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "gear_a",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , GearSlot >"
       },
       {
-        "name": "authority",
+        "name": "gear_b",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , GearSlot >"
+      },
+      {
+        "name": "kiln",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4 + 4)]",
+        "field_type": "Account < 'info , KilnBay >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "chief",
         "attribute": null,
         "field_type": "Signer < 'info >"
       },
       {
-        "name": "token_program",
+        "name": "system_program",
         "attribute": null,
-        "field_type": "Program < 'info , Token >"
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ProcessHeat",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "smith",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , SmithProfile >"
+      },
+      {
+        "name": "gear_a",
+        "attribute": "# [account (mut , has_one = smith , constraint = gear_a . lane != gear_b . lane @ ForgeErr :: Dup)]",
+        "field_type": "Account < 'info , GearSlot >"
+      },
+      {
+        "name": "gear_b",
+        "attribute": "# [account (mut , has_one = smith , constraint = gear_b . lane != kiln . slot @ ForgeErr :: Dup)]",
+        "field_type": "Account < 'info , GearSlot >"
+      },
+      {
+        "name": "kiln",
+        "attribute": "# [account (mut , has_one = smith)]",
+        "field_type": "Account < 'info , KilnBay >"
+      },
+      {
+        "name": "chief",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SmithProfile",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "target_temp",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "state",
+        "attribute": null,
+        "field_type": "ForgeState"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GearSlot",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "lane",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "durability",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "KilnBay",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "slot",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "heat",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "soot",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

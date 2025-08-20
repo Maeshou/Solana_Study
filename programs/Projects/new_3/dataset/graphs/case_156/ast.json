@@ -1,0 +1,184 @@
+[
+  {
+    "name": "RentContract",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "total_rentals",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "fee",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "NFTAsset",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "mint",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "rental_contract",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "active",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitializeContract",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "rent_contract",
+        "attribute": "# [account (init , payer = provider , space = 8 + 32 + 8 + 8)]",
+        "field_type": "Account < 'info , RentContract >"
+      },
+      {
+        "name": "provider",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RentAsset",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "rent_contract",
+        "attribute": "# [doc = \" RentContract.owner == renter.key() は検証される\"] # [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , RentContract >"
+      },
+      {
+        "name": "nft_asset",
+        "attribute": "# [doc = \" NFTAsset.rental_contract と rent_contract.key() の検証がない\"] # [account (mut)]",
+        "field_type": "Account < 'info , NFTAsset >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" レンタル申請者\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EndRental",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "rent_contract",
+        "attribute": "# [doc = \" RentContract.owner == provider.key() は検証される\"] # [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , RentContract >"
+      },
+      {
+        "name": "nft_asset",
+        "attribute": "# [doc = \" 同様に一致検証なし\"] # [account (mut)]",
+        "field_type": "Account < 'info , NFTAsset >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 契約者\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "initialize_contract",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeContract >",
+      "fee: u64"
+    ],
+    "attributes": [
+      "# [doc = \" レンタル契約を初期化\"]"
+    ],
+    "body": [
+      "let rc = & mut ctx . accounts . rent_contract ;",
+      "rc . owner = ctx . accounts . provider . key () ;",
+      "rc . total_rentals = 0 ;",
+      "rc . fee = fee ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "rent_asset",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RentAsset >"
+    ],
+    "attributes": [
+      "# [doc = \" NFT をレンタル\"]"
+    ],
+    "body": [
+      "let rc = & mut ctx . accounts . rent_contract ;",
+      "let na = & mut ctx . accounts . nft_asset ;",
+      "na . owner = ctx . accounts . owner . key () ;",
+      "na . rental_contract = rc . key () ;",
+      "na . active = true ;",
+      "rc . total_rentals = rc . total_rentals . checked_add (1) . unwrap () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "end_rental",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < EndRental >"
+    ],
+    "attributes": [
+      "# [doc = \" レンタル終了（返却）\"]"
+    ],
+    "body": [
+      "let rc = & mut ctx . accounts . rent_contract ;",
+      "let na = & mut ctx . accounts . nft_asset ;",
+      "na . owner = rc . owner ;",
+      "na . active = false ;",
+      "Ok (())"
+    ]
+  }
+]

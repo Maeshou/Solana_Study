@@ -1,0 +1,167 @@
+[
+  {
+    "name": "init_program",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitProgram >",
+      "cashback_bps: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let prog = & mut ctx . accounts . program_state ;",
+      "prog . operator = ctx . accounts . operator . key () ;",
+      "prog . cashback_bps = clamp_u16 (cashback_bps , 100 , 3000) ;",
+      "prog . loyalty_points = 2 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_purchase",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActPurchase >",
+      "ticket_price: u64",
+      "quantity: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let prog = & mut ctx . accounts . program_state ;",
+      "let total = ticket_price * quantity ;",
+      "token :: transfer (ctx . accounts . buyer_to_merchant () , total) ? ;",
+      "let mut factor = 100u64 ;",
+      "let mut loop_i : u8 = 0 ;",
+      "while loop_i < (prog . loyalty_points % 5) as u8",
+      "{",
+      "factor = factor + 5 ;",
+      "loop_i = loop_i + 1 ;",
+      "}",
+      "let base_cashback = total * prog . cashback_bps as u64 / 10_000 ;",
+      "let scaled = (base_cashback as u128 * factor as u128 / 100u128) as u64 ;",
+      "token :: mint_to (ctx . accounts . mint_reward () , scaled) ? ;",
+      "prog . loyalty_points = prog . loyalty_points + 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitProgram",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "program_state",
+        "attribute": "# [account (init , payer = operator , space = 8 + 32 + 2 + 8)]",
+        "field_type": "Account < 'info , CashbackState >"
+      },
+      {
+        "name": "operator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActPurchase",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "program_state",
+        "attribute": "# [account (mut , has_one = operator)]",
+        "field_type": "Account < 'info , CashbackState >"
+      },
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "buyer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "buyer_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "merchant_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "reward_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "buyer_reward_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CashbackState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "cashback_bps",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "loyalty_points",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "clamp_u16",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "v: u16",
+      "lo: u16",
+      "hi: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut o = v ;",
+      "if o < lo",
+      "{",
+      "o = lo ;",
+      "}",
+      "if o > hi",
+      "{",
+      "o = hi ;",
+      "}",
+      "o"
+    ]
+  }
+]

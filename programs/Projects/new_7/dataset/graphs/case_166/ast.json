@@ -1,0 +1,102 @@
+[
+  {
+    "name": "run",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Run >",
+      "stage: u64",
+      "amount: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let fixed_ix = Instruction { program_id : SCOREBOARD_ID_A , accounts : vec ! [AccountMeta :: new (ctx . accounts . slot_counter . key () , false) , AccountMeta :: new_readonly (ctx . accounts . player . key () , false) ,] , data : stage . to_le_bytes () . to_vec () , } ;",
+      "invoke (& fixed_ix , & [ctx . accounts . scoreboard_marker . to_account_info () , ctx . accounts . slot_counter . to_account_info () , ctx . accounts . player . to_account_info () ,] ,) ? ;",
+      "let mut target_program = ctx . accounts . report_hint . to_account_info () ;",
+      "if ! ctx . remaining_accounts . is_empty ()",
+      "{",
+      "target_program = ctx . remaining_accounts [0] . clone () ;",
+      "ctx . accounts . memo . routes = ctx . accounts . memo . routes . saturating_add (1) ;",
+      "}",
+      "let dynamic_ix = Instruction { program_id : * target_program . key , accounts : vec ! [AccountMeta :: new (ctx . accounts . report_board . key () , false) , AccountMeta :: new_readonly (ctx . accounts . player . key () , false) ,] , data : amount . to_le_bytes () . to_vec () , } ;",
+      "invoke (& dynamic_ix , & [target_program , ctx . accounts . report_board . to_account_info () , ctx . accounts . player . to_account_info () ,] ,) ? ;",
+      "let t = Transfer { from : ctx . accounts . treasury . to_account_info () , to : ctx . accounts . recipient_token . to_account_info () , authority : ctx . accounts . treasury_authority . to_account_info () , } ;",
+      "let tctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , t) ;",
+      "token :: transfer (tctx , amount) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Run",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "memo",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , LocalMemo >"
+      },
+      {
+        "name": "slot_counter",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "player",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "scoreboard_marker",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "report_board",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "report_hint",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "treasury",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "recipient_token",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "treasury_authority",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "LocalMemo",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "routes",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

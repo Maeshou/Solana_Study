@@ -1,40 +1,191 @@
 [
   {
-    "name": "unstake_nft",
+    "name": "init_tuner",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx033 >",
-      "amount: u64"
+      "ctx: Context < InitTuner >",
+      "ceiling: u32"
     ],
     "attributes": [],
     "body": [
-      "let src = & mut ctx . accounts . account_src ;",
-      "let dst = & mut ctx . accounts . account_dst ;",
-      "let before = * * src . to_account_info () . try_borrow_lamports () ? ;",
-      "* * src . to_account_info () . try_borrow_mut_lamports () ? = before . saturating_sub (amount) ;",
-      "* * dst . to_account_info () . try_borrow_mut_lamports () ? += amount ;",
+      "let s = & mut ctx . accounts ;",
+      "s . tuner . owner = s . owner . key () ;",
+      "s . tuner . ceiling = ceiling ;",
+      "s . tuner . state = TuneState :: Calibrating ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx033",
+    "name": "tune",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Tune >",
+      "laps: u32",
+      "alpha_ppm: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let run = & mut ctx . accounts ;",
+      "assert_ne ! (run . telemetry . key () , run . car . key () , \"telemetry/car must differ\") ;",
+      "let alpha = alpha_ppm . clamp (1 , 1_000_000) ;",
+      "let inv = 1_000_000u64 - alpha as u64 ;",
+      "for i in 0 .. laps",
+      "{",
+      "let input = (run . car . torque as u64 * (3 + (i % 5) as u64)) & 0xFFFF_FFFF ;",
+      "let ema_num = (run . telemetry . speed as u64 * inv) . checked_add (input * alpha as u64) . unwrap_or (u64 :: MAX) ;",
+      "run . telemetry . speed = (ema_num / 1_000_000) . min (u64 :: from (u32 :: MAX)) as u32 ;",
+      "let rot = (13 + (i % 11)) as u32 ;",
+      "let mixed = run . car . seed . rotate_left (rot) ^ run . telemetry . speed . rotate_right (7) ;",
+      "run . car . seed = mixed ^ 0xA5A5_5A5A ;",
+      "}",
+      "let sum = (run . telemetry . speed as u64) . saturating_add (run . car . torque as u64) ;",
+      "if sum > run . tuner . ceiling as u64",
+      "{",
+      "run . tuner . state = TuneState :: Locked ;",
+      "run . car . torque = max (run . car . torque / 2 , 1) ;",
+      "run . telemetry . variance = run . telemetry . variance . wrapping_add (0x1F) ;",
+      "msg ! (\"locked: torque halved, variance bumped\") ;",
+      "} else",
+      "{",
+      "run . tuner . state = TuneState :: Calibrating ;",
+      "run . car . torque = min (run . car . torque . saturating_mul (2) , u32 :: MAX) ;",
+      "run . telemetry . samples = run . telemetry . samples . wrapping_add (1) ;",
+      "msg ! (\"calibrating: torque doubled, samples++\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitTuner",
     "node_type": "struct",
     "fields": [
       {
-        "name": "account_src",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "tuner",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1 , seeds = [b\"tuner\" , owner . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Tuner >"
       },
       {
-        "name": "account_dst",
+        "name": "car",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 4)]",
+        "field_type": "Account < 'info , CarStat >"
+      },
+      {
+        "name": "telemetry",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4 + 8 + 4)]",
+        "field_type": "Account < 'info , Telemetry >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
       },
       {
         "name": "system_program",
         "attribute": null,
         "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Tune",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "tuner",
+        "attribute": "# [account (mut , seeds = [b\"tuner\" , owner . key () . as_ref ()] , bump , has_one = owner)]",
+        "field_type": "Account < 'info , Tuner >"
+      },
+      {
+        "name": "car",
+        "attribute": "# [account (mut , constraint = car . key () != telemetry . key () , error = GearErr :: Dup)]",
+        "field_type": "Account < 'info , CarStat >"
+      },
+      {
+        "name": "telemetry",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Telemetry >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Tuner",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "ceiling",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "state",
+        "attribute": null,
+        "field_type": "TuneState"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CarStat",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "torque",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "seed",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Telemetry",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "speed",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "samples",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "variance",
+        "attribute": null,
+        "field_type": "u64"
       }
     ],
     "inputs": null,

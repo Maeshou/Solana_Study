@@ -1,0 +1,234 @@
+[
+  {
+    "name": "init_canvas",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitCanvas >",
+      "w: u16",
+      "h: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let c = & mut ctx . accounts . canvas ;",
+      "let p = & mut ctx . accounts . palette ;",
+      "c . owner = ctx . accounts . owner . key () ;",
+      "c . size = (w as u32) * (h as u32) ;",
+      "c . channel = (w ^ h) as u8 ;",
+      "p . parent = c . key () ;",
+      "p . mode = 0 ;",
+      "p . ramps = [0u8 ; 8] ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_brush",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitBrush >",
+      "strength: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let b = & mut ctx . accounts . brush ;",
+      "b . parent = ctx . accounts . canvas . key () ;",
+      "b . strength = strength ;",
+      "b . seed = 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "mix",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Mix >",
+      "bias: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let c = & mut ctx . accounts . canvas ;",
+      "let b = & mut ctx . accounts . brush ;",
+      "let p = & mut ctx . accounts . palette ;",
+      "for i in 0 .. p . ramps . len ()",
+      "{",
+      "let v = ((p . ramps [i] as u16 + b . strength as u16 + bias as u16) & 0xFF) as u8 ;",
+      "p . ramps [i] = v ;",
+      "}",
+      "if (p . ramps [0] & 1) == 1",
+      "{",
+      "b . seed = b . seed . rotate_left (1) ;",
+      "c . size = c . size . saturating_add ((p . ramps [0] as u32) * 3) ;",
+      "p . mode = p . mode . saturating_add (1) . min (200) ;",
+      "msg ! (\"odd path: seed rot, size up, mode step\") ;",
+      "} else",
+      "{",
+      "b . seed = b . seed . rotate_right (1) ;",
+      "c . size = c . size . saturating_sub ((p . ramps [0] as u32) . min (c . size)) ;",
+      "p . mode = p . mode . saturating_sub (1) ;",
+      "msg ! (\"even path: seed rot back, size down, mode down\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitCanvas",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "canvas",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Canvas >"
+      },
+      {
+        "name": "palette",
+        "attribute": "# [doc = \" 固定パレット（例：PDA/定数）に pin\"] # [account (init , payer = owner , space = 8 + 32 + 1 + 1 * 8 , address = default_palette . key ())]",
+        "field_type": "Account < 'info , Palette >"
+      },
+      {
+        "name": "default_palette",
+        "attribute": "# [doc = \" CHECK: 固定先の公開鍵を受け渡すだけ\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitBrush",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "canvas",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Canvas >"
+      },
+      {
+        "name": "brush",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 1 + 1)]",
+        "field_type": "Account < 'info , Brush >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Mix",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "canvas",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Canvas >"
+      },
+      {
+        "name": "brush",
+        "attribute": "# [account (mut , has_one = parent)]",
+        "field_type": "Account < 'info , Brush >"
+      },
+      {
+        "name": "palette",
+        "attribute": "# [account (mut , has_one = parent , constraint = brush . strength != palette . mode as u8 @ MixErr :: Cosplay)]",
+        "field_type": "Account < 'info , Palette >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Canvas",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "size",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "channel",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Brush",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "strength",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "seed",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Palette",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "mode",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "ramps",
+        "attribute": null,
+        "field_type": "[u8 ; 8]"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

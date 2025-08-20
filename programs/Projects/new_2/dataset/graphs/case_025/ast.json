@@ -1,0 +1,53 @@
+[
+  {
+    "name": "stake_nft",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < StakeNft >",
+      "start_slot: u64",
+      "end_slot: u64"
+    ],
+    "attributes": [
+      "# [doc = \" NFTメタデータにステーク情報を書き込む（ownerチェックなし）\"]",
+      "# [doc = \" - `start_slot` と `end_slot` はクライアント提供値をそのまま使用\"]"
+    ],
+    "body": [
+      "let acct = & mut ctx . accounts . nft_meta . to_account_info () ;",
+      "let data = & mut acct . data . borrow_mut () ;",
+      "const LEN : usize = 1 + 8 + 32 + 8 ;",
+      "if data . len () < LEN",
+      "{",
+      "return err ! (ErrorCode :: DataTooShort) ;",
+      "}",
+      "let (flag_slice , rest) = data . split_at_mut (1) ;",
+      "let (start_slice , rest) = rest . split_at_mut (8) ;",
+      "let (staker_slice , end_slice) = rest . split_at_mut (32) ;",
+      "flag_slice . copy_from_slice (& [1u8]) ;",
+      "start_slice . copy_from_slice (& start_slot . to_le_bytes ()) ;",
+      "staker_slice . copy_from_slice (ctx . accounts . user . key () . as_ref ()) ;",
+      "end_slice . copy_from_slice (& end_slot . to_le_bytes ()) ;",
+      "msg ! (\"NFT {} staked by {} (slots {}→{})\" , acct . key () , ctx . accounts . user . key () , start_slot , end_slot) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "StakeNft",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "nft_meta",
+        "attribute": "# [doc = \" CHECK: owner == program_id の検証を行っていない AccountInfo\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 呼び出し元が署名していることのみ検証\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

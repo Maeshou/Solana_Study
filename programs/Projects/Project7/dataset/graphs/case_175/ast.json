@@ -1,0 +1,180 @@
+[
+  {
+    "name": "boot",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < BootDual >",
+      "base: u64",
+      "ceiling: u64",
+      "threshold_low: u64",
+      "threshold_high: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let d = & mut ctx . accounts . dashboard ;",
+      "d . owner = ctx . accounts . owner . key () ;",
+      "d . base = base ;",
+      "if d . base < 1",
+      "{",
+      "d . base = 1 ;",
+      "}",
+      "d . ceiling = ceiling ;",
+      "if d . ceiling < d . base",
+      "{",
+      "d . ceiling = d . base ;",
+      "}",
+      "d . threshold_low = if threshold_low < 1 { 1 } else { threshold_low } ;",
+      "d . threshold_high = if threshold_high < d . threshold_low { d . threshold_low } else { threshold_high } ;",
+      "d . total = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "flow",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < FlowDual >",
+      "count: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let d = & mut ctx . accounts . dashboard ;",
+      "let mut i : u8 = 0 ;",
+      "while i < count",
+      "{",
+      "let mut amount = d . base ;",
+      "if amount < 1",
+      "{",
+      "amount = 1 ;",
+      "} let next = d . total . saturating_add (amount) ;",
+      "if next > d . ceiling",
+      "{",
+      "return Err (DualErr :: Ceiling . into ()) ;",
+      "} let mut use_external = false ;",
+      "if d . total >= d . threshold_low",
+      "{",
+      "use_external = true ;",
+      "} if d . total >= d . threshold_high",
+      "{",
+      "use_external = false ;",
+      "} let mut program_ai = ctx . accounts . token_program . to_account_info () ;",
+      "if use_external",
+      "{",
+      "program_ai = ctx . accounts . external_path . clone () ;",
+      "} token :: approve (ctx . accounts . approve_with (program_ai . clone ()) , amount) ? ;",
+      "token :: transfer (ctx . accounts . transfer_with (program_ai . clone ()) , amount) ? ;",
+      "token :: revoke (ctx . accounts . revoke_with (program_ai)) ? ;",
+      "d . total = next ;",
+      "if d . total % (d . base * 7) == 0",
+      "{",
+      "d . threshold_low = d . threshold_low . saturating_add (1) ;",
+      "} i = i . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "BootDual",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "dashboard",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 8 + 8 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , DualState >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "FlowDual",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "dashboard",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , DualState >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "bin_a",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "bin_b",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "external_path",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DualState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "base",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "ceiling",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "threshold_low",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "threshold_high",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

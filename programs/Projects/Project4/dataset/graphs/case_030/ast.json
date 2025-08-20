@@ -1,33 +1,65 @@
 [
   {
-    "name": "initialize_donation_pool",
+    "name": "create_course",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Initialize030 >",
-      "param: u64"
+      "ctx: Context < CreateCourse >",
+      "capacity: u8"
     ],
     "attributes": [],
     "body": [
-      "let mut data = DonationPoolData :: try_from_slice (& ctx . accounts . data_account . data . borrow ()) ? ;",
-      "data . value = param ;",
-      "data . serialize (& mut * ctx . accounts . data_account . data . borrow_mut ()) ? ;",
+      "let c = & mut ctx . accounts . course ;",
+      "c . capacity = capacity ;",
+      "c . filled = 0 ;",
+      "c . has_space = capacity > 0 ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Initialize030",
+    "name": "enroll",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Enroll >",
+      "want: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let now = Clock :: get () ? . unix_timestamp ;",
+      "let c = & mut ctx . accounts . course ;",
+      "let mut i = 0u8 ;",
+      "while i < want",
+      "{",
+      "if c . filled >= c . capacity",
+      "{",
+      "break ;",
+      "} c . filled += 1 ;",
+      "i += 1 ;",
+      "}",
+      "c . has_space = c . filled < c . capacity ;",
+      "c . last_enroll = now ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CreateCourse",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "course",
+        "attribute": "# [account (init , payer = teacher , space = 8 + 1 * 4 + 8)]",
+        "field_type": "Account < 'info , CourseData >"
       },
       {
-        "name": "authority",
-        "attribute": null,
+        "name": "teacher",
+        "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -35,13 +67,52 @@
     "body": null
   },
   {
-    "name": "DonationPoolData",
+    "name": "Enroll",
     "node_type": "struct",
     "fields": [
       {
-        "name": "value",
+        "name": "course",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "Account < 'info , CourseData >"
+      },
+      {
+        "name": "teacher",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CourseData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "capacity",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "filled",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "has_space",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "last_enroll",
+        "attribute": null,
+        "field_type": "i64"
       }
     ],
     "inputs": null,

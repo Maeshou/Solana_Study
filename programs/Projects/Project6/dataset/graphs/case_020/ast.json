@@ -1,0 +1,170 @@
+[
+  {
+    "name": "register_tamer",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RegisterTamer >",
+      "tamer_name: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let tamer = & mut ctx . accounts . tamer_profile ;",
+      "tamer . owner = ctx . accounts . owner . key () ;",
+      "tamer . name = tamer_name ;",
+      "tamer . pet_count = 0 ;",
+      "tamer . role_tag = TamerRole :: Apprentice ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "update_pet_score",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < UpdatePetScore >",
+      "training_points: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let tamer = & mut ctx . accounts . tamer_profile ;",
+      "let pet = & mut ctx . accounts . pet_score ;",
+      "pet . score = pet . score . checked_add (training_points) . unwrap_or (u64 :: MAX) ;",
+      "let pet_average = pet . score . checked_div (pet . matches_played as u64) . unwrap_or (0) ;",
+      "let max_level = 100u8 ;",
+      "pet . level = (pet_average . checked_div (100) . unwrap_or (0) as u8) . min (max_level) ;",
+      "for _ in 0 .. 5",
+      "{",
+      "tamer . pet_count = tamer . pet_count . wrapping_add (1) ;",
+      "}",
+      "if pet . level >= 50",
+      "{",
+      "msg ! (\"Pet has reached a high level!\") ;",
+      "} else",
+      "{",
+      "msg ! (\"Pet is still in training.\") ;",
+      "}",
+      "let mut xor_val = pet . score as u32 ;",
+      "let mask = 0b10101010 ;",
+      "xor_val ^= mask ;",
+      "msg ! (\"XOR value: {}\" , xor_val) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "RegisterTamer",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "tamer_profile",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 32 + 4 + 1 , owner = crate :: ID ,)]",
+        "field_type": "Account < 'info , TamerProfile >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "UpdatePetScore",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "tamer_profile",
+        "attribute": "# [account (mut , has_one = owner ,)]",
+        "field_type": "Account < 'info , TamerProfile >"
+      },
+      {
+        "name": "pet_score",
+        "attribute": "# [account (mut , has_one = owner , constraint = tamer_profile . key () != pet_score . key () @ ErrorCode :: CosplayBlocked , constraint = tamer_profile . role_tag == TamerRole :: Apprentice @ ErrorCode :: RoleTagMismatch ,)]",
+        "field_type": "Account < 'info , PetScore >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TamerProfile",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "pet_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "role_tag",
+        "attribute": null,
+        "field_type": "TamerRole"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PetScore",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "tamer_profile",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "slot_id",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "score",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "level",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "matches_played",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,139 @@
+[
+  {
+    "name": "init_pass",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitPass >",
+      "max_bonus: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let p = & mut ctx . accounts . pass ;",
+      "p . admin = ctx . accounts . admin . key () ;",
+      "p . max_bonus = max_bonus ;",
+      "p . charged = 0 ;",
+      "p . level = 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_charge",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActCharge >",
+      "base_units: u64",
+      "streak_days: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let p = & mut ctx . accounts . pass ;",
+      "let mut bonus = 0u64 ;",
+      "for _ in 0 .. streak_days . min (30)",
+      "{",
+      "bonus = bonus . saturating_add (1) ;",
+      "}",
+      "let mut amount = base_units . saturating_add (bonus) ;",
+      "if amount as u32 > p . max_bonus",
+      "{",
+      "amount = p . max_bonus as u64 ;",
+      "p . level = p . level . saturating_add (1) ;",
+      "} else",
+      "{",
+      "p . level = p . level . saturating_add (0) ;",
+      "}",
+      "let cpi_ctx = ctx . accounts . mint_to_ctx () ;",
+      "token :: mint_to (cpi_ctx , amount) ? ;",
+      "p . charged = p . charged . saturating_add (amount) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitPass",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pass",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 4 + 8 + 4)]",
+        "field_type": "Account < 'info , PassState >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActCharge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pass",
+        "attribute": "# [account (mut , has_one = admin)]",
+        "field_type": "Account < 'info , PassState >"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "pass_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "user_pass_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PassState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "max_bonus",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "charged",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "level",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

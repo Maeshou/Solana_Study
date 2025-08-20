@@ -1,43 +1,184 @@
 [
   {
-    "name": "update_vault_authority",
+    "name": "init_plot",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx013 >",
-      "amount: u64"
+      "ctx: Context < InitPlot >",
+      "fert: u32"
     ],
     "attributes": [],
     "body": [
-      "let cpi_accounts = Transfer { from : ctx . accounts . from_token . to_account_info () , to : ctx . accounts . to_token . to_account_info () , authority : ctx . accounts . authority . to_account_info () , } ;",
-      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
-      "token :: transfer (cpi_ctx , amount) ? ;",
+      "ctx . accounts . plot . owner = ctx . accounts . farmer . key () ;",
+      "ctx . accounts . plot . fertility = fert ;",
+      "ctx . accounts . plot . planted = false ;",
+      "ctx . accounts . profile . rank = 1 ;",
+      "ctx . accounts . profile . energy = 100 ;",
+      "ctx . accounts . profile . boots = true ;",
+      "ctx . accounts . harvest . days = 0 ;",
+      "ctx . accounts . harvest . yield_est = 0 ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx013",
+    "name": "cultivate",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Cultivate >",
+      "days: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "require ! (ctx . accounts . plot . key () != ctx . accounts . profile . key () , LandErr :: Dup) ;",
+      "require ! (ctx . accounts . plot . key () != ctx . accounts . harvest . key () , LandErr :: Dup) ;",
+      "require ! (ctx . accounts . profile . key () != ctx . accounts . harvest . key () , LandErr :: Dup) ;",
+      "for _ in 0 .. days",
+      "{",
+      "ctx . accounts . profile . energy = ctx . accounts . profile . energy . saturating_sub (1) ;",
+      "ctx . accounts . harvest . days = ctx . accounts . harvest . days . saturating_add (1) ;",
+      "ctx . accounts . harvest . yield_est = ctx . accounts . harvest . yield_est . saturating_add (ctx . accounts . plot . fertility as u64) ;",
+      "}",
+      "if ctx . accounts . profile . energy < 50",
+      "{",
+      "ctx . accounts . plot . planted = false ;",
+      "ctx . accounts . profile . boots = false ;",
+      "ctx . accounts . harvest . yield_est = ctx . accounts . harvest . yield_est . saturating_add (5) ;",
+      "msg ! (\"tired: pause\") ;",
+      "} else",
+      "{",
+      "ctx . accounts . plot . planted = true ;",
+      "ctx . accounts . profile . boots = true ;",
+      "ctx . accounts . harvest . yield_est = ctx . accounts . harvest . yield_est . saturating_add (1) ;",
+      "msg ! (\"steady work\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitPlot",
     "node_type": "struct",
     "fields": [
       {
-        "name": "from_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "plot",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Plot >"
       },
       {
-        "name": "to_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "profile",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4 + 4 + 1)]",
+        "field_type": "Account < 'info , Profile >"
       },
       {
-        "name": "authority",
+        "name": "harvest",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4 + 8)]",
+        "field_type": "Account < 'info , Harvest >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "farmer",
         "attribute": null,
         "field_type": "Signer < 'info >"
       },
       {
-        "name": "token_program",
+        "name": "system_program",
         "attribute": null,
-        "field_type": "Program < 'info , Token >"
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Cultivate",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "plot",
+        "attribute": "# [account (mut , constraint = plot . key () != profile . key () , error = LandErr :: Dup)]",
+        "field_type": "Account < 'info , Plot >"
+      },
+      {
+        "name": "profile",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Profile >"
+      },
+      {
+        "name": "harvest",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Harvest >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Plot",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "fertility",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "planted",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Profile",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "rank",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "energy",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "boots",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Harvest",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "days",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "yield_est",
+        "attribute": null,
+        "field_type": "u64"
       }
     ],
     "inputs": null,

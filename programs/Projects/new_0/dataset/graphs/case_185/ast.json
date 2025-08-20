@@ -1,0 +1,203 @@
+[
+  {
+    "name": "ShipmentTracker",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "",
+        "attribute": null,
+        "field_type": "Vec < (u64 , u8) >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "initialize",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Initialize >"
+    ],
+    "attributes": [
+      "# [doc = \" アカウント初期化：内部 Vec は空、bump のみ設定\"]"
+    ],
+    "body": [
+      "let bump = * ctx . bumps . get (\"tracker\") . unwrap () ;",
+      "ctx . accounts . tracker . 0 = bump ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "add_shipment",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Modify >",
+      "shipment_id: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 出荷登録：件数制限チェック＋pendingステータスで追加\"]"
+    ],
+    "body": [
+      "let list = & mut ctx . accounts . tracker . 1 ;",
+      "if list . len () >= MAX_SHIPMENTS",
+      "{",
+      "return err ! (ErrorCode :: MaxShipmentsReached) ;",
+      "}",
+      "list . push ((shipment_id , 0)) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "mark_in_transit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Modify >",
+      "shipment_id: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 在庫輸送中へ更新：existingチェック＋ステータス更新\"]"
+    ],
+    "body": [
+      "let list = & mut ctx . accounts . tracker . 1 ;",
+      "let mut found = false ;",
+      "for entry in list . iter_mut ()",
+      "{",
+      "if entry . 0 == shipment_id",
+      "{",
+      "entry . 1 = 1 ;",
+      "found = true ;",
+      "}",
+      "}",
+      "if ! found",
+      "{",
+      "return err ! (ErrorCode :: ShipmentNotFound) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "mark_delivered",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Modify >",
+      "shipment_id: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 配送完了へ更新：existingチェック＋ステータス更新\"]"
+    ],
+    "body": [
+      "let list = & mut ctx . accounts . tracker . 1 ;",
+      "let mut found = false ;",
+      "for entry in list . iter_mut ()",
+      "{",
+      "if entry . 0 == shipment_id",
+      "{",
+      "entry . 1 = 2 ;",
+      "found = true ;",
+      "}",
+      "}",
+      "if ! found",
+      "{",
+      "return err ! (ErrorCode :: ShipmentNotFound) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "purge_delivered",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Modify >"
+    ],
+    "attributes": [
+      "# [doc = \" deliveredステータスのものだけ一括除去\"]"
+    ],
+    "body": [
+      "ctx . accounts . tracker . 1 . retain (| & (_ , status) | status != 2) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "count_pending",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Modify >"
+    ],
+    "attributes": [
+      "# [doc = \" pending状態の個数をログ出力\"]"
+    ],
+    "body": [
+      "let list = & ctx . accounts . tracker . 1 ;",
+      "let mut cnt = 0u64 ;",
+      "for & (_ , status) in list . iter ()",
+      "{",
+      "if status == 0",
+      "{",
+      "cnt = cnt . wrapping_add (1) ;",
+      "}",
+      "}",
+      "msg ! (\"Pending shipments: {}\" , cnt) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Initialize",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "tracker",
+        "attribute": "# [account (init_zeroed , payer = authority , seeds = [b\"tracker\" , authority . key () . as_ref ()] , bump , space = 8 + 1 + 4 + 50 * (8 + 1))]",
+        "field_type": "Account < 'info , ShipmentTracker >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Modify",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "tracker",
+        "attribute": "# [account (mut , seeds = [b\"tracker\" , authority . key () . as_ref ()] , bump = tracker . 0)]",
+        "field_type": "Account < 'info , ShipmentTracker >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (signer)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

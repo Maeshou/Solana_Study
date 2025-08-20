@@ -1,40 +1,194 @@
 [
   {
-    "name": "register_user",
+    "name": "init_orch",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx039 >",
-      "amount: u64"
+      "ctx: Context < InitOrch >",
+      "bound: u32"
     ],
     "attributes": [],
     "body": [
-      "let src = & mut ctx . accounts . account_src ;",
-      "let dst = & mut ctx . accounts . account_dst ;",
-      "let before = * * src . to_account_info () . try_borrow_lamports () ? ;",
-      "* * src . to_account_info () . try_borrow_mut_lamports () ? = before . saturating_sub (amount) ;",
-      "* * dst . to_account_info () . try_borrow_mut_lamports () ? += amount ;",
+      "let x = & mut ctx . accounts ;",
+      "x . stage . conductor = x . conductor . key () ;",
+      "x . stage . bound = bound ;",
+      "x . stage . state = SessionState :: Warmup ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx039",
+    "name": "perform",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Perform >",
+      "notes: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let x = & mut ctx . accounts ;",
+      "for k in 0 .. notes",
+      "{",
+      "x . stats . count = x . stats . count . wrapping_add (1) ;",
+      "let count = x . stats . count . max (1) ;",
+      "let sample = (x . section . energy as u64) + (k as u64 * 7) ;",
+      "let delta = sample as i128 - x . stats . mean as i128 ;",
+      "x . stats . mean = (x . stats . mean as i128 + delta / count as i128) as u64 ;",
+      "let delta2 = sample as i128 - x . stats . mean as i128 ;",
+      "x . stats . m2 = (x . stats . m2 as i128 + (delta * delta2) / count as i128) . max (0) as u64 ;",
+      "let e = (u128 :: from (x . section . energy) * 3) / 2 + 5 ;",
+      "x . section . energy = (e . min (u128 :: from (u32 :: MAX))) as u32 ;",
+      "}",
+      "if x . stats . mean > x . stage . bound as u64",
+      "{",
+      "x . stage . state = SessionState :: Finale ;",
+      "x . section . momentum = x . section . momentum . wrapping_add (3) ;",
+      "x . stats . flags = x . stats . flags . wrapping_add (1) ;",
+      "msg ! (\"finale: momentum+3 flags+1\") ;",
+      "} else",
+      "{",
+      "x . stage . state = SessionState :: Playing ;",
+      "x . section . energy = x . section . energy / 2 + 9 ;",
+      "x . stats . count = x . stats . count . wrapping_add (2) ;",
+      "msg ! (\"playing: energy/2+9, count+2\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitOrch",
     "node_type": "struct",
     "fields": [
       {
-        "name": "account_src",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "stage",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Stage >"
       },
       {
-        "name": "account_dst",
+        "name": "section",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4 + 4)]",
+        "field_type": "Account < 'info , Section >"
+      },
+      {
+        "name": "stats",
+        "attribute": "# [account (init , payer = payer , space = 8 + 8 + 8 + 4)]",
+        "field_type": "Account < 'info , StatPack >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "conductor",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
       },
       {
         "name": "system_program",
         "attribute": null,
         "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Perform",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "stage",
+        "attribute": "# [account (mut , has_one = conductor , constraint = stage . key () != section . key () , error = OrchErr :: Dup)]",
+        "field_type": "Account < 'info , Stage >"
+      },
+      {
+        "name": "section",
+        "attribute": "# [account (mut , constraint = section . key () != stats . key () , error = OrchErr :: Dup)]",
+        "field_type": "Account < 'info , Section >"
+      },
+      {
+        "name": "stats",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , StatPack >"
+      },
+      {
+        "name": "conductor",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Stage",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "conductor",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "bound",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "state",
+        "attribute": null,
+        "field_type": "SessionState"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Section",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "energy",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "momentum",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "StatPack",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "count",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "mean",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "m2",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "flags",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

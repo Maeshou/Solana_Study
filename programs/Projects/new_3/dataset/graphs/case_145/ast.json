@@ -1,0 +1,192 @@
+[
+  {
+    "name": "Document",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "title",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "content_hash",
+        "attribute": null,
+        "field_type": "[u8 ; 32]"
+      },
+      {
+        "name": "approvals_count",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ApprovalRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "approver",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "document",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "approved",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreateDocument",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "document",
+        "attribute": "# [account (init , payer = creator , space = 8 + 32 + 4 + 64 + 32 + 8)]",
+        "field_type": "Account < 'info , Document >"
+      },
+      {
+        "name": "creator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RequestApproval",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "document",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Document >"
+      },
+      {
+        "name": "approval_record",
+        "attribute": "# [account (init , payer = requester , space = 8 + 32 + 32 + 1)]",
+        "field_type": "Account < 'info , ApprovalRecord >"
+      },
+      {
+        "name": "requester",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ApproveDocument",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "document",
+        "attribute": "# [doc = \" Document.owner == owner.key() は検証される\"] # [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Document >"
+      },
+      {
+        "name": "approval_record",
+        "attribute": "# [doc = \" ApprovalRecord.document == document.key() の検証がない\"] # [account (mut)]",
+        "field_type": "Account < 'info , ApprovalRecord >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "create_document",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateDocument >",
+      "title: String",
+      "content_hash: [u8 ; 32]"
+    ],
+    "attributes": [
+      "# [doc = \" ドキュメントを作成\"]"
+    ],
+    "body": [
+      "let doc = & mut ctx . accounts . document ;",
+      "doc . owner = ctx . accounts . creator . key () ;",
+      "doc . title = title ;",
+      "doc . content_hash = content_hash ;",
+      "doc . approvals_count = 0 ;",
+      "msg ! (\"Document '{}' created by {}\" , doc . title , doc . owner) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "request_approval",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RequestApproval >"
+    ],
+    "attributes": [
+      "# [doc = \" 承認要求を初期化\"]"
+    ],
+    "body": [
+      "let rec = & mut ctx . accounts . approval_record ;",
+      "rec . approver = ctx . accounts . requester . key () ;",
+      "rec . document = ctx . accounts . document . key () ;",
+      "rec . approved = false ;",
+      "msg ! (\"Approval requested by {} for document {}\" , rec . approver , rec . document) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "approve",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ApproveDocument >"
+    ],
+    "attributes": [
+      "# [doc = \" ドキュメントを承認\"]"
+    ],
+    "body": [
+      "let doc = & mut ctx . accounts . document ;",
+      "let rec = & mut ctx . accounts . approval_record ;",
+      "rec . approved = true ;",
+      "doc . approvals_count = doc . approvals_count . checked_add (1) . unwrap () ;",
+      "msg ! (\"Document {} approved by {}, total approvals: {}\" , doc . key () , ctx . accounts . owner . key () , doc . approvals_count) ;",
+      "Ok (())"
+    ]
+  }
+]

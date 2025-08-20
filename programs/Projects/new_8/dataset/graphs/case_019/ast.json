@@ -1,0 +1,149 @@
+[
+  {
+    "name": "submit_score",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SubmitScore >",
+      "tag: Vec < u8 >",
+      "points: u32",
+      "bump: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut t = tag . clone () ;",
+      "if t . len () > 16",
+      "{",
+      "t . truncate (16) ;",
+      "}",
+      "let mut salt : u32 = 73 ;",
+      "for (i , b) in t . iter () . enumerate ()",
+      "{",
+      "salt = salt . wrapping_add ((* b as u32) . wrapping_mul (i as u32 + 5)) ;",
+      "}",
+      "let seeds = [& ctx . accounts . player . key () . to_bytes () [..] , & t [..]] ;",
+      "let addr = Pubkey :: create_program_address (& seeds , & ctx . program_id , & [bump]) . map_err (| _ | error ! (ARkErr :: Cell)) ? ;",
+      "if addr != ctx . accounts . rank_cell . key ()",
+      "{",
+      "return Err (error ! (ARkErr :: Cell)) ;",
+      "}",
+      "let r = & mut ctx . accounts . rank ;",
+      "r . player = ctx . accounts . player . key () ;",
+      "r . tag = t ;",
+      "let mut p = points ;",
+      "if p > 100_000",
+      "{",
+      "p = 100_000 ;",
+      "}",
+      "r . score = r . score . saturating_add (p) ;",
+      "r . salt = r . salt . wrapping_add (salt) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "decay_score",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < DecayScore >",
+      "factor: u8",
+      "bump: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let tag = ctx . accounts . rank . tag . clone () ;",
+      "let seeds = [& ctx . accounts . player . key () . to_bytes () [..] , & tag [..]] ;",
+      "let addr = Pubkey :: create_program_address (& seeds , & ctx . program_id , & [bump]) . map_err (| _ | error ! (ARkErr :: Cell)) ? ;",
+      "if addr != ctx . accounts . rank_cell . key ()",
+      "{",
+      "return Err (error ! (ARkErr :: Cell)) ;",
+      "}",
+      "let r = & mut ctx . accounts . rank ;",
+      "let mut f = factor as u32 ;",
+      "if f < 2",
+      "{",
+      "f = 2 ;",
+      "}",
+      "r . score = r . score / f ;",
+      "r . salt = r . salt . wrapping_add (19) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "SubmitScore",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "rank",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Rank >"
+      },
+      {
+        "name": "rank_cell",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "player",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DecayScore",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "rank",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Rank >"
+      },
+      {
+        "name": "rank_cell",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "player",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Rank",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "player",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "tag",
+        "attribute": null,
+        "field_type": "Vec < u8 >"
+      },
+      {
+        "name": "score",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "salt",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

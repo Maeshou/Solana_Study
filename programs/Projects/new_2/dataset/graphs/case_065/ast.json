@@ -1,0 +1,57 @@
+[
+  {
+    "name": "unstake_nft",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < UnstakeNft >"
+    ],
+    "attributes": [
+      "# [doc = \" ステーク済み NFT をアンステーク（lamports を返却しデータをクリア）  \"]",
+      "# [doc = \" （`unstake_nft_account` の owner チェックを一切行っていないため、  \"]",
+      "# [doc = \"  攻撃者が自分のアカウントを渡すだけで、  \"]",
+      "# [doc = \"  他ユーザーのステーク済み NFT を強制的にアンステークできます）\"]"
+    ],
+    "body": [
+      "let stake_acc = & mut ctx . accounts . unstake_nft_account . to_account_info () ;",
+      "let recipient = & mut ctx . accounts . user_account . to_account_info () ;",
+      "let bal = * * stake_acc . lamports . borrow () ;",
+      "* * stake_acc . lamports . borrow_mut () = 0 ;",
+      "* * recipient . lamports . borrow_mut () = recipient . lamports () . checked_add (bal) . unwrap_or (recipient . lamports ()) ;",
+      "let data = & mut stake_acc . data . borrow_mut () ;",
+      "if data . is_empty ()",
+      "{",
+      "return err ! (ErrorCode :: NoData) ;",
+      "}",
+      "let (flag_slice , rest) = data . split_at_mut (1) ;",
+      "flag_slice [0] = 0 ;",
+      "rest . fill (0) ;",
+      "msg ! (\"Unstaked NFT: returned {} lamports to {}\" , bal , ctx . accounts . user . key ()) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "UnstakeNft",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "unstake_nft_account",
+        "attribute": "# [doc = \" CHECK: owner == program_id の検証を省略している生の AccountInfo\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user_account",
+        "attribute": "# [doc = \" lamports を受け取るユーザーアカウント\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 実行者が署名していることのみを検証\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,176 @@
+[
+  {
+    "name": "License",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "issuer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "total_issued",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "LicenseKey",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "license_id",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "activated",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitializeLicense",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "license",
+        "attribute": "# [account (init , payer = issuer , space = 8 + 32 + 8)]",
+        "field_type": "Account < 'info , License >"
+      },
+      {
+        "name": "issuer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "IssueKey",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "license",
+        "attribute": "# [doc = \" License.issuer == issuer.key() は検証される\"] # [account (mut , has_one = issuer)]",
+        "field_type": "Account < 'info , License >"
+      },
+      {
+        "name": "key_account",
+        "attribute": "# [doc = \" LicenseKey.license_id の照合がない\"] # [account (init , payer = issuer , space = 8 + 32 + 32 + 1)]",
+        "field_type": "Account < 'info , LicenseKey >"
+      },
+      {
+        "name": "issuer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActivateKey",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "license",
+        "attribute": "# [doc = \" License.issuer == issuer.key() は検証される\"] # [account (mut , has_one = issuer)]",
+        "field_type": "Account < 'info , License >"
+      },
+      {
+        "name": "key_account",
+        "attribute": "# [doc = \" LicenseKey.license_id ⇔ License.key() の照合がない\"] # [account (mut)]",
+        "field_type": "Account < 'info , LicenseKey >"
+      },
+      {
+        "name": "issuer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "initialize_license",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeLicense >"
+    ],
+    "attributes": [
+      "# [doc = \" ライセンスを初期化\"]"
+    ],
+    "body": [
+      "let lic = & mut ctx . accounts . license ;",
+      "lic . issuer = ctx . accounts . issuer . key () ;",
+      "lic . total_issued = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "issue_key",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < IssueKey >",
+      "user: Pubkey"
+    ],
+    "attributes": [
+      "# [doc = \" キーを発行\"]"
+    ],
+    "body": [
+      "let lic = & mut ctx . accounts . license ;",
+      "let key = & mut ctx . accounts . key_account ;",
+      "key . user = user ;",
+      "key . license_id = lic . key () ;",
+      "key . activated = false ;",
+      "lic . total_issued = lic . total_issued . checked_add (1) . unwrap () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "activate_key",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActivateKey >"
+    ],
+    "attributes": [
+      "# [doc = \" キーを有効化\"]"
+    ],
+    "body": [
+      "let key = & mut ctx . accounts . key_account ;",
+      "key . activated = true ;",
+      "Ok (())"
+    ]
+  }
+]

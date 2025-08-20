@@ -1,0 +1,104 @@
+[
+  {
+    "name": "upsert_item",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < UpsertItem >",
+      "code: [u8 ; 8]",
+      "qty: u16",
+      "bump: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut sanitized = code ;",
+      "let mut odd : u16 = 0 ;",
+      "for k in 0 .. sanitized . len ()",
+      "{",
+      "let c = sanitized [k] ;",
+      "if ! (c . is_ascii_alphanumeric ())",
+      "{",
+      "sanitized [k] = b'_' ;",
+      "} if (k as u8) & 1 == 1",
+      "{",
+      "odd = odd . saturating_add (c as u16) ;",
+      "}",
+      "}",
+      "let seeds = [& ctx . accounts . owner . key () . to_bytes () [..] , & sanitized [..]] ;",
+      "let addr = Pubkey :: create_program_address (& seeds , & ctx . program_id , & [bump]) . map_err (| _ | error ! (InvError :: BadKey)) ? ;",
+      "if addr != ctx . accounts . vault_cell . key ()",
+      "{",
+      "return Err (error ! (InvError :: BadKey)) ;",
+      "}",
+      "let v = & mut ctx . accounts . vault ;",
+      "v . owner = ctx . accounts . owner . key () ;",
+      "v . code = sanitized ;",
+      "let mut new_qty = v . qty . saturating_add (qty) ;",
+      "if new_qty > 5000",
+      "{",
+      "new_qty = 5000 ;",
+      "}",
+      "v . qty = new_qty ;",
+      "v . odd_sum = v . odd_sum . saturating_add (odd) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "UpsertItem",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "vault_cell",
+        "attribute": "# [doc = \" CHECK: bump の正規化なし\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (signer)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Vault",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "code",
+        "attribute": null,
+        "field_type": "[u8 ; 8]"
+      },
+      {
+        "name": "qty",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "odd_sum",
+        "attribute": null,
+        "field_type": "u16"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

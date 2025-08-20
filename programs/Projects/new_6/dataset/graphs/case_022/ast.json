@@ -1,0 +1,218 @@
+[
+  {
+    "name": "init_workshop",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitWorkshop >",
+      "workshop_name: String",
+      "crafting_fee: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let workshop = & mut ctx . accounts . workshop ;",
+      "workshop . owner = ctx . accounts . owner . key () ;",
+      "workshop . workshop_name = workshop_name ;",
+      "workshop . crafting_fee = crafting_fee ;",
+      "workshop . total_crafts = 0 ;",
+      "workshop . is_open = true ;",
+      "msg ! (\"Workshop initialized: {}\" , workshop . workshop_name) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_material_storage",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitMaterialStorage >",
+      "material_type: MaterialType",
+      "quantity: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let storage = & mut ctx . accounts . storage ;",
+      "storage . workshop = ctx . accounts . workshop . key () ;",
+      "storage . material_type = material_type ;",
+      "storage . quantity = quantity ;",
+      "storage . quality_grade = 1 ;",
+      "storage . is_available = true ;",
+      "msg ! (\"Material storage created: {:?}\" , material_type) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "execute_crafting_process",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ExecuteCraftingProcess >",
+      "iterations: u8",
+      "base_power: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let workshop = & mut ctx . accounts . workshop ;",
+      "let mut round = 0u8 ;",
+      "loop { if round >= iterations { break ; } if workshop . is_open { workshop . total_crafts += 1 ; let craft_bonus = (round as u32) * 50 ; workshop . crafting_fee += craft_bonus as u64 ; let power_mod = base_power ^ (round as u16) ; let final_power = power_mod & 0xFF ; msg ! (\"Craft round {}: power {}\" , round , final_power) ; } else { if workshop . total_crafts > 0 { workshop . total_crafts -= 1 ; } workshop . crafting_fee = workshop . crafting_fee . saturating_sub (100) ; msg ! (\"Closed workshop adjustment: round {}\" , round) ; } round += 1 ; }",
+      "let mut quality_iter = 0u8 ;",
+      "while quality_iter < 3",
+      "{",
+      "let quality_boost = quality_iter * 10 ;",
+      "workshop . crafting_fee += quality_boost as u64 ;",
+      "quality_iter += 1 ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitWorkshop",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "workshop",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 64 + 8 + 8 + 1)]",
+        "field_type": "Account < 'info , CraftingWorkshop >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitMaterialStorage",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "workshop",
+        "attribute": null,
+        "field_type": "Account < 'info , CraftingWorkshop >"
+      },
+      {
+        "name": "storage",
+        "attribute": "# [account (init , payer = manager , space = 8 + 32 + 1 + 4 + 4 + 1)]",
+        "field_type": "Account < 'info , MaterialStorage >"
+      },
+      {
+        "name": "manager",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ExecuteCraftingProcess",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "workshop",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , CraftingWorkshop >"
+      },
+      {
+        "name": "material_source",
+        "attribute": "# [doc = \" CHECK: 素材アカウントの検証が不十分\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "equipment_target",
+        "attribute": "# [doc = \" CHECK: 装備アカウントの検証が不十分\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "crafter",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CraftingWorkshop",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "workshop_name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "crafting_fee",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_crafts",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "is_open",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MaterialStorage",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "workshop",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "material_type",
+        "attribute": null,
+        "field_type": "MaterialType"
+      },
+      {
+        "name": "quantity",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "quality_grade",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "is_available",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

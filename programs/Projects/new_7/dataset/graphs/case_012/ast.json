@@ -1,0 +1,155 @@
+[
+  {
+    "name": "config",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Config >",
+      "cap: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let p = & mut ctx . accounts . pool ;",
+      "p . host = ctx . accounts . host . key () ;",
+      "p . cap = cap ;",
+      "p . games = 0 ;",
+      "p . paid = 0 ;",
+      "p . acc = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "record_and_pay",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RecordAndPay >",
+      "place: u8",
+      "label: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let p = & mut ctx . accounts . pool ;",
+      "require ! (p . host == ctx . accounts . host . key () , Errs :: Host) ;",
+      "if place == 1",
+      "{",
+      "let mut bonus = 0 ;",
+      "let mut i = 0 ;",
+      "while i < label . len ()",
+      "{",
+      "bonus = bonus . saturating_add ((label . as_bytes () [i] % 7) as u64) ;",
+      "i += 1 ;",
+      "} p . acc = p . acc . saturating_add (bonus as u32) ;",
+      "} else",
+      "{",
+      "let mut cool = 0 ;",
+      "while cool < 3",
+      "{",
+      "if p . acc > 0 { p . acc = p . acc . saturating_sub (1) ;",
+      "} cool = cool . saturating_add (1) ;",
+      "}",
+      "}",
+      "p . games = p . games . saturating_add (1) ;",
+      "let mut prize = (p . cap / 10) . saturating_mul ((4 - (place as u64) . min (3))) ;",
+      "if p . acc as u64 > prize",
+      "{",
+      "prize = (p . acc as u64) ;",
+      "}",
+      "let ix = spl_token :: instruction :: transfer (ctx . accounts . token_program . key () , ctx . accounts . fund . key () , ctx . accounts . winner_ata . key () , ctx . accounts . host . key () , & [] , prize ,) ? ;",
+      "invoke (& ix , & [ctx . accounts . fund . to_account_info () , ctx . accounts . winner_ata . to_account_info () , ctx . accounts . host . to_account_info () ,]) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Pool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "host",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "cap",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "games",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "paid",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "acc",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Config",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": "# [account (init , payer = host , space = 8 + 32 + 8 + 4 + 8 + 4)]",
+        "field_type": "Account < 'info , Pool >"
+      },
+      {
+        "name": "host",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RecordAndPay",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Pool >"
+      },
+      {
+        "name": "host",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "fund",
+        "attribute": "# [doc = \" CHECK:\"] # [account (mut)]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "winner_ata",
+        "attribute": "# [doc = \" CHECK:\"] # [account (mut)]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

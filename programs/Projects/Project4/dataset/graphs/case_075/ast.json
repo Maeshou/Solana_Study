@@ -1,33 +1,67 @@
 [
   {
-    "name": "initialize_mint_authority",
+    "name": "init_encrypt",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Initialize075 >",
-      "param: u64"
+      "ctx: Context < InitEncrypt >",
+      "rounds: u8"
     ],
     "attributes": [],
     "body": [
-      "let mut data = MintAuthorityData :: try_from_slice (& ctx . accounts . data_account . data . borrow ()) ? ;",
-      "data . value = param ;",
-      "data . serialize (& mut * ctx . accounts . data_account . data . borrow_mut ()) ? ;",
+      "let e = & mut ctx . accounts . encrypt ;",
+      "e . rounds = rounds ;",
+      "e . key_strength = 128 ;",
+      "e . secure_flag = false ;",
+      "if rounds >= 10",
+      "{",
+      "e . key_strength = 256 ;",
+      "e . secure_flag = true ;",
+      "}",
       "Ok (())"
     ]
   },
   {
-    "name": "Initialize075",
+    "name": "process_round",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ProcessRound >"
+    ],
+    "attributes": [],
+    "body": [
+      "let e = & mut ctx . accounts . encrypt ;",
+      "let mut i = 0u8 ;",
+      "while i < e . rounds",
+      "{",
+      "e . key_strength = e . key_strength . saturating_add (1) ;",
+      "i += 1 ;",
+      "}",
+      "if e . key_strength > 512",
+      "{",
+      "e . secure_flag = true ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitEncrypt",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "encrypt",
+        "attribute": "# [account (init , payer = user , space = 8 + 1 + 2 + 1)]",
+        "field_type": "Account < 'info , EncryptionData >"
       },
       {
-        "name": "authority",
-        "attribute": null,
+        "name": "user",
+        "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -35,13 +69,37 @@
     "body": null
   },
   {
-    "name": "MintAuthorityData",
+    "name": "ProcessRound",
     "node_type": "struct",
     "fields": [
       {
-        "name": "value",
+        "name": "encrypt",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , EncryptionData >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "EncryptionData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "rounds",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "u8"
+      },
+      {
+        "name": "key_strength",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "secure_flag",
+        "attribute": null,
+        "field_type": "bool"
       }
     ],
     "inputs": null,

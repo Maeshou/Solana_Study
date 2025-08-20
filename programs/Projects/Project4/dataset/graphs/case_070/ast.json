@@ -1,33 +1,81 @@
 [
   {
-    "name": "initialize_proof_of_holding",
+    "name": "init_discount",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Initialize070 >",
-      "param: u64"
+      "ctx: Context < InitDiscount >",
+      "price: u64",
+      "tier: u8"
     ],
     "attributes": [],
     "body": [
-      "let mut data = ProofOfHoldingData :: try_from_slice (& ctx . accounts . data_account . data . borrow ()) ? ;",
-      "data . value = param ;",
-      "data . serialize (& mut * ctx . accounts . data_account . data . borrow_mut ()) ? ;",
+      "let d = & mut ctx . accounts . discount ;",
+      "d . price = price ;",
+      "d . tier = tier ;",
+      "d . final_price = price ;",
+      "let mut rate = 0u8 ;",
+      "if tier == 1",
+      "{",
+      "rate = 5 ;",
+      "} else",
+      "{",
+      "rate = 10 ;",
+      "}",
+      "let discount_amt = d . price * rate as u64 / 100 ;",
+      "d . final_price = d . price . saturating_sub (discount_amt) ;",
+      "if tier == 2",
+      "{",
+      "let bonus = d . final_price / 100 ;",
+      "d . final_price = d . final_price . saturating_sub (bonus) ;",
+      "}",
       "Ok (())"
     ]
   },
   {
-    "name": "Initialize070",
+    "name": "apply_discount",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ApplyDiscount >",
+      "extra_tier: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let d = & mut ctx . accounts . discount ;",
+      "let new_tier = d . tier . saturating_add (extra_tier) ;",
+      "d . tier = if new_tier > 2 { 2 } else { new_tier } ;",
+      "let mut rate = 0u8 ;",
+      "if d . tier == 1",
+      "{",
+      "rate = 7 ;",
+      "} else",
+      "{",
+      "rate = 12 ;",
+      "}",
+      "let disc = d . price * rate as u64 / 100 ;",
+      "d . final_price = d . price . saturating_sub (disc) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitDiscount",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "discount",
+        "attribute": "# [account (init , payer = user , space = 8 + 8 + 1 + 8)]",
+        "field_type": "Account < 'info , DiscountData >"
       },
       {
-        "name": "authority",
-        "attribute": null,
+        "name": "user",
+        "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -35,11 +83,35 @@
     "body": null
   },
   {
-    "name": "ProofOfHoldingData",
+    "name": "ApplyDiscount",
     "node_type": "struct",
     "fields": [
       {
-        "name": "value",
+        "name": "discount",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , DiscountData >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DiscountData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "price",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "tier",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "final_price",
         "attribute": null,
         "field_type": "u64"
       }

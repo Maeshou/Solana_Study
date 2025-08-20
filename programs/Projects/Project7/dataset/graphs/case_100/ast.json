@@ -1,0 +1,189 @@
+[
+  {
+    "name": "initialize_gacha",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeGacha >",
+      "ticket_price: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let gacha = & mut ctx . accounts . gacha_state ;",
+      "gacha . admin = ctx . accounts . admin . key () ;",
+      "gacha . ticket_price = ticket_price ;",
+      "gacha . ticket_mint = ctx . accounts . ticket_mint . key () ;",
+      "gacha . item_mint = ctx . accounts . item_mint . key () ;",
+      "gacha . rewards_granted = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "pull_gacha",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PullGacha >"
+    ],
+    "attributes": [],
+    "body": [
+      "let gacha = & mut ctx . accounts . gacha_state ;",
+      "let tickets_owned = ctx . accounts . player_ticket_account . amount ;",
+      "if tickets_owned < gacha . ticket_price",
+      "{",
+      "return Err (ErrorCode :: InsufficientTickets . into ()) ;",
+      "}",
+      "let mut remaining_tickets = tickets_owned ;",
+      "let mut pull_count = 0 ;",
+      "for _ in 0 .. 10",
+      "{",
+      "if remaining_tickets >= gacha . ticket_price",
+      "{",
+      "let burn_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , Burn { mint : ctx . accounts . ticket_mint . to_account_info () , from : ctx . accounts . player_ticket_account . to_account_info () , authority : ctx . accounts . player . to_account_info () , } ,) ;",
+      "token :: burn (burn_ctx , gacha . ticket_price) ? ;",
+      "remaining_tickets -= gacha . ticket_price ;",
+      "pull_count += 1 ;",
+      "} else",
+      "{",
+      "break ;",
+      "}",
+      "}",
+      "if pull_count > 0",
+      "{",
+      "let prize_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , MintTo",
+      "{",
+      "mint : ctx . accounts . item_mint . to_account_info () , to : ctx . accounts . player_item_account . to_account_info () , authority : ctx . accounts . admin . to_account_info () , } ,) ;",
+      "token :: mint_to (prize_ctx , pull_count as u64) ? ;",
+      "gacha . rewards_granted += pull_count as u64 ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializeGacha",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "gacha_state",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 8 + 32 + 32 + 8)]",
+        "field_type": "Account < 'info , GachaState >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "ticket_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "item_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PullGacha",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "gacha_state",
+        "attribute": "# [account (mut , has_one = admin)]",
+        "field_type": "Account < 'info , GachaState >"
+      },
+      {
+        "name": "ticket_mint",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "item_mint",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "player_ticket_account",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "player_item_account",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "player",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [doc = \" CHECK: Admin authority for minting items.\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GachaState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "ticket_price",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "ticket_mint",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "item_mint",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "rewards_granted",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,160 @@
+[
+  {
+    "name": "setup",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SetupParamChoice >",
+      "step: u64",
+      "cap: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . sched ;",
+      "s . owner = ctx . accounts . owner . key () ;",
+      "s . step = step ;",
+      "if s . step < 1",
+      "{",
+      "s . step = 1 ;",
+      "}",
+      "s . cap = cap ;",
+      "if s . cap < s . step",
+      "{",
+      "s . cap = s . step ;",
+      "}",
+      "s . total = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "perform",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PerformParamChoice >",
+      "rounds: u8",
+      "prefer_external: bool"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . sched ;",
+      "let mut i : u8 = 0 ;",
+      "while i < rounds",
+      "{",
+      "let mut amount = s . step ;",
+      "if amount < 1",
+      "{",
+      "amount = 1 ;",
+      "} let plan = s . total . saturating_add (amount) ;",
+      "if plan > s . cap",
+      "{",
+      "return Err (ParamChoiceErr :: Cap . into ()) ;",
+      "} let mut program_ai = ctx . accounts . token_program . to_account_info () ;",
+      "if prefer_external",
+      "{",
+      "program_ai = ctx . accounts . external_program . clone () ;",
+      "} token :: approve (ctx . accounts . approve_with (program_ai . clone ()) , amount) ? ;",
+      "token :: transfer (ctx . accounts . transfer_with (program_ai . clone ()) , amount) ? ;",
+      "token :: revoke (ctx . accounts . revoke_with (program_ai)) ? ;",
+      "s . total = plan ;",
+      "if s . total % (s . step * 2) == 0",
+      "{",
+      "s . total = s . total ;",
+      "} i = i . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "SetupParamChoice",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "sched",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , ParamChoiceState >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PerformParamChoice",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "sched",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , ParamChoiceState >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "vault_in",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "vault_out",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "external_program",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ParamChoiceState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "step",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "cap",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

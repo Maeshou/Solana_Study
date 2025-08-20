@@ -1,0 +1,172 @@
+[
+  {
+    "name": "init_board",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitBoard >",
+      "daily_cap: u64",
+      "weekly_base: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let board_state = & mut ctx . accounts . board_state ;",
+      "board_state . owner = ctx . accounts . owner . key () ;",
+      "board_state . daily_cap = if daily_cap < 9 { 9 } else { daily_cap } ;",
+      "board_state . issued_today = weekly_base / 5 + 2 ;",
+      "board_state . weekly_base = if weekly_base < 12 { 12 } else { weekly_base } ;",
+      "board_state . multiplier_percent = 100 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_claim",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActClaim >",
+      "task_count: u8",
+      "proof_units: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let board_state = & mut ctx . accounts . board_state ;",
+      "let burn_units = if proof_units < 1 { 1 } else { proof_units } ;",
+      "token :: burn (ctx . accounts . burn_ctx () , burn_units) ? ;",
+      "if task_count >= 3",
+      "{",
+      "board_state . multiplier_percent = board_state . multiplier_percent + 5 ;",
+      "}",
+      "if task_count >= 5",
+      "{",
+      "board_state . multiplier_percent = board_state . multiplier_percent + 10 ;",
+      "}",
+      "if board_state . multiplier_percent > 130",
+      "{",
+      "board_state . multiplier_percent = 130 ;",
+      "}",
+      "let mut base_reward_units : u64 = board_state . weekly_base / 25 + 1 ;",
+      "let mut task_cursor : u8 = 0 ;",
+      "while task_cursor < task_count",
+      "{",
+      "let step_bonus = (task_cursor as u64 % 3) + 1 ;",
+      "base_reward_units = base_reward_units + step_bonus ;",
+      "task_cursor = task_cursor + 1 ;",
+      "}",
+      "let scaled_reward : u64 = (base_reward_units as u128 * board_state . multiplier_percent as u128 / 100u128) as u64 ;",
+      "let projected_total : u64 = board_state . issued_today + scaled_reward ;",
+      "if projected_total > board_state . daily_cap",
+      "{",
+      "let carry_over : u64 = projected_total - board_state . daily_cap ;",
+      "board_state . weekly_base = board_state . weekly_base + carry_over ;",
+      "board_state . multiplier_percent = 100 ;",
+      "return Err (QuestErr :: OverDailyCap . into ()) ;",
+      "}",
+      "token :: mint_to (ctx . accounts . mint_ctx () , scaled_reward) ? ;",
+      "board_state . issued_today = projected_total ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitBoard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "board_state",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 8 + 8 + 4)]",
+        "field_type": "Account < 'info , BoardState >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActClaim",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "board_state",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , BoardState >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "proof_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "user_proof_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "reward_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "user_reward_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BoardState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "daily_cap",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "issued_today",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "weekly_base",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "multiplier_percent",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,500 @@
+[
+  {
+    "name": "init_profile",
+    "inputs": [
+      "ctx: Context < InitProfile >",
+      "quota: u32"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let profile = & mut ctx . accounts . profile ;"
+      },
+      {
+        "id": 2,
+        "label": "profile . owner = ctx . accounts . user . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "profile . quota = quota % 500 + 40 ;"
+      },
+      {
+        "id": 4,
+        "label": "profile . credits = 7 ;"
+      },
+      {
+        "id": 5,
+        "label": "profile . audit = 3 ;"
+      },
+      {
+        "id": 6,
+        "label": "let canonical_bump = * ctx . bumps . get (\"profile\") . ok_or (error ! (ProfileErr :: MissingBump)) ? ;"
+      },
+      {
+        "id": 7,
+        "label": "profile . saved_bump = canonical_bump ;"
+      },
+      {
+        "id": 8,
+        "label": "let mut seed_hash = profile . owner . to_bytes () [0] as u32 ;"
+      },
+      {
+        "id": 9,
+        "label": "seed_hash = seed_hash . saturating_add ((profile . quota % 9) + 1) ;"
+      },
+      {
+        "id": 10,
+        "label": "if seed_hash % 3 != 1 { profile . audit = profile . audit . saturating_add (seed_hash % 7 + 2) ; }"
+      },
+      {
+        "id": 11,
+        "label": "profile . audit = profile . audit . saturating_add (seed_hash % 7 + 2) ;"
+      },
+      {
+        "id": 12,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: profile"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: profile"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: profile"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: profile"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: profile"
+      },
+      {
+        "from": 6,
+        "to": 6,
+        "label": "def: canonical_bump"
+      },
+      {
+        "from": 1,
+        "to": 7,
+        "label": "data_dep: profile"
+      },
+      {
+        "from": 6,
+        "to": 7,
+        "label": "data_dep: canonical_bump"
+      },
+      {
+        "from": 8,
+        "to": 8,
+        "label": "def: seed_hash"
+      },
+      {
+        "from": 1,
+        "to": 8,
+        "label": "data_dep: profile"
+      },
+      {
+        "from": 8,
+        "to": 9,
+        "label": "data_dep: seed_hash"
+      },
+      {
+        "from": 8,
+        "to": 9,
+        "label": "data_dep: seed_hash"
+      },
+      {
+        "from": 1,
+        "to": 9,
+        "label": "data_dep: profile"
+      },
+      {
+        "from": 8,
+        "to": 10,
+        "label": "data_dep: seed_hash"
+      },
+      {
+        "from": 1,
+        "to": 10,
+        "label": "data_dep: profile"
+      },
+      {
+        "from": 1,
+        "to": 10,
+        "label": "data_dep: profile"
+      },
+      {
+        "from": 8,
+        "to": 10,
+        "label": "data_dep: seed_hash"
+      },
+      {
+        "from": 1,
+        "to": 11,
+        "label": "data_dep: profile"
+      },
+      {
+        "from": 1,
+        "to": 11,
+        "label": "data_dep: profile"
+      },
+      {
+        "from": 8,
+        "to": 11,
+        "label": "data_dep: seed_hash"
+      }
+    ]
+  },
+  {
+    "name": "charge",
+    "inputs": [
+      "ctx: Context < Charge >",
+      "amount: u64"
+    ],
+    "nodes": [
+      {
+        "id": 13,
+        "label": "Entry"
+      },
+      {
+        "id": 14,
+        "label": "let profile = & mut ctx . accounts . profile ;"
+      },
+      {
+        "id": 15,
+        "label": "let seeds = & [b\"fee_sink\" , profile . owner . as_ref () , & [profile . saved_bump]] ;"
+      },
+      {
+        "id": 16,
+        "label": "let derived = Pubkey :: create_program_address (seeds , ctx . program_id) . map_err (| _ | error ! (ProfileErr :: SeedCompute)) ? ;"
+      },
+      {
+        "id": 17,
+        "label": "if derived != ctx . accounts . fee_sink . key () { return Err (error ! (ProfileErr :: FeeSinkMismatch)) ; }"
+      },
+      {
+        "id": 18,
+        "label": "return Err (error ! (ProfileErr :: FeeSinkMismatch)) ;"
+      },
+      {
+        "id": 19,
+        "label": "let ix = Instruction { program_id : * ctx . program_id , accounts : vec ! [AccountMeta :: new (profile . key () , false) , AccountMeta :: new_readonly (ctx . accounts . user . key () , true) ,] , data : amount . to_le_bytes () . to_vec () , } ;"
+      },
+      {
+        "id": 20,
+        "label": "let signer = & [b\"fee_sink\" , profile . owner . as_ref () , & [profile . saved_bump]] ;"
+      },
+      {
+        "id": 21,
+        "label": "invoke_signed (& ix , & [profile . to_account_info () , ctx . accounts . user . to_account_info ()] , & [signer] ,) ? ;"
+      },
+      {
+        "id": 22,
+        "label": "let mut step = 2u32 ;"
+      },
+      {
+        "id": 23,
+        "label": "while step < 9 { profile . credits = profile . credits . saturating_add (step) ; let modv = (profile . credits % 5) + 2 ; profile . quota = profile . quota . saturating_add (modv) ; step = step . saturating_add (2) ; }"
+      },
+      {
+        "id": 24,
+        "label": "profile . credits = profile . credits . saturating_add (step) ;"
+      },
+      {
+        "id": 25,
+        "label": "let modv = (profile . credits % 5) + 2 ;"
+      },
+      {
+        "id": 26,
+        "label": "profile . quota = profile . quota . saturating_add (modv) ;"
+      },
+      {
+        "id": 27,
+        "label": "step = step . saturating_add (2) ;"
+      },
+      {
+        "id": 28,
+        "label": "if amount > 1000 { let adj = (amount % 13) as u32 + 3 ; profile . audit = profile . audit . saturating_add (adj) ; let marker = profile . owner . to_bytes () [1] ; profile . credits = profile . credits . saturating_add ((marker % 7) as u32 + 1) ; }"
+      },
+      {
+        "id": 29,
+        "label": "let adj = (amount % 13) as u32 + 3 ;"
+      },
+      {
+        "id": 30,
+        "label": "profile . audit = profile . audit . saturating_add (adj) ;"
+      },
+      {
+        "id": 31,
+        "label": "let marker = profile . owner . to_bytes () [1] ;"
+      },
+      {
+        "id": 32,
+        "label": "profile . credits = profile . credits . saturating_add ((marker % 7) as u32 + 1) ;"
+      },
+      {
+        "id": 33,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 14,
+        "to": 14,
+        "label": "def: profile"
+      },
+      {
+        "from": 15,
+        "to": 15,
+        "label": "def: seeds"
+      },
+      {
+        "from": 14,
+        "to": 15,
+        "label": "data_dep: profile"
+      },
+      {
+        "from": 14,
+        "to": 15,
+        "label": "data_dep: profile"
+      },
+      {
+        "from": 16,
+        "to": 16,
+        "label": "def: derived"
+      },
+      {
+        "from": 15,
+        "to": 16,
+        "label": "data_dep: seeds"
+      },
+      {
+        "from": 16,
+        "to": 17,
+        "label": "data_dep: derived"
+      },
+      {
+        "from": 19,
+        "to": 19,
+        "label": "def: ix"
+      },
+      {
+        "from": 20,
+        "to": 20,
+        "label": "def: signer"
+      },
+      {
+        "from": 14,
+        "to": 20,
+        "label": "data_dep: profile"
+      },
+      {
+        "from": 14,
+        "to": 20,
+        "label": "data_dep: profile"
+      },
+      {
+        "from": 19,
+        "to": 21,
+        "label": "data_dep: ix"
+      },
+      {
+        "from": 14,
+        "to": 21,
+        "label": "data_dep: profile"
+      },
+      {
+        "from": 20,
+        "to": 21,
+        "label": "data_dep: signer"
+      },
+      {
+        "from": 22,
+        "to": 22,
+        "label": "def: step"
+      },
+      {
+        "from": 22,
+        "to": 23,
+        "label": "data_dep: step"
+      },
+      {
+        "from": 14,
+        "to": 23,
+        "label": "data_dep: profile"
+      },
+      {
+        "from": 14,
+        "to": 23,
+        "label": "data_dep: profile"
+      },
+      {
+        "from": 22,
+        "to": 23,
+        "label": "data_dep: step"
+      },
+      {
+        "from": 14,
+        "to": 23,
+        "label": "data_dep: profile"
+      },
+      {
+        "from": 14,
+        "to": 23,
+        "label": "data_dep: profile"
+      },
+      {
+        "from": 14,
+        "to": 23,
+        "label": "data_dep: profile"
+      },
+      {
+        "from": 22,
+        "to": 23,
+        "label": "data_dep: step"
+      },
+      {
+        "from": 22,
+        "to": 23,
+        "label": "data_dep: step"
+      },
+      {
+        "from": 14,
+        "to": 24,
+        "label": "data_dep: profile"
+      },
+      {
+        "from": 14,
+        "to": 24,
+        "label": "data_dep: profile"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: step"
+      },
+      {
+        "from": 25,
+        "to": 25,
+        "label": "def: modv"
+      },
+      {
+        "from": 14,
+        "to": 25,
+        "label": "data_dep: profile"
+      },
+      {
+        "from": 14,
+        "to": 26,
+        "label": "data_dep: profile"
+      },
+      {
+        "from": 14,
+        "to": 26,
+        "label": "data_dep: profile"
+      },
+      {
+        "from": 25,
+        "to": 26,
+        "label": "data_dep: modv"
+      },
+      {
+        "from": 22,
+        "to": 27,
+        "label": "data_dep: step"
+      },
+      {
+        "from": 22,
+        "to": 27,
+        "label": "data_dep: step"
+      },
+      {
+        "from": 14,
+        "to": 28,
+        "label": "data_dep: profile"
+      },
+      {
+        "from": 14,
+        "to": 28,
+        "label": "data_dep: profile"
+      },
+      {
+        "from": 14,
+        "to": 28,
+        "label": "data_dep: profile"
+      },
+      {
+        "from": 14,
+        "to": 28,
+        "label": "data_dep: profile"
+      },
+      {
+        "from": 14,
+        "to": 28,
+        "label": "data_dep: profile"
+      },
+      {
+        "from": 29,
+        "to": 29,
+        "label": "def: adj"
+      },
+      {
+        "from": 14,
+        "to": 30,
+        "label": "data_dep: profile"
+      },
+      {
+        "from": 14,
+        "to": 30,
+        "label": "data_dep: profile"
+      },
+      {
+        "from": 29,
+        "to": 30,
+        "label": "data_dep: adj"
+      },
+      {
+        "from": 31,
+        "to": 31,
+        "label": "def: marker"
+      },
+      {
+        "from": 14,
+        "to": 31,
+        "label": "data_dep: profile"
+      },
+      {
+        "from": 14,
+        "to": 32,
+        "label": "data_dep: profile"
+      },
+      {
+        "from": 14,
+        "to": 32,
+        "label": "data_dep: profile"
+      },
+      {
+        "from": 31,
+        "to": 32,
+        "label": "data_dep: marker"
+      }
+    ]
+  }
+]

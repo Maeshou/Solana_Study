@@ -1,0 +1,661 @@
+[
+  {
+    "name": "init_blueprint",
+    "inputs": [
+      "ctx: Context < InitBlueprint >",
+      "name: String",
+      "lane: Lane"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let b = & mut ctx . accounts . blueprint ;"
+      },
+      {
+        "id": 2,
+        "label": "b . owner = ctx . accounts . owner . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "b . name = name ;"
+      },
+      {
+        "id": 4,
+        "label": "b . lane = lane ;"
+      },
+      {
+        "id": 5,
+        "label": "b . quality = 1 ;"
+      },
+      {
+        "id": 6,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: b"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: b"
+      }
+    ]
+  },
+  {
+    "name": "init_line",
+    "inputs": [
+      "ctx: Context < InitLine >"
+    ],
+    "nodes": [
+      {
+        "id": 7,
+        "label": "Entry"
+      },
+      {
+        "id": 8,
+        "label": "let l = & mut ctx . accounts . line ;"
+      },
+      {
+        "id": 9,
+        "label": "let inv = & mut ctx . accounts . inventory ;"
+      },
+      {
+        "id": 10,
+        "label": "l . parent = ctx . accounts . blueprint . key () ;"
+      },
+      {
+        "id": 11,
+        "label": "l . batch = 0 ;"
+      },
+      {
+        "id": 12,
+        "label": "l . fail = 0 ;"
+      },
+      {
+        "id": 13,
+        "label": "l . ok = 0 ;"
+      },
+      {
+        "id": 14,
+        "label": "inv . parent = ctx . accounts . blueprint . key () ;"
+      },
+      {
+        "id": 15,
+        "label": "inv . count = 0 ;"
+      },
+      {
+        "id": 16,
+        "label": "inv . scrap = 0 ;"
+      },
+      {
+        "id": 17,
+        "label": "inv . hash = 0 ;"
+      },
+      {
+        "id": 18,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 8,
+        "to": 8,
+        "label": "def: l"
+      },
+      {
+        "from": 9,
+        "to": 9,
+        "label": "def: inv"
+      },
+      {
+        "from": 8,
+        "to": 10,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 8,
+        "to": 11,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 8,
+        "to": 12,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 8,
+        "to": 13,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 9,
+        "to": 14,
+        "label": "data_dep: inv"
+      },
+      {
+        "from": 9,
+        "to": 15,
+        "label": "data_dep: inv"
+      },
+      {
+        "from": 9,
+        "to": 16,
+        "label": "data_dep: inv"
+      },
+      {
+        "from": 9,
+        "to": 17,
+        "label": "data_dep: inv"
+      }
+    ]
+  },
+  {
+    "name": "process_line",
+    "inputs": [
+      "ctx: Context < ProcessLine >",
+      "cycles: u16"
+    ],
+    "nodes": [
+      {
+        "id": 19,
+        "label": "Entry"
+      },
+      {
+        "id": 20,
+        "label": "let bp = & mut ctx . accounts . blueprint ;"
+      },
+      {
+        "id": 21,
+        "label": "let line = & mut ctx . accounts . line ;"
+      },
+      {
+        "id": 22,
+        "label": "let inv = & mut ctx . accounts . inventory ;"
+      },
+      {
+        "id": 23,
+        "label": "let mut c = 0u16 ;"
+      },
+      {
+        "id": 24,
+        "label": "while c < cycles { let mut x = (bp . quality as u64) . max (1) ; let mut k = 0 ; while k < 4 { x = (x + (bp . quality as u64) . max (1) / x) . max (1) / 2 ; k += 1 ; } let pass = ((x as u32) & 1) == 0 ; if pass { line . ok = line . ok . saturating_add (1) ; inv . count = inv . count . saturating_add (1) ; inv . hash ^= inv . count . rotate_left ((inv . count % 31) as u32) ; bp . quality = (bp . quality + 1) . min (100) ; msg ! (\"produce ok: +1, inv={}, q={}\" , inv . count , bp . quality) ; } else { line . fail = line . fail . saturating_add (1) ; inv . scrap = inv . scrap . saturating_add (1) ; bp . quality = bp . quality . saturating_sub (1) . max (1) ; msg ! (\"produce fail: scrap+1, q={}\" , bp . quality) ; } line . batch = line . batch . wrapping_add (1) ; c += 1 ; }"
+      },
+      {
+        "id": 25,
+        "label": "let mut x = (bp . quality as u64) . max (1) ;"
+      },
+      {
+        "id": 26,
+        "label": "let mut k = 0 ;"
+      },
+      {
+        "id": 27,
+        "label": "while k < 4 { x = (x + (bp . quality as u64) . max (1) / x) . max (1) / 2 ; k += 1 ; }"
+      },
+      {
+        "id": 28,
+        "label": "x = (x + (bp . quality as u64) . max (1) / x) . max (1) / 2 ;"
+      },
+      {
+        "id": 29,
+        "label": "k += 1 ;"
+      },
+      {
+        "id": 30,
+        "label": "let pass = ((x as u32) & 1) == 0 ;"
+      },
+      {
+        "id": 31,
+        "label": "if pass { line . ok = line . ok . saturating_add (1) ; inv . count = inv . count . saturating_add (1) ; inv . hash ^= inv . count . rotate_left ((inv . count % 31) as u32) ; bp . quality = (bp . quality + 1) . min (100) ; msg ! (\"produce ok: +1, inv={}, q={}\" , inv . count , bp . quality) ; } else { line . fail = line . fail . saturating_add (1) ; inv . scrap = inv . scrap . saturating_add (1) ; bp . quality = bp . quality . saturating_sub (1) . max (1) ; msg ! (\"produce fail: scrap+1, q={}\" , bp . quality) ; }"
+      },
+      {
+        "id": 32,
+        "label": "line . ok = line . ok . saturating_add (1) ;"
+      },
+      {
+        "id": 33,
+        "label": "inv . count = inv . count . saturating_add (1) ;"
+      },
+      {
+        "id": 34,
+        "label": "inv . hash ^= inv . count . rotate_left ((inv . count % 31) as u32) ;"
+      },
+      {
+        "id": 35,
+        "label": "bp . quality = (bp . quality + 1) . min (100) ;"
+      },
+      {
+        "id": 36,
+        "label": "msg ! (\"produce ok: +1, inv={}, q={}\" , inv . count , bp . quality) ;"
+      },
+      {
+        "id": 37,
+        "label": "line . fail = line . fail . saturating_add (1) ;"
+      },
+      {
+        "id": 38,
+        "label": "inv . scrap = inv . scrap . saturating_add (1) ;"
+      },
+      {
+        "id": 39,
+        "label": "bp . quality = bp . quality . saturating_sub (1) . max (1) ;"
+      },
+      {
+        "id": 40,
+        "label": "msg ! (\"produce fail: scrap+1, q={}\" , bp . quality) ;"
+      },
+      {
+        "id": 41,
+        "label": "line . batch = line . batch . wrapping_add (1) ;"
+      },
+      {
+        "id": 42,
+        "label": "c += 1 ;"
+      },
+      {
+        "id": 43,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 20,
+        "to": 20,
+        "label": "def: bp"
+      },
+      {
+        "from": 21,
+        "to": 21,
+        "label": "def: line"
+      },
+      {
+        "from": 22,
+        "to": 22,
+        "label": "def: inv"
+      },
+      {
+        "from": 23,
+        "to": 23,
+        "label": "def: c"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "data_dep: c"
+      },
+      {
+        "from": 20,
+        "to": 24,
+        "label": "data_dep: bp"
+      },
+      {
+        "from": 20,
+        "to": 24,
+        "label": "data_dep: bp"
+      },
+      {
+        "from": 21,
+        "to": 24,
+        "label": "data_dep: line"
+      },
+      {
+        "from": 21,
+        "to": 24,
+        "label": "data_dep: line"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: inv"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: inv"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: inv"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: inv"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: inv"
+      },
+      {
+        "from": 20,
+        "to": 24,
+        "label": "data_dep: bp"
+      },
+      {
+        "from": 20,
+        "to": 24,
+        "label": "data_dep: bp"
+      },
+      {
+        "from": 21,
+        "to": 24,
+        "label": "data_dep: line"
+      },
+      {
+        "from": 21,
+        "to": 24,
+        "label": "data_dep: line"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: inv"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: inv"
+      },
+      {
+        "from": 20,
+        "to": 24,
+        "label": "data_dep: bp"
+      },
+      {
+        "from": 20,
+        "to": 24,
+        "label": "data_dep: bp"
+      },
+      {
+        "from": 21,
+        "to": 24,
+        "label": "data_dep: line"
+      },
+      {
+        "from": 21,
+        "to": 24,
+        "label": "data_dep: line"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "data_dep: c"
+      },
+      {
+        "from": 25,
+        "to": 25,
+        "label": "def: x"
+      },
+      {
+        "from": 20,
+        "to": 25,
+        "label": "data_dep: bp"
+      },
+      {
+        "from": 26,
+        "to": 26,
+        "label": "def: k"
+      },
+      {
+        "from": 26,
+        "to": 27,
+        "label": "data_dep: k"
+      },
+      {
+        "from": 25,
+        "to": 27,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 25,
+        "to": 27,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 20,
+        "to": 27,
+        "label": "data_dep: bp"
+      },
+      {
+        "from": 25,
+        "to": 27,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 26,
+        "to": 27,
+        "label": "data_dep: k"
+      },
+      {
+        "from": 25,
+        "to": 28,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 25,
+        "to": 28,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 20,
+        "to": 28,
+        "label": "data_dep: bp"
+      },
+      {
+        "from": 25,
+        "to": 28,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 26,
+        "to": 29,
+        "label": "data_dep: k"
+      },
+      {
+        "from": 30,
+        "to": 30,
+        "label": "def: pass"
+      },
+      {
+        "from": 25,
+        "to": 30,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 30,
+        "to": 31,
+        "label": "data_dep: pass"
+      },
+      {
+        "from": 21,
+        "to": 31,
+        "label": "data_dep: line"
+      },
+      {
+        "from": 21,
+        "to": 31,
+        "label": "data_dep: line"
+      },
+      {
+        "from": 22,
+        "to": 31,
+        "label": "data_dep: inv"
+      },
+      {
+        "from": 22,
+        "to": 31,
+        "label": "data_dep: inv"
+      },
+      {
+        "from": 22,
+        "to": 31,
+        "label": "data_dep: inv"
+      },
+      {
+        "from": 22,
+        "to": 31,
+        "label": "data_dep: inv"
+      },
+      {
+        "from": 22,
+        "to": 31,
+        "label": "data_dep: inv"
+      },
+      {
+        "from": 20,
+        "to": 31,
+        "label": "data_dep: bp"
+      },
+      {
+        "from": 20,
+        "to": 31,
+        "label": "data_dep: bp"
+      },
+      {
+        "from": 21,
+        "to": 31,
+        "label": "data_dep: line"
+      },
+      {
+        "from": 21,
+        "to": 31,
+        "label": "data_dep: line"
+      },
+      {
+        "from": 22,
+        "to": 31,
+        "label": "data_dep: inv"
+      },
+      {
+        "from": 22,
+        "to": 31,
+        "label": "data_dep: inv"
+      },
+      {
+        "from": 20,
+        "to": 31,
+        "label": "data_dep: bp"
+      },
+      {
+        "from": 20,
+        "to": 31,
+        "label": "data_dep: bp"
+      },
+      {
+        "from": 21,
+        "to": 32,
+        "label": "data_dep: line"
+      },
+      {
+        "from": 21,
+        "to": 32,
+        "label": "data_dep: line"
+      },
+      {
+        "from": 22,
+        "to": 33,
+        "label": "data_dep: inv"
+      },
+      {
+        "from": 22,
+        "to": 33,
+        "label": "data_dep: inv"
+      },
+      {
+        "from": 22,
+        "to": 34,
+        "label": "data_dep: inv"
+      },
+      {
+        "from": 22,
+        "to": 34,
+        "label": "data_dep: inv"
+      },
+      {
+        "from": 22,
+        "to": 34,
+        "label": "data_dep: inv"
+      },
+      {
+        "from": 20,
+        "to": 35,
+        "label": "data_dep: bp"
+      },
+      {
+        "from": 20,
+        "to": 35,
+        "label": "data_dep: bp"
+      },
+      {
+        "from": 21,
+        "to": 37,
+        "label": "data_dep: line"
+      },
+      {
+        "from": 21,
+        "to": 37,
+        "label": "data_dep: line"
+      },
+      {
+        "from": 22,
+        "to": 38,
+        "label": "data_dep: inv"
+      },
+      {
+        "from": 22,
+        "to": 38,
+        "label": "data_dep: inv"
+      },
+      {
+        "from": 20,
+        "to": 39,
+        "label": "data_dep: bp"
+      },
+      {
+        "from": 20,
+        "to": 39,
+        "label": "data_dep: bp"
+      },
+      {
+        "from": 21,
+        "to": 41,
+        "label": "data_dep: line"
+      },
+      {
+        "from": 21,
+        "to": 41,
+        "label": "data_dep: line"
+      },
+      {
+        "from": 23,
+        "to": 42,
+        "label": "data_dep: c"
+      }
+    ]
+  }
+]

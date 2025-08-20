@@ -1,0 +1,170 @@
+[
+  {
+    "name": "init_pool",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitPool >",
+      "daily_cap_input: u64",
+      "base_reward_input: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let p = & mut ctx . accounts . pool ;",
+      "p . owner = ctx . accounts . owner . key () ;",
+      "p . daily_cap = daily_cap_input ;",
+      "if p . daily_cap < 50",
+      "{",
+      "p . daily_cap = 50 ;",
+      "}",
+      "p . base_reward = base_reward_input ;",
+      "if p . base_reward < 1",
+      "{",
+      "p . base_reward = 1 ;",
+      "}",
+      "p . issued_today = 0 ;",
+      "p . tier = 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "act_reward",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ActReward >",
+      "tasks: u16",
+      "quality_bits: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let p = & mut ctx . accounts . pool ;",
+      "let mut score = 0u64 ;",
+      "let mut idx : u8 = 0 ;",
+      "while idx < 16",
+      "{",
+      "let bit = (quality_bits >> idx) & 1 ;",
+      "if bit == 1",
+      "{",
+      "score = score + (idx as u64 + 1) ;",
+      "} idx = idx + 1 ;",
+      "}",
+      "let mut work = p . base_reward + (tasks as u64 / 3) + score / 5 ;",
+      "if p . tier >= 3",
+      "{",
+      "work = work + 2 ;",
+      "}",
+      "if p . tier >= 5",
+      "{",
+      "work = work + 3 ;",
+      "}",
+      "let next = p . issued_today + work ;",
+      "if next > p . daily_cap",
+      "{",
+      "let rest = p . daily_cap - p . issued_today ;",
+      "if rest > 0",
+      "{",
+      "token :: mint_to (ctx . accounts . mint_ctx () , rest) ? ;",
+      "} p . issued_today = p . daily_cap ;",
+      "p . tier = 1 ;",
+      "return Err (LabErr :: Daily . into ()) ;",
+      "}",
+      "token :: mint_to (ctx . accounts . mint_ctx () , work) ? ;",
+      "p . issued_today = next ;",
+      "p . tier = p . tier + 1 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitPool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , LabelPool >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ActReward",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , LabelPool >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "reward_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "worker_reward_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "LabelPool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "daily_cap",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "base_reward",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "issued_today",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "tier",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

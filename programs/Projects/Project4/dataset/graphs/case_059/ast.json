@@ -1,33 +1,106 @@
 [
   {
-    "name": "initialize_distribution_rules",
+    "name": "init_inventory",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Initialize059 >",
-      "param: u64"
+      "ctx: Context < InitInventory >",
+      "initial: u32",
+      "threshold: u32"
     ],
     "attributes": [],
     "body": [
-      "let mut data = DistributionRulesData :: try_from_slice (& ctx . accounts . data_account . data . borrow ()) ? ;",
-      "data . value = param ;",
-      "data . serialize (& mut * ctx . accounts . data_account . data . borrow_mut ()) ? ;",
+      "let stock = & mut ctx . accounts . stock ;",
+      "stock . level = 0 ;",
+      "let mut square_sum = 0u64 ;",
+      "for i in 1 ..= initial",
+      "{",
+      "stock . level += 1 ;",
+      "square_sum += (i as u64) * (i as u64) ;",
+      "}",
+      "stock . square_sum = square_sum ;",
+      "let thresh = & mut ctx . accounts . threshold ;",
+      "thresh . value = threshold ;",
+      "let log = & mut ctx . accounts . alert_log ;",
+      "if stock . level > threshold",
+      "{",
+      "let diff = stock . level - threshold ;",
+      "log . count = diff * diff ;",
+      "log . over = true ;",
+      "} else",
+      "{",
+      "log . count = 0 ;",
+      "log . over = false ;",
+      "}",
       "Ok (())"
     ]
   },
   {
-    "name": "Initialize059",
+    "name": "adjust_stock",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AdjustStock >",
+      "change: i32"
+    ],
+    "attributes": [],
+    "body": [
+      "let stock = & mut ctx . accounts . stock ;",
+      "if change >= 0",
+      "{",
+      "let half = (change as u32) / 2 ;",
+      "stock . level = stock . level . saturating_add (half) ;",
+      "stock . level = stock . level . saturating_add (change as u32 - half) ;",
+      "} else",
+      "{",
+      "let dec = (- change) as u32 ;",
+      "let half = dec / 2 ;",
+      "stock . level = stock . level . saturating_sub (half) ;",
+      "stock . level = stock . level . saturating_sub (dec - half) ;",
+      "}",
+      "let thresh = ctx . accounts . threshold . value ;",
+      "let log = & mut ctx . accounts . alert_log ;",
+      "if stock . level > thresh",
+      "{",
+      "let diff = stock . level - thresh ;",
+      "log . count = diff * diff ;",
+      "log . over = true ;",
+      "} else",
+      "{",
+      "log . count = 0 ;",
+      "log . over = false ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitInventory",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "stock",
+        "attribute": "# [account (init , payer = mgr , space = 8 + 4 + 8)]",
+        "field_type": "Account < 'info , StockData >"
       },
       {
-        "name": "authority",
-        "attribute": null,
+        "name": "threshold",
+        "attribute": "# [account (init , payer = mgr , space = 8 + 4)]",
+        "field_type": "Account < 'info , ThresholdData >"
+      },
+      {
+        "name": "alert_log",
+        "attribute": "# [account (init , payer = mgr , space = 8 + 4 + 1)]",
+        "field_type": "Account < 'info , AlertLogData >"
+      },
+      {
+        "name": "mgr",
+        "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -35,13 +108,75 @@
     "body": null
   },
   {
-    "name": "DistributionRulesData",
+    "name": "AdjustStock",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "stock",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , StockData >"
+      },
+      {
+        "name": "threshold",
+        "attribute": null,
+        "field_type": "Account < 'info , ThresholdData >"
+      },
+      {
+        "name": "alert_log",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , AlertLogData >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "StockData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "level",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "square_sum",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ThresholdData",
     "node_type": "struct",
     "fields": [
       {
         "name": "value",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AlertLogData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "over",
+        "attribute": null,
+        "field_type": "bool"
       }
     ],
     "inputs": null,

@@ -1,9 +1,9 @@
 [
   {
-    "name": "liquidate_borrow",
+    "name": "init_market",
     "inputs": [
-      "ctx: Context < Ctx052 >",
-      "amount: u64"
+      "ctx: Context < InitMarket >",
+      "k_q16: u32"
     ],
     "nodes": [
       {
@@ -12,18 +12,22 @@
       },
       {
         "id": 1,
-        "label": "let cpi_accounts = Transfer { from : ctx . accounts . from_token . to_account_info () , to : ctx . accounts . to_token . to_account_info () , authority : ctx . accounts . authority . to_account_info () , } ;"
+        "label": "let m = & mut ctx . accounts ;"
       },
       {
         "id": 2,
-        "label": "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;"
+        "label": "m . listing . seller = m . seller . key () ;"
       },
       {
         "id": 3,
-        "label": "token :: transfer (cpi_ctx , amount) ? ;"
+        "label": "m . listing . k_q16 = k_q16 . max (1) ;"
       },
       {
         "id": 4,
+        "label": "m . listing . state = Live ;"
+      },
+      {
+        "id": 5,
         "label": "Ok (())"
       }
     ],
@@ -31,23 +35,402 @@
       {
         "from": 1,
         "to": 1,
-        "label": "def: cpi_accounts"
-      },
-      {
-        "from": 2,
-        "to": 2,
-        "label": "def: cpi_ctx"
+        "label": "def: m"
       },
       {
         "from": 1,
         "to": 2,
-        "label": "data_dep: cpi_accounts"
+        "label": "data_dep: m"
       },
       {
-        "from": 2,
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 1,
         "to": 3,
-        "label": "data_dep: cpi_ctx"
+        "label": "data_dep: m"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: m"
       }
     ]
+  },
+  {
+    "name": "quote",
+    "inputs": [
+      "ctx: Context < Quote >",
+      "steps: u32"
+    ],
+    "nodes": [
+      {
+        "id": 6,
+        "label": "Entry"
+      },
+      {
+        "id": 7,
+        "label": "let m = & mut ctx . accounts ;"
+      },
+      {
+        "id": 8,
+        "label": "for i in 0 .. steps { let x = m . curve . x_q16 as u128 ; let k = m . listing . k_q16 as u128 ; let one = 1u128 << 16 ; let term = (x * (one - x)) >> 16 ; let nx = x + ((k * term) >> 16) ; m . curve . x_q16 = nx . min (u128 :: from (u32 :: MAX)) as u32 ; m . stats . ticks = m . stats . ticks . wrapping_add ((i & 3) as u32 + 1) ; }"
+      },
+      {
+        "id": 9,
+        "label": "let x = m . curve . x_q16 as u128 ;"
+      },
+      {
+        "id": 10,
+        "label": "let k = m . listing . k_q16 as u128 ;"
+      },
+      {
+        "id": 11,
+        "label": "let one = 1u128 << 16 ;"
+      },
+      {
+        "id": 12,
+        "label": "let term = (x * (one - x)) >> 16 ;"
+      },
+      {
+        "id": 13,
+        "label": "let nx = x + ((k * term) >> 16) ;"
+      },
+      {
+        "id": 14,
+        "label": "m . curve . x_q16 = nx . min (u128 :: from (u32 :: MAX)) as u32 ;"
+      },
+      {
+        "id": 15,
+        "label": "m . stats . ticks = m . stats . ticks . wrapping_add ((i & 3) as u32 + 1) ;"
+      },
+      {
+        "id": 16,
+        "label": "if m . curve . x_q16 > (one_u32 () * 3 / 4) { m . listing . state = Shut ; m . stats . flags = m . stats . flags . wrapping_add (1) ; m . curve . x_q16 = (m . curve . x_q16 / 2) . max (1 << 8) ; m . wallet . balance = m . wallet . balance . saturating_add (5) ; msg ! (\"shut: x halved, flags+1, balance+5\") ; } else { m . listing . state = Cool ; m . stats . trades = m . stats . trades . wrapping_add (2) ; m . curve . x_q16 = m . curve . x_q16 + 77 ; m . wallet . lock = m . wallet . lock . wrapping_add (1) ; msg ! (\"cool: trades+2, x+77, lock+1\") ; }"
+      },
+      {
+        "id": 17,
+        "label": "m . listing . state = Shut ;"
+      },
+      {
+        "id": 18,
+        "label": "m . stats . flags = m . stats . flags . wrapping_add (1) ;"
+      },
+      {
+        "id": 19,
+        "label": "m . curve . x_q16 = (m . curve . x_q16 / 2) . max (1 << 8) ;"
+      },
+      {
+        "id": 20,
+        "label": "m . wallet . balance = m . wallet . balance . saturating_add (5) ;"
+      },
+      {
+        "id": 21,
+        "label": "msg ! (\"shut: x halved, flags+1, balance+5\") ;"
+      },
+      {
+        "id": 22,
+        "label": "m . listing . state = Cool ;"
+      },
+      {
+        "id": 23,
+        "label": "m . stats . trades = m . stats . trades . wrapping_add (2) ;"
+      },
+      {
+        "id": 24,
+        "label": "m . curve . x_q16 = m . curve . x_q16 + 77 ;"
+      },
+      {
+        "id": 25,
+        "label": "m . wallet . lock = m . wallet . lock . wrapping_add (1) ;"
+      },
+      {
+        "id": 26,
+        "label": "msg ! (\"cool: trades+2, x+77, lock+1\") ;"
+      },
+      {
+        "id": 27,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 7,
+        "to": 7,
+        "label": "def: m"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 9,
+        "to": 9,
+        "label": "def: x"
+      },
+      {
+        "from": 7,
+        "to": 9,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 10,
+        "to": 10,
+        "label": "def: k"
+      },
+      {
+        "from": 7,
+        "to": 10,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 11,
+        "to": 11,
+        "label": "def: one"
+      },
+      {
+        "from": 12,
+        "to": 12,
+        "label": "def: term"
+      },
+      {
+        "from": 9,
+        "to": 12,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 11,
+        "to": 12,
+        "label": "data_dep: one"
+      },
+      {
+        "from": 9,
+        "to": 12,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 13,
+        "to": 13,
+        "label": "def: nx"
+      },
+      {
+        "from": 9,
+        "to": 13,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 10,
+        "to": 13,
+        "label": "data_dep: k"
+      },
+      {
+        "from": 12,
+        "to": 13,
+        "label": "data_dep: term"
+      },
+      {
+        "from": 7,
+        "to": 14,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 13,
+        "to": 14,
+        "label": "data_dep: nx"
+      },
+      {
+        "from": 7,
+        "to": 15,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 7,
+        "to": 15,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 7,
+        "to": 16,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 7,
+        "to": 16,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 7,
+        "to": 16,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 7,
+        "to": 16,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 7,
+        "to": 16,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 7,
+        "to": 16,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 7,
+        "to": 16,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 7,
+        "to": 16,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 7,
+        "to": 16,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 7,
+        "to": 16,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 7,
+        "to": 16,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 7,
+        "to": 16,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 7,
+        "to": 16,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 7,
+        "to": 16,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 7,
+        "to": 16,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 7,
+        "to": 18,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 7,
+        "to": 18,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 7,
+        "to": 19,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 7,
+        "to": 19,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 7,
+        "to": 20,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 7,
+        "to": 20,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 7,
+        "to": 22,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 7,
+        "to": 23,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 7,
+        "to": 23,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 7,
+        "to": 24,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 7,
+        "to": 24,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 7,
+        "to": 25,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 7,
+        "to": 25,
+        "label": "data_dep: m"
+      }
+    ]
+  },
+  {
+    "name": "one_u32",
+    "inputs": [],
+    "nodes": [
+      {
+        "id": 28,
+        "label": "Entry"
+      },
+      {
+        "id": 29,
+        "label": "1 << 16"
+      }
+    ],
+    "edges": []
   }
 ]

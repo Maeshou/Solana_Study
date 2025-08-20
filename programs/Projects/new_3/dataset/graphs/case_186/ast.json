@@ -1,0 +1,188 @@
+[
+  {
+    "name": "Post",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "author",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "title",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "comments",
+        "attribute": null,
+        "field_type": "Vec < Pubkey >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Comment",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "commenter",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "post",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "content",
+        "attribute": null,
+        "field_type": "String"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreatePost",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "post",
+        "attribute": "# [account (init , payer = author , space = 8 + 32 + 4 + 128 + 4 + (32 * 50))]",
+        "field_type": "Account < 'info , Post >"
+      },
+      {
+        "name": "author",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AddComment",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "post",
+        "attribute": "# [doc = \" Post.author == author.key() は不要だが例示\"] # [account (mut , has_one = author)]",
+        "field_type": "Account < 'info , Post >"
+      },
+      {
+        "name": "comment",
+        "attribute": "# [doc = \" Comment.post ⇔ post.key() の検証がないため、\"] # [doc = \" 任意の Comment アカウントで処理を通過できる\"] # [account (init , payer = commenter , space = 8 + 32 + 32 + 4 + 256)]",
+        "field_type": "Account < 'info , Comment >"
+      },
+      {
+        "name": "author",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "commenter",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RemoveComment",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "comment",
+        "attribute": "# [doc = \" Comment.commenter == commenter.key() は検証される\"] # [account (mut , has_one = commenter)]",
+        "field_type": "Account < 'info , Comment >"
+      },
+      {
+        "name": "post",
+        "attribute": "# [doc = \" Post.key() ⇔ comment.post の検証がないため、\"] # [doc = \" 任意の Comment で他の投稿のコメントを削除できる\"] # [account (mut)]",
+        "field_type": "Account < 'info , Post >"
+      },
+      {
+        "name": "commenter",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "create_post",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreatePost >",
+      "title: String"
+    ],
+    "attributes": [
+      "# [doc = \" 投稿を作成\"]"
+    ],
+    "body": [
+      "let p = & mut ctx . accounts . post ;",
+      "p . author = ctx . accounts . author . key () ;",
+      "p . title = title ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "add_comment",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AddComment >",
+      "content: String"
+    ],
+    "attributes": [
+      "# [doc = \" コメントを追加\"]"
+    ],
+    "body": [
+      "let p = & mut ctx . accounts . post ;",
+      "let c = & mut ctx . accounts . comment ;",
+      "c . commenter = ctx . accounts . commenter . key () ;",
+      "c . post = p . key () ;",
+      "c . content = content ;",
+      "p . comments . push (c . commenter) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "remove_comment",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RemoveComment >"
+    ],
+    "attributes": [
+      "# [doc = \" コメントを削除（投稿者リストから取り除く）\"]"
+    ],
+    "body": [
+      "let p = & mut ctx . accounts . post ;",
+      "let c = & ctx . accounts . comment ;",
+      "p . comments . retain (| & pk | pk != c . commenter) ;",
+      "Ok (())"
+    ]
+  }
+]

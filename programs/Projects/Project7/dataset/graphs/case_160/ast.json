@@ -1,0 +1,162 @@
+[
+  {
+    "name": "configure",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ConfigureIndexSlot >",
+      "base: u64",
+      "cap: u64",
+      "preferred_slot: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let state = & mut ctx . accounts . state ;",
+      "state . admin = ctx . accounts . admin . key () ;",
+      "state . base = base ;",
+      "if state . base < 1",
+      "{",
+      "state . base = 1 ;",
+      "}",
+      "state . cap = cap ;",
+      "if state . cap < state . base",
+      "{",
+      "state . cap = state . base ;",
+      "}",
+      "state . count = 0 ;",
+      "state . preferred_slot = preferred_slot ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "execute",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ExecuteIndexSlot >",
+      "times: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let state = & mut ctx . accounts . state ;",
+      "let mut round : u8 = 0 ;",
+      "while round < times",
+      "{",
+      "let mut amount = state . base ;",
+      "if amount < 1",
+      "{",
+      "amount = 1 ;",
+      "} let next = state . count . saturating_add (amount) ;",
+      "if next > state . cap",
+      "{",
+      "return Err (IndexSlotErr :: Cap . into ()) ;",
+      "} let mut program_ai = ctx . accounts . token_program . to_account_info () ;",
+      "let slot = state . preferred_slot as usize ;",
+      "if ctx . remaining_accounts . len () > slot",
+      "{",
+      "program_ai = ctx . remaining_accounts [slot] . clone () ;",
+      "} token :: approve (ctx . accounts . approve_with (program_ai . clone ()) , amount) ? ;",
+      "token :: transfer (ctx . accounts . transfer_with (program_ai . clone ()) , amount) ? ;",
+      "token :: revoke (ctx . accounts . revoke_with (program_ai)) ? ;",
+      "state . count = next ;",
+      "if state . count % (state . base * 3) == 0",
+      "{",
+      "state . preferred_slot = state . preferred_slot . wrapping_add (1) ;",
+      "} round = round . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "ConfigureIndexSlot",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "state",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 8 + 8 + 8 + 1)]",
+        "field_type": "Account < 'info , IndexSlotState >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ExecuteIndexSlot",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "state",
+        "attribute": "# [account (mut , has_one = admin)]",
+        "field_type": "Account < 'info , IndexSlotState >"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "input_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "output_vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "IndexSlotState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "base",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "cap",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "count",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "preferred_slot",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,405 @@
+[
+  {
+    "name": "init_machine",
+    "inputs": [
+      "ctx: Context < InitMachine >",
+      "jackpot_bps: u16",
+      "pity_step: u8"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let m = & mut ctx . accounts . machine ;"
+      },
+      {
+        "id": 2,
+        "label": "m . owner = ctx . accounts . owner . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "m . jackpot_rate_bps = jackpot_bps . min (1000) . max (50) ;"
+      },
+      {
+        "id": 4,
+        "label": "m . pity_counter = pity_step . max (1) ;"
+      },
+      {
+        "id": 5,
+        "label": "m . rolls_done = pity_step as u64 ;"
+      },
+      {
+        "id": 6,
+        "label": "m . jackpots = 1 ;"
+      },
+      {
+        "id": 7,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: m"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 1,
+        "to": 6,
+        "label": "data_dep: m"
+      }
+    ]
+  },
+  {
+    "name": "act_roll",
+    "inputs": [
+      "ctx: Context < ActRoll >",
+      "ticket_cost: u64",
+      "entropy: u64"
+    ],
+    "nodes": [
+      {
+        "id": 8,
+        "label": "Entry"
+      },
+      {
+        "id": 9,
+        "label": "let m = & mut ctx . accounts . machine ;"
+      },
+      {
+        "id": 10,
+        "label": "token :: burn (ctx . accounts . burn_ctx () , ticket_cost . max (1)) ? ;"
+      },
+      {
+        "id": 11,
+        "label": "let mut score = 0u64 ;"
+      },
+      {
+        "id": 12,
+        "label": "let mut bit = 0u8 ;"
+      },
+      {
+        "id": 13,
+        "label": "while bit < 8 { let v = (entropy >> bit) & 1 ; score = score . saturating_add (v + bit as u64) ; bit = bit . saturating_add (1) ; }"
+      },
+      {
+        "id": 14,
+        "label": "let v = (entropy >> bit) & 1 ;"
+      },
+      {
+        "id": 15,
+        "label": "score = score . saturating_add (v + bit as u64) ;"
+      },
+      {
+        "id": 16,
+        "label": "bit = bit . saturating_add (1) ;"
+      },
+      {
+        "id": 17,
+        "label": "if m . pity_counter >= 10 { score = score . saturating_add (15) ; }"
+      },
+      {
+        "id": 18,
+        "label": "score = score . saturating_add (15) ;"
+      },
+      {
+        "id": 19,
+        "label": "let threshold = (m . jackpot_rate_bps as u64) . saturating_div (5) . max (5) ;"
+      },
+      {
+        "id": 20,
+        "label": "let win = score > threshold ;"
+      },
+      {
+        "id": 21,
+        "label": "if win { let prize = ticket_cost . saturating_mul (12) ; token :: mint_to (ctx . accounts . mint_ctx () , prize) ? ; m . jackpots = m . jackpots . saturating_add (1) ; m . pity_counter = 1 ; } else { let consolation = ticket_cost . saturating_div (8) . max (1) ; token :: mint_to (ctx . accounts . mint_ctx () , consolation) ? ; m . pity_counter = m . pity_counter . saturating_add (1) ; }"
+      },
+      {
+        "id": 22,
+        "label": "let prize = ticket_cost . saturating_mul (12) ;"
+      },
+      {
+        "id": 23,
+        "label": "token :: mint_to (ctx . accounts . mint_ctx () , prize) ? ;"
+      },
+      {
+        "id": 24,
+        "label": "m . jackpots = m . jackpots . saturating_add (1) ;"
+      },
+      {
+        "id": 25,
+        "label": "m . pity_counter = 1 ;"
+      },
+      {
+        "id": 26,
+        "label": "let consolation = ticket_cost . saturating_div (8) . max (1) ;"
+      },
+      {
+        "id": 27,
+        "label": "token :: mint_to (ctx . accounts . mint_ctx () , consolation) ? ;"
+      },
+      {
+        "id": 28,
+        "label": "m . pity_counter = m . pity_counter . saturating_add (1) ;"
+      },
+      {
+        "id": 29,
+        "label": "m . rolls_done = m . rolls_done . saturating_add (1) ;"
+      },
+      {
+        "id": 30,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 9,
+        "to": 9,
+        "label": "def: m"
+      },
+      {
+        "from": 11,
+        "to": 11,
+        "label": "def: score"
+      },
+      {
+        "from": 12,
+        "to": 12,
+        "label": "def: bit"
+      },
+      {
+        "from": 12,
+        "to": 13,
+        "label": "data_dep: bit"
+      },
+      {
+        "from": 12,
+        "to": 13,
+        "label": "data_dep: bit"
+      },
+      {
+        "from": 11,
+        "to": 13,
+        "label": "data_dep: score"
+      },
+      {
+        "from": 11,
+        "to": 13,
+        "label": "data_dep: score"
+      },
+      {
+        "from": 12,
+        "to": 13,
+        "label": "data_dep: bit"
+      },
+      {
+        "from": 12,
+        "to": 13,
+        "label": "data_dep: bit"
+      },
+      {
+        "from": 12,
+        "to": 13,
+        "label": "data_dep: bit"
+      },
+      {
+        "from": 14,
+        "to": 14,
+        "label": "def: v"
+      },
+      {
+        "from": 12,
+        "to": 14,
+        "label": "data_dep: bit"
+      },
+      {
+        "from": 11,
+        "to": 15,
+        "label": "data_dep: score"
+      },
+      {
+        "from": 11,
+        "to": 15,
+        "label": "data_dep: score"
+      },
+      {
+        "from": 14,
+        "to": 15,
+        "label": "data_dep: v"
+      },
+      {
+        "from": 12,
+        "to": 15,
+        "label": "data_dep: bit"
+      },
+      {
+        "from": 12,
+        "to": 16,
+        "label": "data_dep: bit"
+      },
+      {
+        "from": 12,
+        "to": 16,
+        "label": "data_dep: bit"
+      },
+      {
+        "from": 9,
+        "to": 17,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 11,
+        "to": 17,
+        "label": "data_dep: score"
+      },
+      {
+        "from": 11,
+        "to": 17,
+        "label": "data_dep: score"
+      },
+      {
+        "from": 11,
+        "to": 18,
+        "label": "data_dep: score"
+      },
+      {
+        "from": 11,
+        "to": 18,
+        "label": "data_dep: score"
+      },
+      {
+        "from": 19,
+        "to": 19,
+        "label": "def: threshold"
+      },
+      {
+        "from": 9,
+        "to": 19,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 20,
+        "to": 20,
+        "label": "def: win"
+      },
+      {
+        "from": 11,
+        "to": 20,
+        "label": "data_dep: score"
+      },
+      {
+        "from": 19,
+        "to": 20,
+        "label": "data_dep: threshold"
+      },
+      {
+        "from": 20,
+        "to": 21,
+        "label": "data_dep: win"
+      },
+      {
+        "from": 9,
+        "to": 21,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 9,
+        "to": 21,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 9,
+        "to": 21,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 9,
+        "to": 21,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 9,
+        "to": 21,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 22,
+        "to": 22,
+        "label": "def: prize"
+      },
+      {
+        "from": 22,
+        "to": 23,
+        "label": "data_dep: prize"
+      },
+      {
+        "from": 9,
+        "to": 24,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 9,
+        "to": 24,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 9,
+        "to": 25,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 26,
+        "to": 26,
+        "label": "def: consolation"
+      },
+      {
+        "from": 26,
+        "to": 27,
+        "label": "data_dep: consolation"
+      },
+      {
+        "from": 9,
+        "to": 28,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 9,
+        "to": 28,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 9,
+        "to": 29,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 9,
+        "to": 29,
+        "label": "data_dep: m"
+      }
+    ]
+  }
+]

@@ -1,0 +1,208 @@
+[
+  {
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Init >",
+      "base_salt: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let exchange_state = & mut ctx . accounts . exchange_state ;",
+      "exchange_state . admin = ctx . accounts . admin . key () ;",
+      "exchange_state . base_salt = base_salt ;",
+      "exchange_state . bump = * ctx . bumps . get (\"issuer\") . unwrap () ;",
+      "exchange_state . counter = 4 ;",
+      "exchange_state . acc = 0x5150 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "rekey",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Rekey >",
+      "new_salt: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let exchange_state = & mut ctx . accounts . exchange_state ;",
+      "require_keys_eq ! (exchange_state . admin , ctx . accounts . admin . key () , ExchangeError :: AdminOnly) ;",
+      "exchange_state . base_salt = new_salt ;",
+      "exchange_state . counter = exchange_state . counter . saturating_add (2) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "swap_with_target",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SwapWithTarget >",
+      "target_program: Pubkey",
+      "units: u64",
+      "salt_offset: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let exchange_state = & mut ctx . accounts . exchange_state ;",
+      "if units == 0",
+      "{",
+      "exchange_state . acc = exchange_state . acc . rotate_left (1) ;",
+      "return Ok (()) ;",
+      "}",
+      "let combined_salt = exchange_state . base_salt . wrapping_add (salt_offset) ;",
+      "let (expected_issuer , _bump) = Pubkey :: find_program_address (& [b\"issuer\" , exchange_state . admin . as_ref () , & [combined_salt] ,] , ctx . program_id ,) ;",
+      "if expected_issuer != ctx . accounts . issuer . key ()",
+      "{",
+      "exchange_state . acc = exchange_state . acc . wrapping_add (13) ;",
+      "}",
+      "let ix = Instruction { program_id : target_program , accounts : vec ! [AccountMeta :: new (ctx . accounts . reserve . key () , false) , AccountMeta :: new (ctx . accounts . receiver . key () , false) , AccountMeta :: new_readonly (ctx . accounts . issuer . key () , true) ,] , data : { let mut payload = vec ! [0xEE] ; payload . extend_from_slice (& units . to_le_bytes ()) ; payload . extend_from_slice (& [combined_salt]) ; payload } , } ;",
+      "let program_ai = ctx . remaining_accounts . get (0) . ok_or (ExchangeError :: TargetProgramMissing) ? ;",
+      "let seeds : & [& [u8]] = & [b\"issuer\" , exchange_state . admin . as_ref () , & [combined_salt] , & [exchange_state . bump] ,] ;",
+      "invoke_signed (& ix , & [program_ai . clone () , ctx . accounts . reserve . to_account_info () , ctx . accounts . receiver . to_account_info () , ctx . accounts . issuer . to_account_info () ,] , & [seeds] ,) ? ;",
+      "exchange_state . counter = exchange_state . counter . saturating_add (1) ;",
+      "exchange_state . acc = exchange_state . acc . wrapping_add (units ^ 0x39) ;",
+      "let mut polish : u8 = 1 ;",
+      "while polish < 4",
+      "{",
+      "exchange_state . acc = exchange_state . acc . rotate_right ((polish % 3) as u32) ;",
+      "polish = polish . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "ExchangeState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "base_salt",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "counter",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "acc",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Init",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "exchange_state",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 1 + 1 + 8 + 8)]",
+        "field_type": "Account < 'info , ExchangeState >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "issuer",
+        "attribute": "# [doc = \" CHECK: issuer PDA（初期化時にアドレス予約だけ）\"] # [account (seeds = [b\"issuer\" , admin . key () . as_ref () , & [base_salt]] , bump)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "reserve",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "receiver",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Rekey",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "exchange_state",
+        "attribute": "# [account (mut , has_one = admin)]",
+        "field_type": "Account < 'info , ExchangeState >"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SwapWithTarget",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "exchange_state",
+        "attribute": "# [account (mut , has_one = admin)]",
+        "field_type": "Account < 'info , ExchangeState >"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "issuer",
+        "attribute": "# [doc = \" CHECK: 署名に用いる issuer（CHECK のまま）\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "reserve",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "receiver",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

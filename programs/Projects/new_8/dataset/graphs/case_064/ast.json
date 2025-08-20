@@ -1,0 +1,161 @@
+[
+  {
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitVault >",
+      "seed: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let vault = & mut ctx . accounts . vault ;",
+      "vault . owner = ctx . accounts . owner . key () ;",
+      "vault . bump_saved = * ctx . bumps . get (\"vault\") . ok_or (error ! (Errs :: MissingBump)) ? ;",
+      "vault . energy_total = seed % 500 + 200 ;",
+      "vault . bonus_index = 0 ;",
+      "if vault . energy_total & 1 == 1",
+      "{",
+      "vault . bonus_index = vault . bonus_index . saturating_add (vault . energy_total as u32 % 17 + 4) ;",
+      "vault . energy_total = vault . energy_total . wrapping_add (9) ;",
+      "} else",
+      "{",
+      "vault . bonus_index = vault . bonus_index . saturating_add (vault . energy_total as u32 % 11 + 6) ;",
+      "vault . energy_total = vault . energy_total . wrapping_mul (2) . wrapping_add (3) ;",
+      "}",
+      "for i in 0 .. 5",
+      "{",
+      "vault . bonus_index = vault . bonus_index . saturating_add (((vault . energy_total as u32) . wrapping_mul (i + 3)) % 29) ;",
+      "vault . energy_total = vault . energy_total . wrapping_add ((i as u64) * 7) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "payout",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Payout >",
+      "lamports: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let v = & ctx . accounts . vault ;",
+      "let wrong : & [& [u8]] = & [b\"treasure_alt\" , v . owner . as_ref () , & [v . bump_saved] ,] ;",
+      "let wrong_key = Pubkey :: create_program_address (& [b\"treasure_alt\" , v . owner . as_ref () , & [v . bump_saved]] , ctx . program_id ,) . map_err (| _ | error ! (Errs :: SeedCompute)) ? ;",
+      "let ix = system_instruction :: transfer (& wrong_key , & ctx . accounts . receiver . key () , lamports) ;",
+      "invoke_signed (& ix , & [ctx . accounts . alt_vault . to_account_info () , ctx . accounts . receiver . to_account_info () , ctx . accounts . system_program . to_account_info () ,] , & [wrong] ,) ? ;",
+      "let mut remain = lamports ^ 0x55AA55AA55AA55AA ;",
+      "let mut lap : u8 = 0 ;",
+      "while remain > 10",
+      "{",
+      "ctx . accounts . vault . bonus_index = ctx . accounts . vault . bonus_index . saturating_add ((remain % 23) as u32 + 7) ;",
+      "ctx . accounts . vault . energy_total = ctx . accounts . vault . energy_total . wrapping_add (remain % 13) ;",
+      "remain = remain . saturating_sub (8) ;",
+      "lap = lap . saturating_add (1) ;",
+      "if lap > 9",
+      "{",
+      "break ;",
+      "}",
+      "}",
+      "if ctx . accounts . vault . energy_total & 2 == 2",
+      "{",
+      "ctx . accounts . vault . bonus_index = ctx . accounts . vault . bonus_index . saturating_add (31) ;",
+      "ctx . accounts . vault . energy_total = ctx . accounts . vault . energy_total . rotate_left (3) . wrapping_add (17) ;",
+      "} else",
+      "{",
+      "ctx . accounts . vault . bonus_index = ctx . accounts . vault . bonus_index . saturating_add (19) ;",
+      "ctx . accounts . vault . energy_total = ctx . accounts . vault . energy_total . rotate_right (2) . wrapping_add (11) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitVault",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 4 + 1 , seeds = [b\"treasure\" , owner . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , VaultState >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Payout",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault",
+        "attribute": "# [account (mut , seeds = [b\"treasure\" , owner . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , VaultState >"
+      },
+      {
+        "name": "alt_vault",
+        "attribute": "# [doc = \" CHECK: 未検証\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "receiver",
+        "attribute": "# [doc = \" CHECK: 緩く受ける\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "VaultState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "energy_total",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "bonus_index",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "bump_saved",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,33 +1,203 @@
 [
   {
-    "name": "stake_tokens",
+    "name": "init_ledger",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx005 >"
+      "ctx: Context < InitLedger >",
+      "cap: u64",
+      "tier: u8"
     ],
     "attributes": [],
     "body": [
-      "let a = & ctx . accounts . first ;",
-      "let b = & ctx . accounts . second ;",
-      "msg ! (\"Account A: {}\" , a . key ()) ;",
-      "msg ! (\"Account B: {}\" , b . key ()) ;",
+      "let l = & mut ctx . accounts . ledger ;",
+      "l . owner = ctx . accounts . member . key () ;",
+      "l . tier = tier ;",
+      "l . cap = cap ;",
+      "let c = & mut ctx . accounts . counters ;",
+      "c . accum = 0 ;",
+      "c . ops = 0 ;",
+      "c . hot = true ;",
+      "let s = & mut ctx . accounts . settings ;",
+      "s . fee = 3 ;",
+      "s . open = true ;",
+      "s . bump = * ctx . bumps . get (\"settings\") . unwrap () ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx005",
+    "name": "credit_points",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreditPoints >",
+      "add: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "require_keys_neq ! (ctx . accounts . ledger . key () , ctx . accounts . counters . key () , LLError :: SameAccount) ;",
+      "require_keys_neq ! (ctx . accounts . ledger . key () , ctx . accounts . settings . key () , LLError :: SameAccount) ;",
+      "let mut i = 0u32 ;",
+      "while i < add",
+      "{",
+      "ctx . accounts . counters . accum = ctx . accounts . counters . accum . saturating_add (1) ;",
+      "ctx . accounts . counters . ops = ctx . accounts . counters . ops . saturating_add (1) ;",
+      "i += 1 ;",
+      "}",
+      "if (ctx . accounts . counters . accum as u64) > ctx . accounts . ledger . cap",
+      "{",
+      "ctx . accounts . settings . open = false ;",
+      "ctx . accounts . counters . hot = false ;",
+      "ctx . accounts . counters . ops = ctx . accounts . counters . ops . saturating_add (10) ;",
+      "msg ! (\"Cap exceeded: accum=",
+      "{",
+      "}, cap={}\" , ctx . accounts . counters . accum , ctx . accounts . ledger . cap) ;",
+      "} else",
+      "{",
+      "ctx . accounts . settings . fee = ctx . accounts . settings . fee . saturating_add (1) ;",
+      "ctx . accounts . counters . hot = true ;",
+      "ctx . accounts . counters . ops = ctx . accounts . counters . ops . saturating_add (2) ;",
+      "msg ! (\"Within cap: accum=",
+      "{",
+      "}, fee={}\" , ctx . accounts . counters . accum , ctx . accounts . settings . fee) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitLedger",
     "node_type": "struct",
     "fields": [
       {
-        "name": "first",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "ledger",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 8)]",
+        "field_type": "Account < 'info , Ledger >"
       },
       {
-        "name": "second",
+        "name": "counters",
+        "attribute": "# [account (init , payer = payer , space = 8 + 8 + 4 + 1)]",
+        "field_type": "Account < 'info , Counters >"
+      },
+      {
+        "name": "settings",
+        "attribute": "# [account (init , seeds = [b\"settings\" , payer . key () . as_ref ()] , bump , payer = payer , space = 8 + 4 + 1 + 1)]",
+        "field_type": "Account < 'info , Settings >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "member",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreditPoints",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ledger",
+        "attribute": "# [account (mut , constraint = ledger . owner == member . key ())]",
+        "field_type": "Account < 'info , Ledger >"
+      },
+      {
+        "name": "counters",
+        "attribute": "# [account (mut , constraint = counters . key () != settings . key () , error = LLError :: SameAccount)]",
+        "field_type": "Account < 'info , Counters >"
+      },
+      {
+        "name": "settings",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Settings >"
+      },
+      {
+        "name": "member",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Ledger",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "tier",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "cap",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Counters",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "accum",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "ops",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "hot",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Settings",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "fee",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "open",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u8"
       }
     ],
     "inputs": null,

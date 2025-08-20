@@ -1,43 +1,231 @@
 [
   {
-    "name": "burn_collectible",
+    "name": "init_plot",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx070 >",
-      "amount: u64"
+      "ctx: Context < InitPlot >",
+      "rows: u32"
     ],
     "attributes": [],
     "body": [
-      "let cpi_accounts = Transfer { from : ctx . accounts . from_token . to_account_info () , to : ctx . accounts . to_token . to_account_info () , authority : ctx . accounts . authority . to_account_info () , } ;",
-      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
-      "token :: transfer (cpi_ctx , amount) ? ;",
+      "let farm = & mut ctx . accounts . farm ;",
+      "farm . owner = ctx . accounts . gardener . key () ;",
+      "farm . rows = rows ;",
+      "farm . state = Dry ;",
+      "let bed = & mut ctx . accounts . bed_a ;",
+      "let bed2 = & mut ctx . accounts . bed_b ;",
+      "let silo = & mut ctx . accounts . silo ;",
+      "let t = rows . saturating_mul (rows + 1) / 2 ;",
+      "bed . parent = farm . key () ;",
+      "bed . row = (rows & 7) as u8 ;",
+      "bed . soil = t % 97 + 7 ;",
+      "bed2 . parent = farm . key () ;",
+      "bed2 . row = ((rows >> 1) & 7) as u8 ;",
+      "bed2 . soil = (t . rotate_left (3) % 83) + 9 ;",
+      "silo . parent = farm . key () ;",
+      "silo . bin = 5 ;",
+      "silo . stock = (t as u64) & 0xFFFF ;",
+      "silo . hash = 1 ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx070",
+    "name": "tend",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Tend >",
+      "loops: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let farm = & mut ctx . accounts . farm ;",
+      "let a = & mut ctx . accounts . bed_a ;",
+      "let b = & mut ctx . accounts . bed_b ;",
+      "let s = & mut ctx . accounts . silo ;",
+      "for i in 0 .. loops",
+      "{",
+      "let mut x = (a . soil as u64) + 17 ;",
+      "let mut y = (b . soil as u64) + 11 ;",
+      "while y != 0",
+      "{",
+      "let r = x % y ;",
+      "x = y ;",
+      "y = r ;",
+      "} let g = (x as u32) . max (1) ;",
+      "a . soil = a . soil . checked_add (g % 13) . unwrap_or (u32 :: MAX) ;",
+      "b . soil = b . soil . saturating_add ((g % 7) + 1) ;",
+      "s . hash = s . hash . rotate_left ((g % 5) as u32) ^ (a . soil as u64) ;",
+      "}",
+      "let sum = a . soil + b . soil ;",
+      "if sum > farm . rows * 12",
+      "{",
+      "farm . state = Rest ;",
+      "s . stock = s . stock . saturating_add ((sum as u64) & 63) ;",
+      "a . row ^= 0x1 ;",
+      "b . row = b . row . saturating_add (1) ;",
+      "msg ! (\"rest: rotate rows, stock+\") ;",
+      "} else",
+      "{",
+      "farm . state = Moist ;",
+      "a . soil = a . soil . saturating_add (5) ;",
+      "b . soil = b . soil / 2 + 7 ;",
+      "s . hash ^= 0x0F0F_F0F0 ;",
+      "msg ! (\"moist: adjust soils, hash flip\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitPlot",
     "node_type": "struct",
     "fields": [
       {
-        "name": "from_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "farm",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Farm >"
       },
       {
-        "name": "to_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "bed_a",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Bed >"
       },
       {
-        "name": "authority",
+        "name": "bed_b",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Bed >"
+      },
+      {
+        "name": "silo",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 8 + 8)]",
+        "field_type": "Account < 'info , SiloBox >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "gardener",
         "attribute": null,
         "field_type": "Signer < 'info >"
       },
       {
-        "name": "token_program",
+        "name": "system_program",
         "attribute": null,
-        "field_type": "Program < 'info , Token >"
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Tend",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "farm",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Farm >"
+      },
+      {
+        "name": "bed_a",
+        "attribute": "# [account (mut , has_one = farm , constraint = bed_a . row != bed_b . row @ GardenErr :: Dup)]",
+        "field_type": "Account < 'info , Bed >"
+      },
+      {
+        "name": "bed_b",
+        "attribute": "# [account (mut , has_one = farm , constraint = bed_b . row != silo . bin @ GardenErr :: Dup)]",
+        "field_type": "Account < 'info , Bed >"
+      },
+      {
+        "name": "silo",
+        "attribute": "# [account (mut , has_one = farm)]",
+        "field_type": "Account < 'info , SiloBox >"
+      },
+      {
+        "name": "gardener",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Farm",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "rows",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "state",
+        "attribute": null,
+        "field_type": "Soil"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Bed",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "row",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "soil",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SiloBox",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "bin",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "stock",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "hash",
+        "attribute": null,
+        "field_type": "u64"
       }
     ],
     "inputs": null,

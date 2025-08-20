@@ -1,33 +1,67 @@
 [
   {
-    "name": "initialize_masternode_control",
+    "name": "init_tasks",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Initialize064 >",
-      "param: u64"
+      "ctx: Context < InitTasks >",
+      "total: u32",
+      "done: u32"
     ],
-    "attributes": [],
+    "attributes": [
+      "# [doc = \" タスク総数と完了数を初期化\"]"
+    ],
     "body": [
-      "let mut data = MasternodeControlData :: try_from_slice (& ctx . accounts . data_account . data . borrow ()) ? ;",
-      "data . value = param ;",
-      "data . serialize (& mut * ctx . accounts . data_account . data . borrow_mut ()) ? ;",
+      "let t = & mut ctx . accounts . tasks ;",
+      "t . total = total ;",
+      "t . done = done . min (total) ;",
+      "t . pending = t . total - t . done ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Initialize064",
+    "name": "complete",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Complete >",
+      "count: u32"
+    ],
+    "attributes": [
+      "# [doc = \" タスク完了を登録\"]"
+    ],
+    "body": [
+      "let t = & mut ctx . accounts . tasks ;",
+      "let avail = t . total - t . done ;",
+      "let to_mark = count . min (avail) ;",
+      "let mut i = 0 ;",
+      "while i < to_mark",
+      "{",
+      "t . done += 1 ;",
+      "i += 1 ;",
+      "}",
+      "t . pending = t . total - t . done ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitTasks",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "tasks",
+        "attribute": "# [account (init , payer = user , space = 8 + 4 * 3)]",
+        "field_type": "Account < 'info , TaskData >"
       },
       {
-        "name": "authority",
-        "attribute": null,
+        "name": "user",
+        "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -35,13 +69,37 @@
     "body": null
   },
   {
-    "name": "MasternodeControlData",
+    "name": "Complete",
     "node_type": "struct",
     "fields": [
       {
-        "name": "value",
+        "name": "tasks",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TaskData >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TaskData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "total",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "u32"
+      },
+      {
+        "name": "done",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "pending",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

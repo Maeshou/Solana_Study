@@ -1,43 +1,182 @@
 [
   {
-    "name": "swap_in_pool",
+    "name": "init_plot",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx019 >",
-      "amount: u64"
+      "ctx: Context < InitPlot >",
+      "fert: u32"
     ],
     "attributes": [],
     "body": [
-      "let cpi_accounts = Transfer { from : ctx . accounts . from_token . to_account_info () , to : ctx . accounts . to_token . to_account_info () , authority : ctx . accounts . authority . to_account_info () , } ;",
-      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
-      "token :: transfer (cpi_ctx , amount) ? ;",
+      "ctx . accounts . plot . holder = ctx . accounts . farmer . key () ;",
+      "ctx . accounts . plot . fertility = fert ;",
+      "ctx . accounts . plot . state = PlotState :: Empty ;",
+      "ctx . accounts . worker . rank = 1 ;",
+      "ctx . accounts . worker . stamina = 100 ;",
+      "ctx . accounts . worker . boots = 1 ;",
+      "ctx . accounts . tally . days = 0 ;",
+      "ctx . accounts . tally . yield_hint = 0 ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx019",
+    "name": "cultivate",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Cultivate >",
+      "days: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "for _ in 0 .. days",
+      "{",
+      "ctx . accounts . worker . stamina = ctx . accounts . worker . stamina . saturating_sub (1) ;",
+      "ctx . accounts . tally . days = ctx . accounts . tally . days . saturating_add (1) ;",
+      "ctx . accounts . tally . yield_hint = ctx . accounts . tally . yield_hint . saturating_add (ctx . accounts . plot . fertility as u64) ;",
+      "}",
+      "if ctx . accounts . worker . stamina < 50",
+      "{",
+      "ctx . accounts . plot . state = PlotState :: Empty ;",
+      "ctx . accounts . worker . boots = 0 ;",
+      "ctx . accounts . tally . yield_hint = ctx . accounts . tally . yield_hint . saturating_add (3) ;",
+      "msg ! (\"tired;",
+      "pause planting\") ;",
+      "} else",
+      "{",
+      "ctx . accounts . plot . state = PlotState :: Planted ;",
+      "ctx . accounts . worker . boots = 1 ;",
+      "ctx . accounts . tally . yield_hint = ctx . accounts . tally . yield_hint . saturating_add (1) ;",
+      "msg ! (\"steady cultivation\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitPlot",
     "node_type": "struct",
     "fields": [
       {
-        "name": "from_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "plot",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Plot >"
       },
       {
-        "name": "to_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "worker",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4 + 4 + 1)]",
+        "field_type": "Account < 'info , Worker >"
       },
       {
-        "name": "authority",
+        "name": "tally",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4 + 8)]",
+        "field_type": "Account < 'info , HarvestTally >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "farmer",
         "attribute": null,
         "field_type": "Signer < 'info >"
       },
       {
-        "name": "token_program",
+        "name": "system_program",
         "attribute": null,
-        "field_type": "Program < 'info , Token >"
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Cultivate",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "plot",
+        "attribute": "# [account (mut , constraint = plot . key () != worker . key () , error = FarmErr :: Same)]",
+        "field_type": "Account < 'info , Plot >"
+      },
+      {
+        "name": "worker",
+        "attribute": "# [account (mut , constraint = worker . key () != tally . key () , error = FarmErr :: Same)]",
+        "field_type": "Account < 'info , Worker >"
+      },
+      {
+        "name": "tally",
+        "attribute": "# [account (mut , constraint = plot . key () != tally . key () , error = FarmErr :: Same)]",
+        "field_type": "Account < 'info , HarvestTally >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Plot",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "holder",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "fertility",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "state",
+        "attribute": null,
+        "field_type": "PlotState"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Worker",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "rank",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "stamina",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "boots",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "HarvestTally",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "days",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "yield_hint",
+        "attribute": null,
+        "field_type": "u64"
       }
     ],
     "inputs": null,

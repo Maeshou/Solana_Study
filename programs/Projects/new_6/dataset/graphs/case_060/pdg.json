@@ -1,0 +1,897 @@
+[
+  {
+    "name": "init_price_feed",
+    "inputs": [
+      "ctx: Context < InitPriceFeed >",
+      "asset_symbol: String",
+      "update_frequency: u32"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let feed = & mut ctx . accounts . price_feed ;"
+      },
+      {
+        "id": 2,
+        "label": "feed . oracle_authority = ctx . accounts . authority . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "feed . asset_symbol = asset_symbol ;"
+      },
+      {
+        "id": 4,
+        "label": "feed . update_frequency_seconds = update_frequency ;"
+      },
+      {
+        "id": 5,
+        "label": "feed . current_price = 0 ;"
+      },
+      {
+        "id": 6,
+        "label": "feed . last_update = 0 ;"
+      },
+      {
+        "id": 7,
+        "label": "feed . price_deviation_threshold = 500 ;"
+      },
+      {
+        "id": 8,
+        "label": "feed . total_updates = 0 ;"
+      },
+      {
+        "id": 9,
+        "label": "feed . reliability_score = 1000 ;"
+      },
+      {
+        "id": 10,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: feed"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 1,
+        "to": 6,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 1,
+        "to": 7,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 1,
+        "to": 8,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 1,
+        "to": 9,
+        "label": "data_dep: feed"
+      }
+    ]
+  },
+  {
+    "name": "aggregate_price_data",
+    "inputs": [
+      "ctx: Context < AggregatePriceData >",
+      "price_submissions: Vec < u64 >",
+      "confidence_scores: Vec < u16 >"
+    ],
+    "nodes": [
+      {
+        "id": 11,
+        "label": "Entry"
+      },
+      {
+        "id": 12,
+        "label": "let feed = & mut ctx . accounts . price_feed ;"
+      },
+      {
+        "id": 13,
+        "label": "let aggregator = & ctx . accounts . aggregator ;"
+      },
+      {
+        "id": 14,
+        "label": "let current_time = Clock :: get () ? . unix_timestamp ;"
+      },
+      {
+        "id": 15,
+        "label": "let submission_count = price_submissions . len () . min (10) ;"
+      },
+      {
+        "id": 16,
+        "label": "if submission_count > 0 { let mut weighted_sum = 0u128 ; let mut total_weight = 0u128 ; for i in 0 .. submission_count { let price = price_submissions [i] ; let confidence = confidence_scores . get (i) . unwrap_or (& 1000) . min (& 1000) ; let weight = * confidence as u128 ; weighted_sum += price as u128 * weight ; total_weight += weight ; feed . price_history [i] = price ; feed . confidence_history [i] = * confidence ; } let new_price = if total_weight > 0 { (weighted_sum / total_weight) as u64 } else { feed . current_price } ; if feed . current_price > 0 { let deviation = if new_price > feed . current_price { ((new_price - feed . current_price) * 10000) / feed . current_price } else { ((feed . current_price - new_price) * 10000) / feed . current_price } ; if deviation > feed . price_deviation_threshold as u64 { feed . reliability_score = feed . reliability_score . saturating_sub (50) ; feed . large_deviation_count += 1 ; } else { feed . reliability_score = (feed . reliability_score + 10) . min (1000) ; } feed . volatility_score = ((feed . volatility_score as u64 * 9 + deviation) / 10) as u16 ; } feed . current_price = new_price ; feed . last_update = current_time ; feed . total_updates += 1 ; let window_size = 5 . min (feed . total_updates) ; if window_size > 0 { let mut sum = 0u64 ; for j in 0 .. window_size { sum += feed . price_history [j as usize] ; } feed . moving_average_5 = sum / window_size as u64 ; } }"
+      },
+      {
+        "id": 17,
+        "label": "let mut weighted_sum = 0u128 ;"
+      },
+      {
+        "id": 18,
+        "label": "let mut total_weight = 0u128 ;"
+      },
+      {
+        "id": 19,
+        "label": "for i in 0 .. submission_count { let price = price_submissions [i] ; let confidence = confidence_scores . get (i) . unwrap_or (& 1000) . min (& 1000) ; let weight = * confidence as u128 ; weighted_sum += price as u128 * weight ; total_weight += weight ; feed . price_history [i] = price ; feed . confidence_history [i] = * confidence ; }"
+      },
+      {
+        "id": 20,
+        "label": "let price = price_submissions [i] ;"
+      },
+      {
+        "id": 21,
+        "label": "let confidence = confidence_scores . get (i) . unwrap_or (& 1000) . min (& 1000) ;"
+      },
+      {
+        "id": 22,
+        "label": "let weight = * confidence as u128 ;"
+      },
+      {
+        "id": 23,
+        "label": "weighted_sum += price as u128 * weight ;"
+      },
+      {
+        "id": 24,
+        "label": "total_weight += weight ;"
+      },
+      {
+        "id": 25,
+        "label": "feed . price_history [i] = price ;"
+      },
+      {
+        "id": 26,
+        "label": "feed . confidence_history [i] = * confidence ;"
+      },
+      {
+        "id": 27,
+        "label": "let new_price = if total_weight > 0 { (weighted_sum / total_weight) as u64 } else { feed . current_price } ;"
+      },
+      {
+        "id": 28,
+        "label": "(weighted_sum / total_weight) as u64"
+      },
+      {
+        "id": 29,
+        "label": "feed . current_price"
+      },
+      {
+        "id": 30,
+        "label": "if feed . current_price > 0 { let deviation = if new_price > feed . current_price { ((new_price - feed . current_price) * 10000) / feed . current_price } else { ((feed . current_price - new_price) * 10000) / feed . current_price } ; if deviation > feed . price_deviation_threshold as u64 { feed . reliability_score = feed . reliability_score . saturating_sub (50) ; feed . large_deviation_count += 1 ; } else { feed . reliability_score = (feed . reliability_score + 10) . min (1000) ; } feed . volatility_score = ((feed . volatility_score as u64 * 9 + deviation) / 10) as u16 ; }"
+      },
+      {
+        "id": 31,
+        "label": "let deviation = if new_price > feed . current_price { ((new_price - feed . current_price) * 10000) / feed . current_price } else { ((feed . current_price - new_price) * 10000) / feed . current_price } ;"
+      },
+      {
+        "id": 32,
+        "label": "((new_price - feed . current_price) * 10000) / feed . current_price"
+      },
+      {
+        "id": 33,
+        "label": "((feed . current_price - new_price) * 10000) / feed . current_price"
+      },
+      {
+        "id": 34,
+        "label": "if deviation > feed . price_deviation_threshold as u64 { feed . reliability_score = feed . reliability_score . saturating_sub (50) ; feed . large_deviation_count += 1 ; } else { feed . reliability_score = (feed . reliability_score + 10) . min (1000) ; }"
+      },
+      {
+        "id": 35,
+        "label": "feed . reliability_score = feed . reliability_score . saturating_sub (50) ;"
+      },
+      {
+        "id": 36,
+        "label": "feed . large_deviation_count += 1 ;"
+      },
+      {
+        "id": 37,
+        "label": "feed . reliability_score = (feed . reliability_score + 10) . min (1000) ;"
+      },
+      {
+        "id": 38,
+        "label": "feed . volatility_score = ((feed . volatility_score as u64 * 9 + deviation) / 10) as u16 ;"
+      },
+      {
+        "id": 39,
+        "label": "feed . current_price = new_price ;"
+      },
+      {
+        "id": 40,
+        "label": "feed . last_update = current_time ;"
+      },
+      {
+        "id": 41,
+        "label": "feed . total_updates += 1 ;"
+      },
+      {
+        "id": 42,
+        "label": "let window_size = 5 . min (feed . total_updates) ;"
+      },
+      {
+        "id": 43,
+        "label": "if window_size > 0 { let mut sum = 0u64 ; for j in 0 .. window_size { sum += feed . price_history [j as usize] ; } feed . moving_average_5 = sum / window_size as u64 ; }"
+      },
+      {
+        "id": 44,
+        "label": "let mut sum = 0u64 ;"
+      },
+      {
+        "id": 45,
+        "label": "for j in 0 .. window_size { sum += feed . price_history [j as usize] ; }"
+      },
+      {
+        "id": 46,
+        "label": "sum += feed . price_history [j as usize] ;"
+      },
+      {
+        "id": 47,
+        "label": "feed . moving_average_5 = sum / window_size as u64 ;"
+      },
+      {
+        "id": 48,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 12,
+        "to": 12,
+        "label": "def: feed"
+      },
+      {
+        "from": 13,
+        "to": 13,
+        "label": "def: aggregator"
+      },
+      {
+        "from": 14,
+        "to": 14,
+        "label": "def: current_time"
+      },
+      {
+        "from": 15,
+        "to": 15,
+        "label": "def: submission_count"
+      },
+      {
+        "from": 15,
+        "to": 16,
+        "label": "data_dep: submission_count"
+      },
+      {
+        "from": 15,
+        "to": 16,
+        "label": "data_dep: submission_count"
+      },
+      {
+        "from": 12,
+        "to": 16,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 16,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 16,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 16,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 16,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 16,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 16,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 16,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 16,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 16,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 16,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 16,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 16,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 16,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 16,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 16,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 16,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 16,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 16,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 14,
+        "to": 16,
+        "label": "data_dep: current_time"
+      },
+      {
+        "from": 12,
+        "to": 16,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 16,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 16,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 16,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 17,
+        "to": 17,
+        "label": "def: weighted_sum"
+      },
+      {
+        "from": 18,
+        "to": 18,
+        "label": "def: total_weight"
+      },
+      {
+        "from": 15,
+        "to": 19,
+        "label": "data_dep: submission_count"
+      },
+      {
+        "from": 17,
+        "to": 19,
+        "label": "data_dep: weighted_sum"
+      },
+      {
+        "from": 18,
+        "to": 19,
+        "label": "data_dep: total_weight"
+      },
+      {
+        "from": 12,
+        "to": 19,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 19,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 20,
+        "to": 20,
+        "label": "def: price"
+      },
+      {
+        "from": 21,
+        "to": 21,
+        "label": "def: confidence"
+      },
+      {
+        "from": 22,
+        "to": 22,
+        "label": "def: weight"
+      },
+      {
+        "from": 21,
+        "to": 22,
+        "label": "data_dep: confidence"
+      },
+      {
+        "from": 17,
+        "to": 23,
+        "label": "data_dep: weighted_sum"
+      },
+      {
+        "from": 20,
+        "to": 23,
+        "label": "data_dep: price"
+      },
+      {
+        "from": 22,
+        "to": 23,
+        "label": "data_dep: weight"
+      },
+      {
+        "from": 18,
+        "to": 24,
+        "label": "data_dep: total_weight"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: weight"
+      },
+      {
+        "from": 12,
+        "to": 25,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 20,
+        "to": 25,
+        "label": "data_dep: price"
+      },
+      {
+        "from": 12,
+        "to": 26,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 21,
+        "to": 26,
+        "label": "data_dep: confidence"
+      },
+      {
+        "from": 27,
+        "to": 27,
+        "label": "def: new_price"
+      },
+      {
+        "from": 18,
+        "to": 27,
+        "label": "data_dep: total_weight"
+      },
+      {
+        "from": 17,
+        "to": 27,
+        "label": "data_dep: weighted_sum"
+      },
+      {
+        "from": 18,
+        "to": 27,
+        "label": "data_dep: total_weight"
+      },
+      {
+        "from": 12,
+        "to": 27,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 17,
+        "to": 28,
+        "label": "data_dep: weighted_sum"
+      },
+      {
+        "from": 18,
+        "to": 28,
+        "label": "data_dep: total_weight"
+      },
+      {
+        "from": 12,
+        "to": 29,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 30,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 27,
+        "to": 30,
+        "label": "data_dep: new_price"
+      },
+      {
+        "from": 12,
+        "to": 30,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 27,
+        "to": 30,
+        "label": "data_dep: new_price"
+      },
+      {
+        "from": 12,
+        "to": 30,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 30,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 30,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 27,
+        "to": 30,
+        "label": "data_dep: new_price"
+      },
+      {
+        "from": 12,
+        "to": 30,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 30,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 30,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 30,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 30,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 30,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 30,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 30,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 30,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 31,
+        "to": 31,
+        "label": "def: deviation"
+      },
+      {
+        "from": 27,
+        "to": 31,
+        "label": "data_dep: new_price"
+      },
+      {
+        "from": 12,
+        "to": 31,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 27,
+        "to": 31,
+        "label": "data_dep: new_price"
+      },
+      {
+        "from": 12,
+        "to": 31,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 31,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 31,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 27,
+        "to": 31,
+        "label": "data_dep: new_price"
+      },
+      {
+        "from": 12,
+        "to": 31,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 27,
+        "to": 32,
+        "label": "data_dep: new_price"
+      },
+      {
+        "from": 12,
+        "to": 32,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 32,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 33,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 27,
+        "to": 33,
+        "label": "data_dep: new_price"
+      },
+      {
+        "from": 12,
+        "to": 33,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 31,
+        "to": 34,
+        "label": "data_dep: deviation"
+      },
+      {
+        "from": 12,
+        "to": 34,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 34,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 34,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 34,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 34,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 34,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 35,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 35,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 36,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 37,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 37,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 38,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 38,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 31,
+        "to": 38,
+        "label": "data_dep: deviation"
+      },
+      {
+        "from": 12,
+        "to": 39,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 27,
+        "to": 39,
+        "label": "data_dep: new_price"
+      },
+      {
+        "from": 12,
+        "to": 40,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 14,
+        "to": 40,
+        "label": "data_dep: current_time"
+      },
+      {
+        "from": 12,
+        "to": 41,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 42,
+        "to": 42,
+        "label": "def: window_size"
+      },
+      {
+        "from": 12,
+        "to": 42,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 42,
+        "to": 43,
+        "label": "data_dep: window_size"
+      },
+      {
+        "from": 42,
+        "to": 43,
+        "label": "data_dep: window_size"
+      },
+      {
+        "from": 12,
+        "to": 43,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 43,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 42,
+        "to": 43,
+        "label": "data_dep: window_size"
+      },
+      {
+        "from": 44,
+        "to": 44,
+        "label": "def: sum"
+      },
+      {
+        "from": 42,
+        "to": 45,
+        "label": "data_dep: window_size"
+      },
+      {
+        "from": 44,
+        "to": 45,
+        "label": "data_dep: sum"
+      },
+      {
+        "from": 12,
+        "to": 45,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 44,
+        "to": 46,
+        "label": "data_dep: sum"
+      },
+      {
+        "from": 12,
+        "to": 46,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 12,
+        "to": 47,
+        "label": "data_dep: feed"
+      },
+      {
+        "from": 44,
+        "to": 47,
+        "label": "data_dep: sum"
+      },
+      {
+        "from": 42,
+        "to": 47,
+        "label": "data_dep: window_size"
+      }
+    ]
+  }
+]

@@ -1,33 +1,84 @@
 [
   {
-    "name": "initialize_mining_pool",
+    "name": "init_leaderboard",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Initialize063 >",
-      "param: u64"
+      "ctx: Context < InitBoard >",
+      "s1: u32",
+      "s2: u32",
+      "s3: u32"
     ],
-    "attributes": [],
+    "attributes": [
+      "# [doc = \" リーダーボードを初期化\"]"
+    ],
     "body": [
-      "let mut data = MiningPoolData :: try_from_slice (& ctx . accounts . data_account . data . borrow ()) ? ;",
-      "data . value = param ;",
-      "data . serialize (& mut * ctx . accounts . data_account . data . borrow_mut ()) ? ;",
+      "let board = & mut ctx . accounts . board ;",
+      "let mut arr = [s1 , s2 , s3] ;",
+      "for i in 0 .. 3",
+      "{",
+      "for j in 0 .. 2",
+      "{",
+      "if arr [j] < arr [j + 1] { let tmp = arr [j] ;",
+      "arr [j] = arr [j + 1] ;",
+      "arr [j + 1] = tmp ;",
+      "} }",
+      "}",
+      "board . top1 = arr [0] ;",
+      "board . top2 = arr [1] ;",
+      "board . top3 = arr [2] ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Initialize063",
+    "name": "submit_score",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SubmitScore >",
+      "score: u32"
+    ],
+    "attributes": [
+      "# [doc = \" 新スコアを投稿し、必要に応じて更新\"]"
+    ],
+    "body": [
+      "let b = & mut ctx . accounts . board ;",
+      "if score > b . top3",
+      "{",
+      "b . top3 = score ;",
+      "if b . top3 > b . top2",
+      "{",
+      "let tmp = b . top2 ;",
+      "b . top2 = b . top3 ;",
+      "b . top3 = tmp ;",
+      "if b . top2 > b . top1",
+      "{",
+      "let tmp2 = b . top1 ;",
+      "b . top1 = b . top2 ;",
+      "b . top2 = tmp2 ;",
+      "} }",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitBoard",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "board",
+        "attribute": "# [account (init , payer = auth , space = 8 + 4 * 3)]",
+        "field_type": "Account < 'info , Leaderboard >"
       },
       {
-        "name": "authority",
-        "attribute": null,
+        "name": "auth",
+        "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -35,13 +86,37 @@
     "body": null
   },
   {
-    "name": "MiningPoolData",
+    "name": "SubmitScore",
     "node_type": "struct",
     "fields": [
       {
-        "name": "value",
+        "name": "board",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Leaderboard >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Leaderboard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "top1",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "u32"
+      },
+      {
+        "name": "top2",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "top3",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

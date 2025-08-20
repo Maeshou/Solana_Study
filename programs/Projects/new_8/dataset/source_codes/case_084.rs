@@ -1,0 +1,110 @@
+use anchor_lang::prelude::*;
+use anchor_lang::solana_program::{program::invoke_signed, system_instruction};
+
+declare_id!("ArEnABatTLeR2222222222222222222222222222");
+
+#[program]
+pub mod arena_battler {
+    use super::*;
+
+    pub fn init_arena(ctx: Context<InitArena>, crowd: u64) -> Result<()> {
+        let a = &mut ctx.accounts.arena;
+        a.owner = ctx.accounts.host.key();
+        a.bump_mem = *ctx.bumps.get("arena").ok_or(error!(EAB::NoBump))?;
+        a.hype = crowd.rotate_left(2).wrapping_add(63);
+        a.round = 3;
+
+        // 先に if → for → while
+        if a.hype > 350 {
+            let base = a.hype.rotate_right(1).wrapping_add(27);
+            a.hype = a.hype.wrapping_add(base).wrapping_mul(2);
+            a.round = a.round.saturating_add(((a.hype % 17) as u32) + 2);
+        } else {
+            let mutate = a.hype.rotate_left(1).wrapping_add(15);
+            a.hype = a.hype.wrapping_add(mutate).wrapping_mul(3);
+            a.round = a.round.saturating_add(((a.hype % 19) as u32) + 2);
+        }
+
+        for w in 1..4 {
+            let burst = (a.hype ^ (w as u64 * 23)).rotate_left(1);
+            a.hype = a.hype.wrapping_add(burst).wrapping_mul(2).wrapping_add(13 + w as u64);
+            a.round = a.round.saturating_add(((a.hype % 31) as u32) + 4);
+        }
+
+        let mut r = 1u8;
+        while r < 3 {
+            let j = (a.hype ^ (r as u64 * 11)).rotate_right(1);
+            a.hype = a.hype.wrapping_add(j).wrapping_mul(2).wrapping_add(21 + r as u64);
+            a.round = a.round.saturating_add(((a.hype % 27) as u32) + 4);
+            r = r.saturating_add(1);
+        }
+        Ok(())
+    }
+
+    pub fn payout_prize(ctx: Context<PayoutPrize>, match_id: u64, bump_input: u8, lamports: u64) -> Result<()> {
+        let a = &mut ctx.accounts.arena;
+
+        if lamports > 420 {
+            for i in 1..5 {
+                let add = (lamports ^ (i as u64 * 37)).rotate_left(1);
+                a.hype = a.hype.wrapping_add(add).wrapping_mul(3).wrapping_add(5 + i as u64);
+                a.round = a.round.saturating_add(((a.hype % 28) as u32) + 5);
+            }
+        } else {
+            let mut p = 1u8;
+            let mut stash = lamports.rotate_right(2);
+            while p < 4 {
+                let k = (stash ^ (p as u64 * 14)).rotate_left(p as u32);
+                stash = stash.wrapping_add(k);
+                a.hype = a.hype.wrapping_add(k).wrapping_mul(2).wrapping_add(17 + p as u64);
+                a.round = a.round.saturating_add(((a.hype % 24) as u32) + 4);
+                p = p.saturating_add(1);
+            }
+        }
+
+        // BSC: bump_input を seeds に供給して署名
+        let seeds = &[
+            b"arena_prize".as_ref(),
+            a.owner.as_ref(),
+            &match_id.to_le_bytes(),
+            core::slice::from_ref(&bump_input),
+        ];
+        let vault = Pubkey::create_program_address(
+            &[b"arena_prize", a.owner.as_ref(), &match_id.to_le_bytes(), &[bump_input]],
+            ctx.program_id,
+        ).map_err(|_| error!(EAB::SeedCompute))?;
+        let ix = system_instruction::transfer(&vault, &ctx.accounts.champion.key(), lamports);
+        invoke_signed(
+            &ix,
+            &[
+                ctx.accounts.prize_hint.to_account_info(),
+                ctx.accounts.champion.to_account_info(),
+                ctx.accounts.system_program.to_account_info(),
+            ],
+            &[seeds],
+        )?;
+        Ok(())
+    }
+}
+
+#[derive(Accounts)]
+pub struct InitArena<'info> {
+    #[account(init, payer=host, space=8+32+8+4+1, seeds=[b"arena", host.key().as_ref()], bump)]
+    pub arena: Account<'info, ArenaState>,
+    #[account(mut)] pub host: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+#[derive(Accounts)]
+pub struct PayoutPrize<'info> {
+    #[account(mut, seeds=[b"arena", host.key().as_ref()], bump=arena.bump_mem)]
+    pub arena: Account<'info, ArenaState>,
+    /// CHECK
+    pub prize_hint: AccountInfo<'info>,
+    #[account(mut)]
+    pub champion: AccountInfo<'info>,
+    pub host: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+#[account]
+pub struct ArenaState { pub owner: Pubkey, pub hype: u64, pub round: u32, pub bump_mem: u8 }
+#[error_code] pub enum EAB { #[msg("missing bump")] NoBump, #[msg("seed compute failed")] SeedCompute }

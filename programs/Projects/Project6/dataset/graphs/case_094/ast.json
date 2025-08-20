@@ -1,0 +1,238 @@
+[
+  {
+    "name": "init_ranch",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitRanch >"
+    ],
+    "attributes": [],
+    "body": [
+      "let r = & mut ctx . accounts . ranch ;",
+      "r . owner = ctx . accounts . farmer . key () ;",
+      "r . capacity = 32 ;",
+      "r . count = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_card",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitCard >",
+      "breed: Breed"
+    ],
+    "attributes": [],
+    "body": [
+      "let c = & mut ctx . accounts . card ;",
+      "c . ranch = ctx . accounts . ranch . key () ;",
+      "c . breed = breed ;",
+      "c . mood = 0 ;",
+      "c . tracks = [0 ; 6] ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "feed",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Feed >",
+      "grams: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let r = & mut ctx . accounts . ranch ;",
+      "let a = & mut ctx . accounts . animal ;",
+      "let b = & mut ctx . accounts . other ;",
+      "let l = & mut ctx . accounts . log ;",
+      "let mut g = grams as u64 ;",
+      "for i in 0 .. 6",
+      "{",
+      "g = g . wrapping_mul (1664525) . wrapping_add (1013904223) ;",
+      "a . tracks [i] = a . tracks [i] . saturating_add (((g >> (i * 5)) & 0xFF) as u32) ;",
+      "}",
+      "if a . breed == Fox",
+      "{",
+      "a . mood = a . mood . saturating_add (((g & 0x7FFF) as u32) + 1) ;",
+      "r . count = (r . count + 1) . min (r . capacity as u64) ;",
+      "l . events = l . events . saturating_add (1) ;",
+      "l . seed = l . seed ^ g ;",
+      "msg ! (\"Fox path fed\") ;",
+      "} else",
+      "{",
+      "b . mood = b . mood . saturating_add ((((g >> 2) & 0x7FFF) as u32) + 2) ;",
+      "r . capacity = (r . capacity + 1) . min (255) ;",
+      "l . events = l . events . saturating_add (2) ;",
+      "l . seed = l . seed . rotate_left (7) . wrapping_add (g) ;",
+      "msg ! (\"Non-fox path fed\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitRanch",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ranch",
+        "attribute": "# [account (init , payer = farmer , space = 8 + Ranch :: MAX)]",
+        "field_type": "Account < 'info , Ranch >"
+      },
+      {
+        "name": "farmer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitCard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ranch",
+        "attribute": "# [account (mut , has_one = owner , owner = crate :: ID)]",
+        "field_type": "Account < 'info , Ranch >"
+      },
+      {
+        "name": "card",
+        "attribute": "# [account (init , payer = user , space = 8 + AnimalCard :: MAX)]",
+        "field_type": "Account < 'info , AnimalCard >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Feed",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ranch",
+        "attribute": "# [account (mut , has_one = owner , owner = crate :: ID)]",
+        "field_type": "Account < 'info , Ranch >"
+      },
+      {
+        "name": "log",
+        "attribute": "# [account (mut , has_one = ranch , owner = crate :: ID)]",
+        "field_type": "Account < 'info , FeedLog >"
+      },
+      {
+        "name": "animal",
+        "attribute": "# [account (mut , has_one = ranch , owner = crate :: ID)]",
+        "field_type": "Account < 'info , AnimalCard >"
+      },
+      {
+        "name": "other",
+        "attribute": "# [account (mut , has_one = ranch , owner = crate :: ID , constraint = animal . breed != other . breed @ ErrCode :: CosplayBlocked)]",
+        "field_type": "Account < 'info , AnimalCard >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Ranch",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "capacity",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "count",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AnimalCard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ranch",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "breed",
+        "attribute": null,
+        "field_type": "Breed"
+      },
+      {
+        "name": "mood",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "tracks",
+        "attribute": null,
+        "field_type": "[u32 ; 6]"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "FeedLog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ranch",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "seed",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "events",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

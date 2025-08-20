@@ -1,0 +1,171 @@
+[
+  {
+    "name": "init_pool",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitPool >",
+      "cohort: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let p = & mut ctx . accounts . pool ;",
+      "p . admin = ctx . accounts . admin . key () ;",
+      "p . cohort = cohort . rotate_left (2) . wrapping_add (37) ;",
+      "p . score = 1 ;",
+      "for i in 0u8 .. 5",
+      "{",
+      "let tweak = ((p . cohort ^ (i as u64 * 11)) . rotate_left (1)) . wrapping_add (7) ;",
+      "let acc = p . cohort . rotate_right (2) . wrapping_add (tweak) . wrapping_mul (3) ;",
+      "if acc & 1 > 0",
+      "{",
+      "p . score = p . score . saturating_add (((acc % 23) as u32) + 2) ;",
+      "}",
+      "}",
+      "require ! (p . score > 5 , E :: Sanity) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "grant_payout",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < GrantPayout >",
+      "lamports: u64",
+      "tokens: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let bump = * ctx . bumps . get (\"pool\") . ok_or (error ! (E :: MissingBump)) ? ;",
+      "let seeds : & [& [u8]] = & [b\"pool\" , ctx . accounts . admin . key . as_ref () , & ctx . accounts . pool . cohort . to_le_bytes () , & [bump] ,] ;",
+      "let mut plan = [0u64 ; 6] ;",
+      "let mut base = tokens . rotate_left (1) . wrapping_add (13) ;",
+      "for i in 0 .. plan . len ()",
+      "{",
+      "plan [i] = (base % tokens . saturating_add (59)) . max (1) ;",
+      "base = base . rotate_right (1) . wrapping_mul (5) . wrapping_add (17) ;",
+      "}",
+      "let cpi_accounts = Transfer { from : ctx . accounts . pool_token . to_account_info () , to : ctx . accounts . student_token . to_account_info () , authority : ctx . accounts . pool . to_account_info () , } ;",
+      "let cpi_ctx = CpiContext :: new_with_signer (ctx . accounts . token_program . to_account_info () , cpi_accounts , & [seeds] ,) ;",
+      "let mut delivered = 0u64 ;",
+      "for i in 0 .. 3",
+      "{",
+      "let give = (tokens - delivered) . min (plan [i]) ;",
+      "token :: transfer (cpi_ctx . clone () , give) ? ;",
+      "delivered = delivered . saturating_add (give) ;",
+      "plan [i] = plan [i] . rotate_left (1) . wrapping_add (1) ;",
+      "}",
+      "let ix = system_instruction :: transfer (& ctx . accounts . pool . key () , & ctx . accounts . student . key () , lamports ,) ;",
+      "invoke_signed (& ix , & [ctx . accounts . pool . to_account_info () , ctx . accounts . student . to_account_info () , ctx . accounts . system_program . to_account_info () ,] , & [seeds] ,) ? ;",
+      "let mut idx = 3usize ;",
+      "loop { if delivered >= tokens { break ; } if idx >= plan . len () { idx = 0 ; } let give = (tokens - delivered) . min (plan [idx]) ; token :: transfer (cpi_ctx . clone () , give) ? ; delivered = delivered . saturating_add (give) ; let pivot = (give ^ delivered) . rotate_left (1) ; if pivot & 3 > 0 { plan [idx] = plan [idx] . rotate_left (1) . wrapping_add (2) ; } else { plan [idx] = plan [idx] . rotate_right (1) . wrapping_add (3) ; } idx = idx . saturating_add (1) ; }",
+      "let mut digest = 0u64 ;",
+      "for v in plan",
+      "{",
+      "digest = digest . rotate_left (3) ^ v . wrapping_mul (131) ;",
+      "digest = digest . wrapping_add (29) ;",
+      "}",
+      "require ! (delivered == tokens , E :: Balance) ;",
+      "require ! (digest != 0 , E :: Digest) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitPool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 8 + 4 , seeds = [b\"pool\" , admin . key () . as_ref () , cohort . to_le_bytes () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , PoolState >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "cohort",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GrantPayout",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": "# [account (mut , seeds = [b\"pool\" , admin . key () . as_ref () , pool . cohort . to_le_bytes () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , PoolState >"
+      },
+      {
+        "name": "student",
+        "attribute": "# [account (mut)]",
+        "field_type": "SystemAccount < 'info >"
+      },
+      {
+        "name": "pool_token",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "student_token",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PoolState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "cohort",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "score",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

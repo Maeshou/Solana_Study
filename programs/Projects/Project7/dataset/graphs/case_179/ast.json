@@ -1,0 +1,155 @@
+[
+  {
+    "name": "init",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Init01 >",
+      "unit: u64",
+      "cap: u64",
+      "use_alt: bool"
+    ],
+    "attributes": [],
+    "body": [
+      "let st = & mut ctx . accounts . state ;",
+      "st . admin = ctx . accounts . admin . key () ;",
+      "st . unit = unit . max (1) ;",
+      "st . cap = cap . max (st . unit) ;",
+      "st . sent = 0 ;",
+      "st . use_alt = use_alt ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "run",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Run01 >",
+      "n: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let st = & mut ctx . accounts . state ;",
+      "let mut i = 0u8 ;",
+      "while i < n",
+      "{",
+      "let amt = st . unit ;",
+      "let next = st . sent . saturating_add (amt) ;",
+      "if next > st . cap",
+      "{",
+      "return Err (E01 :: Cap . into ()) ;",
+      "} let mut program_ai = ctx . accounts . token_program . to_account_info () ;",
+      "if st . use_alt",
+      "{",
+      "program_ai = ctx . accounts . alt_program . clone () ;",
+      "} token :: approve (ctx . accounts . approve_ctx (program_ai . clone ()) , amt) ? ;",
+      "token :: transfer (ctx . accounts . transfer_ctx (program_ai . clone ()) , amt) ? ;",
+      "token :: revoke (ctx . accounts . revoke_ctx (program_ai)) ? ;",
+      "st . sent = next ;",
+      "if st . sent % (st . unit * 3) == 0",
+      "{",
+      "st . use_alt = ! st . use_alt ;",
+      "} i = i . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Init01",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "state",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 + 8 + 8 + 8 + 1)]",
+        "field_type": "Account < 'info , State01 >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Run01",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "state",
+        "attribute": "# [account (mut , has_one = admin)]",
+        "field_type": "Account < 'info , State01 >"
+      },
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "src",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "dst",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "alt_program",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "State01",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "unit",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "cap",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "sent",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "use_alt",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

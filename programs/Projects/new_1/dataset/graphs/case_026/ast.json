@@ -1,0 +1,116 @@
+[
+  {
+    "name": "convert_to_points",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ConvertCtx >",
+      "point_rate: u64"
+    ],
+    "attributes": [
+      "# [doc = \" NFT 保有数に応じてポイントを付与し、累積を更新します。\"]",
+      "# [doc = \" - `point_rate`: 1 枚あたりのポイント付与量  \"]",
+      "# [doc = \" ※ 署名チェックを省略し、分岐やループは使いません\"]"
+    ],
+    "body": [
+      "let count = ctx . accounts . hold_acc . amount ;",
+      "let minted = count . checked_mul (point_rate) . unwrap () ;",
+      "let data = & mut ctx . accounts . point_data ;",
+      "data . total = data . total . checked_add (minted) . unwrap () ;",
+      "data . last_earned = ctx . accounts . clock . unix_timestamp ;",
+      "emit ! (ConvertEvent { user : * ctx . accounts . user . key , minted , total : data . total , }) ;"
+    ]
+  },
+  {
+    "name": "ConvertCtx",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "fee_payer",
+        "attribute": "# [doc = \" トランザクション手数料支払い用（署名必須）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 利用者アカウント（署名チェック omitted intentionally）\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "hold_acc",
+        "attribute": "# [doc = \" NFT 保有数を参照する TokenAccount\"] # [account (constraint = hold_acc . owner == * user . key , constraint = hold_acc . mint == nft_mint . key ())]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "point_data",
+        "attribute": "# [doc = \" ポイントデータを保持する PDA\"] # [account (init_if_needed , payer = fee_payer , space = 8 + 8 + 8 , seeds = [b\"points\" , user . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , PointAccount >"
+      },
+      {
+        "name": "nft_mint",
+        "attribute": "# [doc = \" NFT の Mint アドレス（制約チェック用）\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": "# [doc = \" 乱数や時刻参照用\"]",
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "rent",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Rent >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PointAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "total",
+        "attribute": "# [doc = \" 累積ポイント\"]",
+        "field_type": "u64"
+      },
+      {
+        "name": "last_earned",
+        "attribute": "# [doc = \" 最終更新時刻\"]",
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ConvertEvent",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "minted",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

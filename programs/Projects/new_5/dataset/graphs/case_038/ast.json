@@ -1,0 +1,243 @@
+[
+  {
+    "name": "init_guild",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitGuild >",
+      "guild_id: u32",
+      "name: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let guild = & mut ctx . accounts . guild ;",
+      "guild . founder = ctx . accounts . founder . key () ;",
+      "guild . guild_id = guild_id ;",
+      "guild . name = name ;",
+      "guild . reputation = 0 ;",
+      "guild . member_count = 0 ;",
+      "msg ! (\"Guild '{}' initialized.\" , guild . name) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_member_profile",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitMemberProfile >",
+      "profile_id: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let profile = & mut ctx . accounts . profile ;",
+      "let guild = & mut ctx . accounts . guild ;",
+      "profile . guild = guild . key () ;",
+      "profile . profile_id = profile_id ;",
+      "profile . player = ctx . accounts . player . key () ;",
+      "profile . personal_reputation = 0 ;",
+      "profile . is_verified = false ;",
+      "guild . member_count = guild . member_count . saturating_add (1) ;",
+      "msg ! (\"Member profile {} created for guild {}.\" , profile . profile_id , guild . name) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "update_reputation_profiles",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < UpdateReputationProfiles >",
+      "score_diff: i64"
+    ],
+    "attributes": [],
+    "body": [
+      "let profile_a = & mut ctx . accounts . profile_a ;",
+      "let profile_b = & mut ctx . accounts . profile_b ;",
+      "let mut a_final_score : i64 = profile_a . personal_reputation as i64 + score_diff ;",
+      "let mut b_final_score : i64 = profile_b . personal_reputation as i64 - score_diff ;",
+      "let mut loop_count = 0 ;",
+      "while loop_count < 2",
+      "{",
+      "if a_final_score > b_final_score",
+      "{",
+      "a_final_score = a_final_score . saturating_add (100) ;",
+      "b_final_score = b_final_score . saturating_sub (100) ;",
+      "msg ! (\"A has higher score, applying bonus to A and penalty to B.\") ;",
+      "} else",
+      "{",
+      "b_final_score = b_final_score . saturating_add (100) ;",
+      "a_final_score = a_final_score . saturating_sub (100) ;",
+      "msg ! (\"B has higher or equal score, applying bonus to B and penalty to A.\") ;",
+      "} loop_count += 1 ;",
+      "}",
+      "if a_final_score > 0",
+      "{",
+      "profile_a . personal_reputation = a_final_score as u64 ;",
+      "profile_a . is_verified = true ;",
+      "ctx . accounts . guild . reputation = ctx . accounts . guild . reputation . saturating_add (profile_a . personal_reputation) ;",
+      "} else",
+      "{",
+      "profile_a . personal_reputation = 0 ;",
+      "profile_a . is_verified = false ;",
+      "}",
+      "if b_final_score > 0",
+      "{",
+      "profile_b . personal_reputation = b_final_score as u64 ;",
+      "profile_b . is_verified = true ;",
+      "ctx . accounts . guild . reputation = ctx . accounts . guild . reputation . saturating_add (profile_b . personal_reputation) ;",
+      "} else",
+      "{",
+      "profile_b . personal_reputation = 0 ;",
+      "profile_b . is_verified = false ;",
+      "}",
+      "msg ! (\"Final reputation scores: A={}, B={}.\" , profile_a . personal_reputation , profile_b . personal_reputation) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitGuild",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": "# [account (init , payer = founder , space = 8 + 32 + 4 + 32 + 8 + 4)]",
+        "field_type": "Account < 'info , Guild >"
+      },
+      {
+        "name": "founder",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitMemberProfile",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": "# [account (mut , has_one = guild)]",
+        "field_type": "Account < 'info , Guild >"
+      },
+      {
+        "name": "profile",
+        "attribute": "# [account (init , payer = player , space = 8 + 32 + 8 + 32 + 8 + 1)]",
+        "field_type": "Account < 'info , MemberProfile >"
+      },
+      {
+        "name": "player",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "UpdateReputationProfiles",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Guild >"
+      },
+      {
+        "name": "profile_a",
+        "attribute": "# [account (mut , has_one = guild)]",
+        "field_type": "Account < 'info , MemberProfile >"
+      },
+      {
+        "name": "profile_b",
+        "attribute": "# [account (mut , has_one = guild)]",
+        "field_type": "Account < 'info , MemberProfile >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Guild",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "founder",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "guild_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "reputation",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "member_count",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MemberProfile",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "profile_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "player",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "personal_reputation",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "is_verified",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

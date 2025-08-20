@@ -1,8 +1,9 @@
 [
   {
-    "name": "init_farm",
+    "name": "init_lake",
     "inputs": [
-      "ctx: Context < Ctx053 >"
+      "ctx: Context < InitLake >",
+      "cap: u32"
     ],
     "nodes": [
       {
@@ -11,19 +12,19 @@
       },
       {
         "id": 1,
-        "label": "let a = & ctx . accounts . first ;"
+        "label": "let l = & mut ctx . accounts ;"
       },
       {
         "id": 2,
-        "label": "let b = & ctx . accounts . second ;"
+        "label": "l . lake . warden = l . warden . key () ;"
       },
       {
         "id": 3,
-        "label": "msg ! (\"Account A: {}\" , a . key ()) ;"
+        "label": "l . lake . cap = cap ;"
       },
       {
         "id": 4,
-        "label": "msg ! (\"Account B: {}\" , b . key ()) ;"
+        "label": "l . lake . state = Open ;"
       },
       {
         "id": 5,
@@ -34,12 +35,654 @@
       {
         "from": 1,
         "to": 1,
-        "label": "def: a"
+        "label": "def: l"
       },
       {
-        "from": 2,
+        "from": 1,
         "to": 2,
-        "label": "def: b"
+        "label": "data_dep: l"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: l"
+      }
+    ]
+  },
+  {
+    "name": "cast",
+    "inputs": [
+      "ctx: Context < Cast >",
+      "tries: u32"
+    ],
+    "nodes": [
+      {
+        "id": 6,
+        "label": "Entry"
+      },
+      {
+        "id": 7,
+        "label": "let l = & mut ctx . accounts ;"
+      },
+      {
+        "id": 8,
+        "label": "for t in 0 .. tries { let phase = (t % 8) as u32 ; if phase < 4 { l . stats . lam_q16 = l . stats . lam_q16 . saturating_add (1 << 14) ; l . card . casts = l . card . casts . wrapping_add (1) ; l . trace . notes = l . trace . notes . wrapping_add (1) ; l . trace . flags = l . trace . flags ^ 0x1 ; } else { let dec = (1 << 14) . min (l . stats . lam_q16) ; l . stats . lam_q16 = l . stats . lam_q16 - dec ; l . card . casts = l . card . casts . wrapping_add (1) ; l . trace . notes = l . trace . notes . wrapping_add (1) ; l . trace . flags = l . trace . flags ^ 0x2 ; } l . stats . count_q16 = l . stats . count_q16 . saturating_add (l . stats . lam_q16) ; l . stats . var_q16 = l . stats . var_q16 . saturating_add (l . stats . lam_q16 / 2) ; }"
+      },
+      {
+        "id": 9,
+        "label": "let phase = (t % 8) as u32 ;"
+      },
+      {
+        "id": 10,
+        "label": "if phase < 4 { l . stats . lam_q16 = l . stats . lam_q16 . saturating_add (1 << 14) ; l . card . casts = l . card . casts . wrapping_add (1) ; l . trace . notes = l . trace . notes . wrapping_add (1) ; l . trace . flags = l . trace . flags ^ 0x1 ; } else { let dec = (1 << 14) . min (l . stats . lam_q16) ; l . stats . lam_q16 = l . stats . lam_q16 - dec ; l . card . casts = l . card . casts . wrapping_add (1) ; l . trace . notes = l . trace . notes . wrapping_add (1) ; l . trace . flags = l . trace . flags ^ 0x2 ; }"
+      },
+      {
+        "id": 11,
+        "label": "l . stats . lam_q16 = l . stats . lam_q16 . saturating_add (1 << 14) ;"
+      },
+      {
+        "id": 12,
+        "label": "l . card . casts = l . card . casts . wrapping_add (1) ;"
+      },
+      {
+        "id": 13,
+        "label": "l . trace . notes = l . trace . notes . wrapping_add (1) ;"
+      },
+      {
+        "id": 14,
+        "label": "l . trace . flags = l . trace . flags ^ 0x1 ;"
+      },
+      {
+        "id": 15,
+        "label": "let dec = (1 << 14) . min (l . stats . lam_q16) ;"
+      },
+      {
+        "id": 16,
+        "label": "l . stats . lam_q16 = l . stats . lam_q16 - dec ;"
+      },
+      {
+        "id": 17,
+        "label": "l . card . casts = l . card . casts . wrapping_add (1) ;"
+      },
+      {
+        "id": 18,
+        "label": "l . trace . notes = l . trace . notes . wrapping_add (1) ;"
+      },
+      {
+        "id": 19,
+        "label": "l . trace . flags = l . trace . flags ^ 0x2 ;"
+      },
+      {
+        "id": 20,
+        "label": "l . stats . count_q16 = l . stats . count_q16 . saturating_add (l . stats . lam_q16) ;"
+      },
+      {
+        "id": 21,
+        "label": "l . stats . var_q16 = l . stats . var_q16 . saturating_add (l . stats . lam_q16 / 2) ;"
+      },
+      {
+        "id": 22,
+        "label": "let exp_catch = l . stats . count_q16 >> 16 ;"
+      },
+      {
+        "id": 23,
+        "label": "if exp_catch > l . lake . cap { l . lake . state = Closed ; l . card . trophies = l . card . trophies . wrapping_add (3) ; l . stats . count_q16 = (l . lake . cap as u32) << 16 ; l . trace . flags = l . trace . flags | 0x10 ; msg ! (\"closed: trophies+3, clamp count, flag set\") ; } else { l . lake . state = Busy ; l . card . casts = l . card . casts + 7 ; l . stats . var_q16 = l . stats . var_q16 + (1 << 12) ; l . trace . notes = l . trace . notes . wrapping_mul (2) ; msg ! (\"busy: casts+7, var bump, notes*2\") ; }"
+      },
+      {
+        "id": 24,
+        "label": "l . lake . state = Closed ;"
+      },
+      {
+        "id": 25,
+        "label": "l . card . trophies = l . card . trophies . wrapping_add (3) ;"
+      },
+      {
+        "id": 26,
+        "label": "l . stats . count_q16 = (l . lake . cap as u32) << 16 ;"
+      },
+      {
+        "id": 27,
+        "label": "l . trace . flags = l . trace . flags | 0x10 ;"
+      },
+      {
+        "id": 28,
+        "label": "msg ! (\"closed: trophies+3, clamp count, flag set\") ;"
+      },
+      {
+        "id": 29,
+        "label": "l . lake . state = Busy ;"
+      },
+      {
+        "id": 30,
+        "label": "l . card . casts = l . card . casts + 7 ;"
+      },
+      {
+        "id": 31,
+        "label": "l . stats . var_q16 = l . stats . var_q16 + (1 << 12) ;"
+      },
+      {
+        "id": 32,
+        "label": "l . trace . notes = l . trace . notes . wrapping_mul (2) ;"
+      },
+      {
+        "id": 33,
+        "label": "msg ! (\"busy: casts+7, var bump, notes*2\") ;"
+      },
+      {
+        "id": 34,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 7,
+        "to": 7,
+        "label": "def: l"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 8,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 9,
+        "to": 9,
+        "label": "def: phase"
+      },
+      {
+        "from": 9,
+        "to": 10,
+        "label": "data_dep: phase"
+      },
+      {
+        "from": 7,
+        "to": 10,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 10,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 10,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 10,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 10,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 10,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 10,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 10,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 10,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 10,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 10,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 10,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 10,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 10,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 10,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 10,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 10,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 11,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 11,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 12,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 12,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 13,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 13,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 14,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 14,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 15,
+        "to": 15,
+        "label": "def: dec"
+      },
+      {
+        "from": 7,
+        "to": 15,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 16,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 16,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 15,
+        "to": 16,
+        "label": "data_dep: dec"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 17,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 18,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 18,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 19,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 19,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 20,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 20,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 20,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 21,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 21,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 21,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 22,
+        "to": 22,
+        "label": "def: exp_catch"
+      },
+      {
+        "from": 7,
+        "to": 22,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 22,
+        "to": 23,
+        "label": "data_dep: exp_catch"
+      },
+      {
+        "from": 7,
+        "to": 23,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 23,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 23,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 23,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 23,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 23,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 23,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 23,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 23,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 23,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 23,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 23,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 23,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 23,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 23,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 24,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 25,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 25,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 26,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 26,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 27,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 27,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 29,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 30,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 30,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 31,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 31,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 32,
+        "label": "data_dep: l"
+      },
+      {
+        "from": 7,
+        "to": 32,
+        "label": "data_dep: l"
       }
     ]
   }

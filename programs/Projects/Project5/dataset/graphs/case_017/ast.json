@@ -1,33 +1,188 @@
 [
   {
-    "name": "add_liquidity",
+    "name": "init_foundry",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx017 >"
+      "ctx: Context < InitFoundry >",
+      "target: u32"
     ],
     "attributes": [],
     "body": [
-      "let a = & ctx . accounts . first ;",
-      "let b = & ctx . accounts . second ;",
-      "msg ! (\"Account A: {}\" , a . key ()) ;",
-      "msg ! (\"Account B: {}\" , b . key ()) ;",
+      "ctx . accounts . foundry . owner = ctx . accounts . smith . key () ;",
+      "ctx . accounts . foundry . target_heat = target ;",
+      "ctx . accounts . foundry . state = ForgeState :: Open ;",
+      "ctx . accounts . materials . iron = 0 ;",
+      "ctx . accounts . materials . coal = 0 ;",
+      "ctx . accounts . materials . ready = 1 ;",
+      "ctx . accounts . journal . success = 0 ;",
+      "ctx . accounts . journal . failure = 0 ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx017",
+    "name": "temper",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Temper >",
+      "steps: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "for _ in 0 .. steps",
+      "{",
+      "ctx . accounts . materials . iron = ctx . accounts . materials . iron . saturating_add (2) ;",
+      "ctx . accounts . materials . coal = ctx . accounts . materials . coal . saturating_add (1) ;",
+      "ctx . accounts . journal . success = ctx . accounts . journal . success . saturating_add (1) ;",
+      "}",
+      "if steps > ctx . accounts . foundry . target_heat",
+      "{",
+      "ctx . accounts . foundry . state = ForgeState :: Closed ;",
+      "ctx . accounts . materials . ready = 0 ;",
+      "ctx . accounts . journal . failure = ctx . accounts . journal . failure . saturating_add (1) ;",
+      "msg ! (\"overheat;",
+      "close foundry\") ;",
+      "} else",
+      "{",
+      "ctx . accounts . foundry . state = ForgeState :: Open ;",
+      "ctx . accounts . materials . ready = 1 ;",
+      "ctx . accounts . journal . success = ctx . accounts . journal . success . saturating_add (1) ;",
+      "msg ! (\"good temper;",
+      "continue\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitFoundry",
     "node_type": "struct",
     "fields": [
       {
-        "name": "first",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "foundry",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Foundry >"
       },
       {
-        "name": "second",
+        "name": "materials",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4 + 4 + 1)]",
+        "field_type": "Account < 'info , Materials >"
+      },
+      {
+        "name": "journal",
+        "attribute": "# [account (init , payer = payer , space = 8 + 8 + 8)]",
+        "field_type": "Account < 'info , ForgeJournal >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "smith",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Temper",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "foundry",
+        "attribute": "# [account (mut , has_one = owner , constraint = foundry . key () != materials . key () , error = ForgeErr :: Same)]",
+        "field_type": "Account < 'info , Foundry >"
+      },
+      {
+        "name": "materials",
+        "attribute": "# [account (mut , constraint = materials . key () != journal . key () , error = ForgeErr :: Same)]",
+        "field_type": "Account < 'info , Materials >"
+      },
+      {
+        "name": "journal",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , ForgeJournal >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Foundry",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "target_heat",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "state",
+        "attribute": null,
+        "field_type": "ForgeState"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Materials",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "iron",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "coal",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "ready",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ForgeJournal",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "success",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "failure",
+        "attribute": null,
+        "field_type": "u64"
       }
     ],
     "inputs": null,

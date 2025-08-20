@@ -1,0 +1,567 @@
+[
+  {
+    "name": "create_logistics_hub",
+    "inputs": [
+      "ctx: Context < CreateLogisticsHub >",
+      "hub_id: u64",
+      "location: String"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let hub = & mut ctx . accounts . logistics_hub ;"
+      },
+      {
+        "id": 2,
+        "label": "hub . manager = ctx . accounts . manager . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "hub . hub_id = hub_id ;"
+      },
+      {
+        "id": 4,
+        "label": "hub . location = location ;"
+      },
+      {
+        "id": 5,
+        "label": "hub . total_containers = 0 ;"
+      },
+      {
+        "id": 6,
+        "label": "hub . last_activity_count = 1000 ;"
+      },
+      {
+        "id": 7,
+        "label": "hub . hub_status = HubStatus :: Operational ;"
+      },
+      {
+        "id": 8,
+        "label": "msg ! (\"Logistics Hub '{}' created at {}. Status is Operational.\" , hub . hub_id , hub . location) ;"
+      },
+      {
+        "id": 9,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: hub"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: hub"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: hub"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: hub"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: hub"
+      },
+      {
+        "from": 1,
+        "to": 6,
+        "label": "data_dep: hub"
+      },
+      {
+        "from": 1,
+        "to": 7,
+        "label": "data_dep: hub"
+      }
+    ]
+  },
+  {
+    "name": "register_shipping_container",
+    "inputs": [
+      "ctx: Context < RegisterShippingContainer >",
+      "container_id: u32",
+      "content_weight: u32"
+    ],
+    "nodes": [
+      {
+        "id": 10,
+        "label": "Entry"
+      },
+      {
+        "id": 11,
+        "label": "let container = & mut ctx . accounts . shipping_container ;"
+      },
+      {
+        "id": 12,
+        "label": "let hub = & mut ctx . accounts . logistics_hub ;"
+      },
+      {
+        "id": 13,
+        "label": "if hub . hub_status != HubStatus :: Operational { return Err (error ! (SupplyChainError :: HubInactive)) ; }"
+      },
+      {
+        "id": 14,
+        "label": "return Err (error ! (SupplyChainError :: HubInactive)) ;"
+      },
+      {
+        "id": 15,
+        "label": "container . hub = hub . key () ;"
+      },
+      {
+        "id": 16,
+        "label": "container . container_id = container_id ;"
+      },
+      {
+        "id": 17,
+        "label": "container . owner = ctx . accounts . owner . key () ;"
+      },
+      {
+        "id": 18,
+        "label": "container . weight_kg = content_weight ;"
+      },
+      {
+        "id": 19,
+        "label": "container . container_status = ContainerStatus :: InTransit ;"
+      },
+      {
+        "id": 20,
+        "label": "hub . total_containers = hub . total_containers . saturating_add (1) ;"
+      },
+      {
+        "id": 21,
+        "label": "msg ! (\"Container {} registered to hub. Weight: {}.\" , container . container_id , container . weight_kg) ;"
+      },
+      {
+        "id": 22,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 11,
+        "to": 11,
+        "label": "def: container"
+      },
+      {
+        "from": 12,
+        "to": 12,
+        "label": "def: hub"
+      },
+      {
+        "from": 12,
+        "to": 13,
+        "label": "data_dep: hub"
+      },
+      {
+        "from": 11,
+        "to": 15,
+        "label": "data_dep: container"
+      },
+      {
+        "from": 12,
+        "to": 15,
+        "label": "data_dep: hub"
+      },
+      {
+        "from": 11,
+        "to": 16,
+        "label": "data_dep: container"
+      },
+      {
+        "from": 11,
+        "to": 17,
+        "label": "data_dep: container"
+      },
+      {
+        "from": 11,
+        "to": 18,
+        "label": "data_dep: container"
+      },
+      {
+        "from": 11,
+        "to": 19,
+        "label": "data_dep: container"
+      },
+      {
+        "from": 12,
+        "to": 20,
+        "label": "data_dep: hub"
+      },
+      {
+        "from": 12,
+        "to": 20,
+        "label": "data_dep: hub"
+      }
+    ]
+  },
+  {
+    "name": "process_transfer_manifest",
+    "inputs": [
+      "ctx: Context < ProcessTransferManifest >",
+      "transfer_factor: u8"
+    ],
+    "nodes": [
+      {
+        "id": 23,
+        "label": "Entry"
+      },
+      {
+        "id": 24,
+        "label": "let primary_vault = & mut ctx . accounts . primary_vault ;"
+      },
+      {
+        "id": 25,
+        "label": "let secondary_vault = & mut ctx . accounts . secondary_vault ;"
+      },
+      {
+        "id": 26,
+        "label": "if primary_vault . container_status == ContainerStatus :: Maintenance || secondary_vault . container_status == ContainerStatus :: Maintenance { return Err (error ! (SupplyChainError :: ContainerInMaintenance)) ; }"
+      },
+      {
+        "id": 27,
+        "label": "return Err (error ! (SupplyChainError :: ContainerInMaintenance)) ;"
+      },
+      {
+        "id": 28,
+        "label": "let mut loop_count = 0 ;"
+      },
+      {
+        "id": 29,
+        "label": "while loop_count < 3 { let temp_weight = primary_vault . weight_kg . checked_div (transfer_factor as u32) . unwrap_or (0) ; if primary_vault . weight_kg > secondary_vault . weight_kg { primary_vault . weight_kg = primary_vault . weight_kg . checked_sub (temp_weight) . unwrap_or (0) ; secondary_vault . weight_kg = secondary_vault . weight_kg . checked_add (temp_weight) . unwrap_or (u32 :: MAX) ; msg ! (\"Primary vault had more weight, transferring some to secondary.\") ; } else { primary_vault . weight_kg = primary_vault . weight_kg . checked_add (temp_weight) . unwrap_or (u32 :: MAX) ; secondary_vault . weight_kg = secondary_vault . weight_kg . checked_sub (temp_weight) . unwrap_or (0) ; msg ! (\"Secondary vault had more or equal weight, transferring some to primary.\") ; } loop_count += 1 ; }"
+      },
+      {
+        "id": 30,
+        "label": "let temp_weight = primary_vault . weight_kg . checked_div (transfer_factor as u32) . unwrap_or (0) ;"
+      },
+      {
+        "id": 31,
+        "label": "if primary_vault . weight_kg > secondary_vault . weight_kg { primary_vault . weight_kg = primary_vault . weight_kg . checked_sub (temp_weight) . unwrap_or (0) ; secondary_vault . weight_kg = secondary_vault . weight_kg . checked_add (temp_weight) . unwrap_or (u32 :: MAX) ; msg ! (\"Primary vault had more weight, transferring some to secondary.\") ; } else { primary_vault . weight_kg = primary_vault . weight_kg . checked_add (temp_weight) . unwrap_or (u32 :: MAX) ; secondary_vault . weight_kg = secondary_vault . weight_kg . checked_sub (temp_weight) . unwrap_or (0) ; msg ! (\"Secondary vault had more or equal weight, transferring some to primary.\") ; }"
+      },
+      {
+        "id": 32,
+        "label": "primary_vault . weight_kg = primary_vault . weight_kg . checked_sub (temp_weight) . unwrap_or (0) ;"
+      },
+      {
+        "id": 33,
+        "label": "secondary_vault . weight_kg = secondary_vault . weight_kg . checked_add (temp_weight) . unwrap_or (u32 :: MAX) ;"
+      },
+      {
+        "id": 34,
+        "label": "msg ! (\"Primary vault had more weight, transferring some to secondary.\") ;"
+      },
+      {
+        "id": 35,
+        "label": "primary_vault . weight_kg = primary_vault . weight_kg . checked_add (temp_weight) . unwrap_or (u32 :: MAX) ;"
+      },
+      {
+        "id": 36,
+        "label": "secondary_vault . weight_kg = secondary_vault . weight_kg . checked_sub (temp_weight) . unwrap_or (0) ;"
+      },
+      {
+        "id": 37,
+        "label": "msg ! (\"Secondary vault had more or equal weight, transferring some to primary.\") ;"
+      },
+      {
+        "id": 38,
+        "label": "loop_count += 1 ;"
+      },
+      {
+        "id": 39,
+        "label": "if primary_vault . weight_kg > 50000 { primary_vault . container_status = ContainerStatus :: Loaded ; msg ! (\"Primary vault is now loaded.\") ; } else { primary_vault . container_status = ContainerStatus :: Unloaded ; msg ! (\"Primary vault is now unloaded.\") ; }"
+      },
+      {
+        "id": 40,
+        "label": "primary_vault . container_status = ContainerStatus :: Loaded ;"
+      },
+      {
+        "id": 41,
+        "label": "msg ! (\"Primary vault is now loaded.\") ;"
+      },
+      {
+        "id": 42,
+        "label": "primary_vault . container_status = ContainerStatus :: Unloaded ;"
+      },
+      {
+        "id": 43,
+        "label": "msg ! (\"Primary vault is now unloaded.\") ;"
+      },
+      {
+        "id": 44,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 24,
+        "to": 24,
+        "label": "def: primary_vault"
+      },
+      {
+        "from": 25,
+        "to": 25,
+        "label": "def: secondary_vault"
+      },
+      {
+        "from": 24,
+        "to": 26,
+        "label": "data_dep: primary_vault"
+      },
+      {
+        "from": 25,
+        "to": 26,
+        "label": "data_dep: secondary_vault"
+      },
+      {
+        "from": 28,
+        "to": 28,
+        "label": "def: loop_count"
+      },
+      {
+        "from": 28,
+        "to": 29,
+        "label": "data_dep: loop_count"
+      },
+      {
+        "from": 24,
+        "to": 29,
+        "label": "data_dep: primary_vault"
+      },
+      {
+        "from": 24,
+        "to": 29,
+        "label": "data_dep: primary_vault"
+      },
+      {
+        "from": 25,
+        "to": 29,
+        "label": "data_dep: secondary_vault"
+      },
+      {
+        "from": 24,
+        "to": 29,
+        "label": "data_dep: primary_vault"
+      },
+      {
+        "from": 24,
+        "to": 29,
+        "label": "data_dep: primary_vault"
+      },
+      {
+        "from": 25,
+        "to": 29,
+        "label": "data_dep: secondary_vault"
+      },
+      {
+        "from": 25,
+        "to": 29,
+        "label": "data_dep: secondary_vault"
+      },
+      {
+        "from": 24,
+        "to": 29,
+        "label": "data_dep: primary_vault"
+      },
+      {
+        "from": 24,
+        "to": 29,
+        "label": "data_dep: primary_vault"
+      },
+      {
+        "from": 25,
+        "to": 29,
+        "label": "data_dep: secondary_vault"
+      },
+      {
+        "from": 25,
+        "to": 29,
+        "label": "data_dep: secondary_vault"
+      },
+      {
+        "from": 28,
+        "to": 29,
+        "label": "data_dep: loop_count"
+      },
+      {
+        "from": 30,
+        "to": 30,
+        "label": "def: temp_weight"
+      },
+      {
+        "from": 24,
+        "to": 30,
+        "label": "data_dep: primary_vault"
+      },
+      {
+        "from": 24,
+        "to": 31,
+        "label": "data_dep: primary_vault"
+      },
+      {
+        "from": 25,
+        "to": 31,
+        "label": "data_dep: secondary_vault"
+      },
+      {
+        "from": 24,
+        "to": 31,
+        "label": "data_dep: primary_vault"
+      },
+      {
+        "from": 24,
+        "to": 31,
+        "label": "data_dep: primary_vault"
+      },
+      {
+        "from": 30,
+        "to": 31,
+        "label": "data_dep: temp_weight"
+      },
+      {
+        "from": 25,
+        "to": 31,
+        "label": "data_dep: secondary_vault"
+      },
+      {
+        "from": 25,
+        "to": 31,
+        "label": "data_dep: secondary_vault"
+      },
+      {
+        "from": 30,
+        "to": 31,
+        "label": "data_dep: temp_weight"
+      },
+      {
+        "from": 24,
+        "to": 31,
+        "label": "data_dep: primary_vault"
+      },
+      {
+        "from": 24,
+        "to": 31,
+        "label": "data_dep: primary_vault"
+      },
+      {
+        "from": 30,
+        "to": 31,
+        "label": "data_dep: temp_weight"
+      },
+      {
+        "from": 25,
+        "to": 31,
+        "label": "data_dep: secondary_vault"
+      },
+      {
+        "from": 25,
+        "to": 31,
+        "label": "data_dep: secondary_vault"
+      },
+      {
+        "from": 30,
+        "to": 31,
+        "label": "data_dep: temp_weight"
+      },
+      {
+        "from": 24,
+        "to": 32,
+        "label": "data_dep: primary_vault"
+      },
+      {
+        "from": 24,
+        "to": 32,
+        "label": "data_dep: primary_vault"
+      },
+      {
+        "from": 30,
+        "to": 32,
+        "label": "data_dep: temp_weight"
+      },
+      {
+        "from": 25,
+        "to": 33,
+        "label": "data_dep: secondary_vault"
+      },
+      {
+        "from": 25,
+        "to": 33,
+        "label": "data_dep: secondary_vault"
+      },
+      {
+        "from": 30,
+        "to": 33,
+        "label": "data_dep: temp_weight"
+      },
+      {
+        "from": 24,
+        "to": 35,
+        "label": "data_dep: primary_vault"
+      },
+      {
+        "from": 24,
+        "to": 35,
+        "label": "data_dep: primary_vault"
+      },
+      {
+        "from": 30,
+        "to": 35,
+        "label": "data_dep: temp_weight"
+      },
+      {
+        "from": 25,
+        "to": 36,
+        "label": "data_dep: secondary_vault"
+      },
+      {
+        "from": 25,
+        "to": 36,
+        "label": "data_dep: secondary_vault"
+      },
+      {
+        "from": 30,
+        "to": 36,
+        "label": "data_dep: temp_weight"
+      },
+      {
+        "from": 28,
+        "to": 38,
+        "label": "data_dep: loop_count"
+      },
+      {
+        "from": 24,
+        "to": 39,
+        "label": "data_dep: primary_vault"
+      },
+      {
+        "from": 24,
+        "to": 39,
+        "label": "data_dep: primary_vault"
+      },
+      {
+        "from": 24,
+        "to": 39,
+        "label": "data_dep: primary_vault"
+      },
+      {
+        "from": 24,
+        "to": 40,
+        "label": "data_dep: primary_vault"
+      },
+      {
+        "from": 24,
+        "to": 42,
+        "label": "data_dep: primary_vault"
+      }
+    ]
+  }
+]

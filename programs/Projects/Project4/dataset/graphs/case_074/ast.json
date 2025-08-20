@@ -1,33 +1,82 @@
 [
   {
-    "name": "initialize_pool_distribution",
+    "name": "init_prefs",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Initialize074 >",
-      "param: u64"
+      "ctx: Context < InitPrefs >",
+      "volume: u8",
+      "brightness: u8"
     ],
     "attributes": [],
     "body": [
-      "let mut data = PoolDistributionData :: try_from_slice (& ctx . accounts . data_account . data . borrow ()) ? ;",
-      "data . value = param ;",
-      "data . serialize (& mut * ctx . accounts . data_account . data . borrow_mut ()) ? ;",
+      "let p = & mut ctx . accounts . prefs ;",
+      "p . volume = volume ;",
+      "p . brightness = brightness ;",
+      "p . mode_flag = false ;",
+      "let sum = p . volume as u16 + p . brightness as u16 ;",
+      "if sum > 200",
+      "{",
+      "p . mode_flag = true ;",
+      "}",
       "Ok (())"
     ]
   },
   {
-    "name": "Initialize074",
+    "name": "adjust_prefs",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AdjustPrefs >",
+      "vol_delta: i8",
+      "bri_delta: i8"
+    ],
+    "attributes": [],
+    "body": [
+      "let p = & mut ctx . accounts . prefs ;",
+      "if vol_delta >= 0",
+      "{",
+      "p . volume = p . volume . saturating_add (vol_delta as u8) ;",
+      "} else",
+      "{",
+      "p . volume = p . volume . saturating_sub ((- vol_delta) as u8) ;",
+      "}",
+      "if bri_delta >= 0",
+      "{",
+      "p . brightness = p . brightness . saturating_add (bri_delta as u8) ;",
+      "} else",
+      "{",
+      "p . brightness = p . brightness . saturating_sub ((- bri_delta) as u8) ;",
+      "}",
+      "let sum = p . volume as u16 + p . brightness as u16 ;",
+      "if sum > 180",
+      "{",
+      "p . mode_flag = true ;",
+      "} else",
+      "{",
+      "p . mode_flag = false ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitPrefs",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "prefs",
+        "attribute": "# [account (init , payer = user , space = 8 + 1 + 1 + 1)]",
+        "field_type": "Account < 'info , PreferencesData >"
       },
       {
-        "name": "authority",
-        "attribute": null,
+        "name": "user",
+        "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -35,13 +84,37 @@
     "body": null
   },
   {
-    "name": "PoolDistributionData",
+    "name": "AdjustPrefs",
     "node_type": "struct",
     "fields": [
       {
-        "name": "value",
+        "name": "prefs",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , PreferencesData >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PreferencesData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "volume",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "u8"
+      },
+      {
+        "name": "brightness",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "mode_flag",
+        "attribute": null,
+        "field_type": "bool"
       }
     ],
     "inputs": null,

@@ -1,0 +1,232 @@
+[
+  {
+    "name": "init_chrono",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitChrono >",
+      "core_id: u64",
+      "base_stability: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let chrono = & mut ctx . accounts . chrono_core ;",
+      "chrono . core_id = core_id + 100000 ;",
+      "chrono . stability_level = base_stability . saturating_sub (100) ;",
+      "chrono . total_jumps = 0 ;",
+      "chrono . is_stable = true ;",
+      "msg ! (\"Chrono Core {} established with stability level {}.\" , chrono . core_id , chrono . stability_level) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_traveler",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitTraveler >",
+      "traveler_id: u64",
+      "starting_coordinate: i64"
+    ],
+    "attributes": [],
+    "body": [
+      "let traveler = & mut ctx . accounts . time_traveler ;",
+      "traveler . parent_chrono = ctx . accounts . chrono_core . key () ;",
+      "traveler . traveler_id = traveler_id ^ 0xFF00FF00FF00FF00 ;",
+      "traveler . current_coordinate = starting_coordinate ;",
+      "traveler . stability_score = 100 ;",
+      "traveler . is_stranded = false ;",
+      "msg ! (\"Time Traveler {} registered at coordinate {}.\" , traveler . traveler_id , traveler . current_coordinate) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "perform_jump",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PerformJump >",
+      "jump_distance_1: i64",
+      "jump_distance_2: i64"
+    ],
+    "attributes": [],
+    "body": [
+      "let chrono = & mut ctx . accounts . chrono_core ;",
+      "let explorer_traveler = & mut ctx . accounts . explorer_traveler ;",
+      "let scout_traveler = & mut ctx . accounts . scout_traveler ;",
+      "let mut rng = rand :: thread_rng () ;",
+      "let stability_delta_1 = rng . gen_range (- 10 ..= 10) ;",
+      "explorer_traveler . stability_score = explorer_traveler . stability_score . saturating_add (stability_delta_1) . max (0) ;",
+      "explorer_traveler . is_stranded = explorer_traveler . stability_score < 20 ;",
+      "if ! explorer_traveler . is_stranded",
+      "{",
+      "explorer_traveler . current_coordinate = explorer_traveler . current_coordinate . saturating_add (jump_distance_1) ;",
+      "chrono . stability_level = chrono . stability_level . saturating_sub (jump_distance_1 . abs () as u32) ;",
+      "chrono . total_jumps = chrono . total_jumps . saturating_add (1) ;",
+      "} else",
+      "{",
+      "msg ! (\"Explorer traveler is stranded! Jump aborted.\") ;",
+      "}",
+      "let stability_delta_2 = rng . gen_range (- 10 ..= 10) ;",
+      "scout_traveler . stability_score = scout_traveler . stability_score . saturating_add (stability_delta_2) . max (0) ;",
+      "scout_traveler . is_stranded = scout_traveler . stability_score < 20 ;",
+      "if ! scout_traveler . is_stranded",
+      "{",
+      "scout_traveler . current_coordinate = scout_traveler . current_coordinate . saturating_add (jump_distance_2) ;",
+      "chrono . stability_level = chrono . stability_level . saturating_sub (jump_distance_2 . abs () as u32) ;",
+      "chrono . total_jumps = chrono . total_jumps . saturating_add (1) ;",
+      "} else",
+      "{",
+      "msg ! (\"Scout traveler is stranded! Jump aborted.\") ;",
+      "}",
+      "chrono . is_stable = chrono . stability_level > 500 && ! explorer_traveler . is_stranded && ! scout_traveler . is_stranded ;",
+      "msg ! (\"Explorer traveler jumped to coordinate {}. Scout traveler jumped to coordinate {}.\" , explorer_traveler . current_coordinate , scout_traveler . current_coordinate) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitChrono",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "chrono_core",
+        "attribute": "# [account (init , payer = signer , space = 8 + 8 + 4 + 8 + 1)]",
+        "field_type": "Account < 'info , ChronoCore >"
+      },
+      {
+        "name": "signer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitTraveler",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "time_traveler",
+        "attribute": "# [account (init , payer = signer , space = 8 + 32 + 8 + 8 + 4 + 1)]",
+        "field_type": "Account < 'info , TimeTraveler >"
+      },
+      {
+        "name": "chrono_core",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , ChronoCore >"
+      },
+      {
+        "name": "signer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PerformJump",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "chrono_core",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , ChronoCore >"
+      },
+      {
+        "name": "explorer_traveler",
+        "attribute": "# [account (mut , has_one = parent_chrono)]",
+        "field_type": "Account < 'info , TimeTraveler >"
+      },
+      {
+        "name": "scout_traveler",
+        "attribute": "# [account (mut , has_one = parent_chrono)]",
+        "field_type": "Account < 'info , TimeTraveler >"
+      },
+      {
+        "name": "signer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ChronoCore",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "core_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "stability_level",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "total_jumps",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "is_stable",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TimeTraveler",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent_chrono",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "traveler_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "current_coordinate",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "stability_score",
+        "attribute": null,
+        "field_type": "i32"
+      },
+      {
+        "name": "is_stranded",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

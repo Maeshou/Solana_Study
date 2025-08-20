@@ -1,0 +1,180 @@
+[
+  {
+    "name": "GiftCard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "issuer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "balance",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GiftCardAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "holder",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "gift_card",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "used_amount",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "IssueCard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "gift_card",
+        "attribute": "# [doc = \" GiftCard.issuer == issuer.key() の検証あり\"] # [account (init , payer = issuer , space = 8 + 32 + 8)]",
+        "field_type": "Account < 'info , GiftCard >"
+      },
+      {
+        "name": "issuer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "LoadFunds",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "gift_card",
+        "attribute": "# [doc = \" GiftCard.issuer == issuer.key() の検証あり\"] # [account (mut , has_one = issuer)]",
+        "field_type": "Account < 'info , GiftCard >"
+      },
+      {
+        "name": "card_account",
+        "attribute": "# [doc = \" GiftCardAccount.gift_card == gift_card.key() の検証がない\"] # [account (init , payer = user , space = 8 + 32 + 32 + 8)]",
+        "field_type": "Account < 'info , GiftCardAccount >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RedeemGift",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "gift_card",
+        "attribute": "# [doc = \" GiftCard.issuer == issuer.key() の検証あり\"] # [account (mut , has_one = issuer)]",
+        "field_type": "Account < 'info , GiftCard >"
+      },
+      {
+        "name": "card_account",
+        "attribute": "# [doc = \" GiftCardAccount.gift_card と gift_card.key() の一致検証がない\"] # [account (mut)]",
+        "field_type": "Account < 'info , GiftCardAccount >"
+      },
+      {
+        "name": "issuer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "issue_card",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < IssueCard >",
+      "initial_balance: u64"
+    ],
+    "attributes": [
+      "# [doc = \" ギフトカードを発行\"]"
+    ],
+    "body": [
+      "let gc = & mut ctx . accounts . gift_card ;",
+      "gc . issuer = ctx . accounts . issuer . key () ;",
+      "gc . balance = initial_balance ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "load_funds",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < LoadFunds >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" ギフトカードに残高をチャージし、カードアカウントを初期化\"]"
+    ],
+    "body": [
+      "let gc = & mut ctx . accounts . gift_card ;",
+      "let ca = & mut ctx . accounts . card_account ;",
+      "ca . holder = ctx . accounts . user . key () ;",
+      "ca . gift_card = gc . key () ;",
+      "ca . used_amount = 0 ;",
+      "gc . balance = gc . balance . checked_add (amount) . unwrap () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "redeem_gift",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RedeemGift >",
+      "spend: u64"
+    ],
+    "attributes": [
+      "# [doc = \" ギフトカードを利用（残高から差引）\"]"
+    ],
+    "body": [
+      "let gc = & mut ctx . accounts . gift_card ;",
+      "let ca = & mut ctx . accounts . card_account ;",
+      "ca . used_amount = ca . used_amount . checked_add (spend) . unwrap () ;",
+      "gc . balance = gc . balance . checked_sub (spend) . unwrap () ;",
+      "Ok (())"
+    ]
+  }
+]

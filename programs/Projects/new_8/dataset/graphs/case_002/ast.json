@@ -1,0 +1,109 @@
+[
+  {
+    "name": "post_message",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PostMessage >",
+      "title: String",
+      "content: Vec < u8 >",
+      "bump: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut t = title . as_bytes () . to_vec () ;",
+      "if t . len () < 3",
+      "{",
+      "t . extend_from_slice (b\"---\") ;",
+      "}",
+      "if t . len () > 48",
+      "{",
+      "t . truncate (48) ;",
+      "}",
+      "let mut checksum : u32 = 0 ;",
+      "for b in content . iter ()",
+      "{",
+      "checksum = checksum . wrapping_mul (16777619) ^ (* b as u32) ;",
+      "}",
+      "let seeds = [& ctx . accounts . guild . key () . to_bytes () [..] , & t [..]] ;",
+      "let addr = Pubkey :: create_program_address (& seeds , & ctx . program_id , & [bump]) . map_err (| _ | error ! (BoardError :: Addr)) ? ;",
+      "if addr != ctx . accounts . board_cell . key ()",
+      "{",
+      "return Err (error ! (BoardError :: Addr)) ;",
+      "}",
+      "let mut credit = ctx . accounts . board . credit ;",
+      "if content . len () > 256",
+      "{",
+      "credit = credit . saturating_add (2) ;",
+      "}",
+      "if t . first () . copied () . unwrap_or (b'?') != b'['",
+      "{",
+      "credit = credit . saturating_add (1) ;",
+      "}",
+      "let board = & mut ctx . accounts . board ;",
+      "board . guild = ctx . accounts . guild . key () ;",
+      "board . title = t ;",
+      "board . digest = checksum ;",
+      "board . credit = credit ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "PostMessage",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "board",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Board >"
+      },
+      {
+        "name": "board_cell",
+        "attribute": "# [doc = \" CHECK: bump 正規化なしの検証\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "guild",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Board",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "guild",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "title",
+        "attribute": null,
+        "field_type": "Vec < u8 >"
+      },
+      {
+        "name": "digest",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "credit",
+        "attribute": null,
+        "field_type": "u16"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

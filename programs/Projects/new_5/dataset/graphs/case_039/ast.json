@@ -1,0 +1,260 @@
+[
+  {
+    "name": "init_project",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitProject >",
+      "project_id: u32",
+      "name: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let project = & mut ctx . accounts . project ;",
+      "project . manager = ctx . accounts . manager . key () ;",
+      "project . project_id = project_id ;",
+      "project . name = name ;",
+      "project . ticket_count = 0 ;",
+      "project . is_active = true ;",
+      "msg ! (\"Project '{}' initialized.\" , project . name) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_ticket",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitTicket >",
+      "ticket_id: u64",
+      "initial_priority: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let ticket = & mut ctx . accounts . ticket ;",
+      "let project = & mut ctx . accounts . project ;",
+      "ticket . project = project . key () ;",
+      "ticket . ticket_id = ticket_id ;",
+      "ticket . reporter = ctx . accounts . reporter . key () ;",
+      "ticket . priority = initial_priority ;",
+      "ticket . status = TicketStatus :: Open ;",
+      "project . ticket_count = project . ticket_count . saturating_add (1) ;",
+      "msg ! (\"Ticket {} created for project {}.\" , ticket . ticket_id , project . name) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "assign_tickets",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AssignTickets >",
+      "assignees: Vec < Pubkey >"
+    ],
+    "attributes": [],
+    "body": [
+      "let ticket_a = & mut ctx . accounts . ticket_a ;",
+      "let ticket_b = & mut ctx . accounts . ticket_b ;",
+      "let mut assignee_a_found = false ;",
+      "let mut assignee_b_found = false ;",
+      "let mut loop_count = 0 ;",
+      "for assignee in assignees . iter ()",
+      "{",
+      "if loop_count >= 2",
+      "{",
+      "break ;",
+      "} if ticket_a . status == TicketStatus :: Open",
+      "{",
+      "if ticket_a . reporter == * assignee { ticket_a . status = TicketStatus :: Assigned ;",
+      "msg ! (\"Assigning A to reporter.\") ;",
+      "} else",
+      "{",
+      "ticket_a . status = TicketStatus :: InProgress ;",
+      "msg ! (\"Assigning A to non-reporter.\") ;",
+      "} assignee_a_found = true ;",
+      "} if ticket_b . status == TicketStatus :: Open",
+      "{",
+      "if ticket_b . reporter == * assignee { ticket_b . status = TicketStatus :: Assigned ;",
+      "msg ! (\"Assigning B to reporter.\") ;",
+      "} else",
+      "{",
+      "ticket_b . status = TicketStatus :: InProgress ;",
+      "msg ! (\"Assigning B to non-reporter.\") ;",
+      "} assignee_b_found = true ;",
+      "} loop_count += 1 ;",
+      "}",
+      "if assignee_a_found",
+      "{",
+      "ticket_a . priority = ticket_a . priority . saturating_add (10) . min (255) ;",
+      "msg ! (\"Ticket A priority increased to",
+      "{",
+      "}.\" , ticket_a . priority) ;",
+      "} else",
+      "{",
+      "ticket_a . priority = ticket_a . priority . saturating_sub (5) . max (0) ;",
+      "msg ! (\"Ticket A not assigned, priority decreased to",
+      "{",
+      "}.\" , ticket_a . priority) ;",
+      "}",
+      "if assignee_b_found",
+      "{",
+      "ticket_b . priority = ticket_b . priority . saturating_add (10) . min (255) ;",
+      "msg ! (\"Ticket B priority increased to",
+      "{",
+      "}.\" , ticket_b . priority) ;",
+      "} else",
+      "{",
+      "ticket_b . priority = ticket_b . priority . saturating_sub (5) . max (0) ;",
+      "msg ! (\"Ticket B not assigned, priority decreased to",
+      "{",
+      "}.\" , ticket_b . priority) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitProject",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "project",
+        "attribute": "# [account (init , payer = manager , space = 8 + 32 + 4 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Project >"
+      },
+      {
+        "name": "manager",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitTicket",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "project",
+        "attribute": "# [account (mut , has_one = project)]",
+        "field_type": "Account < 'info , Project >"
+      },
+      {
+        "name": "ticket",
+        "attribute": "# [account (init , payer = reporter , space = 8 + 32 + 8 + 32 + 1 + 1)]",
+        "field_type": "Account < 'info , Ticket >"
+      },
+      {
+        "name": "reporter",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AssignTickets",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "project",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Project >"
+      },
+      {
+        "name": "ticket_a",
+        "attribute": "# [account (mut , has_one = project)]",
+        "field_type": "Account < 'info , Ticket >"
+      },
+      {
+        "name": "ticket_b",
+        "attribute": "# [account (mut , has_one = project)]",
+        "field_type": "Account < 'info , Ticket >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Project",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "project_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "ticket_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "is_active",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Ticket",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "project",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "ticket_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "reporter",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "priority",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "status",
+        "attribute": null,
+        "field_type": "TicketStatus"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

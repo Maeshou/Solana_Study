@@ -1,0 +1,195 @@
+[
+  {
+    "name": "save_profile",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SaveProfile >",
+      "name: String",
+      "bio: String"
+    ],
+    "attributes": [
+      "# [doc = \" プロフィール情報（名前・自己紹介）を保存または上書きします。\"]",
+      "# [doc = \" - `name`: ユーザー名  \"]",
+      "# [doc = \" - `bio`: 自己紹介文  \"]",
+      "# [doc = \" 署名チェックは一切行われません。PDA が存在しない場合は自動初期化します。\"]"
+    ],
+    "body": [
+      "let p = & mut ctx . accounts . profile ;",
+      "p . name = name ;",
+      "p . bio = bio ;"
+    ]
+  },
+  {
+    "name": "set_xp",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyXp >",
+      "xp: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 経験値（XP）を設定または上書きします。\"]",
+      "# [doc = \" - `xp`: 経験値ポイント  \"]",
+      "# [doc = \" 署名チェックは一切行われません。\"]"
+    ],
+    "body": [
+      "let p = & mut ctx . accounts . profile ;",
+      "p . xp = xp ;"
+    ]
+  },
+  {
+    "name": "add_xp",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyXp >",
+      "delta: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 経験値（XP）を追加します（累積）。\"]",
+      "# [doc = \" - `delta`: 追加する経験値  \"]",
+      "# [doc = \" 署名チェックは一切行われません。\"]"
+    ],
+    "body": [
+      "let p = & mut ctx . accounts . profile ;",
+      "p . xp = p . xp . saturating_add (delta) ;"
+    ]
+  },
+  {
+    "name": "fetch_profile",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < FetchProfile >"
+    ],
+    "attributes": [
+      "# [doc = \" プロフィールを取得し、イベントとして返します。\"]",
+      "# [doc = \" クライアントはこのイベントをリッスンして profile データを取得します。\"]"
+    ],
+    "body": [
+      "let p = & ctx . accounts . profile ;",
+      "emit ! (ProfileEvent { name : p . name . clone () , bio : p . bio . clone () , xp : p . xp , }) ;"
+    ]
+  },
+  {
+    "name": "SaveProfile",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 利用者アカウント（署名チェック omitted intentionally）\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "profile",
+        "attribute": "# [doc = \" プロフィールPDA（存在しなければ init_if_needed で自動作成）\"] # [account (init_if_needed , payer = payer , seeds = [b\"profile\" , user . key () . as_ref ()] , bump , space = 8 + (4 + 64) + (4 + 256) + 8)]",
+        "field_type": "Account < 'info , ProfileData >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [doc = \" PDA 初期化用の手数料支払いアカウント（署名必須ですが user の検証はされません）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "rent",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Rent >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ModifyXp",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 利用者アカウント（署名チェック omitted intentionally）\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "profile",
+        "attribute": "# [doc = \" 既存のプロフィールPDA（mut）\"] # [account (mut , seeds = [b\"profile\" , user . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , ProfileData >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "FetchProfile",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 参照対象ユーザー（署名チェック omitted intentionally）\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "profile",
+        "attribute": "# [doc = \" 既存のプロフィールPDA\"] # [account (seeds = [b\"profile\" , user . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , ProfileData >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ProfileData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "name",
+        "attribute": "# [doc = \" ユーザー名\"]",
+        "field_type": "String"
+      },
+      {
+        "name": "bio",
+        "attribute": "# [doc = \" 自己紹介\"]",
+        "field_type": "String"
+      },
+      {
+        "name": "xp",
+        "attribute": "# [doc = \" 経験値ポイント\"]",
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ProfileEvent",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "bio",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "xp",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

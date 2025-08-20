@@ -1,0 +1,163 @@
+[
+  {
+    "name": "create_skill",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateSkill >",
+      "name: String"
+    ],
+    "attributes": [
+      "# [doc = \" 新しいスキルを登録\"]"
+    ],
+    "body": [
+      "if name . len () > 64",
+      "{",
+      "return Err (ErrorCode :: NameTooLong . into ()) ;",
+      "}",
+      "let skill = & mut ctx . accounts . skill ;",
+      "skill . owner = ctx . accounts . user . key () ;",
+      "skill . name = name ;",
+      "skill . count = 0 ;",
+      "skill . endorsers = Vec :: new () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "endorse_skill",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifySkill >"
+    ],
+    "attributes": [
+      "# [doc = \" 他者のスキルをエンドース\"]"
+    ],
+    "body": [
+      "let skill = & mut ctx . accounts . skill ;",
+      "let user = ctx . accounts . user . key () ;",
+      "if skill . owner == user",
+      "{",
+      "return Err (ErrorCode :: CannotEndorseOwn . into ()) ;",
+      "}",
+      "if skill . endorsers . len () >= MAX_ENDORSERS",
+      "{",
+      "return Err (ErrorCode :: TooManyEndorsers . into ()) ;",
+      "}",
+      "for & e in skill . endorsers . iter ()",
+      "{",
+      "if e == user",
+      "{",
+      "return Err (ErrorCode :: AlreadyEndorsed . into ()) ;",
+      "}",
+      "}",
+      "skill . endorsers . push (user) ;",
+      "skill . count = skill . count . checked_add (1) . unwrap () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "remove_endorse",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifySkill >"
+    ],
+    "attributes": [
+      "# [doc = \" 自身のエンドースを取り消し\"]"
+    ],
+    "body": [
+      "let skill = & mut ctx . accounts . skill ;",
+      "let user = ctx . accounts . user . key () ;",
+      "let mut idx : Option < usize > = None ;",
+      "for (i , & e) in skill . endorsers . iter () . enumerate ()",
+      "{",
+      "if e == user",
+      "{",
+      "idx = Some (i) ;",
+      "break ;",
+      "}",
+      "}",
+      "if let Some (i) = idx",
+      "{",
+      "skill . endorsers . remove (i) ;",
+      "skill . count = skill . count . checked_sub (1) . unwrap () ;",
+      "Ok (()) } else",
+      "{",
+      "Err (ErrorCode :: NotEndorsed . into ())",
+      "}"
+    ]
+  },
+  {
+    "name": "CreateSkill",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "skill",
+        "attribute": "# [doc = \" 同一アカウント再初期化を防止\"] # [account (init , payer = user , space = 8 + 32 + 4 + 64 + 4 + (MAX_ENDORSERS * 32))]",
+        "field_type": "Account < 'info , SkillAccount >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 操作ユーザー（署名必須）\"] # [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ModifySkill",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "skill",
+        "attribute": "# [doc = \" 型チェック＆Owner Check\"] # [account (mut)]",
+        "field_type": "Account < 'info , SkillAccount >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" エンドース操作するユーザー（署名必須）\"]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SkillAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" スキル所有者\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "name",
+        "attribute": "# [doc = \" スキル名称（最大64文字）\"]",
+        "field_type": "String"
+      },
+      {
+        "name": "count",
+        "attribute": "# [doc = \" エンドース総数\"]",
+        "field_type": "u32"
+      },
+      {
+        "name": "endorsers",
+        "attribute": "# [doc = \" エンドーサーリスト（最大50名）\"]",
+        "field_type": "Vec < Pubkey >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

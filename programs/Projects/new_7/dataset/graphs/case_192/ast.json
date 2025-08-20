@@ -1,0 +1,148 @@
+[
+  {
+    "name": "scramble",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "seed: u64",
+      "salt: Pubkey"
+    ],
+    "attributes": [],
+    "body": [
+      "let mut buf = Vec :: with_capacity (40) ;",
+      "buf . extend_from_slice (& seed . to_le_bytes ()) ;",
+      "buf . extend_from_slice (salt . as_ref ()) ;",
+      "keccak :: hash (& buf) . 0"
+    ]
+  },
+  {
+    "name": "run",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Run >",
+      "seed: u64",
+      "pay: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let salt = ctx . accounts . user . key () ;",
+      "let h = scramble (seed , salt) ;",
+      "let mut sum = 0u64 ;",
+      "let mut i = 0 ;",
+      "while i < 8",
+      "{",
+      "let mut w = [0u8 ;",
+      "8] ;",
+      "w . copy_from_slice (& h [i * 4 .. i * 4 + 8 . min (h . len () - i * 4)]) ;",
+      "sum = sum . wrapping_add (u64 :: from_le_bytes (w)) ;",
+      "i += 1 ;",
+      "}",
+      "if sum & 1 == 1",
+      "{",
+      "ctx . accounts . stat . a = ctx . accounts . stat . a . saturating_add (1) ;",
+      "}",
+      "if sum & 2 == 2",
+      "{",
+      "ctx . accounts . stat . b = ctx . accounts . stat . b . wrapping_add (2) ;",
+      "}",
+      "let mut data = Vec :: with_capacity (16) ;",
+      "data . extend_from_slice (& h [0 .. 8]) ;",
+      "data . extend_from_slice (& h [24 .. 32]) ;",
+      "invoke (& Instruction { program_id : FIXED_STAT_ID , accounts : vec ! [AccountMeta :: new (ctx . accounts . stat_cell . key () , false) , AccountMeta :: new_readonly (ctx . accounts . user . key () , false) ,] , data } , & [ctx . accounts . stat_hint . to_account_info () , ctx . accounts . stat_cell . to_account_info () , ctx . accounts . user . to_account_info () ,]) ? ;",
+      "let mut prg = ctx . accounts . feed_hint . to_account_info () ;",
+      "if ! ctx . remaining_accounts . is_empty ()",
+      "{",
+      "prg = ctx . remaining_accounts [0] . clone () ;",
+      "ctx . accounts . stat . paths = ctx . accounts . stat . paths . saturating_add (4) ;",
+      "}",
+      "let bytes = pay . rotate_left ((sum & 31) as u32) . to_le_bytes () . to_vec () ;",
+      "invoke (& Instruction { program_id : * prg . key , accounts : vec ! [AccountMeta :: new (ctx . accounts . feed_board . key () , false) , AccountMeta :: new_readonly (ctx . accounts . user . key () , false) ,] , data : bytes } , & [prg , ctx . accounts . feed_board . to_account_info () , ctx . accounts . user . to_account_info () ,]) ? ;",
+      "token :: transfer (CpiContext :: new (ctx . accounts . token_program . to_account_info () , Transfer { from : ctx . accounts . treasury . to_account_info () , to : ctx . accounts . user_token . to_account_info () , authority : ctx . accounts . treasury_auth . to_account_info () , }) , pay ,) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Run",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "stat",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Stat >"
+      },
+      {
+        "name": "stat_cell",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "stat_hint",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "feed_board",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "feed_hint",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "treasury",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "user_token",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "treasury_auth",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Stat",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "a",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "b",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "paths",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,187 @@
+[
+  {
+    "name": "StakePool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "total_stake",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "StakeAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "pool",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "amount",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreatePool",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": "# [account (init , payer = manager , space = 8 + 32 + 8)]",
+        "field_type": "Account < 'info , StakePool >"
+      },
+      {
+        "name": "manager",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Stake",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pool",
+        "attribute": "# [doc = \" StakePool.manager == manager.key() を検証\"] # [account (mut , has_one = manager)]",
+        "field_type": "Account < 'info , StakePool >"
+      },
+      {
+        "name": "stake_account",
+        "attribute": "# [doc = \" StakeAccount.pool == pool.key()、StakeAccount.owner == staker.key() を検証\"] # [account (init , payer = staker , space = 8 + 32 + 32 + 8 , has_one = pool , has_one = owner)]",
+        "field_type": "Account < 'info , StakeAccount >"
+      },
+      {
+        "name": "manager",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "staker",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Unstake",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "stake_account",
+        "attribute": "# [doc = \" StakeAccount.pool == pool.key()、StakeAccount.owner == staker.key() を検証\"] # [account (mut , has_one = pool , has_one = owner)]",
+        "field_type": "Account < 'info , StakeAccount >"
+      },
+      {
+        "name": "pool",
+        "attribute": "# [doc = \" プールアカウント\"] # [account (mut)]",
+        "field_type": "Account < 'info , StakePool >"
+      },
+      {
+        "name": "staker",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "create_pool",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreatePool >"
+    ],
+    "attributes": [
+      "# [doc = \" プールを作成\"]"
+    ],
+    "body": [
+      "let p = & mut ctx . accounts . pool ;",
+      "p . manager = ctx . accounts . manager . key () ;",
+      "p . total_stake = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "stake",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Stake >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" ステークを行う\"]"
+    ],
+    "body": [
+      "let p = & mut ctx . accounts . pool ;",
+      "let sa = & mut ctx . accounts . stake_account ;",
+      "sa . owner = ctx . accounts . staker . key () ;",
+      "sa . pool = ctx . accounts . pool . key () ;",
+      "sa . amount = amount ;",
+      "require_keys_eq ! (sa . pool , p . key () , StakeError :: PoolMismatch) ;",
+      "require_keys_eq ! (sa . owner , ctx . accounts . staker . key () , StakeError :: OwnerMismatch) ;",
+      "p . total_stake = p . total_stake . checked_add (amount) . ok_or (StakeError :: Overflow) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "unstake",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Unstake >"
+    ],
+    "attributes": [
+      "# [doc = \" ステークを解除\"]"
+    ],
+    "body": [
+      "let p = & mut ctx . accounts . pool ;",
+      "let sa = & mut ctx . accounts . stake_account ;",
+      "let amt = sa . amount ;",
+      "require_keys_eq ! (sa . pool , p . key () , StakeError :: PoolMismatch) ;",
+      "require_keys_eq ! (sa . owner , ctx . accounts . staker . key () , StakeError :: OwnerMismatch) ;",
+      "p . total_stake = p . total_stake . checked_sub (amt) . ok_or (StakeError :: Underflow) ? ;",
+      "Ok (())"
+    ]
+  }
+]

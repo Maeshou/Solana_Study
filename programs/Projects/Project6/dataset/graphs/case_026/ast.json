@@ -1,0 +1,242 @@
+[
+  {
+    "name": "init_factory",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitFactory >"
+    ],
+    "attributes": [],
+    "body": [
+      "let f = & mut ctx . accounts . factory ;",
+      "f . owner = ctx . accounts . owner . key () ;",
+      "f . hash = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_slot",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitSlot >",
+      "idx: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts . slot ;",
+      "s . parent = ctx . accounts . factory . key () ;",
+      "s . idx = idx ;",
+      "s . used = false ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "batch",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Batch >",
+      "bias: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "require ! (ctx . accounts . mat_ta . mint == ctx . accounts . mat_mint . key () , CFErr :: MintMismatch) ;",
+      "require ! (ctx . accounts . mat_ta . owner == ctx . accounts . owner . key () , CFErr :: OwnerMismatch) ;",
+      "let f = & mut ctx . accounts . factory ;",
+      "let a = & mut ctx . accounts . slot_a ;",
+      "let b = & mut ctx . accounts . slot_b ;",
+      "let w = & mut ctx . accounts . warehouse ;",
+      "let mut s = 0u32 ;",
+      "for i in 0 .. w . blks . len ()",
+      "{",
+      "let v = ((bias as u32) + i as u32 * 9) & 0xFFF ;",
+      "w . blks [i] = w . blks [i] . saturating_add (v) ;",
+      "s = s . saturating_add (v) ;",
+      "}",
+      "if a . idx != b . idx",
+      "{",
+      "w . ok = w . ok . saturating_add ((s / 8) as u64) ;",
+      "a . used = true ;",
+      "f . hash ^= (s as u64) . rotate_left (11) ;",
+      "msg ! (\"different slot: ok+\") ;",
+      "} else",
+      "{",
+      "w . ng = w . ng . saturating_add ((s / 7) as u64) ;",
+      "b . used = true ;",
+      "f . hash = f . hash . rotate_right (9) ^ 0xA5A5u64 ;",
+      "msg ! (\"same slot: ng+\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitFactory",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "factory",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8)]",
+        "field_type": "Account < 'info , Factory >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitSlot",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "slot",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 1 + 1)]",
+        "field_type": "Account < 'info , Slot >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "factory",
+        "attribute": null,
+        "field_type": "Account < 'info , Factory >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Batch",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "factory",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Factory >"
+      },
+      {
+        "name": "slot_a",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Slot >"
+      },
+      {
+        "name": "slot_b",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Slot >"
+      },
+      {
+        "name": "warehouse",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Warehouse >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "mat_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "mat_ta",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Factory",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "hash",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Slot",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "idx",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "used",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Warehouse",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "blks",
+        "attribute": null,
+        "field_type": "Vec < u32 >"
+      },
+      {
+        "name": "ok",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "ng",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

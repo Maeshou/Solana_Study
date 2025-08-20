@@ -1,0 +1,134 @@
+[
+  {
+    "name": "drop_and_pay",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < DropAndPay >",
+      "crest: u64",
+      "pay: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "if crest % 2 == 0",
+      "{",
+      "ctx . accounts . meta . even_count += 1 ;",
+      "}",
+      "let mut router = ctx . accounts . notify_program . to_account_info () ;",
+      "if ctx . remaining_accounts . len () > 0",
+      "{",
+      "router = ctx . remaining_accounts [0] . clone () ;",
+      "ctx . accounts . meta . paths += 1 ;",
+      "}",
+      "let nb = NoticeBridge { board : ctx . accounts . notice_board . to_account_info () , actor : ctx . accounts . receiver_wallet . to_account_info () , } ;",
+      "let cx = nb . as_cpi (router . clone ()) ;",
+      "nb . post (cx , crest . to_le_bytes () . to_vec ()) ? ;",
+      "ctx . accounts . meta . hash ^= crest . rotate_left (5) ;",
+      "let t = Transfer { from : ctx . accounts . treasury_token . to_account_info () , to : ctx . accounts . receiver_token . to_account_info () , authority : ctx . accounts . treasury_authority . to_account_info () , } ;",
+      "let tctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , t) ;",
+      "token :: transfer (tctx , pay) ? ;",
+      "for _ in 0 .. (pay % 3)",
+      "{",
+      "ctx . accounts . meta . bump = ctx . accounts . meta . bump . wrapping_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "DropAndPay",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "meta",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , DropMeta >"
+      },
+      {
+        "name": "notice_board",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "receiver_wallet",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "notify_program",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "treasury_token",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "receiver_token",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "treasury_authority",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DropMeta",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "even_count",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "paths",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "hash",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "NoticeBridge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "board",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "actor",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

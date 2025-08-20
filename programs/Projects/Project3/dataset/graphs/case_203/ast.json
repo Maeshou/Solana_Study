@@ -1,0 +1,194 @@
+[
+  {
+    "name": "Plan",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "provider",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "interval",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Subscription",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "subscriber",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "plan",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "expires_at",
+        "attribute": null,
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreatePlan",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "plan",
+        "attribute": "# [account (init , payer = provider , space = 8 + 32 + 4 + 64 + 8)]",
+        "field_type": "Account < 'info , Plan >"
+      },
+      {
+        "name": "provider",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Subscribe",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "plan",
+        "attribute": "# [doc = \" Plan.provider == provider.key() を検証\"] # [account (mut , has_one = provider)]",
+        "field_type": "Account < 'info , Plan >"
+      },
+      {
+        "name": "subscription",
+        "attribute": "# [doc = \" Subscription.plan == plan.key()、Subscription.subscriber == subscriber.key() を検証\"] # [account (init , payer = subscriber , space = 8 + 32 + 32 + 8 , has_one = plan , has_one = subscriber)]",
+        "field_type": "Account < 'info , Subscription >"
+      },
+      {
+        "name": "provider",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "subscriber",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RenewSubscription",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "subscription",
+        "attribute": "# [doc = \" Subscription.subscriber == subscriber.key()、Subscription.plan == plan.key() を検証\"] # [account (mut , has_one = subscriber , has_one = plan)]",
+        "field_type": "Account < 'info , Subscription >"
+      },
+      {
+        "name": "plan",
+        "attribute": "# [doc = \" Plan.account を指定（キー一致は上の has_one で担保）\"] # [account (mut)]",
+        "field_type": "Account < 'info , Plan >"
+      },
+      {
+        "name": "subscriber",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "create_plan",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreatePlan >",
+      "name: String",
+      "interval_days: u64"
+    ],
+    "attributes": [
+      "# [doc = \" プランを作成\"]"
+    ],
+    "body": [
+      "let p = & mut ctx . accounts . plan ;",
+      "p . provider = ctx . accounts . provider . key () ;",
+      "p . name = name ;",
+      "p . interval = interval_days ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "subscribe",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Subscribe >",
+      "duration_seconds: i64"
+    ],
+    "attributes": [
+      "# [doc = \" サブスク登録\"]"
+    ],
+    "body": [
+      "let plan = & ctx . accounts . plan ;",
+      "let sub = & mut ctx . accounts . subscription ;",
+      "sub . subscriber = ctx . accounts . subscriber . key () ;",
+      "sub . plan = plan . key () ;",
+      "sub . expires_at = Clock :: get () ? . unix_timestamp + duration_seconds ;",
+      "require_keys_eq ! (sub . plan , plan . key () , SubError :: PlanMismatch) ;",
+      "require_keys_eq ! (sub . subscriber , ctx . accounts . subscriber . key () , SubError :: SubscriberMismatch) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "renew",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RenewSubscription >"
+    ],
+    "attributes": [
+      "# [doc = \" サブスク更新（有効期限延長）\"]"
+    ],
+    "body": [
+      "let plan = & ctx . accounts . plan ;",
+      "let sub = & mut ctx . accounts . subscription ;",
+      "require_keys_eq ! (sub . plan , plan . key () , SubError :: PlanMismatch) ;",
+      "require_keys_eq ! (sub . subscriber , ctx . accounts . subscriber . key () , SubError :: SubscriberMismatch) ;",
+      "let extension = (plan . interval as i64) * 86_400 ;",
+      "sub . expires_at = sub . expires_at . saturating_add (extension) ;",
+      "Ok (())"
+    ]
+  }
+]

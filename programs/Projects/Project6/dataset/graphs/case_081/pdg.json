@@ -1,0 +1,519 @@
+[
+  {
+    "name": "create_guild_alliance",
+    "inputs": [
+      "ctx: Context < CreateGuildAlliance >",
+      "guild_name: String",
+      "initial_treasury: u64"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let guild_account = & mut ctx . accounts . guild_account ;"
+      },
+      {
+        "id": 2,
+        "label": "let founder_account = & mut ctx . accounts . founder_account ;"
+      },
+      {
+        "id": 3,
+        "label": "require ! (guild_name . len () >= 3 && guild_name . len () <= 32 , GuildError :: InvalidGuildName) ;"
+      },
+      {
+        "id": 4,
+        "label": "guild_account . guild_name = guild_name . clone () ;"
+      },
+      {
+        "id": 5,
+        "label": "guild_account . guild_leader = ctx . accounts . authority . key () ;"
+      },
+      {
+        "id": 6,
+        "label": "guild_account . member_roster = vec ! [ctx . accounts . authority . key ()] ;"
+      },
+      {
+        "id": 7,
+        "label": "guild_account . treasury_balance = initial_treasury ;"
+      },
+      {
+        "id": 8,
+        "label": "guild_account . guild_level = 1 ;"
+      },
+      {
+        "id": 9,
+        "label": "guild_account . territory_holdings = Vec :: new () ;"
+      },
+      {
+        "id": 10,
+        "label": "guild_account . alliance_reputation = 0 ;"
+      },
+      {
+        "id": 11,
+        "label": "founder_account . guild_membership = Some (guild_account . key ()) ;"
+      },
+      {
+        "id": 12,
+        "label": "founder_account . member_rank = GuildRank :: Leader ;"
+      },
+      {
+        "id": 13,
+        "label": "founder_account . contribution_points = 100 ;"
+      },
+      {
+        "id": 14,
+        "label": "emit ! (GuildCreated { guild_address : guild_account . key () , founder : ctx . accounts . authority . key () , guild_name , }) ;"
+      },
+      {
+        "id": 15,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: guild_account"
+      },
+      {
+        "from": 2,
+        "to": 2,
+        "label": "def: founder_account"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: guild_account"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: guild_account"
+      },
+      {
+        "from": 1,
+        "to": 6,
+        "label": "data_dep: guild_account"
+      },
+      {
+        "from": 1,
+        "to": 7,
+        "label": "data_dep: guild_account"
+      },
+      {
+        "from": 1,
+        "to": 8,
+        "label": "data_dep: guild_account"
+      },
+      {
+        "from": 1,
+        "to": 9,
+        "label": "data_dep: guild_account"
+      },
+      {
+        "from": 1,
+        "to": 10,
+        "label": "data_dep: guild_account"
+      },
+      {
+        "from": 2,
+        "to": 11,
+        "label": "data_dep: founder_account"
+      },
+      {
+        "from": 1,
+        "to": 11,
+        "label": "data_dep: guild_account"
+      },
+      {
+        "from": 2,
+        "to": 12,
+        "label": "data_dep: founder_account"
+      },
+      {
+        "from": 2,
+        "to": 13,
+        "label": "data_dep: founder_account"
+      }
+    ]
+  },
+  {
+    "name": "execute_territory_conquest",
+    "inputs": [
+      "ctx: Context < TerritoryConquest >",
+      "target_territory_id: u32",
+      "attacking_force_size: u32"
+    ],
+    "nodes": [
+      {
+        "id": 16,
+        "label": "Entry"
+      },
+      {
+        "id": 17,
+        "label": "let attacking_guild = & mut ctx . accounts . attacking_guild ;"
+      },
+      {
+        "id": 18,
+        "label": "let territory_registry = & ctx . accounts . territory_registry ;"
+      },
+      {
+        "id": 19,
+        "label": "require ! (attacking_guild . guild_level >= 5 , GuildError :: InsufficientGuildLevel) ;"
+      },
+      {
+        "id": 20,
+        "label": "let conquest_cost_base = target_territory_id * 1000 ;"
+      },
+      {
+        "id": 21,
+        "label": "let force_multiplier = attacking_force_size / 10 ;"
+      },
+      {
+        "id": 22,
+        "label": "let total_conquest_cost = conquest_cost_base + (force_multiplier * 500) ;"
+      },
+      {
+        "id": 23,
+        "label": "require ! (attacking_guild . treasury_balance >= total_conquest_cost as u64 , GuildError :: InsufficientTreasuryFunds) ;"
+      },
+      {
+        "id": 24,
+        "label": "let territory_defense_rating = target_territory_id % 100 ;"
+      },
+      {
+        "id": 25,
+        "label": "let guild_attack_power = attacking_guild . guild_level * 10 + attacking_force_size ;"
+      },
+      {
+        "id": 26,
+        "label": "if guild_attack_power > territory_defense_rating { attacking_guild . territory_holdings . push (target_territory_id) ; attacking_guild . treasury_balance -= total_conquest_cost as u64 ; attacking_guild . alliance_reputation += 50 ; let territory_income_bonus = target_territory_id / 100 ; attacking_guild . guild_level += territory_income_bonus ; emit ! (TerritoryConquered { guild : attacking_guild . key () , territory_id : target_territory_id , conquest_cost : total_conquest_cost as u64 , }) ; } else { attacking_guild . treasury_balance -= (total_conquest_cost / 2) as u64 ; return Err (GuildError :: ConquestFailed . into ()) ; }"
+      },
+      {
+        "id": 27,
+        "label": "attacking_guild . territory_holdings . push (target_territory_id) ;"
+      },
+      {
+        "id": 28,
+        "label": "attacking_guild . treasury_balance -= total_conquest_cost as u64 ;"
+      },
+      {
+        "id": 29,
+        "label": "attacking_guild . alliance_reputation += 50 ;"
+      },
+      {
+        "id": 30,
+        "label": "let territory_income_bonus = target_territory_id / 100 ;"
+      },
+      {
+        "id": 31,
+        "label": "attacking_guild . guild_level += territory_income_bonus ;"
+      },
+      {
+        "id": 32,
+        "label": "emit ! (TerritoryConquered { guild : attacking_guild . key () , territory_id : target_territory_id , conquest_cost : total_conquest_cost as u64 , }) ;"
+      },
+      {
+        "id": 33,
+        "label": "attacking_guild . treasury_balance -= (total_conquest_cost / 2) as u64 ;"
+      },
+      {
+        "id": 34,
+        "label": "return Err (GuildError :: ConquestFailed . into ()) ;"
+      },
+      {
+        "id": 35,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 17,
+        "to": 17,
+        "label": "def: attacking_guild"
+      },
+      {
+        "from": 18,
+        "to": 18,
+        "label": "def: territory_registry"
+      },
+      {
+        "from": 20,
+        "to": 20,
+        "label": "def: conquest_cost_base"
+      },
+      {
+        "from": 21,
+        "to": 21,
+        "label": "def: force_multiplier"
+      },
+      {
+        "from": 22,
+        "to": 22,
+        "label": "def: total_conquest_cost"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: conquest_cost_base"
+      },
+      {
+        "from": 21,
+        "to": 22,
+        "label": "data_dep: force_multiplier"
+      },
+      {
+        "from": 24,
+        "to": 24,
+        "label": "def: territory_defense_rating"
+      },
+      {
+        "from": 25,
+        "to": 25,
+        "label": "def: guild_attack_power"
+      },
+      {
+        "from": 17,
+        "to": 25,
+        "label": "data_dep: attacking_guild"
+      },
+      {
+        "from": 25,
+        "to": 26,
+        "label": "data_dep: guild_attack_power"
+      },
+      {
+        "from": 24,
+        "to": 26,
+        "label": "data_dep: territory_defense_rating"
+      },
+      {
+        "from": 17,
+        "to": 26,
+        "label": "data_dep: attacking_guild"
+      },
+      {
+        "from": 17,
+        "to": 26,
+        "label": "data_dep: attacking_guild"
+      },
+      {
+        "from": 22,
+        "to": 26,
+        "label": "data_dep: total_conquest_cost"
+      },
+      {
+        "from": 17,
+        "to": 26,
+        "label": "data_dep: attacking_guild"
+      },
+      {
+        "from": 17,
+        "to": 26,
+        "label": "data_dep: attacking_guild"
+      },
+      {
+        "from": 17,
+        "to": 26,
+        "label": "data_dep: attacking_guild"
+      },
+      {
+        "from": 22,
+        "to": 26,
+        "label": "data_dep: total_conquest_cost"
+      },
+      {
+        "from": 17,
+        "to": 27,
+        "label": "data_dep: attacking_guild"
+      },
+      {
+        "from": 17,
+        "to": 28,
+        "label": "data_dep: attacking_guild"
+      },
+      {
+        "from": 22,
+        "to": 28,
+        "label": "data_dep: total_conquest_cost"
+      },
+      {
+        "from": 17,
+        "to": 29,
+        "label": "data_dep: attacking_guild"
+      },
+      {
+        "from": 30,
+        "to": 30,
+        "label": "def: territory_income_bonus"
+      },
+      {
+        "from": 17,
+        "to": 31,
+        "label": "data_dep: attacking_guild"
+      },
+      {
+        "from": 30,
+        "to": 31,
+        "label": "data_dep: territory_income_bonus"
+      },
+      {
+        "from": 17,
+        "to": 33,
+        "label": "data_dep: attacking_guild"
+      },
+      {
+        "from": 22,
+        "to": 33,
+        "label": "data_dep: total_conquest_cost"
+      }
+    ]
+  },
+  {
+    "name": "distribute_guild_rewards",
+    "inputs": [
+      "ctx: Context < DistributeRewards >",
+      "reward_pool_amount: u64"
+    ],
+    "nodes": [
+      {
+        "id": 36,
+        "label": "Entry"
+      },
+      {
+        "id": 37,
+        "label": "let guild_account = & ctx . accounts . guild_account ;"
+      },
+      {
+        "id": 38,
+        "label": "let member_account = & mut ctx . accounts . member_account ;"
+      },
+      {
+        "id": 39,
+        "label": "require ! (member_account . guild_membership == Some (guild_account . key ()) , GuildError :: NotGuildMember) ;"
+      },
+      {
+        "id": 40,
+        "label": "let member_count = guild_account . member_roster . len () as u64 ;"
+      },
+      {
+        "id": 41,
+        "label": "let base_reward = reward_pool_amount / member_count ;"
+      },
+      {
+        "id": 42,
+        "label": "let rank_multiplier = match member_account . member_rank { GuildRank :: Leader => 3.0 , GuildRank :: Officer => 2.5 , GuildRank :: Veteran => 2.0 , GuildRank :: Member => 1.5 , GuildRank :: Recruit => 1.0 , } ;"
+      },
+      {
+        "id": 43,
+        "label": "let contribution_bonus = member_account . contribution_points / 100 ;"
+      },
+      {
+        "id": 44,
+        "label": "let final_reward = (base_reward as f64 * rank_multiplier) as u64 + contribution_bonus ;"
+      },
+      {
+        "id": 45,
+        "label": "member_account . accumulated_rewards += final_reward ;"
+      },
+      {
+        "id": 46,
+        "label": "member_account . last_reward_timestamp = Clock :: get () ? . unix_timestamp ;"
+      },
+      {
+        "id": 47,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 37,
+        "to": 37,
+        "label": "def: guild_account"
+      },
+      {
+        "from": 38,
+        "to": 38,
+        "label": "def: member_account"
+      },
+      {
+        "from": 40,
+        "to": 40,
+        "label": "def: member_count"
+      },
+      {
+        "from": 37,
+        "to": 40,
+        "label": "data_dep: guild_account"
+      },
+      {
+        "from": 41,
+        "to": 41,
+        "label": "def: base_reward"
+      },
+      {
+        "from": 40,
+        "to": 41,
+        "label": "data_dep: member_count"
+      },
+      {
+        "from": 42,
+        "to": 42,
+        "label": "def: rank_multiplier"
+      },
+      {
+        "from": 38,
+        "to": 42,
+        "label": "data_dep: member_account"
+      },
+      {
+        "from": 43,
+        "to": 43,
+        "label": "def: contribution_bonus"
+      },
+      {
+        "from": 38,
+        "to": 43,
+        "label": "data_dep: member_account"
+      },
+      {
+        "from": 44,
+        "to": 44,
+        "label": "def: final_reward"
+      },
+      {
+        "from": 41,
+        "to": 44,
+        "label": "data_dep: base_reward"
+      },
+      {
+        "from": 42,
+        "to": 44,
+        "label": "data_dep: rank_multiplier"
+      },
+      {
+        "from": 43,
+        "to": 44,
+        "label": "data_dep: contribution_bonus"
+      },
+      {
+        "from": 38,
+        "to": 45,
+        "label": "data_dep: member_account"
+      },
+      {
+        "from": 44,
+        "to": 45,
+        "label": "data_dep: final_reward"
+      },
+      {
+        "from": 38,
+        "to": 46,
+        "label": "data_dep: member_account"
+      }
+    ]
+  }
+]

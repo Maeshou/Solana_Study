@@ -1,0 +1,183 @@
+[
+  {
+    "name": "Invoice",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "issuer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "total_due",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "amount_paid",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Payment",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "payer",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "invoice",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "amount",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreateInvoice",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "invoice",
+        "attribute": "# [account (init , payer = issuer , space = 8 + 32 + 8 + 8)]",
+        "field_type": "Account < 'info , Invoice >"
+      },
+      {
+        "name": "issuer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RecordPayment",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "invoice",
+        "attribute": "# [doc = \" Invoice.issuer == issuer.key() は検証される\"] # [account (mut , has_one = issuer)]",
+        "field_type": "Account < 'info , Invoice >"
+      },
+      {
+        "name": "payment",
+        "attribute": "# [doc = \" Payment.invoice ⇔ invoice.key() の検証がない\"] # [account (init , payer = payer , space = 8 + 32 + 32 + 8)]",
+        "field_type": "Account < 'info , Payment >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ApplyPayment",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "invoice",
+        "attribute": "# [doc = \" Invoice.issuer == issuer.key() は検証される\"] # [account (mut , has_one = issuer)]",
+        "field_type": "Account < 'info , Invoice >"
+      },
+      {
+        "name": "payment",
+        "attribute": "# [doc = \" Payment.invoice と invoice.key() の一致チェックがない\"] # [account (mut)]",
+        "field_type": "Account < 'info , Payment >"
+      },
+      {
+        "name": "issuer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "create_invoice",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateInvoice >",
+      "total_due: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 新規請求書を作成\"]"
+    ],
+    "body": [
+      "let inv = & mut ctx . accounts . invoice ;",
+      "inv . issuer = ctx . accounts . issuer . key () ;",
+      "inv . total_due = total_due ;",
+      "inv . amount_paid = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "record_payment",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RecordPayment >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 入金を記録\"]"
+    ],
+    "body": [
+      "let p = & mut ctx . accounts . payment ;",
+      "let i = & ctx . accounts . invoice ;",
+      "p . payer = ctx . accounts . payer . key () ;",
+      "p . invoice = i . key () ;",
+      "p . amount = amount ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "apply_payment",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ApplyPayment >"
+    ],
+    "attributes": [
+      "# [doc = \" 記録済み入金を請求書に反映\"]"
+    ],
+    "body": [
+      "let inv = & mut ctx . accounts . invoice ;",
+      "let pay = & ctx . accounts . payment ;",
+      "inv . amount_paid = inv . amount_paid . checked_add (pay . amount) . unwrap_or (inv . amount_paid) ;",
+      "Ok (())"
+    ]
+  }
+]

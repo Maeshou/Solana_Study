@@ -1,40 +1,196 @@
 [
   {
-    "name": "cancel_bid",
+    "name": "init_track",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx027 >",
-      "amount: u64"
+      "ctx: Context < InitTrack >",
+      "laps: u32"
     ],
     "attributes": [],
     "body": [
-      "let src = & mut ctx . accounts . account_src ;",
-      "let dst = & mut ctx . accounts . account_dst ;",
-      "let before = * * src . to_account_info () . try_borrow_lamports () ? ;",
-      "* * src . to_account_info () . try_borrow_mut_lamports () ? = before . saturating_sub (amount) ;",
-      "* * dst . to_account_info () . try_borrow_mut_lamports () ? += amount ;",
+      "let accs = & mut ctx . accounts ;",
+      "accs . track . host = accs . host . key () ;",
+      "accs . track . laps = laps ;",
+      "accs . track . state = TrackState :: Active ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx027",
+    "name": "run_heats",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RunHeats >",
+      "tick: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let a = & mut ctx . accounts ;",
+      "assert_ne ! (a . track . key () , a . stats . key () , \"track/stats must differ\") ;",
+      "let seed = [& a . track . host . as_ref () , & a . stats . total . to_le_bytes ()] . concat () ;",
+      "let bump = (hashv (& [& seed]) . 0 [0] as u32 % 9) + 3 ;",
+      "for _ in 0 .. tick",
+      "{",
+      "a . racer_a . lap = a . racer_a . lap . saturating_add (10 + bump) ;",
+      "a . racer_b . lap = a . racer_b . lap . saturating_add (12 + bump) ;",
+      "a . stats . total = a . stats . total . saturating_add (7 + bump as u64) ;",
+      "}",
+      "if a . stats . total > (a . track . laps as u64) * 20",
+      "{",
+      "a . track . state = TrackState :: Cooldown ;",
+      "a . stats . heats = a . stats . heats . saturating_add (3 + (bump / 2)) ;",
+      "a . racer_b . flags = a . racer_b . flags . saturating_add (2) ;",
+      "msg ! (\"cooldown: heats & flags raised\") ;",
+      "} else",
+      "{",
+      "a . track . state = TrackState :: Active ;",
+      "a . stats . heats = a . stats . heats . saturating_add (1) ;",
+      "a . racer_a . flags = a . racer_a . flags . saturating_add (1) ;",
+      "msg ! (\"active: keep racing, heats/flags tick\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitTrack",
     "node_type": "struct",
     "fields": [
       {
-        "name": "account_src",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "track",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Track >"
       },
       {
-        "name": "account_dst",
+        "name": "racer_a",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 8 + 1)]",
+        "field_type": "Account < 'info , Racer >"
+      },
+      {
+        "name": "racer_b",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 8 + 1)]",
+        "field_type": "Account < 'info , Racer >"
+      },
+      {
+        "name": "stats",
+        "attribute": "# [account (init , payer = payer , space = 8 + 8 + 4 , seeds = [b\"stats\" , host . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , RaceStats >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "host",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
       },
       {
         "name": "system_program",
         "attribute": null,
         "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RunHeats",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "track",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Track >"
+      },
+      {
+        "name": "racer_a",
+        "attribute": "# [account (mut , constraint = racer_a . key () != racer_b . key () , error = SkyErr :: Dup)]",
+        "field_type": "Account < 'info , Racer >"
+      },
+      {
+        "name": "racer_b",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Racer >"
+      },
+      {
+        "name": "stats",
+        "attribute": "# [account (mut , seeds = [b\"stats\" , host . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , RaceStats >"
+      },
+      {
+        "name": "host",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Track",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "host",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "laps",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "state",
+        "attribute": null,
+        "field_type": "TrackState"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Racer",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pilot",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "lap",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "flags",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RaceStats",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "total",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "heats",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

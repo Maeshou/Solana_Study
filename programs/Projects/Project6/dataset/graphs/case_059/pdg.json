@@ -1,0 +1,659 @@
+[
+  {
+    "name": "init_market",
+    "inputs": [
+      "ctx: Context < InitMarket >",
+      "fee_bps: u16"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let m = & mut ctx . accounts . market ;"
+      },
+      {
+        "id": 2,
+        "label": "m . admin = ctx . accounts . admin . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "m . fee_bps = fee_bps . min (10_000) ;"
+      },
+      {
+        "id": 4,
+        "label": "m . volume = 0 ;"
+      },
+      {
+        "id": 5,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: m"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: m"
+      }
+    ]
+  },
+  {
+    "name": "place_order",
+    "inputs": [
+      "ctx: Context < PlaceOrder >",
+      "side: Side",
+      "price: u64",
+      "qty: u64"
+    ],
+    "nodes": [
+      {
+        "id": 6,
+        "label": "Entry"
+      },
+      {
+        "id": 7,
+        "label": "let m = & mut ctx . accounts . market ;"
+      },
+      {
+        "id": 8,
+        "label": "let o = & mut ctx . accounts . order ;"
+      },
+      {
+        "id": 9,
+        "label": "o . market = m . key () ;"
+      },
+      {
+        "id": 10,
+        "label": "o . side = side ;"
+      },
+      {
+        "id": 11,
+        "label": "o . price = price . min (1_000_000_000) ;"
+      },
+      {
+        "id": 12,
+        "label": "o . qty = qty . min (1_000_000) ;"
+      },
+      {
+        "id": 13,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 7,
+        "to": 7,
+        "label": "def: m"
+      },
+      {
+        "from": 8,
+        "to": 8,
+        "label": "def: o"
+      },
+      {
+        "from": 8,
+        "to": 9,
+        "label": "data_dep: o"
+      },
+      {
+        "from": 7,
+        "to": 9,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 8,
+        "to": 10,
+        "label": "data_dep: o"
+      },
+      {
+        "from": 8,
+        "to": 11,
+        "label": "data_dep: o"
+      },
+      {
+        "from": 8,
+        "to": 12,
+        "label": "data_dep: o"
+      }
+    ]
+  },
+  {
+    "name": "match_orders",
+    "inputs": [
+      "ctx: Context < MatchOrders >",
+      "fills: Vec < u64 >"
+    ],
+    "nodes": [
+      {
+        "id": 14,
+        "label": "Entry"
+      },
+      {
+        "id": 15,
+        "label": "let m = & mut ctx . accounts . market ;"
+      },
+      {
+        "id": 16,
+        "label": "let maker = & mut ctx . accounts . maker ;"
+      },
+      {
+        "id": 17,
+        "label": "let taker = & mut ctx . accounts . taker ;"
+      },
+      {
+        "id": 18,
+        "label": "let tape = & mut ctx . accounts . tape ;"
+      },
+      {
+        "id": 19,
+        "label": "let mut traded : u128 = 0 ;"
+      },
+      {
+        "id": 20,
+        "label": "let mut spread_mix : u64 = 0 ;"
+      },
+      {
+        "id": 21,
+        "label": "for f in fills { let cap = f . min (maker . qty . min (taker . qty)) ; traded = traded . saturating_add (cap as u128) ; spread_mix ^= (maker . price ^ taker . price ^ cap) . rotate_left (7) ; }"
+      },
+      {
+        "id": 22,
+        "label": "let cap = f . min (maker . qty . min (taker . qty)) ;"
+      },
+      {
+        "id": 23,
+        "label": "traded = traded . saturating_add (cap as u128) ;"
+      },
+      {
+        "id": 24,
+        "label": "spread_mix ^= (maker . price ^ taker . price ^ cap) . rotate_left (7) ;"
+      },
+      {
+        "id": 25,
+        "label": "let t = traded as u64 ;"
+      },
+      {
+        "id": 26,
+        "label": "if maker . side == Buy { maker . qty = maker . qty . saturating_sub (t . min (maker . qty)) ; taker . qty = taker . qty . saturating_sub (t . min (taker . qty)) ; m . volume = m . volume . saturating_add (t) ; msg ! (\"Maker=Buy branch: t={}, mix={}, m.qty={}, t.qty={}\" , t , spread_mix , maker . qty , taker . qty) ; } else { maker . qty = maker . qty . saturating_sub (t . min (maker . qty)) ; taker . qty = taker . qty . saturating_sub (t . min (taker . qty)) ; m . volume = m . volume . saturating_add (t + (spread_mix & 0xFF)) ; msg ! (\"Maker=Sell branch: t={}, mix={}, m.qty={}, t.qty={}\" , t , spread_mix , maker . qty , taker . qty) ; }"
+      },
+      {
+        "id": 27,
+        "label": "maker . qty = maker . qty . saturating_sub (t . min (maker . qty)) ;"
+      },
+      {
+        "id": 28,
+        "label": "taker . qty = taker . qty . saturating_sub (t . min (taker . qty)) ;"
+      },
+      {
+        "id": 29,
+        "label": "m . volume = m . volume . saturating_add (t) ;"
+      },
+      {
+        "id": 30,
+        "label": "msg ! (\"Maker=Buy branch: t={}, mix={}, m.qty={}, t.qty={}\" , t , spread_mix , maker . qty , taker . qty) ;"
+      },
+      {
+        "id": 31,
+        "label": "maker . qty = maker . qty . saturating_sub (t . min (maker . qty)) ;"
+      },
+      {
+        "id": 32,
+        "label": "taker . qty = taker . qty . saturating_sub (t . min (taker . qty)) ;"
+      },
+      {
+        "id": 33,
+        "label": "m . volume = m . volume . saturating_add (t + (spread_mix & 0xFF)) ;"
+      },
+      {
+        "id": 34,
+        "label": "msg ! (\"Maker=Sell branch: t={}, mix={}, m.qty={}, t.qty={}\" , t , spread_mix , maker . qty , taker . qty) ;"
+      },
+      {
+        "id": 35,
+        "label": "let mut x = (m . volume as u128) . max (1) ;"
+      },
+      {
+        "id": 36,
+        "label": "let mut i = 0 ;"
+      },
+      {
+        "id": 37,
+        "label": "while i < 3 { x = (x + (m . volume as u128 / x)) . max (1) / 2 ; i += 1 ; }"
+      },
+      {
+        "id": 38,
+        "label": "x = (x + (m . volume as u128 / x)) . max (1) / 2 ;"
+      },
+      {
+        "id": 39,
+        "label": "i += 1 ;"
+      },
+      {
+        "id": 40,
+        "label": "tape . market = m . key () ;"
+      },
+      {
+        "id": 41,
+        "label": "tape . index = (x as u64) . min (9_999_999) ;"
+      },
+      {
+        "id": 42,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 15,
+        "to": 15,
+        "label": "def: m"
+      },
+      {
+        "from": 16,
+        "to": 16,
+        "label": "def: maker"
+      },
+      {
+        "from": 17,
+        "to": 17,
+        "label": "def: taker"
+      },
+      {
+        "from": 18,
+        "to": 18,
+        "label": "def: tape"
+      },
+      {
+        "from": 16,
+        "to": 21,
+        "label": "data_dep: maker"
+      },
+      {
+        "from": 17,
+        "to": 21,
+        "label": "data_dep: taker"
+      },
+      {
+        "from": 16,
+        "to": 21,
+        "label": "data_dep: maker"
+      },
+      {
+        "from": 17,
+        "to": 21,
+        "label": "data_dep: taker"
+      },
+      {
+        "from": 22,
+        "to": 22,
+        "label": "def: cap"
+      },
+      {
+        "from": 16,
+        "to": 22,
+        "label": "data_dep: maker"
+      },
+      {
+        "from": 17,
+        "to": 22,
+        "label": "data_dep: taker"
+      },
+      {
+        "from": 22,
+        "to": 23,
+        "label": "data_dep: cap"
+      },
+      {
+        "from": 16,
+        "to": 24,
+        "label": "data_dep: maker"
+      },
+      {
+        "from": 17,
+        "to": 24,
+        "label": "data_dep: taker"
+      },
+      {
+        "from": 22,
+        "to": 24,
+        "label": "data_dep: cap"
+      },
+      {
+        "from": 25,
+        "to": 25,
+        "label": "def: t"
+      },
+      {
+        "from": 16,
+        "to": 26,
+        "label": "data_dep: maker"
+      },
+      {
+        "from": 16,
+        "to": 26,
+        "label": "data_dep: maker"
+      },
+      {
+        "from": 16,
+        "to": 26,
+        "label": "data_dep: maker"
+      },
+      {
+        "from": 25,
+        "to": 26,
+        "label": "data_dep: t"
+      },
+      {
+        "from": 16,
+        "to": 26,
+        "label": "data_dep: maker"
+      },
+      {
+        "from": 17,
+        "to": 26,
+        "label": "data_dep: taker"
+      },
+      {
+        "from": 17,
+        "to": 26,
+        "label": "data_dep: taker"
+      },
+      {
+        "from": 25,
+        "to": 26,
+        "label": "data_dep: t"
+      },
+      {
+        "from": 17,
+        "to": 26,
+        "label": "data_dep: taker"
+      },
+      {
+        "from": 15,
+        "to": 26,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 15,
+        "to": 26,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 25,
+        "to": 26,
+        "label": "data_dep: t"
+      },
+      {
+        "from": 16,
+        "to": 26,
+        "label": "data_dep: maker"
+      },
+      {
+        "from": 16,
+        "to": 26,
+        "label": "data_dep: maker"
+      },
+      {
+        "from": 25,
+        "to": 26,
+        "label": "data_dep: t"
+      },
+      {
+        "from": 16,
+        "to": 26,
+        "label": "data_dep: maker"
+      },
+      {
+        "from": 17,
+        "to": 26,
+        "label": "data_dep: taker"
+      },
+      {
+        "from": 17,
+        "to": 26,
+        "label": "data_dep: taker"
+      },
+      {
+        "from": 25,
+        "to": 26,
+        "label": "data_dep: t"
+      },
+      {
+        "from": 17,
+        "to": 26,
+        "label": "data_dep: taker"
+      },
+      {
+        "from": 15,
+        "to": 26,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 15,
+        "to": 26,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 25,
+        "to": 26,
+        "label": "data_dep: t"
+      },
+      {
+        "from": 16,
+        "to": 27,
+        "label": "data_dep: maker"
+      },
+      {
+        "from": 16,
+        "to": 27,
+        "label": "data_dep: maker"
+      },
+      {
+        "from": 25,
+        "to": 27,
+        "label": "data_dep: t"
+      },
+      {
+        "from": 16,
+        "to": 27,
+        "label": "data_dep: maker"
+      },
+      {
+        "from": 17,
+        "to": 28,
+        "label": "data_dep: taker"
+      },
+      {
+        "from": 17,
+        "to": 28,
+        "label": "data_dep: taker"
+      },
+      {
+        "from": 25,
+        "to": 28,
+        "label": "data_dep: t"
+      },
+      {
+        "from": 17,
+        "to": 28,
+        "label": "data_dep: taker"
+      },
+      {
+        "from": 15,
+        "to": 29,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 15,
+        "to": 29,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 25,
+        "to": 29,
+        "label": "data_dep: t"
+      },
+      {
+        "from": 16,
+        "to": 31,
+        "label": "data_dep: maker"
+      },
+      {
+        "from": 16,
+        "to": 31,
+        "label": "data_dep: maker"
+      },
+      {
+        "from": 25,
+        "to": 31,
+        "label": "data_dep: t"
+      },
+      {
+        "from": 16,
+        "to": 31,
+        "label": "data_dep: maker"
+      },
+      {
+        "from": 17,
+        "to": 32,
+        "label": "data_dep: taker"
+      },
+      {
+        "from": 17,
+        "to": 32,
+        "label": "data_dep: taker"
+      },
+      {
+        "from": 25,
+        "to": 32,
+        "label": "data_dep: t"
+      },
+      {
+        "from": 17,
+        "to": 32,
+        "label": "data_dep: taker"
+      },
+      {
+        "from": 15,
+        "to": 33,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 15,
+        "to": 33,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 25,
+        "to": 33,
+        "label": "data_dep: t"
+      },
+      {
+        "from": 35,
+        "to": 35,
+        "label": "def: x"
+      },
+      {
+        "from": 15,
+        "to": 35,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 36,
+        "to": 36,
+        "label": "def: i"
+      },
+      {
+        "from": 36,
+        "to": 37,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 35,
+        "to": 37,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 35,
+        "to": 37,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 15,
+        "to": 37,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 35,
+        "to": 37,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 36,
+        "to": 37,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 35,
+        "to": 38,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 35,
+        "to": 38,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 15,
+        "to": 38,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 35,
+        "to": 38,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 36,
+        "to": 39,
+        "label": "data_dep: i"
+      },
+      {
+        "from": 18,
+        "to": 40,
+        "label": "data_dep: tape"
+      },
+      {
+        "from": 15,
+        "to": 40,
+        "label": "data_dep: m"
+      },
+      {
+        "from": 18,
+        "to": 41,
+        "label": "data_dep: tape"
+      },
+      {
+        "from": 35,
+        "to": 41,
+        "label": "data_dep: x"
+      }
+    ]
+  }
+]

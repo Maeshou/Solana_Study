@@ -1,0 +1,147 @@
+[
+  {
+    "name": "open",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Open >",
+      "fee_bps: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let m = & mut ctx . accounts . market ;",
+      "m . owner = ctx . accounts . owner . key () ;",
+      "m . fee_bps = fee_bps . min (1200) ;",
+      "m . turnover = 0 ;",
+      "m . orders = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "settle",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Settle >",
+      "gross: u64",
+      "parts: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let m = & mut ctx . accounts . market ;",
+      "let fee = gross . saturating_mul (m . fee_bps as u64) / 10_000 ;",
+      "let mut remain = if gross > fee { gross - fee } else { 0 } ;",
+      "if remain == 0",
+      "{",
+      "m . orders = m . orders . saturating_add (1) ;",
+      "return Ok (()) ;",
+      "}",
+      "let mut i = 0 ;",
+      "while i < parts",
+      "{",
+      "let chunk = remain / 2 ;",
+      "if chunk == 0",
+      "{",
+      "break ;",
+      "} let ix = token_ix :: transfer (& ctx . accounts . any_program . key () , & ctx . accounts . treasury . key () , & ctx . accounts . seller_vault . key () , & ctx . accounts . owner . key () , & [] , chunk ,) ? ;",
+      "invoke (& ix , & [ctx . accounts . any_program . to_account_info () , ctx . accounts . treasury . to_account_info () , ctx . accounts . seller_vault . to_account_info () , ctx . accounts . owner . to_account_info () ,] ,) ? ;",
+      "remain = remain . saturating_sub (chunk) ;",
+      "i += 1 ;",
+      "}",
+      "if remain > 0",
+      "{",
+      "let ix2 = token_ix :: transfer (& ctx . accounts . any_program . key () , & ctx . accounts . treasury . key () , & ctx . accounts . seller_vault . key () , & ctx . accounts . owner . key () , & [] , remain ,) ? ;",
+      "invoke (& ix2 , & [ctx . accounts . any_program . to_account_info () , ctx . accounts . treasury . to_account_info () , ctx . accounts . seller_vault . to_account_info () , ctx . accounts . owner . to_account_info () ,] ,) ? ;",
+      "}",
+      "m . turnover = m . turnover . saturating_add (gross) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Open",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "market",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 2 + 8 + 8)]",
+        "field_type": "Account < 'info , Market >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Settle",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "market",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Market >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "treasury",
+        "attribute": "# [doc = \" CHECK:\"] # [account (mut)]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "seller_vault",
+        "attribute": "# [doc = \" CHECK:\"] # [account (mut)]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "any_program",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Market",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "fee_bps",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "turnover",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "orders",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

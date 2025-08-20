@@ -1,0 +1,239 @@
+[
+  {
+    "name": "create_farm",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateFarm >",
+      "farm_id: u64",
+      "initial_size: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let farm = & mut ctx . accounts . farm ;",
+      "farm . owner = ctx . accounts . owner . key () ;",
+      "farm . farm_id = farm_id ;",
+      "farm . size_acres = initial_size ;",
+      "farm . crop_count = 0 ;",
+      "farm . farm_status = FarmStatus :: Active ;",
+      "msg ! (\"Farm {} created with {} acres.\" , farm . farm_id , farm . size_acres) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "plant_crops",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PlantCrops >",
+      "crop_id: u32",
+      "seed_amount: u32",
+      "crop_type_code: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let crop = & mut ctx . accounts . crop ;",
+      "let farm = & mut ctx . accounts . farm ;",
+      "if matches ! (farm . farm_status , FarmStatus :: Active)",
+      "{",
+      "if seed_amount > 100",
+      "{",
+      "crop . is_harvestable = true ;",
+      "} else",
+      "{",
+      "crop . is_harvestable = false ;",
+      "} } else",
+      "{",
+      "crop . is_harvestable = false ;",
+      "msg ! (\"Farm is inactive, crops cannot be planted.\") ;",
+      "}",
+      "crop . farm = farm . key () ;",
+      "crop . crop_id = crop_id ;",
+      "crop . seeds_planted = seed_amount ;",
+      "if crop_type_code == 1",
+      "{",
+      "crop . crop_type = CropType :: Wheat ;",
+      "} else",
+      "{",
+      "crop . crop_type = CropType :: Corn ;",
+      "}",
+      "farm . crop_count = farm . crop_count . saturating_add (1) ;",
+      "msg ! (\"{} {:?} planted on farm {}.\" , crop . seeds_planted , crop . crop_type , farm . farm_id) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "harvest_and_sell",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < HarvestAndSell >",
+      "harvest_amount: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let crop1 = & mut ctx . accounts . crop1 ;",
+      "let crop2 = & mut ctx . accounts . crop2 ;",
+      "if crop1 . is_harvestable && crop2 . is_harvestable",
+      "{",
+      "crop1 . seeds_planted = crop1 . seeds_planted . checked_sub (harvest_amount) . unwrap_or (0) ;",
+      "crop2 . seeds_planted = crop2 . seeds_planted . checked_add (harvest_amount) . unwrap_or (u32 :: MAX) ;",
+      "if crop1 . seeds_planted < 50",
+      "{",
+      "crop1 . is_harvestable = false ;",
+      "} msg ! (\"Harvested",
+      "{",
+      "} from crop1, sold as part of crop2.\" , harvest_amount) ;",
+      "} else",
+      "{",
+      "msg ! (\"One or both crops are not harvestable.\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CreateFarm",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "farm",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 4 + 4 + 1)]",
+        "field_type": "Account < 'info , Farm >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PlantCrops",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "farm",
+        "attribute": "# [account (mut , has_one = farm)]",
+        "field_type": "Account < 'info , Farm >"
+      },
+      {
+        "name": "crop",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 4 + 4 + 1 + 1)]",
+        "field_type": "Account < 'info , Crop >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "HarvestAndSell",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "farm",
+        "attribute": "# [account (mut , has_one = farm)]",
+        "field_type": "Account < 'info , Farm >"
+      },
+      {
+        "name": "crop1",
+        "attribute": "# [account (mut , has_one = farm)]",
+        "field_type": "Account < 'info , Crop >"
+      },
+      {
+        "name": "crop2",
+        "attribute": "# [account (mut , has_one = farm)]",
+        "field_type": "Account < 'info , Crop >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Farm",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "farm_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "size_acres",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "crop_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "farm_status",
+        "attribute": null,
+        "field_type": "FarmStatus"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Crop",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "farm",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "crop_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "seeds_planted",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "is_harvestable",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "crop_type",
+        "attribute": null,
+        "field_type": "CropType"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,33 +1,199 @@
 [
   {
-    "name": "mint_nft",
+    "name": "init_forge",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx029 >"
+      "ctx: Context < InitForge >",
+      "cap: u32"
     ],
     "attributes": [],
     "body": [
-      "let a = & ctx . accounts . first ;",
-      "let b = & ctx . accounts . second ;",
-      "msg ! (\"Account A: {}\" , a . key ()) ;",
-      "msg ! (\"Account B: {}\" , b . key ()) ;",
+      "let a = & mut ctx . accounts ;",
+      "a . workshop . artisan = a . artisan . key () ;",
+      "a . workshop . capacity = cap ;",
+      "a . workshop . state = BenchState :: Blend ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx029",
+    "name": "fuse",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Fuse >",
+      "passes: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let a = & mut ctx . accounts ;",
+      "assert_ne ! (a . vault . key () , a . glyph_a . key () , \"vault/glyph_a must differ\") ;",
+      "assert_ne ! (a . vault . key () , a . glyph_b . key () , \"vault/glyph_b must differ\") ;",
+      "for i in 0 .. passes",
+      "{",
+      "let inc = 3 + (i % 5) as u32 ;",
+      "a . glyph_a . ink = a . glyph_a . ink . saturating_add (inc) ;",
+      "a . glyph_b . ink = a . glyph_b . ink . saturating_add (inc + 2) ;",
+      "a . vault . sigils = a . vault . sigils . saturating_add (1) ;",
+      "}",
+      "let total = a . glyph_a . ink . saturating_add (a . glyph_b . ink) ;",
+      "if total > a . workshop . capacity",
+      "{",
+      "a . workshop . state = BenchState :: Lockdown ;",
+      "a . vault . rarity = a . vault . rarity . saturating_add (7) ;",
+      "a . vault . events = a . vault . events . saturating_add (2) ;",
+      "msg ! (\"capacity hit;",
+      "lockdown, rarity+7, events+2\") ;",
+      "} else",
+      "{",
+      "a . workshop . state = BenchState :: Blend ;",
+      "a . vault . rarity = a . vault . rarity . saturating_add (2) ;",
+      "a . vault . sigils = a . vault . sigils . saturating_add (1) ;",
+      "msg ! (\"within capacity;",
+      "blend, rarity+2, sigils+1\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitForge",
     "node_type": "struct",
     "fields": [
       {
-        "name": "first",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "workshop",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Workshop >"
       },
       {
-        "name": "second",
+        "name": "glyph_a",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4 + 4)]",
+        "field_type": "Account < 'info , Glyph >"
+      },
+      {
+        "name": "glyph_b",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4 + 4)]",
+        "field_type": "Account < 'info , Glyph >"
+      },
+      {
+        "name": "vault",
+        "attribute": "# [account (init , payer = payer , space = 8 + 8 + 4 , seeds = [b\"vault\" , artisan . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "artisan",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Fuse",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "workshop",
+        "attribute": "# [account (mut , has_one = artisan)]",
+        "field_type": "Account < 'info , Workshop >"
+      },
+      {
+        "name": "glyph_a",
+        "attribute": "# [account (mut , constraint = glyph_a . key () != glyph_b . key () , error = SFErr :: Dup)]",
+        "field_type": "Account < 'info , Glyph >"
+      },
+      {
+        "name": "glyph_b",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Glyph >"
+      },
+      {
+        "name": "vault",
+        "attribute": "# [account (mut , seeds = [b\"vault\" , artisan . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "artisan",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Workshop",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "artisan",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "capacity",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "state",
+        "attribute": null,
+        "field_type": "BenchState"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Glyph",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ink",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "resonance",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Vault",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "sigils",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "rarity",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "events",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

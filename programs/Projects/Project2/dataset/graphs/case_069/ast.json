@@ -1,15 +1,78 @@
 [
   {
-    "name": "InitializeTournamentCtxxsnq",
+    "name": "create_subscription_plan",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateSubscriptionPlan >",
+      "price: u64",
+      "interval: i64"
+    ],
+    "attributes": [],
+    "body": [
+      "let plan = & mut ctx . accounts . plan ;",
+      "plan . provider = ctx . accounts . provider . key () ;",
+      "plan . price = price ;",
+      "plan . interval = interval ;",
+      "plan . active_subscriptions = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "subscribe",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Subscribe >"
+    ],
+    "attributes": [],
+    "body": [
+      "let plan = & ctx . accounts . plan ;",
+      "let subscription = & mut ctx . accounts . subscription ;",
+      "subscription . subscriber = ctx . accounts . subscriber . key () ;",
+      "subscription . plan = plan . key () ;",
+      "subscription . start_time = Clock :: get () ? . unix_timestamp ;",
+      "subscription . next_payment = Clock :: get () ? . unix_timestamp + plan . interval ;",
+      "subscription . is_active = true ;",
+      "let cpi_accounts = anchor_spl :: token :: Transfer { from : ctx . accounts . subscriber_token_account . to_account_info () , to : ctx . accounts . provider_token_account . to_account_info () , authority : ctx . accounts . subscriber . to_account_info () , } ;",
+      "let cpi_program = ctx . accounts . token_program . to_account_info () ;",
+      "let cpi_ctx = CpiContext :: new (cpi_program , cpi_accounts) ;",
+      "anchor_spl :: token :: transfer (cpi_ctx , plan . price) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "process_payment",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ProcessPayment >"
+    ],
+    "attributes": [],
+    "body": [
+      "let plan = & ctx . accounts . plan ;",
+      "let subscription = & mut ctx . accounts . subscription ;",
+      "require ! (subscription . is_active , SubscriptionError :: InactiveSubscription) ;",
+      "require ! (Clock :: get () ?. unix_timestamp >= subscription . next_payment , SubscriptionError :: PaymentNotDue) ;",
+      "let cpi_accounts = anchor_spl :: token :: Transfer { from : ctx . accounts . subscriber_token_account . to_account_info () , to : ctx . accounts . provider_token_account . to_account_info () , authority : ctx . accounts . subscriber . to_account_info () , } ;",
+      "let cpi_program = ctx . accounts . token_program . to_account_info () ;",
+      "let cpi_ctx = CpiContext :: new (cpi_program , cpi_accounts) ;",
+      "anchor_spl :: token :: transfer (cpi_ctx , plan . price) ? ;",
+      "subscription . next_payment = Clock :: get () ? . unix_timestamp + plan . interval ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CreateSubscriptionPlan",
     "node_type": "struct",
     "fields": [
       {
-        "name": "tournament",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , DataAccount >"
+        "name": "plan",
+        "attribute": "# [account (init , payer = provider , space = 8 + 100)]",
+        "field_type": "Account < 'info , SubscriptionPlan >"
       },
       {
-        "name": "authority",
+        "name": "provider",
         "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
       },
@@ -24,11 +87,109 @@
     "body": null
   },
   {
-    "name": "DataAccount",
+    "name": "Subscribe",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data",
+        "name": "plan",
+        "attribute": null,
+        "field_type": "Account < 'info , SubscriptionPlan >"
+      },
+      {
+        "name": "subscription",
+        "attribute": "# [account (init , payer = subscriber , space = 8 + 150 , seeds = [b\"subscription\" , subscriber . key () . as_ref () , plan . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Subscription >"
+      },
+      {
+        "name": "subscriber_token_account",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "provider_token_account",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "subscriber",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ProcessPayment",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "plan",
+        "attribute": null,
+        "field_type": "Account < 'info , SubscriptionPlan >"
+      },
+      {
+        "name": "subscription",
+        "attribute": "# [account (mut , seeds = [b\"subscription\" , subscription . subscriber . as_ref () , plan . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Subscription >"
+      },
+      {
+        "name": "subscriber_token_account",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "provider_token_account",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "subscriber",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SubscriptionPlan",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "provider",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "price",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "interval",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "active_subscriptions",
         "attribute": null,
         "field_type": "u64"
       }
@@ -38,20 +199,37 @@
     "body": null
   },
   {
-    "name": "initialize_tournament",
-    "node_type": "function",
-    "fields": null,
-    "inputs": [
-      "ctx: Context < InitializeTournamentCtxxsnq >",
-      "amount: u64"
+    "name": "Subscription",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "subscriber",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "plan",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "start_time",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "next_payment",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "is_active",
+        "attribute": null,
+        "field_type": "bool"
+      }
     ],
-    "attributes": [],
-    "body": [
-      "let acct = & mut ctx . accounts . tournament ;",
-      "assert ! (ctx . accounts . tournament . data > 0) ;",
-      "acct . data -= amount ;",
-      "msg ! (\"Executed initialize_tournament logic\") ;",
-      "Ok (())"
-    ]
+    "inputs": null,
+    "attributes": null,
+    "body": null
   }
 ]

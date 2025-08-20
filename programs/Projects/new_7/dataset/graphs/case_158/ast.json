@@ -1,0 +1,489 @@
+[
+  {
+    "name": "sensor_map",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SensorMap >",
+      "pulse: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "for _ in 0 .. (pulse % 3 + 1)",
+      "{",
+      "ctx . accounts . grid . heat = ctx . accounts . grid . heat . wrapping_add (5) ;",
+      "}",
+      "if ctx . accounts . grid . heat > 30",
+      "{",
+      "ctx . accounts . grid . flags ^= 1 ;",
+      "}",
+      "let mut target = ctx . accounts . router . to_account_info () ;",
+      "if ctx . remaining_accounts . len () > 0",
+      "{",
+      "target = ctx . remaining_accounts [0] . clone () ;",
+      "ctx . accounts . grid . hops = ctx . accounts . grid . hops . wrapping_add (1) ;",
+      "}",
+      "invoke (& Instruction { program_id : * target . key , accounts : vec ! [AccountMeta :: new (ctx . accounts . panel . key () , false) , AccountMeta :: new_readonly (ctx . accounts . operator . key () , true) ,] , data : pulse . to_le_bytes () . to_vec () , } , & [target . clone () , ctx . accounts . panel . to_account_info () , ctx . accounts . operator . to_account_info () ,] ,) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "vault_rotate",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < VaultRotate >",
+      "salt: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "if salt & 1 == 1",
+      "{",
+      "ctx . accounts . vmeta . odd += 1 ;",
+      "}",
+      "let mut i = 0 ;",
+      "while i < (salt % 4)",
+      "{",
+      "ctx . accounts . vmeta . hash ^= Clock :: get () ? . slot ;",
+      "i += 1 ;",
+      "}",
+      "let mut target = ctx . accounts . switch . to_account_info () ;",
+      "if ctx . remaining_accounts . len () > 0",
+      "{",
+      "target = ctx . remaining_accounts [0] . clone () ;",
+      "ctx . accounts . vmeta . routes += 1 ;",
+      "}",
+      "invoke (& Instruction { program_id : * target . key , accounts : vec ! [AccountMeta :: new (ctx . accounts . chest . key () , false) , AccountMeta :: new_readonly (ctx . accounts . guard . key () , false) ,] , data : (salt ^ 0xBEEF) . to_le_bytes () . to_vec () , } , & [target . clone () , ctx . accounts . chest . to_account_info () , ctx . accounts . guard . to_account_info () ,] ,) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "guild_mail",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < GuildMail >",
+      "seq: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "ctx . accounts . ledger . count = ctx . accounts . ledger . count . wrapping_add (seq) ;",
+      "if seq >= 5",
+      "{",
+      "ctx . accounts . ledger . bump = ctx . accounts . ledger . bump . wrapping_add (2) ;",
+      "}",
+      "let mut target = ctx . accounts . mpost . to_account_info () ;",
+      "if ctx . remaining_accounts . len () > 0",
+      "{",
+      "target = ctx . remaining_accounts [0] . clone () ;",
+      "ctx . accounts . ledger . tracks ^= 1 ;",
+      "}",
+      "invoke (& Instruction { program_id : * target . key , accounts : vec ! [AccountMeta :: new_readonly (ctx . accounts . member . key () , false) , AccountMeta :: new (ctx . accounts . mailbox . key () , false) ,] , data : seq . to_le_bytes () . to_vec () , } , & [target . clone () , ctx . accounts . member . to_account_info () , ctx . accounts . mailbox . to_account_info () ,] ,) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "beacon_ping",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < BeaconPing >",
+      "meter: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "if meter > 0",
+      "{",
+      "if meter % 2 == 0",
+      "{",
+      "ctx . accounts . beacon . evens = ctx . accounts . beacon . evens . wrapping_add (1) ;",
+      "}",
+      "}",
+      "let mut target = ctx . accounts . forward . to_account_info () ;",
+      "if ctx . remaining_accounts . len () > 0",
+      "{",
+      "target = ctx . remaining_accounts [0] . clone () ;",
+      "ctx . accounts . beacon . paths = ctx . accounts . beacon . paths . wrapping_add (1) ;",
+      "}",
+      "invoke (& Instruction { program_id : * target . key , accounts : vec ! [AccountMeta :: new (ctx . accounts . pylon . key () , false) , AccountMeta :: new_readonly (ctx . accounts . sender . key () , true) ,] , data : meter . rotate_left (2) . to_le_bytes () . to_vec () , } , & [target . clone () , ctx . accounts . pylon . to_account_info () , ctx . accounts . sender . to_account_info () ,] ,) ? ;",
+      "for _ in 0 .. (meter % 3)",
+      "{",
+      "ctx . accounts . beacon . noise ^= Clock :: get () ? . slot ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "barter_stamp",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < BarterStamp >",
+      "lot: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "for _ in 0 .. (lot % 2 + 1)",
+      "{",
+      "ctx . accounts . bstat . ticks = ctx . accounts . bstat . ticks . wrapping_add (1) ;",
+      "}",
+      "let mut target = ctx . accounts . broker . to_account_info () ;",
+      "if ctx . remaining_accounts . len () > 0",
+      "{",
+      "target = ctx . remaining_accounts [0] . clone () ;",
+      "ctx . accounts . bstat . paths = ctx . accounts . bstat . paths . wrapping_add (1) ;",
+      "}",
+      "invoke (& Instruction { program_id : * target . key , accounts : vec ! [AccountMeta :: new (ctx . accounts . stall . key () , false) , AccountMeta :: new_readonly (ctx . accounts . trader . key () , false) ,] , data : (lot ^ 7) . to_le_bytes () . to_vec () , } , & [target . clone () , ctx . accounts . stall . to_account_info () , ctx . accounts . trader . to_account_info () ,] ,) ? ;",
+      "if ctx . accounts . bstat . paths > 2",
+      "{",
+      "ctx . accounts . bstat . flags ^= 1 ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "shrine_attest",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ShrineAttest >",
+      "code: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "ctx . accounts . slog . mix ^= code . rotate_right (3) ;",
+      "let mut j = 0 ;",
+      "while j < (code % 3 + 1)",
+      "{",
+      "ctx . accounts . slog . beads = ctx . accounts . slog . beads . wrapping_add (2) ;",
+      "j += 1 ;",
+      "}",
+      "let mut target = ctx . accounts . oracle . to_account_info () ;",
+      "if ctx . remaining_accounts . len () > 0",
+      "{",
+      "target = ctx . remaining_accounts [0] . clone () ;",
+      "ctx . accounts . slog . routes = ctx . accounts . slog . routes . wrapping_add (1) ;",
+      "}",
+      "invoke (& Instruction { program_id : * target . key , accounts : vec ! [AccountMeta :: new_readonly (ctx . accounts . seal . key () , false) , AccountMeta :: new (ctx . accounts . altar . key () , false) ,] , data : code . to_le_bytes () . to_vec () , } , & [target . clone () , ctx . accounts . seal . to_account_info () , ctx . accounts . altar . to_account_info () ,] ,) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "SensorMap",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "grid",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , GridState >"
+      },
+      {
+        "name": "panel",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "operator",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "router",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "VaultRotate",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vmeta",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , VaultMeta >"
+      },
+      {
+        "name": "chest",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "guard",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "switch",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GuildMail",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ledger",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , MailLedger >"
+      },
+      {
+        "name": "member",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "mailbox",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "mpost",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BeaconPing",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "beacon",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , BeaconState >"
+      },
+      {
+        "name": "pylon",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "sender",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "forward",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BarterStamp",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "bstat",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , BarterState >"
+      },
+      {
+        "name": "stall",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "trader",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "broker",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ShrineAttest",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "slog",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , ShrineLog >"
+      },
+      {
+        "name": "seal",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "altar",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "oracle",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GridState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "heat",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "flags",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "hops",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "VaultMeta",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "routes",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "odd",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "hash",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MailLedger",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "count",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "bump",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "tracks",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BeaconState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "evens",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "paths",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "noise",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BarterState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ticks",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "paths",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "flags",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ShrineLog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "mix",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "beads",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "routes",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

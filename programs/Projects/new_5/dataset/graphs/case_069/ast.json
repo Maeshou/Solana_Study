@@ -1,0 +1,233 @@
+[
+  {
+    "name": "create_team",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateTeam >",
+      "team_id: u64",
+      "supply_count: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let team = & mut ctx . accounts . team ;",
+      "team . leader = ctx . accounts . leader . key () ;",
+      "team . team_id = team_id ;",
+      "team . supply_count = supply_count ;",
+      "team . mission_count = 0 ;",
+      "team . is_active = true ;",
+      "msg ! (\"Disaster relief team {} created with {} supplies.\" , team . team_id , team . supply_count) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "start_mission",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < StartMission >",
+      "mission_id: u32",
+      "priority_code: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let mission = & mut ctx . accounts . mission ;",
+      "let team = & mut ctx . accounts . team ;",
+      "if matches ! (team . is_active , true)",
+      "{",
+      "mission . is_completed = false ;",
+      "if priority_code == 1",
+      "{",
+      "mission . priority = MissionPriority :: High ;",
+      "} else",
+      "{",
+      "mission . priority = MissionPriority :: Low ;",
+      "} team . mission_count = team . mission_count . saturating_add (1) ;",
+      "msg ! (\"Mission",
+      "{",
+      "} started with priority {:?}.\" , mission . mission_id , mission . priority) ;",
+      "} else",
+      "{",
+      "mission . is_completed = true ;",
+      "mission . priority = MissionPriority :: Low ;",
+      "msg ! (\"Team is inactive. Mission",
+      "{",
+      "} could not be started.\" , mission . mission_id) ;",
+      "}",
+      "mission . team = team . key () ;",
+      "mission . mission_id = mission_id ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "dispatch_supplies",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < DispatchSupplies >",
+      "supplies_to_dispatch: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let team1 = & mut ctx . accounts . team1 ;",
+      "let team2 = & mut ctx . accounts . team2 ;",
+      "if matches ! (team1 . is_active , true) && matches ! (team2 . is_active , true)",
+      "{",
+      "if team1 . supply_count >= supplies_to_dispatch",
+      "{",
+      "team1 . supply_count = team1 . supply_count . checked_sub (supplies_to_dispatch) . unwrap_or (0) ;",
+      "team2 . supply_count = team2 . supply_count . checked_add (supplies_to_dispatch) . unwrap_or (u32 :: MAX) ;",
+      "msg ! (\"Dispatched",
+      "{",
+      "} supplies from team 1 to team 2.\" , supplies_to_dispatch) ;",
+      "} else",
+      "{",
+      "msg ! (\"Team 1 has insufficient supplies.\") ;",
+      "} } else",
+      "{",
+      "msg ! (\"One or both teams are inactive. No supplies dispatched.\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CreateTeam",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "team",
+        "attribute": "# [account (init , payer = leader , space = 8 + 32 + 8 + 4 + 4 + 1)]",
+        "field_type": "Account < 'info , DisasterReliefTeam >"
+      },
+      {
+        "name": "leader",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "StartMission",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "team",
+        "attribute": "# [account (mut , has_one = team)]",
+        "field_type": "Account < 'info , DisasterReliefTeam >"
+      },
+      {
+        "name": "mission",
+        "attribute": "# [account (init , payer = leader , space = 8 + 32 + 4 + 1 + 1)]",
+        "field_type": "Account < 'info , ReliefMission >"
+      },
+      {
+        "name": "leader",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DispatchSupplies",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "team",
+        "attribute": "# [account (mut , has_one = team)]",
+        "field_type": "Account < 'info , DisasterReliefTeam >"
+      },
+      {
+        "name": "team1",
+        "attribute": "# [account (mut , has_one = team)]",
+        "field_type": "Account < 'info , DisasterReliefTeam >"
+      },
+      {
+        "name": "team2",
+        "attribute": "# [account (mut , has_one = team)]",
+        "field_type": "Account < 'info , DisasterReliefTeam >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DisasterReliefTeam",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "leader",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "team_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "supply_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "mission_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "is_active",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ReliefMission",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "team",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "mission_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "is_completed",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "priority",
+        "attribute": null,
+        "field_type": "MissionPriority"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

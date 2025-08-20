@@ -1,0 +1,805 @@
+[
+  {
+    "name": "init",
+    "inputs": [
+      "ctx: Context < Init >",
+      "quota: u64"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let faucet_state = & mut ctx . accounts . faucet_state ;"
+      },
+      {
+        "id": 2,
+        "label": "faucet_state . owner_authority = ctx . accounts . owner_authority . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "faucet_state . quota = quota ;"
+      },
+      {
+        "id": 4,
+        "label": "faucet_state . trace = quota . rotate_left (3) ;"
+      },
+      {
+        "id": 5,
+        "label": "faucet_state . turns = 5 ;"
+      },
+      {
+        "id": 6,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: faucet_state"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: faucet_state"
+      }
+    ]
+  },
+  {
+    "name": "spray",
+    "inputs": [
+      "ctx: Context < Spray >",
+      "route_program: Pubkey",
+      "paint_units: u64",
+      "waves: u8",
+      "pick_index: u8"
+    ],
+    "nodes": [
+      {
+        "id": 7,
+        "label": "Entry"
+      },
+      {
+        "id": 8,
+        "label": "let faucet_state = & mut ctx . accounts . faucet_state ;"
+      },
+      {
+        "id": 9,
+        "label": "if paint_units == 1 { faucet_state . turns = faucet_state . turns . saturating_add (2) ; faucet_state . trace = faucet_state . trace ^ 0x77 ; let mut tick : u8 = 1 ; while tick < 3 { faucet_state . trace = faucet_state . trace . wrapping_add ((tick as u64) * 3) ; tick = tick . saturating_add (1) ; } return Ok (()) ; }"
+      },
+      {
+        "id": 10,
+        "label": "faucet_state . turns = faucet_state . turns . saturating_add (2) ;"
+      },
+      {
+        "id": 11,
+        "label": "faucet_state . trace = faucet_state . trace ^ 0x77 ;"
+      },
+      {
+        "id": 12,
+        "label": "let mut tick : u8 = 1 ;"
+      },
+      {
+        "id": 13,
+        "label": "while tick < 3 { faucet_state . trace = faucet_state . trace . wrapping_add ((tick as u64) * 3) ; tick = tick . saturating_add (1) ; }"
+      },
+      {
+        "id": 14,
+        "label": "faucet_state . trace = faucet_state . trace . wrapping_add ((tick as u64) * 3) ;"
+      },
+      {
+        "id": 15,
+        "label": "tick = tick . saturating_add (1) ;"
+      },
+      {
+        "id": 16,
+        "label": "return Ok (()) ;"
+      },
+      {
+        "id": 17,
+        "label": "if paint_units > faucet_state . quota { faucet_state . trace = faucet_state . trace . wrapping_add (paint_units ^ 0x55) ; return Err (FaucetError :: QuotaExceeded . into ()) ; }"
+      },
+      {
+        "id": 18,
+        "label": "faucet_state . trace = faucet_state . trace . wrapping_add (paint_units ^ 0x55) ;"
+      },
+      {
+        "id": 19,
+        "label": "return Err (FaucetError :: QuotaExceeded . into ()) ;"
+      },
+      {
+        "id": 20,
+        "label": "let mut remaining = paint_units ;"
+      },
+      {
+        "id": 21,
+        "label": "let mut wave_index : u8 = 0 ;"
+      },
+      {
+        "id": 22,
+        "label": "while wave_index < waves { let chunk = (remaining / 2) . max (4) ; if chunk >= remaining { break ; } let ix = Instruction { program_id : route_program , accounts : vec ! [AccountMeta :: new (ctx . accounts . palette_bank . key () , false) , AccountMeta :: new (ctx . accounts . artist_wallet . key () , false) , AccountMeta :: new_readonly (ctx . accounts . owner_authority . key () , true) ,] , data : { let mut bytes = Vec :: with_capacity (16) ; bytes . push (9) ; bytes . extend_from_slice (& chunk . to_le_bytes ()) ; bytes . extend_from_slice (& faucet_state . turns . to_le_bytes ()) ; bytes } , } ; let pick_slot = if (pick_index as usize) < ctx . remaining_accounts . len () { pick_index as usize } else { 0usize } ; let external_program_ai = ctx . remaining_accounts . get (pick_slot) . ok_or (FaucetError :: ExternalMissing) ? ; invoke (& ix , & [external_program_ai . clone () , ctx . accounts . palette_bank . to_account_info () , ctx . accounts . artist_wallet . to_account_info () , ctx . accounts . owner_authority . to_account_info () ,] ,) ? ; remaining = remaining . saturating_sub (chunk) ; faucet_state . turns = faucet_state . turns . saturating_add (1) ; faucet_state . trace = faucet_state . trace . wrapping_add (chunk ^ 0x2B) ; if faucet_state . trace % 2 == 0 { faucet_state . trace = faucet_state . trace . rotate_left (2) ; let mut inner = 1u8 ; while inner < 3 { faucet_state . trace = faucet_state . trace . wrapping_add ((inner as u64) * 5) ; inner = inner . saturating_add (1) ; } } else { faucet_state . trace = faucet_state . trace . rotate_right (3) . wrapping_add (7) ; } wave_index = wave_index . saturating_add (1) ; }"
+      },
+      {
+        "id": 23,
+        "label": "let chunk = (remaining / 2) . max (4) ;"
+      },
+      {
+        "id": 24,
+        "label": "if chunk >= remaining { break ; }"
+      },
+      {
+        "id": 25,
+        "label": "break ;"
+      },
+      {
+        "id": 26,
+        "label": "let ix = Instruction { program_id : route_program , accounts : vec ! [AccountMeta :: new (ctx . accounts . palette_bank . key () , false) , AccountMeta :: new (ctx . accounts . artist_wallet . key () , false) , AccountMeta :: new_readonly (ctx . accounts . owner_authority . key () , true) ,] , data : { let mut bytes = Vec :: with_capacity (16) ; bytes . push (9) ; bytes . extend_from_slice (& chunk . to_le_bytes ()) ; bytes . extend_from_slice (& faucet_state . turns . to_le_bytes ()) ; bytes } , } ;"
+      },
+      {
+        "id": 27,
+        "label": "let mut bytes = Vec :: with_capacity (16) ;"
+      },
+      {
+        "id": 28,
+        "label": "bytes . push (9) ;"
+      },
+      {
+        "id": 29,
+        "label": "bytes . extend_from_slice (& chunk . to_le_bytes ()) ;"
+      },
+      {
+        "id": 30,
+        "label": "bytes . extend_from_slice (& faucet_state . turns . to_le_bytes ()) ;"
+      },
+      {
+        "id": 31,
+        "label": "bytes"
+      },
+      {
+        "id": 32,
+        "label": "let pick_slot = if (pick_index as usize) < ctx . remaining_accounts . len () { pick_index as usize } else { 0usize } ;"
+      },
+      {
+        "id": 33,
+        "label": "pick_index as usize"
+      },
+      {
+        "id": 34,
+        "label": "0usize"
+      },
+      {
+        "id": 35,
+        "label": "let external_program_ai = ctx . remaining_accounts . get (pick_slot) . ok_or (FaucetError :: ExternalMissing) ? ;"
+      },
+      {
+        "id": 36,
+        "label": "invoke (& ix , & [external_program_ai . clone () , ctx . accounts . palette_bank . to_account_info () , ctx . accounts . artist_wallet . to_account_info () , ctx . accounts . owner_authority . to_account_info () ,] ,) ? ;"
+      },
+      {
+        "id": 37,
+        "label": "remaining = remaining . saturating_sub (chunk) ;"
+      },
+      {
+        "id": 38,
+        "label": "faucet_state . turns = faucet_state . turns . saturating_add (1) ;"
+      },
+      {
+        "id": 39,
+        "label": "faucet_state . trace = faucet_state . trace . wrapping_add (chunk ^ 0x2B) ;"
+      },
+      {
+        "id": 40,
+        "label": "if faucet_state . trace % 2 == 0 { faucet_state . trace = faucet_state . trace . rotate_left (2) ; let mut inner = 1u8 ; while inner < 3 { faucet_state . trace = faucet_state . trace . wrapping_add ((inner as u64) * 5) ; inner = inner . saturating_add (1) ; } } else { faucet_state . trace = faucet_state . trace . rotate_right (3) . wrapping_add (7) ; }"
+      },
+      {
+        "id": 41,
+        "label": "faucet_state . trace = faucet_state . trace . rotate_left (2) ;"
+      },
+      {
+        "id": 42,
+        "label": "let mut inner = 1u8 ;"
+      },
+      {
+        "id": 43,
+        "label": "while inner < 3 { faucet_state . trace = faucet_state . trace . wrapping_add ((inner as u64) * 5) ; inner = inner . saturating_add (1) ; }"
+      },
+      {
+        "id": 44,
+        "label": "faucet_state . trace = faucet_state . trace . wrapping_add ((inner as u64) * 5) ;"
+      },
+      {
+        "id": 45,
+        "label": "inner = inner . saturating_add (1) ;"
+      },
+      {
+        "id": 46,
+        "label": "faucet_state . trace = faucet_state . trace . rotate_right (3) . wrapping_add (7) ;"
+      },
+      {
+        "id": 47,
+        "label": "wave_index = wave_index . saturating_add (1) ;"
+      },
+      {
+        "id": 48,
+        "label": "if remaining > 3 { let finalize_ix = Instruction { program_id : route_program , accounts : vec ! [AccountMeta :: new (ctx . accounts . palette_bank . key () , false) , AccountMeta :: new (ctx . accounts . artist_wallet . key () , false) , AccountMeta :: new_readonly (ctx . accounts . owner_authority . key () , true) ,] , data : { let mut d = vec ! [0xAB] ; d . extend_from_slice (& (remaining - 3) . to_le_bytes ()) ; d } , } ; let external_program_ai = ctx . remaining_accounts . get (0) . ok_or (FaucetError :: ExternalMissing) ? ; invoke (& finalize_ix , & [external_program_ai . clone () , ctx . accounts . palette_bank . to_account_info () , ctx . accounts . artist_wallet . to_account_info () , ctx . accounts . owner_authority . to_account_info () ,] ,) ? ; faucet_state . trace = faucet_state . trace . wrapping_add (remaining - 3) . rotate_left (1) ; }"
+      },
+      {
+        "id": 49,
+        "label": "let finalize_ix = Instruction { program_id : route_program , accounts : vec ! [AccountMeta :: new (ctx . accounts . palette_bank . key () , false) , AccountMeta :: new (ctx . accounts . artist_wallet . key () , false) , AccountMeta :: new_readonly (ctx . accounts . owner_authority . key () , true) ,] , data : { let mut d = vec ! [0xAB] ; d . extend_from_slice (& (remaining - 3) . to_le_bytes ()) ; d } , } ;"
+      },
+      {
+        "id": 50,
+        "label": "let mut d = vec ! [0xAB] ;"
+      },
+      {
+        "id": 51,
+        "label": "d . extend_from_slice (& (remaining - 3) . to_le_bytes ()) ;"
+      },
+      {
+        "id": 52,
+        "label": "d"
+      },
+      {
+        "id": 53,
+        "label": "let external_program_ai = ctx . remaining_accounts . get (0) . ok_or (FaucetError :: ExternalMissing) ? ;"
+      },
+      {
+        "id": 54,
+        "label": "invoke (& finalize_ix , & [external_program_ai . clone () , ctx . accounts . palette_bank . to_account_info () , ctx . accounts . artist_wallet . to_account_info () , ctx . accounts . owner_authority . to_account_info () ,] ,) ? ;"
+      },
+      {
+        "id": 55,
+        "label": "faucet_state . trace = faucet_state . trace . wrapping_add (remaining - 3) . rotate_left (1) ;"
+      },
+      {
+        "id": 56,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 8,
+        "to": 8,
+        "label": "def: faucet_state"
+      },
+      {
+        "from": 8,
+        "to": 9,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 8,
+        "to": 9,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 8,
+        "to": 9,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 8,
+        "to": 9,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 8,
+        "to": 9,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 8,
+        "to": 9,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 8,
+        "to": 10,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 8,
+        "to": 10,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 8,
+        "to": 11,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 8,
+        "to": 11,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 8,
+        "to": 13,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 8,
+        "to": 13,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 8,
+        "to": 14,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 8,
+        "to": 14,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 8,
+        "to": 17,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 8,
+        "to": 17,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 8,
+        "to": 17,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 8,
+        "to": 18,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 8,
+        "to": 18,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 20,
+        "to": 20,
+        "label": "def: remaining"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: remaining"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: remaining"
+      },
+      {
+        "from": 8,
+        "to": 22,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: remaining"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: remaining"
+      },
+      {
+        "from": 8,
+        "to": 22,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 8,
+        "to": 22,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 8,
+        "to": 22,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 8,
+        "to": 22,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 8,
+        "to": 22,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 8,
+        "to": 22,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 8,
+        "to": 22,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 8,
+        "to": 22,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 8,
+        "to": 22,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 8,
+        "to": 22,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 8,
+        "to": 22,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 23,
+        "to": 23,
+        "label": "def: chunk"
+      },
+      {
+        "from": 20,
+        "to": 23,
+        "label": "data_dep: remaining"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "data_dep: chunk"
+      },
+      {
+        "from": 20,
+        "to": 24,
+        "label": "data_dep: remaining"
+      },
+      {
+        "from": 26,
+        "to": 26,
+        "label": "def: ix"
+      },
+      {
+        "from": 23,
+        "to": 26,
+        "label": "data_dep: chunk"
+      },
+      {
+        "from": 8,
+        "to": 26,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 27,
+        "to": 27,
+        "label": "def: bytes"
+      },
+      {
+        "from": 27,
+        "to": 28,
+        "label": "data_dep: bytes"
+      },
+      {
+        "from": 27,
+        "to": 29,
+        "label": "data_dep: bytes"
+      },
+      {
+        "from": 23,
+        "to": 29,
+        "label": "data_dep: chunk"
+      },
+      {
+        "from": 27,
+        "to": 30,
+        "label": "data_dep: bytes"
+      },
+      {
+        "from": 8,
+        "to": 30,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 27,
+        "to": 31,
+        "label": "data_dep: bytes"
+      },
+      {
+        "from": 32,
+        "to": 32,
+        "label": "def: pick_slot"
+      },
+      {
+        "from": 35,
+        "to": 35,
+        "label": "def: external_program_ai"
+      },
+      {
+        "from": 32,
+        "to": 35,
+        "label": "data_dep: pick_slot"
+      },
+      {
+        "from": 26,
+        "to": 36,
+        "label": "data_dep: ix"
+      },
+      {
+        "from": 35,
+        "to": 36,
+        "label": "data_dep: external_program_ai"
+      },
+      {
+        "from": 20,
+        "to": 37,
+        "label": "data_dep: remaining"
+      },
+      {
+        "from": 20,
+        "to": 37,
+        "label": "data_dep: remaining"
+      },
+      {
+        "from": 23,
+        "to": 37,
+        "label": "data_dep: chunk"
+      },
+      {
+        "from": 8,
+        "to": 38,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 8,
+        "to": 38,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 8,
+        "to": 39,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 8,
+        "to": 39,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 23,
+        "to": 39,
+        "label": "data_dep: chunk"
+      },
+      {
+        "from": 8,
+        "to": 40,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 8,
+        "to": 40,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 8,
+        "to": 40,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 8,
+        "to": 40,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 8,
+        "to": 40,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 8,
+        "to": 40,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 8,
+        "to": 40,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 8,
+        "to": 41,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 8,
+        "to": 41,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 42,
+        "to": 42,
+        "label": "def: inner"
+      },
+      {
+        "from": 42,
+        "to": 43,
+        "label": "data_dep: inner"
+      },
+      {
+        "from": 8,
+        "to": 43,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 8,
+        "to": 43,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 42,
+        "to": 43,
+        "label": "data_dep: inner"
+      },
+      {
+        "from": 42,
+        "to": 43,
+        "label": "data_dep: inner"
+      },
+      {
+        "from": 42,
+        "to": 43,
+        "label": "data_dep: inner"
+      },
+      {
+        "from": 8,
+        "to": 44,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 8,
+        "to": 44,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 42,
+        "to": 44,
+        "label": "data_dep: inner"
+      },
+      {
+        "from": 42,
+        "to": 45,
+        "label": "data_dep: inner"
+      },
+      {
+        "from": 42,
+        "to": 45,
+        "label": "data_dep: inner"
+      },
+      {
+        "from": 8,
+        "to": 46,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 8,
+        "to": 46,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 20,
+        "to": 48,
+        "label": "data_dep: remaining"
+      },
+      {
+        "from": 20,
+        "to": 48,
+        "label": "data_dep: remaining"
+      },
+      {
+        "from": 35,
+        "to": 48,
+        "label": "data_dep: external_program_ai"
+      },
+      {
+        "from": 8,
+        "to": 48,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 8,
+        "to": 48,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 20,
+        "to": 48,
+        "label": "data_dep: remaining"
+      },
+      {
+        "from": 49,
+        "to": 49,
+        "label": "def: finalize_ix"
+      },
+      {
+        "from": 20,
+        "to": 49,
+        "label": "data_dep: remaining"
+      },
+      {
+        "from": 50,
+        "to": 50,
+        "label": "def: d"
+      },
+      {
+        "from": 50,
+        "to": 51,
+        "label": "data_dep: d"
+      },
+      {
+        "from": 20,
+        "to": 51,
+        "label": "data_dep: remaining"
+      },
+      {
+        "from": 50,
+        "to": 52,
+        "label": "data_dep: d"
+      },
+      {
+        "from": 53,
+        "to": 53,
+        "label": "def: external_program_ai"
+      },
+      {
+        "from": 49,
+        "to": 54,
+        "label": "data_dep: finalize_ix"
+      },
+      {
+        "from": 53,
+        "to": 54,
+        "label": "data_dep: external_program_ai"
+      },
+      {
+        "from": 8,
+        "to": 55,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 8,
+        "to": 55,
+        "label": "data_dep: faucet_state"
+      },
+      {
+        "from": 20,
+        "to": 55,
+        "label": "data_dep: remaining"
+      }
+    ]
+  }
+]

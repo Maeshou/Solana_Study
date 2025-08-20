@@ -1,40 +1,236 @@
 [
   {
-    "name": "init_pool_swap",
+    "name": "init_foundry",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx057 >",
-      "amount: u64"
+      "ctx: Context < InitFoundry >",
+      "quota: u32"
     ],
     "attributes": [],
     "body": [
-      "let src = & mut ctx . accounts . account_src ;",
-      "let dst = & mut ctx . accounts . account_dst ;",
-      "let before = * * src . to_account_info () . try_borrow_lamports () ? ;",
-      "* * src . to_account_info () . try_borrow_mut_lamports () ? = before . saturating_sub (amount) ;",
-      "* * dst . to_account_info () . try_borrow_mut_lamports () ? += amount ;",
+      "let f = & mut ctx . accounts ;",
+      "f . foundry . owner = f . owner . key () ;",
+      "f . foundry . quota = quota ;",
+      "f . foundry . state = Prep ;",
+      "f . core . foundry = f . foundry . key () ;",
+      "f . core . lane = 10 ;",
+      "f . mold . foundry = f . foundry . key () ;",
+      "f . mold . lane = 20 ;",
+      "f . book . foundry = f . foundry . key () ;",
+      "f . book . lane = 99 ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx057",
+    "name": "cast",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Cast >",
+      "cycles: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let f = & mut ctx . accounts ;",
+      "for i in 0 .. cycles",
+      "{",
+      "f . core . heat = f . core . heat . checked_add (6 + (i % 4)) . unwrap_or (u32 :: MAX) ;",
+      "f . mold . stress = f . mold . stress . saturating_add (5 + (i % 3)) ;",
+      "f . book . units = (f . book . units as u128 + 3 + (i as u128 % 5)) . min (u128 :: from (u64 :: MAX)) as u64 ;",
+      "}",
+      "let load = f . core . heat as u64 + f . mold . stress as u64 ;",
+      "if load > f . foundry . quota as u64",
+      "{",
+      "f . foundry . state = Cool ;",
+      "f . book . defects = f . book . defects . saturating_add (2) ;",
+      "f . mold . stress = f . mold . stress / 2 + 8 ;",
+      "f . core . heat = f . core . heat / 2 + 6 ;",
+      "msg ! (\"cool: defects+2, stress/heat damp\") ;",
+      "} else",
+      "{",
+      "f . foundry . state = Pour ;",
+      "f . book . units = f . book . units . saturating_add (11) ;",
+      "f . core . heat ^= 0x55AA_33CC ;",
+      "f . mold . stress = f . mold . stress . saturating_add (7) ;",
+      "msg ! (\"pour: units+11, core xor, mold+7\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitFoundry",
     "node_type": "struct",
     "fields": [
       {
-        "name": "account_src",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "foundry",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Foundry >"
       },
       {
-        "name": "account_dst",
+        "name": "core",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , CoreLine >"
+      },
+      {
+        "name": "mold",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , MoldLine >"
+      },
+      {
+        "name": "book",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 8 + 4)]",
+        "field_type": "Account < 'info , FoundryBook >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
       },
       {
         "name": "system_program",
         "attribute": null,
         "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Cast",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "foundry",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Foundry >"
+      },
+      {
+        "name": "core",
+        "attribute": "# [account (mut , has_one = foundry , constraint = core . lane != mold . lane @ RfErr :: Dup)]",
+        "field_type": "Account < 'info , CoreLine >"
+      },
+      {
+        "name": "mold",
+        "attribute": "# [account (mut , has_one = foundry , constraint = mold . lane != book . lane @ RfErr :: Dup)]",
+        "field_type": "Account < 'info , MoldLine >"
+      },
+      {
+        "name": "book",
+        "attribute": "# [account (mut , has_one = foundry)]",
+        "field_type": "Account < 'info , FoundryBook >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Foundry",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "quota",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "state",
+        "attribute": null,
+        "field_type": "FoundryState"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CoreLine",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "foundry",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "lane",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "heat",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MoldLine",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "foundry",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "lane",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "stress",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "FoundryBook",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "foundry",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "lane",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "units",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "defects",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

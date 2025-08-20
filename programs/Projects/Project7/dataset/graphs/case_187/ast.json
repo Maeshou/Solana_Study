@@ -1,0 +1,145 @@
+[
+  {
+    "name": "setup",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SetupParamSwitch >",
+      "step_amount: u64",
+      "hard_cap: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let settings = & mut ctx . accounts . settings ;",
+      "settings . supervisor = ctx . accounts . supervisor . key () ;",
+      "settings . step_amount = step_amount . max (1) ;",
+      "settings . hard_cap = hard_cap . max (settings . step_amount) ;",
+      "settings . total_volume = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "perform",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < PerformParamSwitch >",
+      "repeat_count: u8",
+      "prefer_external: bool"
+    ],
+    "attributes": [],
+    "body": [
+      "let settings = & mut ctx . accounts . settings ;",
+      "let mut times_done : u8 = 0 ;",
+      "while times_done < repeat_count",
+      "{",
+      "let projected_total = settings . total_volume . saturating_add (settings . step_amount) ;",
+      "if projected_total > settings . hard_cap",
+      "{",
+      "return Err (ParamSwitchErr :: Cap . into ()) ;",
+      "} let mut program_account_info = ctx . accounts . token_program . to_account_info () ;",
+      "if prefer_external",
+      "{",
+      "program_account_info = ctx . accounts . external_program . clone () ;",
+      "} token :: approve (ctx . accounts . a (program_account_info . clone ()) , settings . step_amount) ? ;",
+      "token :: transfer (ctx . accounts . t (program_account_info . clone ()) , settings . step_amount) ? ;",
+      "token :: revoke (ctx . accounts . r (program_account_info)) ? ;",
+      "settings . total_volume = projected_total ;",
+      "times_done = times_done . saturating_add (1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "SetupParamSwitch",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "settings",
+        "attribute": "# [account (init , payer = supervisor , space = 8 + 32 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , ParamSwitchState >"
+      },
+      {
+        "name": "supervisor",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PerformParamSwitch",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "settings",
+        "attribute": "# [account (mut , has_one = supervisor)]",
+        "field_type": "Account < 'info , ParamSwitchState >"
+      },
+      {
+        "name": "supervisor",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "source_bin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "sink_bin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "external_program",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ParamSwitchState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "supervisor",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "step_amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "hard_cap",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_volume",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

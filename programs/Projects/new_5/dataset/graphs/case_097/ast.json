@@ -1,0 +1,219 @@
+[
+  {
+    "name": "init_foundry",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitFoundry >",
+      "foundry_id: u64",
+      "power_level: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let foundry = & mut ctx . accounts . foundry_core ;",
+      "foundry . foundry_id = foundry_id + 500 ;",
+      "foundry . total_power = power_level . saturating_add (BASE_POWER_BONUS) ;",
+      "foundry . runes_merged = 0 ;",
+      "foundry . is_operational = foundry . total_power > MIN_POWER_LEVEL ;",
+      "msg ! (\"Arcane Foundry {} initialized with {} power.\" , foundry . foundry_id , foundry . total_power) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_rune",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitRune >",
+      "rune_id: u64",
+      "base_power: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let rune = & mut ctx . accounts . magic_rune ;",
+      "rune . parent_foundry = ctx . accounts . foundry_core . key () ;",
+      "rune . rune_id = rune_id * 7 ;",
+      "rune . power_level = base_power ;",
+      "rune . is_merged = false ;",
+      "msg ! (\"New rune {} created with {} base power.\" , rune . rune_id , rune . power_level) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "merge_runes",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < MergeRunes >"
+    ],
+    "attributes": [],
+    "body": [
+      "let foundry = & mut ctx . accounts . foundry_core ;",
+      "let first_rune = & mut ctx . accounts . first_rune ;",
+      "let second_rune = & mut ctx . accounts . second_rune ;",
+      "if first_rune . is_merged || second_rune . is_merged",
+      "{",
+      "return Err (ProgramError :: Custom (1) . into ()) ;",
+      "}",
+      "let combined_power = first_rune . power_level . saturating_add (second_rune . power_level) ;",
+      "if combined_power > MERGE_SUCCESS_THRESHOLD",
+      "{",
+      "foundry . total_power = foundry . total_power . saturating_add (combined_power) ;",
+      "first_rune . power_level = combined_power ;",
+      "second_rune . power_level = 0 ;",
+      "first_rune . is_merged = true ;",
+      "second_rune . is_merged = true ;",
+      "foundry . runes_merged = foundry . runes_merged . saturating_add (2) ;",
+      "msg ! (\"Rune merge successful! New combined power:",
+      "{",
+      "}.\" , combined_power) ;",
+      "} else",
+      "{",
+      "foundry . total_power = foundry . total_power . saturating_sub (combined_power / 2) ;",
+      "msg ! (\"Rune merge failed. Foundry power reduced.\") ;",
+      "}",
+      "foundry . is_operational = foundry . total_power > MIN_POWER_LEVEL ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitFoundry",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "foundry_core",
+        "attribute": "# [account (init , payer = signer , space = 8 + 8 + 4 + 4 + 1)]",
+        "field_type": "Account < 'info , FoundryCore >"
+      },
+      {
+        "name": "signer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitRune",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "magic_rune",
+        "attribute": "# [account (init , payer = signer , space = 8 + 32 + 8 + 4 + 1)]",
+        "field_type": "Account < 'info , MagicRune >"
+      },
+      {
+        "name": "foundry_core",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , FoundryCore >"
+      },
+      {
+        "name": "signer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MergeRunes",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "foundry_core",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , FoundryCore >"
+      },
+      {
+        "name": "first_rune",
+        "attribute": "# [account (mut , has_one = parent_foundry)]",
+        "field_type": "Account < 'info , MagicRune >"
+      },
+      {
+        "name": "second_rune",
+        "attribute": "# [account (mut , has_one = parent_foundry)]",
+        "field_type": "Account < 'info , MagicRune >"
+      },
+      {
+        "name": "signer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "FoundryCore",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "foundry_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_power",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "runes_merged",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "is_operational",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MagicRune",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent_foundry",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "rune_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "power_level",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "is_merged",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,148 @@
+[
+  {
+    "name": "RateLimiter",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "",
+        "attribute": null,
+        "field_type": "Vec < i64 >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "initialize",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Initialize >"
+    ],
+    "attributes": [
+      "# [doc = \" 初期化：内部 Vec は空、bump のみ設定\"]"
+    ],
+    "body": [
+      "let bump = * ctx . bumps . get (\"limiter\") . unwrap () ;",
+      "ctx . accounts . limiter . 0 = bump ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "record_hit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Modify >"
+    ],
+    "attributes": [
+      "# [doc = \" アクセス記録：上限チェック＋現在時刻を push\"]"
+    ],
+    "body": [
+      "let list = & mut ctx . accounts . limiter . 1 ;",
+      "if list . len () >= MAX_HITS",
+      "{",
+      "return err ! (ErrorCode :: MaxHitsReached) ;",
+      "}",
+      "let now = ctx . accounts . clock . unix_timestamp ;",
+      "list . push (now) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "purge_old",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Modify >"
+    ],
+    "attributes": [
+      "# [doc = \" 古いヒットを除去：WINDOW_SECS より古い timestamp を一括削除\"]"
+    ],
+    "body": [
+      "let now = ctx . accounts . clock . unix_timestamp ;",
+      "ctx . accounts . limiter . 1 . retain (| & ts | { if now - ts <= WINDOW_SECS { true } else { false } }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "count_hits",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Modify >"
+    ],
+    "attributes": [
+      "# [doc = \" 現在のヒット数をログ出力\"]"
+    ],
+    "body": [
+      "let cnt = ctx . accounts . limiter . 1 . len () as u64 ;",
+      "msg ! (\"Hits in window: {}\" , cnt) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Initialize",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "limiter",
+        "attribute": "# [account (init_zeroed , payer = authority , seeds = [b\"limiter\" , authority . key () . as_ref ()] , bump , space = 8 + 1 + 4 + 100 * 8)]",
+        "field_type": "Account < 'info , RateLimiter >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Modify",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "limiter",
+        "attribute": "# [account (mut , seeds = [b\"limiter\" , authority . key () . as_ref ()] , bump = limiter . 0 ,)]",
+        "field_type": "Account < 'info , RateLimiter >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (signer)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Clock >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

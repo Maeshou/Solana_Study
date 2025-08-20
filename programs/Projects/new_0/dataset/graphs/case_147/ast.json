@@ -1,0 +1,137 @@
+[
+  {
+    "name": "init_key",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitKey >",
+      "key: [u8 ; 32]"
+    ],
+    "attributes": [
+      "# [doc = \" 新規 API キー発行\"]"
+    ],
+    "body": [
+      "require ! (key != [0u8 ; 32] , ErrorCode :: InvalidKey) ;",
+      "let acct = & mut ctx . accounts . key_account ;",
+      "acct . owner = ctx . accounts . user . key () ;",
+      "acct . key = key ;",
+      "acct . active = true ;",
+      "acct . last_rotated = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "rotate_key",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyKey >",
+      "new_key: [u8 ; 32]"
+    ],
+    "attributes": [
+      "# [doc = \" API キーのローテーション\"]"
+    ],
+    "body": [
+      "require ! (new_key != [0u8 ; 32] , ErrorCode :: InvalidKey) ;",
+      "let acct = & mut ctx . accounts . key_account ;",
+      "require ! (acct . owner == ctx . accounts . user . key () , ErrorCode :: AccessDenied) ;",
+      "acct . key = new_key ;",
+      "acct . last_rotated = Clock :: get () ? . unix_timestamp ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "revoke_key",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyKey >"
+    ],
+    "attributes": [
+      "# [doc = \" API キーの無効化\"]"
+    ],
+    "body": [
+      "let acct = & mut ctx . accounts . key_account ;",
+      "require ! (acct . owner == ctx . accounts . user . key () , ErrorCode :: AccessDenied) ;",
+      "acct . active = false ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitKey",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "key_account",
+        "attribute": "# [doc = \" 再初期化を防止\"] # [account (init , payer = user , space = 8 + 32 + 32 + 1 + 8)]",
+        "field_type": "Account < 'info , KeyAccount >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ModifyKey",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "key_account",
+        "attribute": "# [doc = \" Account<> 型で所有者チェック\"] # [account (mut)]",
+        "field_type": "Account < 'info , KeyAccount >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "clock",
+        "attribute": null,
+        "field_type": "Sysvar < 'info , Clock >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "KeyAccount",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 操作可能なユーザー\"]",
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "key",
+        "attribute": "# [doc = \" 実際の API キー\"]",
+        "field_type": "[u8 ; 32]"
+      },
+      {
+        "name": "active",
+        "attribute": "# [doc = \" キーが有効か\"]",
+        "field_type": "bool"
+      },
+      {
+        "name": "last_rotated",
+        "attribute": "# [doc = \" 最終ローテーション時刻 (UNIX)\"]",
+        "field_type": "i64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

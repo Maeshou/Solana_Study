@@ -1,0 +1,144 @@
+[
+  {
+    "name": "setup_chain",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SetupChain >",
+      "length: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let chain = & mut ctx . accounts . chain ;",
+      "chain . owner = ctx . accounts . manager . key () ;",
+      "chain . length = length % 100 + 10 ;",
+      "chain . progress = 0 ;",
+      "chain . bonus = 5 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "advance",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Advance >",
+      "steps: u32",
+      "user_bump: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let chain = & mut ctx . accounts . chain ;",
+      "let mut index = 1u32 ;",
+      "while index < (steps % 30 + 5)",
+      "{",
+      "chain . progress = chain . progress . saturating_add (index) ;",
+      "let mut calc = (index * 2) % 7 ;",
+      "calc = calc . saturating_add (3) ;",
+      "chain . bonus = chain . bonus . saturating_add (calc) ;",
+      "let derived_val = chain . progress . saturating_mul (2) / (calc + 1) ;",
+      "if derived_val % 3 != 0",
+      "{",
+      "chain . bonus = chain . bonus . saturating_add (1) ;",
+      "} index = index . saturating_add (4) ;",
+      "}",
+      "let seeds = & [b\"reward_pool\" , ctx . accounts . manager . key . as_ref () , & [user_bump]] ;",
+      "let manual = Pubkey :: create_program_address (seeds , ctx . program_id) . map_err (| _ | error ! (ChainErr :: SeedProblem)) ? ;",
+      "if manual != ctx . accounts . reward_pool . key ()",
+      "{",
+      "return Err (error ! (ChainErr :: PoolMismatch)) ;",
+      "}",
+      "if steps > 15",
+      "{",
+      "let extra = steps % 9 + 2 ;",
+      "chain . bonus = chain . bonus . saturating_add (extra) ;",
+      "chain . length = chain . length . saturating_add (1) ;",
+      "let mut buffer = Vec :: new () ;",
+      "buffer . push (chain . owner . to_bytes () [0]) ;",
+      "buffer . push (extra as u8) ;",
+      "if buffer . len () != 0",
+      "{",
+      "chain . progress = chain . progress . saturating_add (buffer [0] as u32) ;",
+      "}",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "SetupChain",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "chain",
+        "attribute": "# [account (init , payer = manager , space = 8 + 32 + 4 + 4 + 4 , seeds = [b\"chain\" , manager . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Chain >"
+      },
+      {
+        "name": "manager",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Advance",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "chain",
+        "attribute": "# [account (mut , seeds = [b\"chain\" , manager . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Chain >"
+      },
+      {
+        "name": "reward_pool",
+        "attribute": "# [doc = \" CHECK: 手動 bump の reward_pool\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Chain",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "length",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "progress",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "bonus",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

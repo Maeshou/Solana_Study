@@ -1,0 +1,176 @@
+[
+  {
+    "name": "NotificationConfig",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "preferences",
+        "attribute": null,
+        "field_type": "String"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ChangeRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "requester",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "config",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "new_pref",
+        "attribute": null,
+        "field_type": "String"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitConfig",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "config",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 4 + 16)]",
+        "field_type": "Account < 'info , NotificationConfig >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RequestChange",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "config",
+        "attribute": "# [doc = \" NotificationConfig.owner == owner.key() は検証される\"] # [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , NotificationConfig >"
+      },
+      {
+        "name": "record",
+        "attribute": "# [doc = \" ChangeRecord.config ⇔ config.key() の検証がないため、\"] # [doc = \" 任意の ChangeRecord を渡して設定をすり抜け変更できる\"] # [account (init , payer = owner , space = 8 + 32 + 32 + 4 + 16)]",
+        "field_type": "Account < 'info , ChangeRecord >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ApplyChange",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "record",
+        "attribute": "# [doc = \" ChangeRecord.requester == requester.key() は検証される\"] # [account (mut , has_one = requester)]",
+        "field_type": "Account < 'info , ChangeRecord >"
+      },
+      {
+        "name": "config",
+        "attribute": "# [doc = \" NotificationConfig.key() ⇔ record.config の検証がないため、\"] # [doc = \" 偽物のレコードで別ユーザーの設定を上書きできる\"] # [account (mut)]",
+        "field_type": "Account < 'info , NotificationConfig >"
+      },
+      {
+        "name": "requester",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "init_config",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitConfig >",
+      "pref: String"
+    ],
+    "attributes": [
+      "# [doc = \" 通知設定を初期化\"]"
+    ],
+    "body": [
+      "let c = & mut ctx . accounts . config ;",
+      "c . owner = ctx . accounts . owner . key () ;",
+      "c . preferences = pref ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "request_change",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RequestChange >",
+      "new_pref: String"
+    ],
+    "attributes": [
+      "# [doc = \" 設定変更をリクエスト（記録のみ）\"]"
+    ],
+    "body": [
+      "let r = & mut ctx . accounts . record ;",
+      "r . requester = ctx . accounts . owner . key () ;",
+      "r . config = ctx . accounts . config . key () ;",
+      "r . new_pref = new_pref ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "apply_change",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ApplyChange >"
+    ],
+    "attributes": [
+      "# [doc = \" 設定変更を適用\"]"
+    ],
+    "body": [
+      "let c = & mut ctx . accounts . config ;",
+      "let r = & ctx . accounts . record ;",
+      "c . preferences = r . new_pref . clone () ;",
+      "Ok (())"
+    ]
+  }
+]

@@ -1,0 +1,152 @@
+[
+  {
+    "name": "init_treasury",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitTreasury >",
+      "seed_power: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let tre = & mut ctx . accounts . treasury ;",
+      "tre . owner = ctx . accounts . guild_master . key () ;",
+      "tre . bump_store = * ctx . bumps . get (\"treasury\") . unwrap () ;",
+      "tre . power = seed_power . rotate_left (3) . wrapping_add (77) ;",
+      "tre . turns = 2 ;",
+      "let mut temp_values : Vec < u64 > = Vec :: new () ;",
+      "let mut idx : u64 = 1 ;",
+      "while idx < 5",
+      "{",
+      "let calc = (tre . power . wrapping_mul (idx * 11)) . rotate_right ((idx % 3) as u32 + 1) ;",
+      "temp_values . push (calc . wrapping_add (idx * 17)) ;",
+      "tre . turns = tre . turns . saturating_add (((calc % 25) as u32) + 2) ;",
+      "idx = idx . saturating_add (1) ;",
+      "}",
+      "for v in temp_values",
+      "{",
+      "let adj = (tre . power ^ v) . wrapping_add (19) ;",
+      "tre . power = tre . power . wrapping_add (adj) . wrapping_mul (2) ;",
+      "tre . turns = tre . turns . saturating_add (((tre . power % 21) as u32) + 3) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "spend_gold",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SpendGold >",
+      "raid_id: u64",
+      "input_bump: u8",
+      "lamports: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let tre = & mut ctx . accounts . treasury ;",
+      "let mut factor = lamports . rotate_left (2) . wrapping_add (raid_id) ;",
+      "let mut round : u8 = 1 ;",
+      "while round < 4",
+      "{",
+      "let boost = (factor ^ (round as u64 * 27)) . rotate_left (round as u32) ;",
+      "tre . power = tre . power . wrapping_add (boost) . wrapping_mul (3) . wrapping_add (5 + round as u64) ;",
+      "tre . turns = tre . turns . saturating_add (((tre . power % 29) as u32) + 4) ;",
+      "factor = factor . wrapping_add (boost) . rotate_right (1) ;",
+      "round = round . saturating_add (1) ;",
+      "}",
+      "let seeds = & [b\"raid_fund\" . as_ref () , tre . owner . as_ref () , & raid_id . to_le_bytes () , core :: slice :: from_ref (& input_bump) ,] ;",
+      "let target = Pubkey :: create_program_address (& [b\"raid_fund\" , tre . owner . as_ref () , & raid_id . to_le_bytes () , & [input_bump]] , ctx . program_id ,) . unwrap () ;",
+      "let ix = system_instruction :: transfer (& target , & ctx . accounts . hunter . key () , lamports) ;",
+      "invoke_signed (& ix , & [ctx . accounts . raid_hint . to_account_info () , ctx . accounts . hunter . to_account_info () , ctx . accounts . system_program . to_account_info () ,] , & [seeds] ,) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitTreasury",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "treasury",
+        "attribute": "# [account (init , payer = guild_master , space = 8 + 32 + 8 + 4 + 1 , seeds = [b\"treasury\" , guild_master . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , TreasuryState >"
+      },
+      {
+        "name": "guild_master",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SpendGold",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "treasury",
+        "attribute": "# [account (mut , seeds = [b\"treasury\" , guild_master . key () . as_ref ()] , bump = treasury . bump_store)]",
+        "field_type": "Account < 'info , TreasuryState >"
+      },
+      {
+        "name": "raid_hint",
+        "attribute": "# [doc = \" CHECK: 検証外\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "hunter",
+        "attribute": "# [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "guild_master",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TreasuryState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "power",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "turns",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "bump_store",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

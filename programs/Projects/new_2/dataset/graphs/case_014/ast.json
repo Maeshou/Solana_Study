@@ -1,0 +1,206 @@
+[
+  {
+    "name": "verified_deposit",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < VerifiedDeposit >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" フルガード：has_one + signer で検証し、Vault へ直接加算\"]"
+    ],
+    "body": [
+      "let vault_info = ctx . accounts . vault_acc . to_account_info () ;",
+      "let before = * * vault_info . try_borrow_lamports () ? ;",
+      "let updated = before + amount ;",
+      "* * vault_info . try_borrow_mut_lamports () ? = updated ;",
+      "msg ! (\"verified_deposit 完了: {}→{}\" , before , updated) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "signer_increment",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < SignerIncrement >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 署名のみチェック：helper 関数で加算（owner チェックはスキップ）\"]"
+    ],
+    "body": [
+      "increase (& ctx . accounts . raw_acc , amount) ? ;",
+      "let new_bal = * * ctx . accounts . raw_acc . try_borrow_lamports () ? ;",
+      "msg ! (\"signer_increment 完了: {}\" , new_bal) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "manual_owner_increment",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ManualOwnerIncrement >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" オーナーチェック手動：Vault.owner と比較、署名不要\"]"
+    ],
+    "body": [
+      "let vault = & ctx . accounts . managed ;",
+      "if vault . owner == ctx . accounts . caller . key ()",
+      "{",
+      "let info = vault . to_account_info () ;",
+      "let prev = * * info . try_borrow_lamports () ? ;",
+      "* * info . try_borrow_mut_lamports () ? = prev + amount ;",
+      "msg ! (\"manual_owner_increment 適用:",
+      "{",
+      "}→{}\" , prev , prev + amount) ;",
+      "} else",
+      "{",
+      "msg ! (\"manual_owner_increment: オーナー不一致\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "broadcast_increment",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < BroadcastIncrement >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 全アカウント無検証：remaining_accounts をループして加算\"]"
+    ],
+    "body": [
+      "for acct in ctx . remaining_accounts . iter ()",
+      "{",
+      "let bal = acct . lamports () ;",
+      "* * acct . try_borrow_mut_lamports () ? = bal + amount ;",
+      "}",
+      "msg ! (\"broadcast_increment 完了\") ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "increase",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "account: & AccountInfo",
+      "delta: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 署名のみ検証のヘルパー\"]"
+    ],
+    "body": [
+      "let cur = * * account . try_borrow_lamports () ? ;",
+      "* * account . try_borrow_mut_lamports () ? = cur + delta ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "VerifiedDeposit",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vault_acc",
+        "attribute": "# [doc = \" Vault.owner == authority を has_one で検証\"] # [account (mut , has_one = authority)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SignerIncrement",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "raw_acc",
+        "attribute": "# [doc = \" CHECK: 生の AccountInfo、owner チェックなし\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "authority",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ManualOwnerIncrement",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "managed",
+        "attribute": "# [doc = \" mut 指定のみ、has_one 不使用で手動チェック\"] # [account (mut)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "caller",
+        "attribute": "# [doc = \" CHECK: 実行者のキーを比較\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BroadcastIncrement",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Vault",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" 正当なオーナーの Pubkey\"]",
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,40 +1,200 @@
 [
   {
-    "name": "repay_liquidity",
+    "name": "init_arena",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx051 >",
-      "amount: u64"
+      "ctx: Context < InitArena >",
+      "cap: u32"
     ],
     "attributes": [],
     "body": [
-      "let src = & mut ctx . accounts . account_src ;",
-      "let dst = & mut ctx . accounts . account_dst ;",
-      "let before = * * src . to_account_info () . try_borrow_lamports () ? ;",
-      "* * src . to_account_info () . try_borrow_mut_lamports () ? = before . saturating_sub (amount) ;",
-      "* * dst . to_account_info () . try_borrow_mut_lamports () ? += amount ;",
+      "let a = & mut ctx . accounts ;",
+      "a . board . judge = a . judge . key () ;",
+      "a . board . cap = cap ;",
+      "a . board . state = Queue ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx051",
+    "name": "duel",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Duel >",
+      "rounds: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let a = & mut ctx . accounts ;",
+      "for k in 0 .. rounds",
+      "{",
+      "let phi_q16 : u32 = 40503 ;",
+      "let val = k . wrapping_mul (phi_q16) ;",
+      "let frac_q16 = val & 0xFFFF ;",
+      "let contrib = (frac_q16 as u64) + 1 ;",
+      "a . stats . sum = a . stats . sum . wrapping_add (contrib) ;",
+      "a . stats . count = a . stats . count . wrapping_add (1) ;",
+      "a . a . score = a . a . score . wrapping_add (((contrib >> 4) & 0x3FF) as u32) ;",
+      "a . b . score = a . b . score . wrapping_add (((contrib >> 6) & 0x1FF) as u32) ;",
+      "}",
+      "if a . stats . sum > (a . board . cap as u64) * 100",
+      "{",
+      "a . board . state = Pause ;",
+      "a . stats . flags = a . stats . flags . wrapping_add (2) ;",
+      "a . b . score = a . b . score / 2 + 13 ;",
+      "a . a . score = a . a . score + 7 ;",
+      "msg ! (\"pause: flags+2, adjust scores\") ;",
+      "} else",
+      "{",
+      "a . board . state = Fight ;",
+      "a . stats . sum = a . stats . sum . wrapping_mul (2) ;",
+      "a . a . score = a . a . score . rotate_left (1) ;",
+      "a . b . score = a . b . score . rotate_right (1) ;",
+      "msg ! (\"fight: sum*2, rotate scores\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitArena",
     "node_type": "struct",
     "fields": [
       {
-        "name": "account_src",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "board",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1 , seeds = [b\"board\" , judge . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , BoardCfg >"
       },
       {
-        "name": "account_dst",
+        "name": "a",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4)]",
+        "field_type": "Account < 'info , Fighter >"
+      },
+      {
+        "name": "b",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4)]",
+        "field_type": "Account < 'info , Fighter >"
+      },
+      {
+        "name": "stats",
+        "attribute": "# [account (init , payer = payer , space = 8 + 8 + 4)]",
+        "field_type": "Account < 'info , ArenaStats >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "judge",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
       },
       {
         "name": "system_program",
         "attribute": null,
         "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Duel",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "board",
+        "attribute": "# [account (mut , seeds = [b\"board\" , judge . key () . as_ref ()] , bump , has_one = judge)]",
+        "field_type": "Account < 'info , BoardCfg >"
+      },
+      {
+        "name": "a",
+        "attribute": "# [account (mut , constraint = a . key () != b . key () @ BandErr :: Dup , constraint = a . key () != stats . key () @ BandErr :: Dup)]",
+        "field_type": "Account < 'info , Fighter >"
+      },
+      {
+        "name": "b",
+        "attribute": "# [account (mut , constraint = b . key () != stats . key () @ BandErr :: Dup)]",
+        "field_type": "Account < 'info , Fighter >"
+      },
+      {
+        "name": "stats",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , ArenaStats >"
+      },
+      {
+        "name": "judge",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "BoardCfg",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "judge",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "cap",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "state",
+        "attribute": null,
+        "field_type": "ArenaState"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Fighter",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "score",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ArenaStats",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "sum",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "count",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "flags",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

@@ -1,0 +1,179 @@
+[
+  {
+    "name": "VoteTracker",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "",
+        "attribute": null,
+        "field_type": "Vec < (u64 , u64 , u64) >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "initialize",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Initialize >"
+    ],
+    "attributes": [
+      "# [doc = \" アカウント初期化：内部 Vec は空のまま、bump のみ設定\"]"
+    ],
+    "body": [
+      "let bump = * ctx . bumps . get (\"tracker\") . unwrap () ;",
+      "ctx . accounts . tracker . 0 = bump ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "create_proposal",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Modify >",
+      "proposal_id: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 新規提案作成：件数制限チェック＋初期カウントで追加\"]"
+    ],
+    "body": [
+      "let list = & mut ctx . accounts . tracker . 1 ;",
+      "if list . len () >= MAX_PROPOSALS",
+      "{",
+      "return err ! (ErrorCode :: MaxProposalsReached) ;",
+      "}",
+      "list . push ((proposal_id , 0 , 0)) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "cast_vote",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Modify >",
+      "proposal_id: u64",
+      "yes: bool"
+    ],
+    "attributes": [
+      "# [doc = \" 投票：yes または no をカウント\"]"
+    ],
+    "body": [
+      "let list = & mut ctx . accounts . tracker . 1 ;",
+      "let mut found = false ;",
+      "for entry in list . iter_mut ()",
+      "{",
+      "if entry . 0 == proposal_id",
+      "{",
+      "if yes { entry . 1 = entry . 1 . wrapping_add (1) ;",
+      "} else",
+      "{",
+      "entry . 2 = entry . 2 . wrapping_add (1) ;",
+      "} found = true ;",
+      "}",
+      "}",
+      "if ! found",
+      "{",
+      "return err ! (ErrorCode :: ProposalNotFound) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "purge_empty",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Modify >"
+    ],
+    "attributes": [
+      "# [doc = \" 投票無しの提案を一括削除\"]"
+    ],
+    "body": [
+      "let list = & mut ctx . accounts . tracker . 1 ;",
+      "list . retain (| & (_ , yes , no) | { if yes > 0 { true } else { if no > 0 { true } else { false } } }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "count_passed",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Modify >"
+    ],
+    "attributes": [
+      "# [doc = \" 賛成多数の提案数をログ出力\"]"
+    ],
+    "body": [
+      "let list = & ctx . accounts . tracker . 1 ;",
+      "let mut cnt = 0u64 ;",
+      "for & (_ , yes , no) in list . iter ()",
+      "{",
+      "if yes > no",
+      "{",
+      "cnt = cnt . wrapping_add (1) ;",
+      "}",
+      "}",
+      "msg ! (\"Passed proposals: {}\" , cnt) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Initialize",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "tracker",
+        "attribute": "# [account (init_zeroed , payer = authority , seeds = [b\"tracker\" , authority . key () . as_ref ()] , bump , space = 8 + 1 + 4 + 30 * (8 + 8 + 8))]",
+        "field_type": "Account < 'info , VoteTracker >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Modify",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "tracker",
+        "attribute": "# [account (mut , seeds = [b\"tracker\" , authority . key () . as_ref ()] , bump = tracker . 0)]",
+        "field_type": "Account < 'info , VoteTracker >"
+      },
+      {
+        "name": "authority",
+        "attribute": "# [account (signer)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

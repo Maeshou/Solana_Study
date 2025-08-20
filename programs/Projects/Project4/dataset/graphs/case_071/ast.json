@@ -1,33 +1,66 @@
 [
   {
-    "name": "initialize_token_swap",
+    "name": "init_rate_limiter",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Initialize071 >",
-      "param: u64"
+      "ctx: Context < InitRateLimiter >",
+      "limit: u32"
     ],
     "attributes": [],
     "body": [
-      "let mut data = TokenSwapData :: try_from_slice (& ctx . accounts . data_account . data . borrow ()) ? ;",
-      "data . value = param ;",
-      "data . serialize (& mut * ctx . accounts . data_account . data . borrow_mut ()) ? ;",
+      "let rl = & mut ctx . accounts . rate_limiter ;",
+      "rl . limit = limit ;",
+      "rl . used = 0 ;",
+      "rl . reset_counter = 0 ;",
+      "let mut cnt = 0u32 ;",
+      "while cnt < limit",
+      "{",
+      "cnt += 1 ;",
+      "}",
+      "rl . reset_counter = cnt ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Initialize071",
+    "name": "use_slot",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < UseSlot >"
+    ],
+    "attributes": [],
+    "body": [
+      "let rl = & mut ctx . accounts . rate_limiter ;",
+      "if rl . used < rl . limit",
+      "{",
+      "rl . used += 1 ;",
+      "} else",
+      "{",
+      "rl . used = 0 ;",
+      "rl . reset_counter = rl . limit ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitRateLimiter",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "rate_limiter",
+        "attribute": "# [account (init , payer = user , space = 8 + 4 + 4 + 4)]",
+        "field_type": "Account < 'info , RateLimiterData >"
       },
       {
-        "name": "authority",
-        "attribute": null,
+        "name": "user",
+        "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -35,13 +68,37 @@
     "body": null
   },
   {
-    "name": "TokenSwapData",
+    "name": "UseSlot",
     "node_type": "struct",
     "fields": [
       {
-        "name": "value",
+        "name": "rate_limiter",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , RateLimiterData >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RateLimiterData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "limit",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "u32"
+      },
+      {
+        "name": "used",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "reset_counter",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

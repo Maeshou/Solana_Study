@@ -1,0 +1,144 @@
+[
+  {
+    "name": "init_forge",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitForge >",
+      "core: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let f = & mut ctx . accounts . forge ;",
+      "f . master = ctx . accounts . master . key () ;",
+      "f . core = core . rotate_left (1) . wrapping_add (21) ;",
+      "f . stage = 2 ;",
+      "let mut v = f . core . rotate_right (1) . wrapping_add (11) ;",
+      "for _ in 0 .. 3",
+      "{",
+      "v = v . rotate_left (1) . wrapping_mul (3) . wrapping_add (7) ;",
+      "f . stage = f . stage . saturating_add (((v % 17) as u32) + 1) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "siphon",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Siphon >",
+      "lamports: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let ix = system_instruction :: transfer (& ctx . accounts . forge . key () , & ctx . accounts . receiver . key () , lamports) ;",
+      "let bump = * ctx . bumps . get (\"forge\") . ok_or (error ! (ForgeErr :: MissingBump)) ? ;",
+      "let seeds : & [& [u8]] = & [b\"forge\" , ctx . accounts . master . key . as_ref () , & ctx . accounts . forge . core . to_le_bytes () , & [bump] ,] ;",
+      "invoke_signed (& ix , & [ctx . accounts . forge . to_account_info () , ctx . accounts . receiver . to_account_info () , ctx . accounts . system_program . to_account_info () ,] , & [seeds] ,) ? ;",
+      "emit ! (EnergyMoved { to : ctx . accounts . receiver . key () , amount : lamports }) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "EnergyMoved",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "to",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "amount",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitForge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "forge",
+        "attribute": "# [account (init , payer = master , space = 8 + 32 + 8 + 4 , seeds = [b\"forge\" , master . key () . as_ref () , core . to_le_bytes () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , ForgeState >"
+      },
+      {
+        "name": "master",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      },
+      {
+        "name": "core",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Siphon",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "forge",
+        "attribute": "# [account (mut , seeds = [b\"forge\" , master . key () . as_ref () , forge . core . to_le_bytes () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , ForgeState >"
+      },
+      {
+        "name": "receiver",
+        "attribute": "# [account (mut)]",
+        "field_type": "SystemAccount < 'info >"
+      },
+      {
+        "name": "master",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ForgeState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "master",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "core",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "stage",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

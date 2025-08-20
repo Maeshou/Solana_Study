@@ -1,33 +1,191 @@
 [
   {
-    "name": "close_account",
+    "name": "init_reactor",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx041 >"
+      "ctx: Context < InitReactor >",
+      "cap_u16: u16"
     ],
     "attributes": [],
     "body": [
-      "let a = & ctx . accounts . first ;",
-      "let b = & ctx . accounts . second ;",
-      "msg ! (\"Account A: {}\" , a . key ()) ;",
-      "msg ! (\"Account B: {}\" , b . key ()) ;",
+      "let s = & mut ctx . accounts ;",
+      "s . cfg . operator = s . operator . key () ;",
+      "s . cfg . cap_q16 = (cap_u16 as u32) << 16 ;",
+      "s . cfg . phase = Warm ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx041",
+    "name": "step_reactor",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < StepReactor >",
+      "ticks: u32",
+      "gain_q16: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts ;",
+      "assert_ne ! (s . cfg . key () , s . core . key () , \"cfg/core diff\") ;",
+      "let g = gain_q16 . max (1) ;",
+      "for _ in 0 .. ticks",
+      "{",
+      "let growth = ((s . core . power_q16 as u128) * (g as u128)) >> 16 ;",
+      "let next = (s . core . power_q16 as u128) + growth ;",
+      "s . core . power_q16 = next . min (u128 :: from (u32 :: MAX)) . try_into () . unwrap_or (u32 :: MAX) ;",
+      "let bump = (g >> 8) . max (1) ;",
+      "s . core . heat_q16 = s . core . heat_q16 . saturating_add (bump) ;",
+      "s . gauge . cycles = s . gauge . cycles . wrapping_add (1) ;",
+      "}",
+      "if s . core . power_q16 > s . cfg . cap_q16",
+      "{",
+      "s . cfg . phase = Over ;",
+      "s . gauge . trips = s . gauge . trips . wrapping_add (2) ;",
+      "s . core . power_q16 = s . cfg . cap_q16 ;",
+      "s . core . heat_q16 = s . core . heat_q16 >> 1 ;",
+      "msg ! (\"over cap: clip power, halve heat, +trips\") ;",
+      "} else",
+      "{",
+      "s . cfg . phase = Stable ;",
+      "s . gauge . stable = s . gauge . stable . wrapping_add (1) ;",
+      "s . core . heat_q16 = s . core . heat_q16 + (1 << 12) ;",
+      "s . core . power_q16 = s . core . power_q16 + (1 << 8) ;",
+      "msg ! (\"within cap: mark stable, tiny bumps\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitReactor",
     "node_type": "struct",
     "fields": [
       {
-        "name": "first",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "cfg",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1 , seeds = [b\"cfg\" , operator . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , ReactorCfg >"
       },
       {
-        "name": "second",
+        "name": "core",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4 + 4)]",
+        "field_type": "Account < 'info , CoreQ16 >"
+      },
+      {
+        "name": "gauge",
+        "attribute": "# [account (init , payer = payer , space = 8 + 8 + 8)]",
+        "field_type": "Account < 'info , ReactorGauge >"
+      },
+      {
+        "name": "payer",
         "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "StepReactor",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "cfg",
+        "attribute": "# [account (mut , seeds = [b\"cfg\" , operator . key () . as_ref ()] , bump , has_one = operator)]",
+        "field_type": "Account < 'info , ReactorCfg >"
+      },
+      {
+        "name": "core",
+        "attribute": "# [account (mut , constraint = cfg . key () != core . key () , error = RxErr :: Dup)]",
+        "field_type": "Account < 'info , CoreQ16 >"
+      },
+      {
+        "name": "gauge",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , ReactorGauge >"
+      },
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ReactorCfg",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "operator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "cap_q16",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "phase",
+        "attribute": null,
+        "field_type": "ReactorPhase"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CoreQ16",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "power_q16",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "heat_q16",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ReactorGauge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "cycles",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "trips",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "stable",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

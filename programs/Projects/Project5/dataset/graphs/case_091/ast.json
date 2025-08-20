@@ -1,43 +1,225 @@
 [
   {
-    "name": "draw_raffle",
+    "name": "init_station",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx091 >",
-      "amount: u64"
+      "ctx: Context < InitStation >",
+      "n: u32"
     ],
     "attributes": [],
     "body": [
-      "let cpi_accounts = Transfer { from : ctx . accounts . from_token . to_account_info () , to : ctx . accounts . to_token . to_account_info () , authority : ctx . accounts . authority . to_account_info () , } ;",
-      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
-      "token :: transfer (cpi_ctx , amount) ? ;",
+      "let ga = (n ^ (n >> 1)) & 0xFFFF ;",
+      "let sa = & mut ctx . accounts . sensor_a ;",
+      "let st = & mut ctx . accounts . station ;",
+      "sa . station = st . key () ;",
+      "sa . channel = (n & 7) as u8 ;",
+      "sa . amplitude = (ga % 701) + 21 ;",
+      "st . owner = ctx . accounts . observer . key () ;",
+      "st . threshold = n * 12 + 300 ;",
+      "st . mode = Quiet ;",
+      "let sb = & mut ctx . accounts . sensor_b ;",
+      "sb . station = st . key () ;",
+      "sb . channel = ((n >> 2) & 7) as u8 ;",
+      "sb . amplitude = ((ga . rotate_left (3)) % 709) + 19 ;",
+      "let tp = & mut ctx . accounts . tape ;",
+      "tp . station = st . key () ;",
+      "tp . channel = 9 ;",
+      "tp . ticks = 0 ;",
+      "tp . hash = ga as u64 ^ 0xDEAD_BEEF ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx091",
+    "name": "record",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RecordWave >",
+      "loops: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let st = & mut ctx . accounts . station ;",
+      "let a = & mut ctx . accounts . sensor_a ;",
+      "let b = & mut ctx . accounts . sensor_b ;",
+      "let tp = & mut ctx . accounts . tape ;",
+      "for i in 0 .. loops",
+      "{",
+      "let z = ((a . amplitude ^ b . amplitude) as u64) . wrapping_mul (1469598103934665603) ;",
+      "a . amplitude = a . amplitude . checked_add (((z & 63) as u32) + 3) . unwrap_or (u32 :: MAX) ;",
+      "b . amplitude = b . amplitude . saturating_add ((((z >> 6) & 63) as u32) + 5) ;",
+      "tp . ticks = tp . ticks . saturating_add (1) ;",
+      "tp . hash ^= z . rotate_left ((i % 19) as u32) ;",
+      "}",
+      "let sum = a . amplitude + b . amplitude ;",
+      "if sum > st . threshold",
+      "{",
+      "st . mode = Alarm ;",
+      "a . channel ^= 1 ;",
+      "b . channel = b . channel . saturating_add (1) ;",
+      "tp . channel = tp . channel . saturating_add (1) ;",
+      "msg ! (\"alarm: channel tweaks & tape move\") ;",
+      "} else",
+      "{",
+      "st . mode = Alert ;",
+      "a . amplitude = a . amplitude . saturating_add (9) ;",
+      "b . amplitude = b . amplitude / 2 + 11 ;",
+      "tp . hash ^= 0x0F0F_F0F0 ;",
+      "msg ! (\"alert: amp adjust & hash flip\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitStation",
     "node_type": "struct",
     "fields": [
       {
-        "name": "from_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "station",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Station >"
       },
       {
-        "name": "to_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "sensor_a",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Sensor >"
       },
       {
-        "name": "authority",
+        "name": "sensor_b",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Sensor >"
+      },
+      {
+        "name": "tape",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 8 + 8)]",
+        "field_type": "Account < 'info , Tape >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "observer",
         "attribute": null,
         "field_type": "Signer < 'info >"
       },
       {
-        "name": "token_program",
+        "name": "system_program",
         "attribute": null,
-        "field_type": "Program < 'info , Token >"
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RecordWave",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "station",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Station >"
+      },
+      {
+        "name": "sensor_a",
+        "attribute": "# [account (mut , has_one = station , constraint = sensor_a . channel != sensor_b . channel @ SeisErr :: Dup)]",
+        "field_type": "Account < 'info , Sensor >"
+      },
+      {
+        "name": "sensor_b",
+        "attribute": "# [account (mut , has_one = station , constraint = sensor_b . channel != tape . channel @ SeisErr :: Dup)]",
+        "field_type": "Account < 'info , Sensor >"
+      },
+      {
+        "name": "tape",
+        "attribute": "# [account (mut , has_one = station)]",
+        "field_type": "Account < 'info , Tape >"
+      },
+      {
+        "name": "observer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Station",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "threshold",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "mode",
+        "attribute": null,
+        "field_type": "WatchMode"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Sensor",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "station",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "channel",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "amplitude",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Tape",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "station",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "channel",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "ticks",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "hash",
+        "attribute": null,
+        "field_type": "u64"
       }
     ],
     "inputs": null,

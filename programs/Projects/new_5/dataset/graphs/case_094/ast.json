@@ -1,0 +1,216 @@
+[
+  {
+    "name": "init_relay",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitRelay >",
+      "relay_id: u64",
+      "power_reserve: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let relay = & mut ctx . accounts . relay_core ;",
+      "relay . relay_id = relay_id << 2 ;",
+      "relay . power_reserve = power_reserve ;",
+      "relay . total_packets_transferred = 0 ;",
+      "relay . is_operational = relay . power_reserve > MIN_RELAY_POWER_THRESHOLD ;",
+      "msg ! (\"Orbital Relay {} established with {} power.\" , relay . relay_id , relay . power_reserve) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_packet",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitPacket >",
+      "packet_id: u64",
+      "data_size: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let packet = & mut ctx . accounts . data_packet ;",
+      "packet . parent_relay = ctx . accounts . relay_core . key () ;",
+      "packet . packet_id = packet_id ^ 0x0123456789ABCDEF ;",
+      "packet . data_size = data_size ;",
+      "packet . is_processed = false ;",
+      "msg ! (\"New data packet {} created with size {}.\" , packet . packet_id , packet . data_size) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "transfer_data",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < TransferData >"
+    ],
+    "attributes": [],
+    "body": [
+      "let relay = & mut ctx . accounts . relay_core ;",
+      "let incoming_packet = & mut ctx . accounts . incoming_packet ;",
+      "let outgoing_packet = & mut ctx . accounts . outgoing_packet ;",
+      "if ! relay . is_operational",
+      "{",
+      "return Err (ProgramError :: Custom (1) . into ()) ;",
+      "}",
+      "if incoming_packet . is_processed || outgoing_packet . is_processed",
+      "{",
+      "return Err (ProgramError :: Custom (2) . into ()) ;",
+      "}",
+      "let total_size = incoming_packet . data_size . saturating_add (outgoing_packet . data_size) ;",
+      "if total_size > MAX_BUFFER_SIZE",
+      "{",
+      "return Err (ProgramError :: Custom (3) . into ()) ;",
+      "}",
+      "relay . power_reserve = relay . power_reserve . saturating_sub (POWER_COST_PER_PACKET) ;",
+      "incoming_packet . is_processed = true ;",
+      "outgoing_packet . is_processed = true ;",
+      "relay . total_packets_transferred = relay . total_packets_transferred . saturating_add (2) ;",
+      "relay . is_operational = relay . power_reserve > MIN_RELAY_POWER_THRESHOLD ;",
+      "msg ! (\"Transferred incoming packet {} and outgoing packet {}.\" , incoming_packet . packet_id , outgoing_packet . packet_id) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitRelay",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "relay_core",
+        "attribute": "# [account (init , payer = signer , space = 8 + 8 + 8 + 8 + 1)]",
+        "field_type": "Account < 'info , RelayCore >"
+      },
+      {
+        "name": "signer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitPacket",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "data_packet",
+        "attribute": "# [account (init , payer = signer , space = 8 + 32 + 8 + 8 + 1)]",
+        "field_type": "Account < 'info , DataPacket >"
+      },
+      {
+        "name": "relay_core",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , RelayCore >"
+      },
+      {
+        "name": "signer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TransferData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "relay_core",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , RelayCore >"
+      },
+      {
+        "name": "incoming_packet",
+        "attribute": "# [account (mut , has_one = parent_relay)]",
+        "field_type": "Account < 'info , DataPacket >"
+      },
+      {
+        "name": "outgoing_packet",
+        "attribute": "# [account (mut , has_one = parent_relay)]",
+        "field_type": "Account < 'info , DataPacket >"
+      },
+      {
+        "name": "signer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RelayCore",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "relay_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "power_reserve",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "total_packets_transferred",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "is_operational",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DataPacket",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent_relay",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "packet_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "data_size",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "is_processed",
+        "attribute": null,
+        "field_type": "bool"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

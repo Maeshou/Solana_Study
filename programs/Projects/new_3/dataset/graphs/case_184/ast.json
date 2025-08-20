@@ -1,0 +1,188 @@
+[
+  {
+    "name": "Course",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "title",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "students",
+        "attribute": null,
+        "field_type": "Vec < Pubkey >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Enrollment",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "student",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "course",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "status",
+        "attribute": null,
+        "field_type": "String"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreateCourse",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "course",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 4 + 64 + 4 + (32 * 50))]",
+        "field_type": "Account < 'info , Course >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Enroll",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "course",
+        "attribute": "# [doc = \" Course.owner == owner.key() は検証される\"] # [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Course >"
+      },
+      {
+        "name": "enrollment",
+        "attribute": "# [doc = \" Enrollment.course ⇔ course.key() の検証がない\"] # [account (init , payer = student , space = 8 + 32 + 32 + 4 + 16)]",
+        "field_type": "Account < 'info , Enrollment >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "student",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CompleteCourse",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "enrollment",
+        "attribute": "# [doc = \" Enrollment.student == student.key() は検証される\"] # [account (mut , has_one = student)]",
+        "field_type": "Account < 'info , Enrollment >"
+      },
+      {
+        "name": "course",
+        "attribute": "# [doc = \" course.key() ⇔ enrollment.course の検証がない\"] # [account (mut)]",
+        "field_type": "Account < 'info , Course >"
+      },
+      {
+        "name": "student",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "create_course",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateCourse >",
+      "title: String"
+    ],
+    "attributes": [
+      "# [doc = \" 新規講座を作成\"]"
+    ],
+    "body": [
+      "let c = & mut ctx . accounts . course ;",
+      "c . owner = ctx . accounts . owner . key () ;",
+      "c . title = title ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "enroll",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Enroll >"
+    ],
+    "attributes": [
+      "# [doc = \" 学生を講座に登録\"]"
+    ],
+    "body": [
+      "let c = & mut ctx . accounts . course ;",
+      "let e = & mut ctx . accounts . enrollment ;",
+      "e . student = ctx . accounts . student . key () ;",
+      "e . course = c . key () ;",
+      "e . status = String :: from (\"enrolled\") ;",
+      "c . students . push (e . student) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "complete_course",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CompleteCourse >"
+    ],
+    "attributes": [
+      "# [doc = \" 受講完了をマーク\"]"
+    ],
+    "body": [
+      "let c = & mut ctx . accounts . course ;",
+      "let e = & mut ctx . accounts . enrollment ;",
+      "e . status = String :: from (\"completed\") ;",
+      "c . title = format ! (\"{} [Completed by {}]\" , c . title , e . student) ;",
+      "Ok (())"
+    ]
+  }
+]

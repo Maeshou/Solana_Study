@@ -1,0 +1,256 @@
+[
+  {
+    "name": "init_dungeon",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitDungeon >",
+      "level_count: u32",
+      "base_difficulty: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let dungeon = & mut ctx . accounts . dungeon_data ;",
+      "dungeon . level_count = level_count . checked_add (10) . unwrap_or (u32 :: MAX) ;",
+      "dungeon . base_difficulty = base_difficulty . checked_div (2) . unwrap_or (1) ;",
+      "dungeon . total_treasure = 0 ;",
+      "dungeon . dungeon_status = DungeonStatus :: Unexplored ;",
+      "msg ! (\"Dungeon created with {} levels and base difficulty {}.\" , dungeon . level_count , dungeon . base_difficulty) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_adventurer",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitAdventurer >",
+      "player_id: u64",
+      "courage_level: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let adventurer = & mut ctx . accounts . adventurer_sheet ;",
+      "adventurer . parent_dungeon = ctx . accounts . dungeon_data . key () ;",
+      "adventurer . player_id = player_id . checked_add (500) . unwrap_or (u64 :: MAX) ;",
+      "adventurer . courage_level = courage_level . checked_add (10) . unwrap_or (u8 :: MAX) ;",
+      "adventurer . is_alive = true ;",
+      "adventurer . current_level = 0 ;",
+      "adventurer . treasure_found = 0 ;",
+      "msg ! (\"Adventurer {} enters the dungeon with courage level {}.\" , adventurer . player_id , adventurer . courage_level) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "raid_dungeon",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RaidDungeon >",
+      "raid_power: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let dungeon = & mut ctx . accounts . dungeon_data ;",
+      "let explorer = & mut ctx . accounts . explorer_sheet ;",
+      "let scout = & mut ctx . accounts . scout_sheet ;",
+      "let mut treasure_gained_total = 0u64 ;",
+      "while dungeon . level_count > scout . current_level",
+      "{",
+      "if explorer . is_alive",
+      "{",
+      "let treasure_amount = (raid_power as u64) . checked_add (scout . current_level as u64) . unwrap_or (u64 :: MAX) ;",
+      "explorer . treasure_found = explorer . treasure_found . checked_add (treasure_amount) . unwrap_or (u64 :: MAX) ;",
+      "explorer . courage_level = explorer . courage_level . checked_add (dungeon . base_difficulty) . unwrap_or (u8 :: MAX) ;",
+      "dungeon . total_treasure = dungeon . total_treasure . checked_add (treasure_amount) . unwrap_or (u64 :: MAX) ;",
+      "treasure_gained_total = treasure_gained_total . checked_add (treasure_amount) . unwrap_or (u64 :: MAX) ;",
+      "msg ! (\"Explorer found",
+      "{",
+      "} treasure on level {}.\" , treasure_amount , scout . current_level) ;",
+      "} else",
+      "{",
+      "let revival_cost = (raid_power as u64) . checked_add (dungeon . base_difficulty as u64) . unwrap_or (u64 :: MAX) ;",
+      "dungeon . total_treasure = dungeon . total_treasure . checked_sub (revival_cost) . unwrap_or (0) ;",
+      "explorer . is_alive = true ;",
+      "explorer . treasure_found = explorer . treasure_found . checked_div (2) . unwrap_or (0) ;",
+      "explorer . courage_level = explorer . courage_level . checked_add (10) . unwrap_or (u8 :: MAX) ;",
+      "msg ! (\"Explorer revived, losing",
+      "{",
+      "} treasure.\" , revival_cost) ;",
+      "} if scout . is_alive",
+      "{",
+      "let treasure_amount = (raid_power as u64) . checked_mul (dungeon . base_difficulty as u64) . unwrap_or (u64 :: MAX) ;",
+      "scout . treasure_found = scout . treasure_found . checked_add (treasure_amount) . unwrap_or (u64 :: MAX) ;",
+      "scout . current_level = scout . current_level . checked_add (1) . unwrap_or (u32 :: MAX) ;",
+      "dungeon . total_treasure = dungeon . total_treasure . checked_add (treasure_amount) . unwrap_or (u64 :: MAX) ;",
+      "treasure_gained_total = treasure_gained_total . checked_add (treasure_amount) . unwrap_or (u64 :: MAX) ;",
+      "msg ! (\"Scout advanced to level",
+      "{",
+      "} and found {} treasure.\" , scout . current_level , treasure_amount) ;",
+      "} else",
+      "{",
+      "let revival_cost = (raid_power as u64) . checked_mul (dungeon . base_difficulty as u64) . unwrap_or (u64 :: MAX) ;",
+      "dungeon . total_treasure = dungeon . total_treasure . checked_sub (revival_cost) . unwrap_or (0) ;",
+      "scout . is_alive = true ;",
+      "scout . treasure_found = scout . treasure_found . checked_div (3) . unwrap_or (0) ;",
+      "scout . courage_level = scout . courage_level . checked_add (20) . unwrap_or (u8 :: MAX) ;",
+      "msg ! (\"Scout revived, losing",
+      "{",
+      "} treasure.\" , revival_cost) ;",
+      "}",
+      "}",
+      "msg ! (\"Total treasure gained in this raid: {}\" , treasure_gained_total) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitDungeon",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "dungeon_data",
+        "attribute": "# [account (init , payer = signer , space = 8 + 4 + 1 + 8 + 4)]",
+        "field_type": "Account < 'info , DungeonData >"
+      },
+      {
+        "name": "signer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitAdventurer",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "adventurer_sheet",
+        "attribute": "# [account (init , payer = signer , space = 8 + 32 + 8 + 1 + 1 + 4 + 8)]",
+        "field_type": "Account < 'info , AdventurerSheet >"
+      },
+      {
+        "name": "dungeon_data",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , DungeonData >"
+      },
+      {
+        "name": "signer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RaidDungeon",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "dungeon_data",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , DungeonData >"
+      },
+      {
+        "name": "explorer_sheet",
+        "attribute": "# [account (mut , has_one = parent_dungeon)]",
+        "field_type": "Account < 'info , AdventurerSheet >"
+      },
+      {
+        "name": "scout_sheet",
+        "attribute": "# [account (mut , has_one = parent_dungeon)]",
+        "field_type": "Account < 'info , AdventurerSheet >"
+      },
+      {
+        "name": "signer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DungeonData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "level_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "base_difficulty",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "total_treasure",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "dungeon_status",
+        "attribute": null,
+        "field_type": "DungeonStatus"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AdventurerSheet",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent_dungeon",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "player_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "courage_level",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "is_alive",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "current_level",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "treasure_found",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

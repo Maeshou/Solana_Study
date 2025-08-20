@@ -1,0 +1,109 @@
+[
+  {
+    "name": "use_admin_power",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < UseAdminPower >",
+      "_flag: u8"
+    ],
+    "attributes": [
+      "# [doc = \" 「管理者だけが通れる」つもりの処理\"]"
+    ],
+    "body": [
+      "if ctx . accounts . cfg . owner != crate :: ID",
+      "{",
+      "return Err (ProgramError :: IllegalOwner . into ()) ;",
+      "}",
+      "let data = ctx . accounts . cfg . data . borrow () ;",
+      "let admin_data = GuildAdmin :: try_from_slice (& data) . map_err (| _ | ProgramError :: InvalidAccountData) ? ;",
+      "require_keys_eq ! (admin_data . admin , ctx . accounts . signer . key () , ProgramError :: MissingRequiredSignature) ;",
+      "msg ! (\"granted: {:?}\" , admin_data . admin) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "write_player_card",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < WritePlayerCard >",
+      "key: Pubkey"
+    ],
+    "attributes": [
+      "# [doc = \" デモ用：任意の32Bを cfg に書き込む（実運用ではこんな関数は置かない）\"]",
+      "# [doc = \" これで PlayerCard を書いておくと、上の use_admin_power が通ってしまう\"]"
+    ],
+    "body": [
+      "let card = PlayerCard { user : key } ;",
+      "let bytes = card . try_to_vec () . map_err (| _ | ProgramError :: InvalidInstructionData) ? ;",
+      "let mut data = ctx . accounts . cfg . data . borrow_mut () ;",
+      "for (i , b) in bytes . iter () . enumerate ()",
+      "{",
+      "data [i] = * b ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "UseAdminPower",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "cfg",
+        "attribute": "# [doc = \" CHECK: 手動デコードするため UncheckedAccount で受けている（ここが落とし穴）\"] # [account (mut)]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "signer",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "WritePlayerCard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "cfg",
+        "attribute": "# [doc = \" CHECK: 同上。ディスクリミネータなしの“生Borsh”を書けてしまう\"] # [account (mut)]",
+        "field_type": "UncheckedAccount < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "GuildAdmin",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PlayerCard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

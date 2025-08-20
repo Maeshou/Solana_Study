@@ -1,0 +1,280 @@
+[
+  {
+    "name": "init_relay",
+    "inputs": [
+      "ctx: Context < InitRelay >",
+      "relay_id: u64",
+      "power_reserve: u64"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let relay = & mut ctx . accounts . relay_core ;"
+      },
+      {
+        "id": 2,
+        "label": "relay . relay_id = relay_id << 2 ;"
+      },
+      {
+        "id": 3,
+        "label": "relay . power_reserve = power_reserve ;"
+      },
+      {
+        "id": 4,
+        "label": "relay . total_packets_transferred = 0 ;"
+      },
+      {
+        "id": 5,
+        "label": "relay . is_operational = power_reserve . checked_cmp (& MIN_RELAY_POWER_THRESHOLD) == Some (std :: cmp :: Ordering :: Greater) ;"
+      },
+      {
+        "id": 6,
+        "label": "msg ! (\"Orbital Relay {} established with {} power.\" , relay . relay_id , relay . power_reserve) ;"
+      },
+      {
+        "id": 7,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: relay"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: relay"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: relay"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: relay"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: relay"
+      }
+    ]
+  },
+  {
+    "name": "init_packet",
+    "inputs": [
+      "ctx: Context < InitPacket >",
+      "packet_id: u64",
+      "data_size: u64"
+    ],
+    "nodes": [
+      {
+        "id": 8,
+        "label": "Entry"
+      },
+      {
+        "id": 9,
+        "label": "let packet = & mut ctx . accounts . data_packet ;"
+      },
+      {
+        "id": 10,
+        "label": "packet . parent_relay = ctx . accounts . relay_core . key () ;"
+      },
+      {
+        "id": 11,
+        "label": "packet . packet_id = packet_id ^ 0x0123456789ABCDEF ;"
+      },
+      {
+        "id": 12,
+        "label": "packet . data_size = data_size ;"
+      },
+      {
+        "id": 13,
+        "label": "packet . is_processed = false ;"
+      },
+      {
+        "id": 14,
+        "label": "msg ! (\"New data packet {} created with size {}.\" , packet . packet_id , packet . data_size) ;"
+      },
+      {
+        "id": 15,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 9,
+        "to": 9,
+        "label": "def: packet"
+      },
+      {
+        "from": 9,
+        "to": 10,
+        "label": "data_dep: packet"
+      },
+      {
+        "from": 9,
+        "to": 11,
+        "label": "data_dep: packet"
+      },
+      {
+        "from": 9,
+        "to": 12,
+        "label": "data_dep: packet"
+      },
+      {
+        "from": 9,
+        "to": 13,
+        "label": "data_dep: packet"
+      }
+    ]
+  },
+  {
+    "name": "transfer_data",
+    "inputs": [
+      "ctx: Context < TransferData >"
+    ],
+    "nodes": [
+      {
+        "id": 16,
+        "label": "Entry"
+      },
+      {
+        "id": 17,
+        "label": "let relay = & mut ctx . accounts . relay_core ;"
+      },
+      {
+        "id": 18,
+        "label": "let incoming_packet = & mut ctx . accounts . incoming_packet ;"
+      },
+      {
+        "id": 19,
+        "label": "let outgoing_packet = & mut ctx . accounts . outgoing_packet ;"
+      },
+      {
+        "id": 20,
+        "label": "require ! (relay . is_operational , OrbitalRelayError :: RelayNotOperational) ;"
+      },
+      {
+        "id": 21,
+        "label": "require ! (! incoming_packet . is_processed && ! outgoing_packet . is_processed , OrbitalRelayError :: PacketsAlreadyProcessed) ;"
+      },
+      {
+        "id": 22,
+        "label": "let total_size = incoming_packet . data_size . saturating_add (outgoing_packet . data_size) ;"
+      },
+      {
+        "id": 23,
+        "label": "require ! (total_size . checked_cmp (& MAX_BUFFER_SIZE) != Some (std :: cmp :: Ordering :: Greater) , OrbitalRelayError :: BufferCapacityExceeded) ;"
+      },
+      {
+        "id": 24,
+        "label": "relay . power_reserve = relay . power_reserve . saturating_sub (POWER_COST_PER_PACKET) ;"
+      },
+      {
+        "id": 25,
+        "label": "incoming_packet . is_processed = true ;"
+      },
+      {
+        "id": 26,
+        "label": "outgoing_packet . is_processed = true ;"
+      },
+      {
+        "id": 27,
+        "label": "relay . total_packets_transferred = relay . total_packets_transferred . saturating_add (2) ;"
+      },
+      {
+        "id": 28,
+        "label": "relay . is_operational = relay . power_reserve . checked_cmp (& MIN_RELAY_POWER_THRESHOLD) == Some (std :: cmp :: Ordering :: Greater) ;"
+      },
+      {
+        "id": 29,
+        "label": "msg ! (\"Transferred incoming packet {} and outgoing packet {}.\" , incoming_packet . packet_id , outgoing_packet . packet_id) ;"
+      },
+      {
+        "id": 30,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 17,
+        "to": 17,
+        "label": "def: relay"
+      },
+      {
+        "from": 18,
+        "to": 18,
+        "label": "def: incoming_packet"
+      },
+      {
+        "from": 19,
+        "to": 19,
+        "label": "def: outgoing_packet"
+      },
+      {
+        "from": 22,
+        "to": 22,
+        "label": "def: total_size"
+      },
+      {
+        "from": 18,
+        "to": 22,
+        "label": "data_dep: incoming_packet"
+      },
+      {
+        "from": 19,
+        "to": 22,
+        "label": "data_dep: outgoing_packet"
+      },
+      {
+        "from": 17,
+        "to": 24,
+        "label": "data_dep: relay"
+      },
+      {
+        "from": 17,
+        "to": 24,
+        "label": "data_dep: relay"
+      },
+      {
+        "from": 18,
+        "to": 25,
+        "label": "data_dep: incoming_packet"
+      },
+      {
+        "from": 19,
+        "to": 26,
+        "label": "data_dep: outgoing_packet"
+      },
+      {
+        "from": 17,
+        "to": 27,
+        "label": "data_dep: relay"
+      },
+      {
+        "from": 17,
+        "to": 27,
+        "label": "data_dep: relay"
+      },
+      {
+        "from": 17,
+        "to": 28,
+        "label": "data_dep: relay"
+      },
+      {
+        "from": 17,
+        "to": 28,
+        "label": "data_dep: relay"
+      }
+    ]
+  }
+]

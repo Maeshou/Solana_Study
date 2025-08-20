@@ -1,0 +1,285 @@
+[
+  {
+    "name": "init_garden",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitGarden >",
+      "zone: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let g = & mut ctx . accounts . garden ;",
+      "g . owner = ctx . accounts . owner . key () ;",
+      "g . zone = zone ;",
+      "g . visits = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "add_pairs",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AddPairs >",
+      "role: TrainerRole",
+      "pet_kind: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let g = & mut ctx . accounts . garden ;",
+      "let t = & mut ctx . accounts . trainer ;",
+      "t . garden = g . key () ;",
+      "t . role = role ;",
+      "t . tag = pet_kind ;",
+      "t . apt = 0 ;",
+      "let p = & mut ctx . accounts . pet ;",
+      "p . garden = g . key () ;",
+      "p . kind = pet_kind ;",
+      "p . affection = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "train",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Train >",
+      "reps: Vec < u8 >"
+    ],
+    "attributes": [],
+    "body": [
+      "let g = & mut ctx . accounts . garden ;",
+      "let a = & mut ctx . accounts . actor ;",
+      "let b = & mut ctx . accounts . partner ;",
+      "let p = & mut ctx . accounts . pet ;",
+      "let l = & mut ctx . accounts . session_log ;",
+      "let mut s : u32 = 0 ;",
+      "let mut mix : u16 = 0 ;",
+      "for r in reps",
+      "{",
+      "s = s . saturating_add ((r & 0x7F) as u32) ;",
+      "mix ^= (r as u16) . rotate_left (1) ;",
+      "}",
+      "let base = s + (mix & 0xFF) as u32 ;",
+      "if a . role == Mentor",
+      "{",
+      "a . apt = a . apt . saturating_add ((base / 2) as u16) ;",
+      "b . apt = b . apt . saturating_add (((mix >> 2) & 0x3F) as u16) ;",
+      "p . affection = p . affection . saturating_add ((base / 4) as u16) ;",
+      "g . visits = g . visits . saturating_add (1) ;",
+      "msg ! (\"Mentor: base=",
+      "{",
+      "}, a.apt={}, b.apt={}, pet.aff={}\" , base , a . apt , b . apt , p . affection) ;",
+      "} else",
+      "{",
+      "a . apt = a . apt . saturating_add ((base / 3) as u16) ;",
+      "b . apt = b . apt . saturating_add (((mix >> 3) & 0x3F) as u16) ;",
+      "p . affection = p . affection . saturating_add ((base / 5) as u16) ;",
+      "g . visits = g . visits . saturating_add (1) ;",
+      "msg ! (\"Assistant/Guest: base=",
+      "{",
+      "}, a.apt={}, b.apt={}, pet.aff={}\" , base , a . apt , b . apt , p . affection) ;",
+      "}",
+      "let mut x = (g . visits as u128) . max (1) ;",
+      "let mut i = 0 ;",
+      "while i < 3",
+      "{",
+      "x = (x + (g . visits as u128 / x)) . max (1) / 2 ;",
+      "i += 1 ;",
+      "}",
+      "l . garden = g . key () ;",
+      "l . index = (x as u32) . min (1_000_000) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitGarden",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "garden",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 1 + 4)]",
+        "field_type": "Account < 'info , Garden >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AddPairs",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "garden",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Garden >"
+      },
+      {
+        "name": "trainer",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 1 + 2)]",
+        "field_type": "Account < 'info , TrainerCard >"
+      },
+      {
+        "name": "pet",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 1 + 2)]",
+        "field_type": "Account < 'info , PetCard >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Train",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "garden",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Garden >"
+      },
+      {
+        "name": "session_log",
+        "attribute": "# [account (mut , has_one = garden)]",
+        "field_type": "Account < 'info , SessionLog >"
+      },
+      {
+        "name": "actor",
+        "attribute": "# [account (mut , has_one = garden , constraint = actor . tag != partner . tag @ ErrCode :: CosplayBlocked)]",
+        "field_type": "Account < 'info , TrainerCard >"
+      },
+      {
+        "name": "partner",
+        "attribute": "# [account (mut , has_one = garden)]",
+        "field_type": "Account < 'info , TrainerCard >"
+      },
+      {
+        "name": "pet",
+        "attribute": "# [account (mut , has_one = garden)]",
+        "field_type": "Account < 'info , PetCard >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Garden",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "zone",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "visits",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TrainerCard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "garden",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "role",
+        "attribute": null,
+        "field_type": "TrainerRole"
+      },
+      {
+        "name": "tag",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "apt",
+        "attribute": null,
+        "field_type": "u16"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "PetCard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "garden",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "kind",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "affection",
+        "attribute": null,
+        "field_type": "u16"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SessionLog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "garden",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "index",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

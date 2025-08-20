@@ -1,33 +1,111 @@
 [
   {
-    "name": "initialize_price_floor",
+    "name": "init_user",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Initialize058 >",
-      "param: u64"
+      "ctx: Context < InitUser >",
+      "nickname: String",
+      "theme: String",
+      "notify_email: bool"
     ],
     "attributes": [],
     "body": [
-      "let mut data = PriceFloorData :: try_from_slice (& ctx . accounts . data_account . data . borrow ()) ? ;",
-      "data . value = param ;",
-      "data . serialize (& mut * ctx . accounts . data_account . data . borrow_mut ()) ? ;",
+      "let mut sum = 0u32 ;",
+      "let mut vowels = 0u32 ;",
+      "let mut consonants = 0u32 ;",
+      "for c in nickname . chars ()",
+      "{",
+      "let code = c as u32 ;",
+      "sum += code ;",
+      "match c . to_ascii_lowercase ()",
+      "{",
+      "'a' | 'e' | 'i' | 'o' | 'u' => vowels += 1 , ch if ch . is_ascii_alphabetic () => consonants += 1 , _ => { } }",
+      "}",
+      "let profile = & mut ctx . accounts . profile ;",
+      "profile . owner = ctx . accounts . user . key () ;",
+      "profile . ascii_sum = sum ;",
+      "profile . vowels = vowels ;",
+      "profile . consonants = consonants ;",
+      "let settings = & mut ctx . accounts . settings ;",
+      "let mut clean = String :: new () ;",
+      "for ch in theme . chars ()",
+      "{",
+      "if ! ('0' <= ch && ch <= '9')",
+      "{",
+      "clean . push (ch) ;",
+      "}",
+      "}",
+      "if clean . len () % 2 == 0",
+      "{",
+      "settings . theme = clean . to_uppercase () ;",
+      "} else",
+      "{",
+      "settings . theme = clean . to_lowercase () ;",
+      "}",
+      "settings . ascii_mod = (sum % 100) as u8 ;",
+      "let notifications = & mut ctx . accounts . notifications ;",
+      "notifications . email = notify_email ;",
+      "notifications . sms = ! notify_email ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Initialize058",
+    "name": "update_settings",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < UpdateSettings >",
+      "new_theme: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let settings = & mut ctx . accounts . settings ;",
+      "let prefix = \">>\" ;",
+      "if new_theme . starts_with (prefix)",
+      "{",
+      "settings . theme = new_theme [prefix . len () ..] . to_string () ;",
+      "} else",
+      "{",
+      "settings . theme = new_theme . clone () ;",
+      "}",
+      "let mut hash = 0u8 ;",
+      "for (i , c) in settings . theme . chars () . enumerate ()",
+      "{",
+      "hash = hash . wrapping_add ((c as u8) . wrapping_mul ((i as u8) . wrapping_add (1))) ;",
+      "}",
+      "settings . ascii_mod = hash ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitUser",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "profile",
+        "attribute": "# [account (init , payer = user , space = 8 + 32 + 4 + 4 + 4)]",
+        "field_type": "Account < 'info , ProfileData >"
       },
       {
-        "name": "authority",
-        "attribute": null,
+        "name": "settings",
+        "attribute": "# [account (init , payer = user , space = 8 + 64 + 1)]",
+        "field_type": "Account < 'info , SettingsData >"
+      },
+      {
+        "name": "notifications",
+        "attribute": "# [account (init , payer = user , space = 8 + 1 + 1)]",
+        "field_type": "Account < 'info , NotificationsData >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -35,13 +113,80 @@
     "body": null
   },
   {
-    "name": "PriceFloorData",
+    "name": "UpdateSettings",
     "node_type": "struct",
     "fields": [
       {
-        "name": "value",
+        "name": "settings",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , SettingsData >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ProfileData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "ascii_sum",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "vowels",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "consonants",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SettingsData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "theme",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "ascii_mod",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "NotificationsData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "email",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "sms",
+        "attribute": null,
+        "field_type": "bool"
       }
     ],
     "inputs": null,

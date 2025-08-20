@@ -1,33 +1,92 @@
 [
   {
-    "name": "initialize_asset_management",
+    "name": "init_metrics",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Initialize068 >",
-      "param: u64"
+      "ctx: Context < InitMetrics >",
+      "hits: u32",
+      "misses: u32"
     ],
-    "attributes": [],
+    "attributes": [
+      "# [doc = \" メトリックアカウントを初期化\"]"
+    ],
     "body": [
-      "let mut data = AssetManagementData :: try_from_slice (& ctx . accounts . data_account . data . borrow ()) ? ;",
-      "data . value = param ;",
-      "data . serialize (& mut * ctx . accounts . data_account . data . borrow_mut ()) ? ;",
+      "let m = & mut ctx . accounts . metrics ;",
+      "m . hits = hits ;",
+      "m . misses = misses ;",
+      "let total = m . hits + m . misses ;",
+      "let mut accuracy : u8 = 0 ;",
+      "if total != 0",
+      "{",
+      "let rate = m . hits * 100 / total ;",
+      "if rate > u8 :: MAX as u32",
+      "{",
+      "accuracy = u8 :: MAX ;",
+      "} else",
+      "{",
+      "accuracy = rate as u8 ;",
+      "}",
+      "}",
+      "m . accuracy = accuracy ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Initialize068",
+    "name": "record",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Record >",
+      "success: bool"
+    ],
+    "attributes": [
+      "# [doc = \" 成否を記録して成功率を再計算\"]"
+    ],
+    "body": [
+      "let m = & mut ctx . accounts . metrics ;",
+      "if success",
+      "{",
+      "m . hits = m . hits . saturating_add (1) ;",
+      "} else",
+      "{",
+      "m . misses = m . misses . saturating_add (1) ;",
+      "}",
+      "let total = m . hits + m . misses ;",
+      "let mut accuracy : u8 = 0 ;",
+      "if total != 0",
+      "{",
+      "let rate = m . hits * 100 / total ;",
+      "if rate > u8 :: MAX as u32",
+      "{",
+      "accuracy = u8 :: MAX ;",
+      "} else",
+      "{",
+      "accuracy = rate as u8 ;",
+      "}",
+      "}",
+      "m . accuracy = accuracy ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitMetrics",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "metrics",
+        "attribute": "# [account (init , payer = user , space = 8 + 4 + 4 + 1)]",
+        "field_type": "Account < 'info , MetricsData >"
       },
       {
-        "name": "authority",
-        "attribute": null,
+        "name": "user",
+        "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -35,13 +94,37 @@
     "body": null
   },
   {
-    "name": "AssetManagementData",
+    "name": "Record",
     "node_type": "struct",
     "fields": [
       {
-        "name": "value",
+        "name": "metrics",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , MetricsData >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "MetricsData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "hits",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "u32"
+      },
+      {
+        "name": "misses",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "accuracy",
+        "attribute": null,
+        "field_type": "u8"
       }
     ],
     "inputs": null,

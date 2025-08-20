@@ -1,0 +1,144 @@
+[
+  {
+    "name": "initialize_vesting",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeVesting >",
+      "start_ts: i64",
+      "duration: i64",
+      "total_amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" ベスティング設定：管理者が受益者と期間・総量を指定\"]"
+    ],
+    "body": [
+      "require ! (ctx . accounts . admin . is_signer , ErrorCode :: Unauthorized) ;",
+      "let v = & mut ctx . accounts . vesting ;",
+      "v . admin = ctx . accounts . admin . key () ;",
+      "v . beneficiary = ctx . accounts . beneficiary . key () ;",
+      "v . start_ts = start_ts ;",
+      "v . duration = duration ;",
+      "v . total_amount = total_amount ;",
+      "v . claimed = 0 ;",
+      "msg ! (\"Vesting initialized: {} -> {}, start {}, dur {}, amt {}\" , v . admin , v . beneficiary , v . start_ts , v . duration , v . total_amount) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "claim_vested",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ClaimVested >"
+    ],
+    "attributes": [
+      "# [doc = \" 受益者による請求：経過分を比例配分\"]"
+    ],
+    "body": [
+      "require ! (ctx . accounts . beneficiary . is_signer , ErrorCode :: Unauthorized) ;",
+      "let clock = Clock :: get () ? ;",
+      "let elapsed = clock . unix_timestamp . checked_sub (ctx . accounts . vesting . start_ts) . unwrap () . min (ctx . accounts . vesting . duration) . max (0) ;",
+      "let vested = (ctx . accounts . vesting . total_amount as u128) . checked_mul (elapsed as u128) . unwrap () . checked_div (ctx . accounts . vesting . duration as u128) . unwrap () as u64 ;",
+      "let amount = vested . checked_sub (ctx . accounts . vesting . claimed) . unwrap () ;",
+      "require ! (amount > 0 , ErrorCode :: NothingToClaim) ;",
+      "* * ctx . accounts . vault . to_account_info () . try_borrow_mut_lamports () ? -= amount ;",
+      "* * ctx . accounts . beneficiary . to_account_info () . try_borrow_mut_lamports () ? += amount ;",
+      "ctx . accounts . vesting . claimed = ctx . accounts . vesting . claimed . checked_add (amount) . unwrap () ;",
+      "msg ! (\"{} claimed {} tokens (total claimed {})\" , ctx . accounts . beneficiary . key () , amount , ctx . accounts . vesting . claimed) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializeVesting",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vesting",
+        "attribute": "# [account (init , payer = admin , space = 8 + 32 * 2 + 8 * 3 + 8 , seeds = [b\"vest\" , beneficiary . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Vesting >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "beneficiary",
+        "attribute": "# [doc = \" トークン受益者 (請求時に署名必須)\"]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ClaimVested",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "vesting",
+        "attribute": "# [account (mut , seeds = [b\"vest\" , vesting . beneficiary . as_ref ()] , bump , has_one = beneficiary)]",
+        "field_type": "Account < 'info , Vesting >"
+      },
+      {
+        "name": "vault",
+        "attribute": "# [account (mut)]",
+        "field_type": "SystemAccount < 'info >"
+      },
+      {
+        "name": "beneficiary",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Vesting",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "admin",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "beneficiary",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "start_ts",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "duration",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "total_amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "claimed",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

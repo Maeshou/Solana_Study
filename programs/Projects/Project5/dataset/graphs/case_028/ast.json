@@ -1,43 +1,179 @@
 [
   {
-    "name": "settle_auction",
+    "name": "init_orchard",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx028 >",
-      "amount: u64"
+      "ctx: Context < InitOrchard >",
+      "harmony: u32"
     ],
     "attributes": [],
     "body": [
-      "let cpi_accounts = Transfer { from : ctx . accounts . from_token . to_account_info () , to : ctx . accounts . to_token . to_account_info () , authority : ctx . accounts . authority . to_account_info () , } ;",
-      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
-      "token :: transfer (cpi_ctx , amount) ? ;",
+      "let a = & mut ctx . accounts ;",
+      "a . orchard . caretaker = a . caretaker . key () ;",
+      "a . orchard . harmony = harmony ;",
+      "a . orchard . cycle = Cycle :: Dawn ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx028",
+    "name": "chant",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Chant >",
+      "rounds: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let a = & mut ctx . accounts ;",
+      "let seq : Vec < u32 > = BLOOM_PATTERN . iter () . cycle () . take (rounds as usize) . copied () . collect () ;",
+      "for v in seq",
+      "{",
+      "a . totem . power = a . totem . power . saturating_add (v) ;",
+      "a . totem . runes = a . totem . runes . saturating_add (v / 2) ;",
+      "a . ledger . echo = a . ledger . echo . saturating_add ((v as u64) + 1) ;",
+      "}",
+      "if a . totem . power > a . orchard . harmony",
+      "{",
+      "a . orchard . cycle = Cycle :: Zenith ;",
+      "a . ledger . bless = a . ledger . bless . saturating_add (9) ;",
+      "a . totem . runes = a . totem . runes . saturating_add (4) ;",
+      "msg ! (\"zenith: bless+9 runes+4\") ;",
+      "} else",
+      "{",
+      "a . orchard . cycle = Cycle :: Dusk ;",
+      "a . ledger . echo = a . ledger . echo . saturating_add (5) ;",
+      "a . totem . power = a . totem . power . saturating_add (6) ;",
+      "msg ! (\"dusk: echo+5 power+6\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitOrchard",
     "node_type": "struct",
     "fields": [
       {
-        "name": "from_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "orchard",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Orchard >"
       },
       {
-        "name": "to_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "totem",
+        "attribute": "# [account (init , payer = payer , space = 8 + 4 + 1)]",
+        "field_type": "Account < 'info , Totem >"
       },
       {
-        "name": "authority",
+        "name": "ledger",
+        "attribute": "# [account (init , payer = payer , space = 8 + 8 + 8)]",
+        "field_type": "Account < 'info , ChantLedger >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "caretaker",
         "attribute": null,
         "field_type": "Signer < 'info >"
       },
       {
-        "name": "token_program",
+        "name": "system_program",
         "attribute": null,
-        "field_type": "Program < 'info , Token >"
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Chant",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "orchard",
+        "attribute": "# [account (mut , has_one = caretaker , constraint = orchard . key () != totem . key () , error = OrchardErr :: Dup)]",
+        "field_type": "Account < 'info , Orchard >"
+      },
+      {
+        "name": "totem",
+        "attribute": "# [account (mut , constraint = totem . key () != ledger . key () , error = OrchardErr :: Dup)]",
+        "field_type": "Account < 'info , Totem >"
+      },
+      {
+        "name": "ledger",
+        "attribute": "# [account (mut , constraint = orchard . key () != ledger . key () , error = OrchardErr :: Dup)]",
+        "field_type": "Account < 'info , ChantLedger >"
+      },
+      {
+        "name": "caretaker",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Orchard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "caretaker",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "harmony",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "cycle",
+        "attribute": null,
+        "field_type": "Cycle"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Totem",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "power",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "runes",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ChantLedger",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "echo",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "bless",
+        "attribute": null,
+        "field_type": "u64"
       }
     ],
     "inputs": null,

@@ -1,43 +1,205 @@
 [
   {
-    "name": "withdraw_farm",
+    "name": "init_hatchery",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Ctx055 >",
-      "amount: u64"
+      "ctx: Context < InitHatchery >",
+      "temp: u32"
     ],
     "attributes": [],
     "body": [
-      "let cpi_accounts = Transfer { from : ctx . accounts . from_token . to_account_info () , to : ctx . accounts . to_token . to_account_info () , authority : ctx . accounts . authority . to_account_info () , } ;",
-      "let cpi_ctx = CpiContext :: new (ctx . accounts . token_program . to_account_info () , cpi_accounts) ;",
-      "token :: transfer (cpi_ctx , amount) ? ;",
+      "let s = & mut ctx . accounts ;",
+      "s . hatchery . owner = s . owner . key () ;",
+      "s . hatchery . target_temp = temp ;",
+      "s . hatchery . mode = Warm ;",
+      "s . egg_a . hatchery = s . hatchery . key () ;",
+      "s . egg_b . hatchery = s . hatchery . key () ;",
+      "s . journal . hatchery = s . hatchery . key () ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Ctx055",
+    "name": "incubate",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Incubate >",
+      "days: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let s = & mut ctx . accounts ;",
+      "for d in 0 .. days",
+      "{",
+      "let inc = 5 + (d % 4) ;",
+      "s . egg_a . energy = s . egg_a . energy . saturating_add (inc * 3) ;",
+      "s . egg_b . energy = s . egg_b . energy . saturating_add (inc * 2 + 1) ;",
+      "s . journal . stamps = s . journal . stamps . wrapping_add (1) ;",
+      "}",
+      "let heat = (s . egg_a . energy + s . egg_b . energy) / 2 ;",
+      "if heat > s . hatchery . target_temp",
+      "{",
+      "s . hatchery . mode = Rest ;",
+      "s . journal . alerts = s . journal . alerts . wrapping_add (2) ;",
+      "s . egg_a . energy = s . egg_a . energy / 2 + 9 ;",
+      "s . egg_b . energy = s . egg_b . energy / 2 + 7 ;",
+      "msg ! (\"rest: alerts+2, energies damped\") ;",
+      "} else",
+      "{",
+      "s . hatchery . mode = Active ;",
+      "s . journal . notes = s . journal . notes . wrapping_add (3) ;",
+      "s . egg_a . energy = s . egg_a . energy + 13 ;",
+      "s . egg_b . energy = s . egg_b . energy + 11 ;",
+      "msg ! (\"active: notes+3, energy boosts\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitHatchery",
     "node_type": "struct",
     "fields": [
       {
-        "name": "from_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "hatchery",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4 + 1)]",
+        "field_type": "Account < 'info , Hatchery >"
       },
       {
-        "name": "to_token",
-        "attribute": "# [account (mut)]",
-        "field_type": "Account < 'info , TokenAccount >"
+        "name": "egg_a",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4)]",
+        "field_type": "Account < 'info , Egg >"
       },
       {
-        "name": "authority",
+        "name": "egg_b",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 4)]",
+        "field_type": "Account < 'info , Egg >"
+      },
+      {
+        "name": "journal",
+        "attribute": "# [account (init , payer = payer , space = 8 + 32 + 8 + 4)]",
+        "field_type": "Account < 'info , HatchLog >"
+      },
+      {
+        "name": "payer",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "owner",
         "attribute": null,
         "field_type": "Signer < 'info >"
       },
       {
-        "name": "token_program",
+        "name": "system_program",
         "attribute": null,
-        "field_type": "Program < 'info , Token >"
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Incubate",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "hatchery",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Hatchery >"
+      },
+      {
+        "name": "egg_a",
+        "attribute": "# [account (mut , has_one = hatchery , constraint = egg_a . key () != egg_b . key () @ HErr :: Dup)]",
+        "field_type": "Account < 'info , Egg >"
+      },
+      {
+        "name": "egg_b",
+        "attribute": "# [account (mut , has_one = hatchery)]",
+        "field_type": "Account < 'info , Egg >"
+      },
+      {
+        "name": "journal",
+        "attribute": "# [account (mut , has_one = hatchery , constraint = journal . key () != egg_a . key () @ HErr :: Dup)]",
+        "field_type": "Account < 'info , HatchLog >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Hatchery",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "target_temp",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "mode",
+        "attribute": null,
+        "field_type": "HatchMode"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Egg",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "hatchery",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "energy",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "HatchLog",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "hatchery",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "stamps",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "notes",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "alerts",
+        "attribute": null,
+        "field_type": "u32"
       }
     ],
     "inputs": null,

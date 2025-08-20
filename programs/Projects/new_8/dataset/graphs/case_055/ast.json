@@ -1,0 +1,145 @@
+[
+  {
+    "name": "init_bank",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitBank >",
+      "seed_val: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let bank = & mut ctx . accounts . bank ;",
+      "bank . owner = ctx . accounts . user . key () ;",
+      "bank . level = (seed_val % 30) + 3 ;",
+      "bank . points = 5 ;",
+      "bank . window = 1 ;",
+      "let bump = * ctx . bumps . get (\"bank\") . ok_or (error ! (E :: MissingBump)) ? ;",
+      "bank . saved_bump = bump ;",
+      "let mut spin = bank . level ;",
+      "let mut c = 0 ;",
+      "while c < 6",
+      "{",
+      "if spin % 4 != 1",
+      "{",
+      "bank . points = bank . points . saturating_add ((spin % 9) + 1) ;",
+      "} spin = spin . wrapping_mul (11) . wrapping_add (7) ;",
+      "c = c + 1 ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "award_bonus",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < AwardBonus >",
+      "bonus: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let bank = & mut ctx . accounts . bank ;",
+      "let s = & [b\"bonus_cell\" , bank . owner . as_ref () , & [bank . saved_bump]] ;",
+      "let expect = Pubkey :: create_program_address (& [b\"bonus_cell\" , bank . owner . as_ref () , & [bank . saved_bump]] , ctx . program_id) . map_err (| _ | error ! (E :: SeedCompute)) ? ;",
+      "if expect != ctx . accounts . bonus_cell . key ()",
+      "{",
+      "return Err (error ! (E :: KeyMismatch)) ;",
+      "}",
+      "let ix = Instruction { program_id : * ctx . program_id , accounts : vec ! [AccountMeta :: new (bank . key () , false)] , data : bonus . to_le_bytes () . to_vec () , } ;",
+      "invoke_signed (& ix , & [bank . to_account_info ()] , & [s]) ? ;",
+      "if bonus > 0",
+      "{",
+      "let mut t = (bonus % 23) as u32 + 5 ;",
+      "while t > 3",
+      "{",
+      "bank . window = bank . window . saturating_add (t % 7) ;",
+      "t = t . saturating_sub (3) ;",
+      "}",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitBank",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "bank",
+        "attribute": "# [account (init , payer = user , space = 8 + 32 + 4 + 4 + 4 + 1 , seeds = [b\"bank\" , user . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Bank >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "AwardBonus",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "bank",
+        "attribute": "# [account (mut , seeds = [b\"bank\" , user . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Bank >"
+      },
+      {
+        "name": "bonus_cell",
+        "attribute": "# [doc = \" CHECK: 手動導出に依存\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Bank",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "level",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "points",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "window",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "saved_bump",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

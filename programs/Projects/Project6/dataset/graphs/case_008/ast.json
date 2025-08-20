@@ -1,0 +1,277 @@
+[
+  {
+    "name": "init_recipe",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitRecipe >",
+      "tag: u16"
+    ],
+    "attributes": [],
+    "body": [
+      "let r = & mut ctx . accounts . recipe ;",
+      "r . owner = ctx . accounts . owner . key () ;",
+      "r . tag = tag ;",
+      "r . ratio = 50 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_queue",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitQueue >"
+    ],
+    "attributes": [],
+    "body": [
+      "let q = & mut ctx . accounts . queue ;",
+      "q . parent = ctx . accounts . recipe . key () ;",
+      "q . head = 0 ;",
+      "q . tail = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "init_warehouse2",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitWarehouse2 >"
+    ],
+    "attributes": [],
+    "body": [
+      "let w = & mut ctx . accounts . warehouse2 ;",
+      "w . owner = ctx . accounts . owner . key () ;",
+      "w . good = 0 ;",
+      "w . bad = 0 ;",
+      "w . hash = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "process_batch",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ProcessBatch >",
+      "cycles: u16"
+    ],
+    "attributes": [
+      "# [doc = \" 2つのレシピの tag が一致しないことを要求（Type Cosplay抑止）\"]"
+    ],
+    "body": [
+      "let ra = & mut ctx . accounts . recipe_a ;",
+      "let rb = & mut ctx . accounts . recipe_b ;",
+      "let qa = & mut ctx . accounts . queue_a ;",
+      "let qb = & mut ctx . accounts . queue_b ;",
+      "let w = & mut ctx . accounts . warehouse2 ;",
+      "let mut i = 0u16 ;",
+      "while i < cycles",
+      "{",
+      "qa . head = qa . head . wrapping_add (ra . ratio as u64 & 7) ;",
+      "qb . tail = qb . tail . wrapping_add (rb . ratio as u64 & 11) ;",
+      "let score = ((qa . head ^ qb . tail) as u32) & 0xFFFF ;",
+      "if (score & 1) == 0",
+      "{",
+      "w . good = w . good . saturating_add ((score / 3) as u64 + 1) ;",
+      "ra . ratio = (ra . ratio + 1) . min (100) ;",
+      "} else",
+      "{",
+      "w . bad = w . bad . saturating_add ((score / 2) as u64 + 1) ;",
+      "rb . ratio = rb . ratio . saturating_sub (1) . max (1) ;",
+      "} w . hash ^= ((ra . tag as u64) << 16) ^ ((rb . tag as u64) << 1) ^ (score as u64) ;",
+      "i += 1 ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitRecipe",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "recipe",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 2 + 1)]",
+        "field_type": "Account < 'info , Recipe >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitQueue",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "recipe",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Recipe >"
+      },
+      {
+        "name": "queue",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 8)]",
+        "field_type": "Account < 'info , Queue >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "InitWarehouse2",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "warehouse2",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , Warehouse2 >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ProcessBatch",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "recipe_a",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Recipe >"
+      },
+      {
+        "name": "recipe_b",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Recipe >"
+      },
+      {
+        "name": "queue_a",
+        "attribute": "# [account (mut , constraint = queue_a . parent == recipe_a . key () @ CraftErr :: Cosplay)]",
+        "field_type": "Account < 'info , Queue >"
+      },
+      {
+        "name": "queue_b",
+        "attribute": "# [account (mut , constraint = queue_b . parent == recipe_b . key () @ CraftErr :: Cosplay , constraint = recipe_a . tag != recipe_b . tag @ CraftErr :: Cosplay)]",
+        "field_type": "Account < 'info , Queue >"
+      },
+      {
+        "name": "warehouse2",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Warehouse2 >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Recipe",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "tag",
+        "attribute": null,
+        "field_type": "u16"
+      },
+      {
+        "name": "ratio",
+        "attribute": null,
+        "field_type": "u8"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Queue",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "parent",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "head",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "tail",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Warehouse2",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "good",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "bad",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "hash",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

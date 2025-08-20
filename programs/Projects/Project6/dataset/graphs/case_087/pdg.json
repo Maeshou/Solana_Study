@@ -1,0 +1,576 @@
+[
+  {
+    "name": "init_station",
+    "inputs": [
+      "ctx: Context < InitStation >",
+      "max_energy: u32"
+    ],
+    "nodes": [
+      {
+        "id": 0,
+        "label": "Entry"
+      },
+      {
+        "id": 1,
+        "label": "let st = & mut ctx . accounts . station ;"
+      },
+      {
+        "id": 2,
+        "label": "st . owner = ctx . accounts . admin . key () ;"
+      },
+      {
+        "id": 3,
+        "label": "st . max_energy = max_energy ;"
+      },
+      {
+        "id": 4,
+        "label": "st . energy = max_energy / 2 ;"
+      },
+      {
+        "id": 5,
+        "label": "st . calib = [0 ; 16] ;"
+      },
+      {
+        "id": 6,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 1,
+        "label": "def: st"
+      },
+      {
+        "from": 1,
+        "to": 2,
+        "label": "data_dep: st"
+      },
+      {
+        "from": 1,
+        "to": 3,
+        "label": "data_dep: st"
+      },
+      {
+        "from": 1,
+        "to": 4,
+        "label": "data_dep: st"
+      },
+      {
+        "from": 1,
+        "to": 5,
+        "label": "data_dep: st"
+      }
+    ]
+  },
+  {
+    "name": "init_tool",
+    "inputs": [
+      "ctx: Context < InitTool >",
+      "kind: ToolKind"
+    ],
+    "nodes": [
+      {
+        "id": 7,
+        "label": "Entry"
+      },
+      {
+        "id": 8,
+        "label": "let t = & mut ctx . accounts . tool ;"
+      },
+      {
+        "id": 9,
+        "label": "t . station = ctx . accounts . station . key () ;"
+      },
+      {
+        "id": 10,
+        "label": "t . kind = kind ;"
+      },
+      {
+        "id": 11,
+        "label": "t . durability = 1000 ;"
+      },
+      {
+        "id": 12,
+        "label": "t . usage_ring = [0 ; 12] ;"
+      },
+      {
+        "id": 13,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 8,
+        "to": 8,
+        "label": "def: t"
+      },
+      {
+        "from": 8,
+        "to": 9,
+        "label": "data_dep: t"
+      },
+      {
+        "from": 8,
+        "to": 10,
+        "label": "data_dep: t"
+      },
+      {
+        "from": 8,
+        "to": 11,
+        "label": "data_dep: t"
+      },
+      {
+        "from": 8,
+        "to": 12,
+        "label": "data_dep: t"
+      }
+    ]
+  },
+  {
+    "name": "process_cycle",
+    "inputs": [
+      "ctx: Context < ProcessCycle >",
+      "cycles: u16"
+    ],
+    "nodes": [
+      {
+        "id": 14,
+        "label": "Entry"
+      },
+      {
+        "id": 15,
+        "label": "let st = & mut ctx . accounts . station ;"
+      },
+      {
+        "id": 16,
+        "label": "let a = & mut ctx . accounts . actor_tool ;"
+      },
+      {
+        "id": 17,
+        "label": "let b = & mut ctx . accounts . counter_tool ;"
+      },
+      {
+        "id": 18,
+        "label": "let log = & mut ctx . accounts . meter ;"
+      },
+      {
+        "id": 19,
+        "label": "let mut x = (st . energy as u64) . max (1) ;"
+      },
+      {
+        "id": 20,
+        "label": "let n = x ;"
+      },
+      {
+        "id": 21,
+        "label": "for _ in 0 .. 6 { x = (x + n / x) >> 1 ; }"
+      },
+      {
+        "id": 22,
+        "label": "x = (x + n / x) >> 1 ;"
+      },
+      {
+        "id": 23,
+        "label": "let sqrt_e = (x as u32) . min (st . max_energy) ;"
+      },
+      {
+        "id": 24,
+        "label": "if a . kind == Hammer { a . durability = a . durability . saturating_sub ((cycles as u32) + (sqrt_e & 0xFF)) ; st . energy = st . energy . saturating_add ((cycles as u32) . min (50)) ; log . pulses = log . pulses . saturating_add ((sqrt_e / 3) as u64) ; log . flags = log . flags | 0b01 ; msg ! (\"Hammer path: durability down, energy up, meter flags set\") ; } else { b . durability = b . durability . saturating_sub ((cycles as u32) . saturating_mul (2)) ; st . energy = st . energy . saturating_sub ((cycles as u32) . min (st . energy)) ; log . pulses = log . pulses ^ ((sqrt_e as u64) . rotate_left (5)) ; log . flags = log . flags | 0b10 ; msg ! (\"Non-Hammer path: counter tool used and energy consumed\") ; }"
+      },
+      {
+        "id": 25,
+        "label": "a . durability = a . durability . saturating_sub ((cycles as u32) + (sqrt_e & 0xFF)) ;"
+      },
+      {
+        "id": 26,
+        "label": "st . energy = st . energy . saturating_add ((cycles as u32) . min (50)) ;"
+      },
+      {
+        "id": 27,
+        "label": "log . pulses = log . pulses . saturating_add ((sqrt_e / 3) as u64) ;"
+      },
+      {
+        "id": 28,
+        "label": "log . flags = log . flags | 0b01 ;"
+      },
+      {
+        "id": 29,
+        "label": "msg ! (\"Hammer path: durability down, energy up, meter flags set\") ;"
+      },
+      {
+        "id": 30,
+        "label": "b . durability = b . durability . saturating_sub ((cycles as u32) . saturating_mul (2)) ;"
+      },
+      {
+        "id": 31,
+        "label": "st . energy = st . energy . saturating_sub ((cycles as u32) . min (st . energy)) ;"
+      },
+      {
+        "id": 32,
+        "label": "log . pulses = log . pulses ^ ((sqrt_e as u64) . rotate_left (5)) ;"
+      },
+      {
+        "id": 33,
+        "label": "log . flags = log . flags | 0b10 ;"
+      },
+      {
+        "id": 34,
+        "label": "msg ! (\"Non-Hammer path: counter tool used and energy consumed\") ;"
+      },
+      {
+        "id": 35,
+        "label": "for i in 0 .. st . calib . len () { let inc = ((i as u32) ^ (cycles as u32)) . count_ones () as u32 ; st . calib [i] = st . calib [i] . saturating_add (inc & 0xF) ; }"
+      },
+      {
+        "id": 36,
+        "label": "let inc = ((i as u32) ^ (cycles as u32)) . count_ones () as u32 ;"
+      },
+      {
+        "id": 37,
+        "label": "st . calib [i] = st . calib [i] . saturating_add (inc & 0xF) ;"
+      },
+      {
+        "id": 38,
+        "label": "Ok (())"
+      }
+    ],
+    "edges": [
+      {
+        "from": 15,
+        "to": 15,
+        "label": "def: st"
+      },
+      {
+        "from": 16,
+        "to": 16,
+        "label": "def: a"
+      },
+      {
+        "from": 17,
+        "to": 17,
+        "label": "def: b"
+      },
+      {
+        "from": 18,
+        "to": 18,
+        "label": "def: log"
+      },
+      {
+        "from": 19,
+        "to": 19,
+        "label": "def: x"
+      },
+      {
+        "from": 15,
+        "to": 19,
+        "label": "data_dep: st"
+      },
+      {
+        "from": 20,
+        "to": 20,
+        "label": "def: n"
+      },
+      {
+        "from": 19,
+        "to": 20,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 19,
+        "to": 21,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 19,
+        "to": 21,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 20,
+        "to": 21,
+        "label": "data_dep: n"
+      },
+      {
+        "from": 19,
+        "to": 21,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 19,
+        "to": 22,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 19,
+        "to": 22,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 20,
+        "to": 22,
+        "label": "data_dep: n"
+      },
+      {
+        "from": 19,
+        "to": 22,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 23,
+        "to": 23,
+        "label": "def: sqrt_e"
+      },
+      {
+        "from": 19,
+        "to": 23,
+        "label": "data_dep: x"
+      },
+      {
+        "from": 15,
+        "to": 23,
+        "label": "data_dep: st"
+      },
+      {
+        "from": 16,
+        "to": 24,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 16,
+        "to": 24,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 16,
+        "to": 24,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "data_dep: sqrt_e"
+      },
+      {
+        "from": 15,
+        "to": 24,
+        "label": "data_dep: st"
+      },
+      {
+        "from": 15,
+        "to": 24,
+        "label": "data_dep: st"
+      },
+      {
+        "from": 18,
+        "to": 24,
+        "label": "data_dep: log"
+      },
+      {
+        "from": 18,
+        "to": 24,
+        "label": "data_dep: log"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "data_dep: sqrt_e"
+      },
+      {
+        "from": 18,
+        "to": 24,
+        "label": "data_dep: log"
+      },
+      {
+        "from": 18,
+        "to": 24,
+        "label": "data_dep: log"
+      },
+      {
+        "from": 17,
+        "to": 24,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 17,
+        "to": 24,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 15,
+        "to": 24,
+        "label": "data_dep: st"
+      },
+      {
+        "from": 15,
+        "to": 24,
+        "label": "data_dep: st"
+      },
+      {
+        "from": 15,
+        "to": 24,
+        "label": "data_dep: st"
+      },
+      {
+        "from": 18,
+        "to": 24,
+        "label": "data_dep: log"
+      },
+      {
+        "from": 18,
+        "to": 24,
+        "label": "data_dep: log"
+      },
+      {
+        "from": 23,
+        "to": 24,
+        "label": "data_dep: sqrt_e"
+      },
+      {
+        "from": 18,
+        "to": 24,
+        "label": "data_dep: log"
+      },
+      {
+        "from": 18,
+        "to": 24,
+        "label": "data_dep: log"
+      },
+      {
+        "from": 16,
+        "to": 25,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 16,
+        "to": 25,
+        "label": "data_dep: a"
+      },
+      {
+        "from": 23,
+        "to": 25,
+        "label": "data_dep: sqrt_e"
+      },
+      {
+        "from": 15,
+        "to": 26,
+        "label": "data_dep: st"
+      },
+      {
+        "from": 15,
+        "to": 26,
+        "label": "data_dep: st"
+      },
+      {
+        "from": 18,
+        "to": 27,
+        "label": "data_dep: log"
+      },
+      {
+        "from": 18,
+        "to": 27,
+        "label": "data_dep: log"
+      },
+      {
+        "from": 23,
+        "to": 27,
+        "label": "data_dep: sqrt_e"
+      },
+      {
+        "from": 18,
+        "to": 28,
+        "label": "data_dep: log"
+      },
+      {
+        "from": 18,
+        "to": 28,
+        "label": "data_dep: log"
+      },
+      {
+        "from": 17,
+        "to": 30,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 17,
+        "to": 30,
+        "label": "data_dep: b"
+      },
+      {
+        "from": 15,
+        "to": 31,
+        "label": "data_dep: st"
+      },
+      {
+        "from": 15,
+        "to": 31,
+        "label": "data_dep: st"
+      },
+      {
+        "from": 15,
+        "to": 31,
+        "label": "data_dep: st"
+      },
+      {
+        "from": 18,
+        "to": 32,
+        "label": "data_dep: log"
+      },
+      {
+        "from": 18,
+        "to": 32,
+        "label": "data_dep: log"
+      },
+      {
+        "from": 23,
+        "to": 32,
+        "label": "data_dep: sqrt_e"
+      },
+      {
+        "from": 18,
+        "to": 33,
+        "label": "data_dep: log"
+      },
+      {
+        "from": 18,
+        "to": 33,
+        "label": "data_dep: log"
+      },
+      {
+        "from": 15,
+        "to": 35,
+        "label": "data_dep: st"
+      },
+      {
+        "from": 15,
+        "to": 35,
+        "label": "data_dep: st"
+      },
+      {
+        "from": 15,
+        "to": 35,
+        "label": "data_dep: st"
+      },
+      {
+        "from": 36,
+        "to": 36,
+        "label": "def: inc"
+      },
+      {
+        "from": 15,
+        "to": 37,
+        "label": "data_dep: st"
+      },
+      {
+        "from": 15,
+        "to": 37,
+        "label": "data_dep: st"
+      },
+      {
+        "from": 36,
+        "to": 37,
+        "label": "data_dep: inc"
+      }
+    ]
+  }
+]

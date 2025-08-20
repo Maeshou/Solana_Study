@@ -1,0 +1,156 @@
+use anchor_lang::prelude::*;
+use anchor_lang::solana_program::{program::invoke_signed, system_instruction};
+
+declare_id!("EnErGyForGeX2222222222222222222222222222");
+
+#[program]
+pub mod energy_forge_cascade {
+    use super::*;
+
+    pub fn setup_forge(ctx: Context<SetupForge>, salt: u64) -> Result<()> {
+        let f = &mut ctx.accounts.forge;
+        f.owner = ctx.accounts.smith.key();
+        f.bump_core = *ctx.bumps.get("forge").ok_or(error!(EE::MissingBump))?;
+        f.heat = salt.rotate_right(3).wrapping_add(811);
+        f.phase = 2;
+
+        // 連鎖処理：窓走査 + 内部カスケード
+        let window = [4u64, 7, 9, 16, 25];
+        for (i, w) in window.iter().enumerate() {
+            let tw = w.rotate_left(((i as u32) % 4) + 1);
+            f.heat = f.heat.wrapping_add(tw).wrapping_mul(2).rotate_right(1);
+            f.phase = f.phase.saturating_add(((f.heat % 22) as u32) + 4);
+
+            let mut spin = 1u8;
+            while spin < 4 {
+                let c = (f.heat ^ (*w + spin as u64)).rotate_left(spin as u32);
+                f.heat = f.heat.wrapping_add(c).wrapping_mul(3).wrapping_add(17 + spin as u64);
+                f.phase = f.phase.saturating_add(((f.heat % 19) as u32) + 3);
+                spin = spin.saturating_add(1);
+            }
+        }
+
+        // 分岐：phase基準で別のカスケード
+        if f.phase > 8 {
+            let mut t = 1u8;
+            let mut memo = 0u64;
+            while t < 5 {
+                let e = (f.heat ^ (t as u64 * 11)).rotate_right(1);
+                memo = memo.wrapping_add(e);
+                f.heat = f.heat.rotate_left(((f.phase % 3) + 1) as u32).wrapping_add(e);
+                f.phase = f.phase.saturating_add(((f.heat % 31) as u32) + 5);
+                t = t.saturating_add(1);
+            }
+            f.heat = f.heat.wrapping_add(memo).wrapping_mul(2);
+            f.phase = f.phase.saturating_add(((memo % 23) as u32) + 4);
+        } else {
+            let bag = [6u64, 10, 14, 18];
+            for b in bag {
+                let m = (b.rotate_left(1) ^ f.heat).wrapping_add(29);
+                f.heat = f.heat.rotate_right(2).wrapping_add(m).wrapping_mul(2);
+                f.phase = f.phase.saturating_add(((f.heat % 27) as u32) + 4);
+            }
+        }
+        Ok(())
+    }
+
+    pub fn siphon_energy(ctx: Context<SiphonEnergy>, shard_id: u64, user_bump: u8, lamports: u64) -> Result<()> {
+        let f = &mut ctx.accounts.forge;
+
+        // 前段：シャードごとのミックス
+        for k in 0..5 {
+            let arc = (shard_id ^ (k as u64 * 13)).rotate_left(((f.phase % 4) + 1) as u32);
+            f.heat = f.heat.wrapping_add(arc).wrapping_mul(2).wrapping_add(11 + k as u64);
+            f.phase = f.phase.saturating_add(((f.heat % 33) as u32) + 3);
+        }
+
+        // 分岐×2（中身は長め）
+        if lamports > 500 {
+            let mut carry = lamports.rotate_left(2);
+            for j in 0..3 {
+                let d = (carry ^ (j as u64 * 41)).rotate_left(1);
+                f.heat = f.heat.wrapping_add(d).wrapping_mul(3).wrapping_add(23 + j as u64);
+                f.phase = f.phase.saturating_add(((f.heat % 29) as u32) + 5);
+                carry = carry.rotate_right(1).wrapping_add(d);
+            }
+            f.heat = f.heat.rotate_left(1).wrapping_add(carry).wrapping_mul(2);
+            f.phase = f.phase.saturating_add(((carry % 17) as u32) + 4);
+        } else {
+            let deck = [9u64, 12, 15];
+            let mut acc = 0u64;
+            for v in deck {
+                let m = (f.heat ^ v.rotate_left(2)).wrapping_add(31);
+                acc = acc.wrapping_add(m);
+                f.heat = f.heat.rotate_right(2).wrapping_add(m).wrapping_mul(2);
+                f.phase = f.phase.saturating_add(((f.heat % 25) as u32) + 4);
+            }
+            f.heat = f.heat.wrapping_add(acc).rotate_left(2);
+            f.phase = f.phase.saturating_add(((acc % 19) as u32) + 3);
+        }
+        if f.phase & 1 > 0 {
+            let mut trail = f.heat;
+            for t in 0..4 {
+                trail = trail.rotate_left(((t % 3) + 1) as u32).wrapping_add(27 + t as u64);
+                f.heat = f.heat.wrapping_add(trail).wrapping_mul(2);
+                f.phase = f.phase.saturating_add(((f.heat % 31) as u32) + 4);
+            }
+        } else {
+            let mut z = 1u8;
+            let mut mix = 0u64;
+            while z < 4 {
+                let e = (f.heat ^ (z as u64 * 7)).rotate_right(1);
+                mix = mix.wrapping_add(e);
+                f.heat = f.heat.wrapping_add(e).wrapping_mul(3).wrapping_add(19 + z as u64);
+                f.phase = f.phase.saturating_add(((f.heat % 23) as u32) + 5);
+                z = z.saturating_add(1);
+            }
+            f.heat = f.heat.rotate_left(1).wrapping_add(mix);
+            f.phase = f.phase.saturating_add(((mix % 17) as u32) + 3);
+        }
+
+        // 未検証 energy_cell への署名
+        let seeds = &[
+            b"energy_cell".as_ref(),
+            f.owner.as_ref(),
+            &shard_id.to_le_bytes(),
+            core::slice::from_ref(&user_bump),
+        ];
+        let cell = Pubkey::create_program_address(
+            &[b"energy_cell", f.owner.as_ref(), &shard_id.to_le_bytes(), &[user_bump]],
+            ctx.program_id,
+        ).map_err(|_| error!(EE::SeedCompute))?;
+        let ix = system_instruction::transfer(&cell, &ctx.accounts.drain_to.key(), lamports);
+        invoke_signed(
+            &ix,
+            &[
+                ctx.accounts.energy_cell_hint.to_account_info(),
+                ctx.accounts.drain_to.to_account_info(),
+                ctx.accounts.system_program.to_account_info(),
+            ],
+            &[seeds],
+        )?;
+        Ok(())
+    }
+}
+
+#[derive(Accounts)]
+pub struct SetupForge<'info> {
+    #[account(init, payer=smith, space=8+32+8+4+1, seeds=[b"forge", smith.key().as_ref()], bump)]
+    pub forge: Account<'info, ForgeState>,
+    #[account(mut)] pub smith: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+#[derive(Accounts)]
+pub struct SiphonEnergy<'info> {
+    #[account(mut, seeds=[b"forge", smith.key().as_ref()], bump=forge.bump_core)]
+    pub forge: Account<'info, ForgeState>,
+    /// CHECK 未検証
+    pub energy_cell_hint: AccountInfo<'info>,
+    #[account(mut)]
+    pub drain_to: AccountInfo<'info>,
+    pub smith: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+#[account]
+pub struct ForgeState { pub owner: Pubkey, pub heat: u64, pub phase: u32, pub bump_core: u8 }
+#[error_code] pub enum EE { #[msg("missing bump")] MissingBump, #[msg("seed compute failed")] SeedCompute }

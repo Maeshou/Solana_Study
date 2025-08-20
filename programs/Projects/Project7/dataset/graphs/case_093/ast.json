@@ -1,0 +1,161 @@
+[
+  {
+    "name": "initialize_raid_event",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeRaidEvent >",
+      "max_participants: u32",
+      "total_reward_amount: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let raid_event = & mut ctx . accounts . raid_event ;",
+      "raid_event . creator = ctx . accounts . creator . key () ;",
+      "raid_event . reward_mint = ctx . accounts . reward_mint . key () ;",
+      "raid_event . total_reward_amount = total_reward_amount ;",
+      "raid_event . max_participants = max_participants ;",
+      "raid_event . participants_count = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "distribute_rewards",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < DistributeRewards >",
+      "ranks: Vec < u32 >"
+    ],
+    "attributes": [],
+    "body": [
+      "let raid_event = & mut ctx . accounts . raid_event ;",
+      "let mut reward_per_participant = 0 ;",
+      "if raid_event . participants_count > 0",
+      "{",
+      "reward_per_participant = raid_event . total_reward_amount / raid_event . participants_count as u64 ;",
+      "}",
+      "let mut amount_to_transfer = 0 ;",
+      "let mut loop_count = 0 ;",
+      "let mut i = 0 ;",
+      "while i < ranks . len ()",
+      "{",
+      "loop_count += 1 ;",
+      "if loop_count > raid_event . max_participants",
+      "{",
+      "break ;",
+      "} if ranks [i] <= 10",
+      "{",
+      "amount_to_transfer = reward_per_participant + 100 ;",
+      "} else",
+      "{",
+      "amount_to_transfer = reward_per_participant ;",
+      "} if amount_to_transfer > 0",
+      "{",
+      "let cpi_accounts = Transfer { from : ctx . accounts . pool_account . to_account_info () , to : ctx . accounts . participant_token_account . to_account_info () , authority : ctx . accounts . creator . to_account_info () , } ;",
+      "let cpi_program = ctx . accounts . token_program . to_account_info () ;",
+      "let cpi_ctx = CpiContext :: new (cpi_program , cpi_accounts) ;",
+      "token :: transfer (cpi_ctx , amount_to_transfer) ? ;",
+      "} i += 1 ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializeRaidEvent",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "raid_event",
+        "attribute": "# [account (init , payer = creator , space = 8 + 32 + 32 + 8 + 4 + 4)]",
+        "field_type": "Account < 'info , RaidEvent >"
+      },
+      {
+        "name": "creator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "reward_mint",
+        "attribute": null,
+        "field_type": "Account < 'info , Mint >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DistributeRewards",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "raid_event",
+        "attribute": "# [account (mut , has_one = creator)]",
+        "field_type": "Account < 'info , RaidEvent >"
+      },
+      {
+        "name": "pool_account",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "participant_token_account",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "creator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RaidEvent",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "creator",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "reward_mint",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "total_reward_amount",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "max_participants",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "participants_count",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

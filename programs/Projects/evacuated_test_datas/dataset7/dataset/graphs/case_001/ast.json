@@ -1,0 +1,69 @@
+[
+  {
+    "name": "transfer_tokens_and_accumulate",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < TransferTokensAndAccumulate >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" 1) トークン送金を行うが、Account Matching を行わず任意のアカウントを読み書きしてしまう  \"]",
+      "# [doc = \" 2) 同じタイプの mutable アカウントを 2 つ受け取るが、PublicKey の重複チェックを行わずに処理してしまう  \"]"
+    ],
+    "body": [
+      "let mint_acc = & ctx . accounts . mint_account ;",
+      "let from_acc = & ctx . accounts . from_token_account ;",
+      "let to_acc = & ctx . accounts . to_token_account ;",
+      "let dup_acc1 = & ctx . accounts . dup_acc1 ;",
+      "let dup_acc2 = & ctx . accounts . dup_acc2 ;",
+      "{ let mut fee = amount / 100 ; if fee == 0 { fee = 1 ; } let net_amount = amount . checked_sub (fee) . ok_or (ProgramError :: InvalidArgument) ? ; msg ! (\"[STEP1] amount: {}, fee: {}, net_amount: {}\" , amount , fee , net_amount) ; * * from_acc . try_borrow_mut_lamports () ? -= amount ; * * to_acc . try_borrow_mut_lamports () ? += net_amount ; * * mint_acc . try_borrow_mut_lamports () ? += fee ; msg ! (\"[STEP1] トークン送金完了 (net: {} を to_acc に送付)\" , net_amount) ; }",
+      "{ let mut d1 = dup_acc1 . try_borrow_mut_data () ? ; let mut d2 = dup_acc2 . try_borrow_data () ? ; let v1 = d1 [0] ; let v2 = d2 [0] ; msg ! (\"[STEP2] dup_acc1.meta: {}, dup_acc2.meta: {}\" , v1 , v2) ; let sum = v1 . wrapping_add (v2) ; d1 [0] = sum ; msg ! (\"[STEP2] dup_acc1.meta を sum({}+{}) = {} に更新\" , v1 , v2 , sum) ; let new_val = sum . wrapping_mul (2) ; let mut d2_mut = dup_acc2 . try_borrow_mut_data () ? ; d2_mut [0] = new_val ; msg ! (\"[STEP2] dup_acc2.meta を {} に更新\" , new_val) ; }",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "TransferTokensAndAccumulate",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "mint_account",
+        "attribute": "# [doc = \" 本来は SPL‐Token mint の PDA シードや所有権をチェックするが省略\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "from_token_account",
+        "attribute": "# [doc = \" 本来はこのトークン mint の token_account であることを検証すべきだが省略\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "to_token_account",
+        "attribute": "# [doc = \" 同上\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "dup_acc1",
+        "attribute": "# [doc = \" 同じ型のカスタムアカウントを 2 つ受け取るが、重複チェックを行わずに更新してしまう\"] # [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "dup_acc2",
+        "attribute": "# [account (mut)]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "user",
+        "attribute": "# [doc = \" 実行者の署名アカウント\"]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

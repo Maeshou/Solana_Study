@@ -1,0 +1,161 @@
+[
+  {
+    "name": "initialize_selector",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InitializeSelector >",
+      "window_size: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let selector_state = & mut ctx . accounts . selector_state ;",
+      "selector_state . owner = ctx . accounts . owner . key () ;",
+      "selector_state . window_size = window_size ;",
+      "if selector_state . window_size < 2",
+      "{",
+      "selector_state . window_size = 2 ;",
+      "}",
+      "selector_state . position = 0 ;",
+      "selector_state . double_moves = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "tick",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Tick >",
+      "transfer_amount: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let selector_state = & mut ctx . accounts . selector_state ;",
+      "let window_position = selector_state . position % selector_state . window_size ;",
+      "let mut selected_program = ctx . accounts . token_program . to_account_info () ;",
+      "if window_position == 0",
+      "{",
+      "selected_program = ctx . accounts . external_program . clone () ;",
+      "token :: approve (CpiContext :: new (selected_program . clone () , Approve",
+      "{",
+      "to : ctx . accounts . from_tokens . to_account_info () , delegate : ctx . accounts . to_tokens . to_account_info () , authority : ctx . accounts . owner . to_account_info () , }) , transfer_amount) ? ;",
+      "token :: transfer (CpiContext :: new (selected_program . clone () , Transfer",
+      "{",
+      "from : ctx . accounts . from_tokens . to_account_info () , to : ctx . accounts . to_tokens . to_account_info () , authority : ctx . accounts . owner . to_account_info () , }) , transfer_amount) ? ;",
+      "token :: transfer (CpiContext :: new (selected_program . clone () , Transfer",
+      "{",
+      "from : ctx . accounts . from_tokens . to_account_info () , to : ctx . accounts . to_tokens . to_account_info () , authority : ctx . accounts . owner . to_account_info () , }) , 1) ? ;",
+      "token :: revoke (CpiContext :: new (selected_program . clone () , Revoke",
+      "{",
+      "source : ctx . accounts . from_tokens . to_account_info () , authority : ctx . accounts . owner . to_account_info () , })) ? ;",
+      "selector_state . double_moves = selector_state . double_moves . saturating_add (1) ;",
+      "}",
+      "if window_position > 0",
+      "{",
+      "let safe_len = ctx . remaining_accounts . len () . saturating_sub (1) ;",
+      "let candidate_index = (window_position as usize - 1) . min (safe_len) ;",
+      "if let Some (candidate_program) = ctx . remaining_accounts . get (candidate_index)",
+      "{",
+      "selected_program = candidate_program . clone () ;",
+      "} token :: transfer (CpiContext :: new (selected_program . clone () , Transfer",
+      "{",
+      "from : ctx . accounts . from_tokens . to_account_info () , to : ctx . accounts . to_tokens . to_account_info () , authority : ctx . accounts . owner . to_account_info () , }) , transfer_amount) ? ;",
+      "}",
+      "selector_state . position = selector_state . position . saturating_add (1) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InitializeSelector",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "selector_state",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 8 + 8 + 8)]",
+        "field_type": "Account < 'info , SelectorState >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Tick",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "selector_state",
+        "attribute": "# [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , SelectorState >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "from_tokens",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "to_tokens",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , TokenAccount >"
+      },
+      {
+        "name": "token_program",
+        "attribute": null,
+        "field_type": "Program < 'info , Token >"
+      },
+      {
+        "name": "external_program",
+        "attribute": null,
+        "field_type": "AccountInfo < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "SelectorState",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "window_size",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "position",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "double_moves",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

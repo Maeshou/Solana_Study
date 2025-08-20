@@ -1,33 +1,62 @@
 [
   {
-    "name": "initialize_challenge_campaign",
+    "name": "register_user",
     "node_type": "function",
     "fields": null,
     "inputs": [
-      "ctx: Context < Initialize028 >",
-      "param: u64"
+      "ctx: Context < RegisterUser >",
+      "email: String"
     ],
     "attributes": [],
     "body": [
-      "let mut data = ChallengeCampaignData :: try_from_slice (& ctx . accounts . data_account . data . borrow ()) ? ;",
-      "data . value = param ;",
-      "data . serialize (& mut * ctx . accounts . data_account . data . borrow_mut ()) ? ;",
+      "let now = Clock :: get () ? . unix_timestamp ;",
+      "let u = & mut ctx . accounts . user ;",
+      "u . email = email . clone () ;",
+      "u . plan = 0 ;",
+      "u . last_updated = now ;",
+      "u . valid_email = email . contains (\"@\") ;",
       "Ok (())"
     ]
   },
   {
-    "name": "Initialize028",
+    "name": "upgrade_plan",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < UpgradePlan >",
+      "tier: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let now = Clock :: get () ? . unix_timestamp ;",
+      "let u = & mut ctx . accounts . user ;",
+      "if tier > 0",
+      "{",
+      "u . plan = tier as u32 ;",
+      "u . upgrade_count += 1 ;",
+      "u . last_updated = now ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "RegisterUser",
     "node_type": "struct",
     "fields": [
       {
-        "name": "data_account",
-        "attribute": "# [account (mut)]",
-        "field_type": "AccountInfo < 'info >"
+        "name": "user",
+        "attribute": "# [account (init , payer = admin , space = 8 + 128 + 4 + 8 * 2 + 1)]",
+        "field_type": "Account < 'info , UserData >"
       },
       {
-        "name": "authority",
-        "attribute": null,
+        "name": "admin",
+        "attribute": "# [account (mut)]",
         "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
       }
     ],
     "inputs": null,
@@ -35,13 +64,57 @@
     "body": null
   },
   {
-    "name": "ChallengeCampaignData",
+    "name": "UpgradePlan",
     "node_type": "struct",
     "fields": [
       {
-        "name": "value",
+        "name": "user",
         "attribute": null,
-        "field_type": "u64"
+        "field_type": "Account < 'info , UserData >"
+      },
+      {
+        "name": "admin",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "UserData",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "email",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "plan",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "last_updated",
+        "attribute": null,
+        "field_type": "i64"
+      },
+      {
+        "name": "valid_email",
+        "attribute": null,
+        "field_type": "bool"
+      },
+      {
+        "name": "upgrade_count",
+        "attribute": null,
+        "field_type": "u8"
       }
     ],
     "inputs": null,

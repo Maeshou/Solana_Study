@@ -1,0 +1,193 @@
+[
+  {
+    "name": "inline_transfer",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < InlineTransfer >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" パターンA：インラインでラムポーツを直接更新（オーナー＆署名チェックあり）\"]"
+    ],
+    "body": [
+      "* * ctx . accounts . secured_vault . to_account_info () . try_borrow_mut_lamports () ? += amount ;",
+      "msg ! (\"inline_transfer 完了: {}\" , ** ctx . accounts . secured_vault . to_account_info () . lamports . borrow ()) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "helper_transfer",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < HelperTransfer >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" パターンB：helper 関数経由で更新（署名のみ検証、オーナーチェックなし）\"]"
+    ],
+    "body": [
+      "adjust (& ctx . accounts . blob_vault . to_account_info () , amount) ? ;",
+      "msg ! (\"helper_transfer 実行: {}\" , ** ctx . accounts . blob_vault . try_borrow_lamports () ?) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "closure_transfer",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ClosureTransfer >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" パターンC：クロージャで囲って更新（オーナーチェックあり、署名不要）\"]"
+    ],
+    "body": [
+      "(| | -> Result < () > { let info = ctx . accounts . owned_vault . to_account_info () ; let new_total = * * info . try_borrow_lamports () ? + amount ; * * info . try_borrow_mut_lamports () ? = new_total ; Ok (()) }) () ? ;",
+      "msg ! (\"closure_transfer 実行完了\") ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "destruct_transfer",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < DestructTransfer >",
+      "amount: u64"
+    ],
+    "attributes": [
+      "# [doc = \" パターンD：フィールドを分解して更新（全く検証なし）\"]"
+    ],
+    "body": [
+      "let DestructTransfer { free_vault , .. } = & ctx . accounts ;",
+      "* * free_vault . try_borrow_mut_lamports () ? += amount ;",
+      "msg ! (\"destruct_transfer: 検証なしで {} lamports に増加\" , ** free_vault . try_borrow_lamports () ?) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "adjust",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "account: & AccountInfo",
+      "delta: u64"
+    ],
+    "attributes": [
+      "# [doc = \" helper 関数：生アカウント情報でラムポーツを増やす\"]"
+    ],
+    "body": [
+      "let current = * * account . try_borrow_lamports () ? ;",
+      "* * account . try_borrow_mut_lamports () ? = current + delta ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "InlineTransfer",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "secured_vault",
+        "attribute": "# [doc = \" オーナーと署名を同時に検証\"] # [account (mut , has_one = owner_key)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "owner_key",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "HelperTransfer",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "blob_vault",
+        "attribute": "# [doc = \" AccountInfo のみ（owner チェックなし）\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "signer_only",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ClosureTransfer",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owned_vault",
+        "attribute": "# [doc = \" オーナーチェックのみ（has_one のみ）\"] # [account (mut , has_one = owner)]",
+        "field_type": "Account < 'info , Vault >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [doc = \" owner は署名不要なので AccountInfo\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "DestructTransfer",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "free_vault",
+        "attribute": "# [doc = \" 全く検証なしの生データ\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Vault",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner_key",
+        "attribute": "# [doc = \" 正当なオーナーの Pubkey\"]",
+        "field_type": "Pubkey"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

@@ -1,0 +1,230 @@
+[
+  {
+    "name": "create_project_board",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateProjectBoard >",
+      "project_id: u32",
+      "name: String"
+    ],
+    "attributes": [],
+    "body": [
+      "let board = & mut ctx . accounts . project_board ;",
+      "board . manager = ctx . accounts . manager . key () ;",
+      "board . project_id = project_id ;",
+      "board . name = name ;",
+      "board . ticket_count = 0 ;",
+      "board . last_update_slot = Clock :: get () ? . slot ;",
+      "board . board_status = BoardStatus :: Active ;",
+      "msg ! (\"Project board '{}' created. Status is Active.\" , board . name) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "create_task_ticket",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateTaskTicket >",
+      "ticket_id: u64",
+      "initial_priority: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let ticket = & mut ctx . accounts . task_ticket ;",
+      "let board = & mut ctx . accounts . project_board ;",
+      "if board . board_status != BoardStatus :: Active",
+      "{",
+      "return Err (error ! (TicketError :: BoardInactive)) ;",
+      "}",
+      "ticket . project_board = board . key () ;",
+      "ticket . ticket_id = ticket_id ;",
+      "ticket . assignee = ctx . accounts . assignee . key () ;",
+      "ticket . priority = initial_priority ;",
+      "ticket . ticket_status = TicketStatus :: Open ;",
+      "board . ticket_count = board . ticket_count . saturating_add (1) ;",
+      "msg ! (\"Task ticket {} created with priority {}.\" , ticket . ticket_id , ticket . priority) ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "modify_ticket_priority",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ModifyTicketPriority >",
+      "promote_value: u8",
+      "demote_value: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let ticket_to_promote = & mut ctx . accounts . ticket_to_promote ;",
+      "let ticket_to_demote = & mut ctx . accounts . ticket_to_demote ;",
+      "if ticket_to_promote . ticket_status == TicketStatus :: Closed || ticket_to_demote . ticket_status == TicketStatus :: Closed",
+      "{",
+      "return Err (error ! (TicketError :: TicketClosed)) ;",
+      "}",
+      "ticket_to_promote . priority = ticket_to_promote . priority . saturating_add (promote_value) . min (255) ;",
+      "msg ! (\"Ticket to promote priority increased to {}.\" , ticket_to_promote . priority) ;",
+      "ticket_to_demote . priority = ticket_to_demote . priority . saturating_sub (demote_value) . max (0) ;",
+      "msg ! (\"Ticket to demote priority decreased to {}.\" , ticket_to_demote . priority) ;",
+      "if ticket_to_promote . priority > ticket_to_demote . priority",
+      "{",
+      "ticket_to_promote . ticket_status = TicketStatus :: InProgress ;",
+      "msg ! (\"Ticket to promote is now in progress.\") ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CreateProjectBoard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "project_board",
+        "attribute": "# [account (init , payer = manager , space = 8 + 32 + 4 + 32 + 4 + 8 + 1)]",
+        "field_type": "Account < 'info , ProjectBoard >"
+      },
+      {
+        "name": "manager",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "CreateTaskTicket",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "project_board",
+        "attribute": "# [account (mut , has_one = project_board)]",
+        "field_type": "Account < 'info , ProjectBoard >"
+      },
+      {
+        "name": "task_ticket",
+        "attribute": "# [account (init , payer = assignee , space = 8 + 32 + 8 + 32 + 1 + 1)]",
+        "field_type": "Account < 'info , TaskTicket >"
+      },
+      {
+        "name": "assignee",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ModifyTicketPriority",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "project_board",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , ProjectBoard >"
+      },
+      {
+        "name": "ticket_to_promote",
+        "attribute": "# [account (mut , has_one = project_board)]",
+        "field_type": "Account < 'info , TaskTicket >"
+      },
+      {
+        "name": "ticket_to_demote",
+        "attribute": "# [account (mut , has_one = project_board)]",
+        "field_type": "Account < 'info , TaskTicket >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ProjectBoard",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "manager",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "project_id",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "name",
+        "attribute": null,
+        "field_type": "String"
+      },
+      {
+        "name": "ticket_count",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "last_update_slot",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "board_status",
+        "attribute": null,
+        "field_type": "BoardStatus"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "TaskTicket",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "project_board",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "ticket_id",
+        "attribute": null,
+        "field_type": "u64"
+      },
+      {
+        "name": "assignee",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "priority",
+        "attribute": null,
+        "field_type": "u8"
+      },
+      {
+        "name": "ticket_status",
+        "attribute": null,
+        "field_type": "TicketStatus"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

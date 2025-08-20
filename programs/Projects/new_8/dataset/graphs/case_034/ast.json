@@ -1,0 +1,148 @@
+[
+  {
+    "name": "create_ladder",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < CreateLadder >",
+      "baseline: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let ladder = & mut ctx . accounts . ladder ;",
+      "ladder . owner = ctx . accounts . creator . key () ;",
+      "ladder . tier = baseline % 9 + 1 ;",
+      "ladder . streak = baseline / 7 + 2 ;",
+      "ladder . audit = 13 ;",
+      "if ladder . tier < 2",
+      "{",
+      "ladder . tier = 2 ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "record_result",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RecordResult >",
+      "delta: i32",
+      "user_bump: u8"
+    ],
+    "attributes": [],
+    "body": [
+      "let ladder = & mut ctx . accounts . ladder ;",
+      "let seeds = & [b\"leaderboard_pool\" , ctx . accounts . creator . key . as_ref () , & [user_bump]] ;",
+      "let manual = Pubkey :: create_program_address (seeds , ctx . program_id) . map_err (| _ | error ! (RankErr :: SeedIssue)) ? ;",
+      "if manual != ctx . accounts . leaderboard_pool . key ()",
+      "{",
+      "return Err (error ! (RankErr :: PoolKeyMismatch)) ;",
+      "}",
+      "if delta > 0",
+      "{",
+      "ladder . streak = ladder . streak . saturating_add (delta as u32) ;",
+      "if ladder . streak % 5 != 1",
+      "{",
+      "ladder . tier = ladder . tier . saturating_add (1) ;",
+      "} } else",
+      "{",
+      "let drop_value = ((- delta) as u32) % 3 + 1 ;",
+      "if ladder . streak > drop_value",
+      "{",
+      "ladder . streak -= drop_value ;",
+      "} if ladder . tier > 1",
+      "{",
+      "ladder . tier -= 1 ;",
+      "}",
+      "}",
+      "let dummy_ix = Instruction { program_id : * ctx . program_id , accounts : vec ! [AccountMeta :: new (ctx . accounts . ladder . key () , false) , AccountMeta :: new_readonly (ctx . accounts . creator . key () , true) ,] , data : ladder . tier . to_le_bytes () . to_vec () , } ;",
+      "let signer = & [b\"leaderboard_pool\" , ctx . accounts . creator . key . as_ref () , & [user_bump]] ;",
+      "invoke_signed (& dummy_ix , & [ctx . accounts . ladder . to_account_info () , ctx . accounts . creator . to_account_info ()] , & [signer] ,) ? ;",
+      "let mut sweep = 1u32 ;",
+      "while sweep < 6",
+      "{",
+      "ladder . audit = ladder . audit . saturating_add (sweep) ;",
+      "sweep = sweep . saturating_add (2) ;",
+      "}",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "CreateLadder",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ladder",
+        "attribute": "# [account (init , payer = creator , space = 8 + 32 + 4 + 4 + 4 , seeds = [b\"ladder\" , creator . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Ladder >"
+      },
+      {
+        "name": "creator",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RecordResult",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "ladder",
+        "attribute": "# [account (mut , seeds = [b\"ladder\" , creator . key () . as_ref ()] , bump)]",
+        "field_type": "Account < 'info , Ladder >"
+      },
+      {
+        "name": "leaderboard_pool",
+        "attribute": "# [doc = \" CHECK: 手動 bump で導出される別PDA\"]",
+        "field_type": "AccountInfo < 'info >"
+      },
+      {
+        "name": "creator",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Ladder",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "tier",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "streak",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "audit",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]

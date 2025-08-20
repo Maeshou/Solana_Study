@@ -1,0 +1,177 @@
+[
+  {
+    "name": "Prescription",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "doctor",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "patient",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "fills",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "FillRecord",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "pharmacist",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "prescription",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "times_filled",
+        "attribute": null,
+        "field_type": "u64"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "IssuePrescription",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "prescription",
+        "attribute": "# [account (init , payer = doctor , space = 8 + 32 + 32 + 8)]",
+        "field_type": "Account < 'info , Prescription >"
+      },
+      {
+        "name": "doctor",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "FillMedication",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "prescription",
+        "attribute": "# [doc = \" Prescription.doctor == doctor.key() は検証される\"] # [account (mut , has_one = doctor)]",
+        "field_type": "Account < 'info , Prescription >"
+      },
+      {
+        "name": "fill_record",
+        "attribute": "# [doc = \" FillRecord.prescription ⇔ prescription.key() の検証がないため、\"] # [doc = \" 任意の FillRecord を渡すと通ってしまう\"] # [account (mut)]",
+        "field_type": "Account < 'info , FillRecord >"
+      },
+      {
+        "name": "doctor",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "ConfirmFill",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "fill_record",
+        "attribute": "# [doc = \" FillRecord.pharmacist == pharmacist.key() は検証される\"] # [account (mut , has_one = pharmacist)]",
+        "field_type": "Account < 'info , FillRecord >"
+      },
+      {
+        "name": "prescription",
+        "attribute": "# [doc = \" Prescription.key() と fill_record.prescription の一致チェックがない\"] # [account (mut)]",
+        "field_type": "Account < 'info , Prescription >"
+      },
+      {
+        "name": "pharmacist",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "issue_prescription",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < IssuePrescription >",
+      "patient: Pubkey"
+    ],
+    "attributes": [
+      "# [doc = \" 新しい処方箋を発行\"]"
+    ],
+    "body": [
+      "let p = & mut ctx . accounts . prescription ;",
+      "p . doctor = ctx . accounts . doctor . key () ;",
+      "p . patient = patient ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "fill_medication",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < FillMedication >"
+    ],
+    "attributes": [
+      "# [doc = \" 調剤記録を更新\"]"
+    ],
+    "body": [
+      "let p = & mut ctx . accounts . prescription ;",
+      "let fr = & mut ctx . accounts . fill_record ;",
+      "fr . pharmacist = ctx . accounts . doctor . key () ;",
+      "fr . prescription = p . key () ;",
+      "fr . times_filled = fr . times_filled . checked_add (1) . unwrap_or_default () ;",
+      "p . fills = p . fills . checked_add (1) . unwrap_or_default () ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "confirm_fill",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < ConfirmFill >"
+    ],
+    "attributes": [
+      "# [doc = \" 調剤確定（薬剤師のみ実行可能）\"]"
+    ],
+    "body": [
+      "let p = & mut ctx . accounts . prescription ;",
+      "let fr = & mut ctx . accounts . fill_record ;",
+      "p . fills = p . fills . checked_sub (1) . unwrap_or_default () ;",
+      "Ok (())"
+    ]
+  }
+]

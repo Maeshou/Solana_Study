@@ -1,0 +1,165 @@
+[
+  {
+    "name": "boot",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < Boot >",
+      "max: u32"
+    ],
+    "attributes": [],
+    "body": [
+      "let f = & mut ctx . accounts . forge ;",
+      "f . owner = ctx . accounts . owner . key () ;",
+      "f . max = max ;",
+      "f . cur = max / 2 ;",
+      "f . logs = 0 ;",
+      "f . spare = 0 ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "recharge_and_tip",
+    "node_type": "function",
+    "fields": null,
+    "inputs": [
+      "ctx: Context < RechargeAndTip >",
+      "delta: u32",
+      "seed: u64"
+    ],
+    "attributes": [],
+    "body": [
+      "let f = & mut ctx . accounts . forge ;",
+      "require ! (f . owner == ctx . accounts . owner . key () , Errs :: Owner) ;",
+      "if f . cur + delta < f . max",
+      "{",
+      "let mut t = 0u32 ;",
+      "while t < delta",
+      "{",
+      "f . cur = f . cur . saturating_add (1) ;",
+      "f . logs = f . logs . saturating_add (1) ;",
+      "t = t . saturating_add (1) ;",
+      "} if seed % 2 == 0",
+      "{",
+      "f . spare = f . spare . saturating_add ((seed % 7) as u32) ;",
+      "} } else",
+      "{",
+      "let mut r = 0 ;",
+      "while r < 3",
+      "{",
+      "if f . cur > 0 { f . cur = f . cur . saturating_sub (1) ;",
+      "} r = r . saturating_add (1) ;",
+      "} if f . logs > 0",
+      "{",
+      "f . logs = f . logs . saturating_sub (1) ;",
+      "}",
+      "}",
+      "let mut tip = (f . cur as u64) . saturating_mul (2) ;",
+      "if seed % 3 == 1",
+      "{",
+      "let mut extra = 0u64 ;",
+      "let mut w = 0 ;",
+      "while w < 5",
+      "{",
+      "extra = extra . saturating_add ((w + 1) as u64) ;",
+      "w = w . saturating_add (1) ;",
+      "} tip = tip . saturating_add (extra) ;",
+      "}",
+      "let ix = spl_token :: instruction :: transfer (ctx . accounts . token_program . key () , ctx . accounts . reserve . key () , ctx . accounts . operator_ata . key () , ctx . accounts . owner . key () , & [] , tip ,) ? ;",
+      "invoke (& ix , & [ctx . accounts . reserve . to_account_info () , ctx . accounts . operator_ata . to_account_info () , ctx . accounts . owner . to_account_info () ,]) ? ;",
+      "Ok (())"
+    ]
+  },
+  {
+    "name": "Forge",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Pubkey"
+      },
+      {
+        "name": "max",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "cur",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "logs",
+        "attribute": null,
+        "field_type": "u32"
+      },
+      {
+        "name": "spare",
+        "attribute": null,
+        "field_type": "u32"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "Boot",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "forge",
+        "attribute": "# [account (init , payer = owner , space = 8 + 32 + 4 + 4 + 4 + 4)]",
+        "field_type": "Account < 'info , Forge >"
+      },
+      {
+        "name": "owner",
+        "attribute": "# [account (mut)]",
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "system_program",
+        "attribute": null,
+        "field_type": "Program < 'info , System >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  },
+  {
+    "name": "RechargeAndTip",
+    "node_type": "struct",
+    "fields": [
+      {
+        "name": "forge",
+        "attribute": "# [account (mut)]",
+        "field_type": "Account < 'info , Forge >"
+      },
+      {
+        "name": "owner",
+        "attribute": null,
+        "field_type": "Signer < 'info >"
+      },
+      {
+        "name": "reserve",
+        "attribute": "# [doc = \" CHECK:\"] # [account (mut)]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "operator_ata",
+        "attribute": "# [doc = \" CHECK:\"] # [account (mut)]",
+        "field_type": "UncheckedAccount < 'info >"
+      },
+      {
+        "name": "token_program",
+        "attribute": "# [doc = \" CHECK:\"]",
+        "field_type": "UncheckedAccount < 'info >"
+      }
+    ],
+    "inputs": null,
+    "attributes": null,
+    "body": null
+  }
+]
